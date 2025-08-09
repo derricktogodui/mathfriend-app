@@ -1,520 +1,759 @@
 import streamlit as st
-import random
+from streamlit_autorefresh import st_autorefresh
+import time
 import datetime
 import json
 import os
-import time
+import pyperclip  # for clipboard sharing
 
-# --- APP CONFIG ---
-st.set_page_config(page_title="MathFriend", page_icon="📚", layout="centered")
+# --- Constants ---
+QUESTION_TIME_LIMIT = 30  # seconds per question
+MAX_HINTS_PER_QUIZ = 2
+USER_PERSIST_FILE = "current_user.txt"
+CHAT_FILE = "chat_messages.json"
 
-DATA_FILE = "users.json"
+# --- Helpers ---
 
-# --- SAMPLE QUESTIONS ---
-QUESTIONS = {
-    "Algebra": [
-        {
-            "question": "What is 2 + 3?",
-            "options": ["4", "5", "6", "7"],
-            "answer": "5",
-            "tip": "Think about how many you get when you add two fingers and three fingers.",
-            "explanation": "2 + 3 = 5 because adding two and three gives a total of five."
-        },
-        {
-            "question": "Solve for x: 2x = 10",
-            "options": ["4", "5", "6", "8"],
-            "answer": "5",
-            "tip": "Divide both sides by 2.",
-            "explanation": "2x = 10 → x = 10/2 → x = 5."
-        },
-        {
-            "question": "What is (x + 3)(x - 2)?",
-            "options": ["x² + x - 6", "x² + x + 6", "x² - 5x + 6", "x² - x - 6"],
-            "answer": "x² + x - 6",
-            "tip": "Use FOIL method: First, Outer, Inner, Last.",
-            "explanation": "(x + 3)(x - 2) = x² - 2x + 3x - 6 = x² + x - 6"
-        },
-    ],
-    "Geometry": [
-        {
-            "question": "What is the sum of angles in a triangle?",
-            "options": ["90°", "180°", "270°", "360°"],
-            "answer": "180°",
-            "tip": "Think about the angles in any flat triangle.",
-            "explanation": "In Euclidean geometry, the sum of the angles in a triangle is always 180°."
-        },
-        {
-            "question": "How many sides does a pentagon have?",
-            "options": ["4", "5", "6", "7"],
-            "answer": "5",
-            "tip": "Pent means five.",
-            "explanation": "A pentagon has 5 sides."
-        },
-    ],
-    "Calculus": [
-        {
-            "question": "What is the derivative of x²?",
-            "options": ["2x", "x", "x²", "1"],
-            "answer": "2x",
-            "tip": "Use power rule: d/dx of xⁿ is n*xⁿ⁻¹.",
-            "explanation": "Derivative of x² is 2x."
-        },
-        {
-            "question": "What is the integral of 2x dx?",
-            "options": ["x² + C", "2x + C", "x + C", "x³ + C"],
-            "answer": "x² + C",
-            "tip": "Integral of 2x is x² plus constant.",
-            "explanation": "∫2x dx = x² + C."
-        },
-    ],
-}
+def animated_header():
+    st.markdown("""
+    <style>
+    @keyframes slideFadeIn {
+        0% {opacity: 0; transform: translateY(20px);}
+        100% {opacity: 1; transform: translateY(0);}
+    }
+    .animated-header {
+        font-size: 48px;
+        font-weight: 900;
+        color: #2E86C1;
+        text-align: center;
+        animation: slideFadeIn 1s ease forwards;
+        margin-bottom: 20px;
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        user-select:none;
+    }
+    /* Confetti container */
+    .confetti {
+        position: fixed;
+        width: 100%;
+        height: 100%;
+        pointer-events: none;
+        top: 0; left: 0;
+        z-index: 9999;
+        overflow: visible;
+    }
+    .confetti-piece {
+        position: absolute;
+        width: 10px;
+        height: 10px;
+        background-color: #f44336;
+        opacity: 0.8;
+        animation-name: confetti-fall;
+        animation-timing-function: linear;
+        animation-iteration-count: 1;
+    }
+    @keyframes confetti-fall {
+        0% {transform: translateY(0) rotate(0deg);}
+        100% {transform: translateY(600px) rotate(360deg);}
+    }
+    /* Footer styling */
+    footer {
+        text-align: center;
+        padding: 10px;
+        font-size: 14px;
+        color: #666;
+        margin-top: 40px;
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    }
+    /* Dark mode styles */
+    .dark-mode {
+        background-color: #121212 !important;
+        color: #e0e0e0 !important;
+    }
+    .dark-mode .stButton>button {
+        background-color: #2196f3 !important;
+        color: white !important;
+    }
+    /* Chat styling */
+    .chat-container {
+        max-height: 300px;
+        overflow-y: auto;
+        border: 1px solid #ddd;
+        border-radius: 8px;
+        padding: 10px;
+        background: #f9f9f9;
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    }
+    .dark-mode .chat-container {
+        background: #1e1e1e;
+        border-color: #444;
+    }
+    .chat-message {
+        margin-bottom: 8px;
+        padding: 6px 10px;
+        border-radius: 12px;
+        max-width: 75%;
+        word-wrap: break-word;
+        font-size: 14px;
+    }
+    .chat-message.user {
+        background-color: #D6EAF8;
+        align-self: flex-start;
+    }
+    .dark-mode .chat-message.user {
+        background-color: #2a62b8;
+        color: white;
+    }
+    .chat-message.own {
+        background-color: #A9DFBF;
+        align-self: flex-end;
+    }
+    .dark-mode .chat-message.own {
+        background-color: #196F3D;
+        color: white;
+    }
+    .chat-timestamp {
+        font-size: 10px;
+        color: #888;
+        margin-top: 2px;
+    }
+    .dark-mode .chat-timestamp {
+        color: #bbb;
+    }
+    .chat-box {
+        display: flex;
+        gap: 8px;
+        margin-top: 10px;
+    }
+    .chat-input {
+        flex-grow: 1;
+    }
+    /* Responsive columns for buttons */
+    @media (max-width: 600px) {
+        .button-row {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+    }
+    @media (min-width: 601px) {
+        .button-row {
+            display: flex;
+            flex-direction: row;
+            gap: 10px;
+        }
+    }
+    </style>
 
-# --- THEORY CONTENT ---
-THEORY = {
-    "Algebra": [
-        "Algebra is the branch of mathematics dealing with symbols and the rules for manipulating those symbols.",
-        "An equation is a statement that two expressions are equal.",
-        "You can solve equations by isolating the variable on one side.",
-    ],
-    "Geometry": [
-        "Geometry is concerned with properties and relations of points, lines, surfaces, and solids.",
-        "The sum of interior angles of a triangle is always 180 degrees.",
-        "Polygons are shapes with many sides, like pentagons, hexagons, etc.",
-    ],
-    "Calculus": [
-        "Calculus studies change and motion through derivatives and integrals.",
-        "The derivative represents the rate of change of a function.",
-        "The integral is the area under the curve of a function.",
-    ],
-}
+    <div class="animated-header">MathFriend</div>
 
-# --- SESSION STATE SETUP ---
+    <script>
+    function createConfettiPiece(color, x) {
+        const confetti = document.createElement('div');
+        confetti.classList.add('confetti-piece');
+        confetti.style.backgroundColor = color;
+        confetti.style.left = x + 'px';
+        confetti.style.top = '-10px';
+        confetti.style.animationDuration = (Math.random() * 2 + 2) + 's';
+        confetti.style.animationDelay = (Math.random() * 0.5) + 's';
+        return confetti;
+    }
+    function launchConfetti() {
+        const colors = ['#f44336','#e91e63','#ffeb3b','#4caf50','#2196f3','#ff9800','#9c27b0'];
+        const container = document.createElement('div');
+        container.className = 'confetti';
+        document.body.appendChild(container);
+        for(let i=0; i<100; i++) {
+            const x = Math.random() * window.innerWidth;
+            const color = colors[Math.floor(Math.random() * colors.length)];
+            const confetti = createConfettiPiece(color, x);
+            container.appendChild(confetti);
+            confetti.addEventListener('animationend', () => {
+                confetti.remove();
+                if(container.childElementCount === 0) container.remove();
+            });
+        }
+    }
+    window.launchConfetti = launchConfetti;
+
+    // Play sound by id
+    function playSound(id) {
+        var sound = document.getElementById(id);
+        if(sound) {
+            sound.play();
+        }
+    }
+    window.playSound = playSound;
+    </script>
+
+    <audio id="correct-sound" src="https://actions.google.com/sounds/v1/cartoon/clang_and_wobble.ogg"></audio>
+    """, unsafe_allow_html=True)
+
+def show_confetti_and_sound():
+    st.markdown("<script>launchConfetti(); playSound('correct-sound');</script>", unsafe_allow_html=True)
+
+def footer():
+    st.markdown("""
+    <footer>
+    MathFriend — created with ❤️ by <b>Derrick Togodui</b><br>
+    Keep practicing and have fun learning math!
+    </footer>
+    """, unsafe_allow_html=True)
+
+def load_user_data():
+    if os.path.exists("users.json"):
+        with open("users.json", "r") as f:
+            return json.load(f)
+    return {}
+
+def save_user_data():
+    with open("users.json", "w") as f:
+        json.dump(st.session_state.users, f, indent=4)
+
+def save_current_user(user_key):
+    with open(USER_PERSIST_FILE, "w") as f:
+        f.write(user_key)
+
+def load_current_user():
+    if os.path.exists(USER_PERSIST_FILE):
+        with open(USER_PERSIST_FILE, "r") as f:
+            return f.read().strip()
+    return None
+
+def load_chat_messages():
+    if os.path.exists(CHAT_FILE):
+        with open(CHAT_FILE, "r", encoding="utf-8") as f:
+            return json.load(f)
+    return []
+
+def save_chat_messages(messages):
+    with open(CHAT_FILE, "w", encoding="utf-8") as f:
+        json.dump(messages, f, indent=4)
+
+def go_to(step):
+    st.session_state.step = step
+
+def reset_quiz_state():
+    st.session_state.question_index = 0
+    st.session_state.score = 0
+    st.session_state.last_answered = False
+    st.session_state.timer_start = None
+    st.session_state.hints_used = 0
+    st.session_state.selected_answer = None
+
+# --- Initialize Session State ---
+
+if "users" not in st.session_state:
+    st.session_state.users = load_user_data()
+
+if "logged_in" not in st.session_state:
+    st.session_state.logged_in = False
+if "user" not in st.session_state:
+    saved_user = load_current_user()
+    if saved_user and saved_user in st.session_state.users:
+        st.session_state.user = saved_user
+        st.session_state.logged_in = True
+        st.session_state.step = "menu"
+    else:
+        st.session_state.user = None
+        st.session_state.step = "login"
+
 if "step" not in st.session_state:
-    st.session_state.step = "splash"
-if "user_name" not in st.session_state:
-    st.session_state.user_name = ""
-if "school" not in st.session_state:
-    st.session_state.school = "Kajaji SHS"
+    st.session_state.step = "login"
 if "topic" not in st.session_state:
-    st.session_state.topic = ""
+    st.session_state.topic = None
 if "mode" not in st.session_state:
-    st.session_state.mode = ""
-if "questions" not in st.session_state:
-    st.session_state.questions = []
+    st.session_state.mode = None
 if "question_index" not in st.session_state:
     st.session_state.question_index = 0
 if "score" not in st.session_state:
     st.session_state.score = 0
-if "streak" not in st.session_state:
-    st.session_state.streak = 0
-if "last_practice_date" not in st.session_state:
-    st.session_state.last_practice_date = None
-if "theory_index" not in st.session_state:
-    st.session_state.theory_index = 0
-if "users_data" not in st.session_state:
-    st.session_state.users_data = {}
-if "hints_used" not in st.session_state:
-    st.session_state.hints_used = 0
+if "last_answered" not in st.session_state:
+    st.session_state.last_answered = False
 if "timer_start" not in st.session_state:
     st.session_state.timer_start = None
-if "time_out" not in st.session_state:
-    st.session_state.time_out = False
-if "last_answered" not in st.session_state:
-    st.session_state.last_answered = True
 if "history" not in st.session_state:
     st.session_state.history = []
+if "leaderboard" not in st.session_state:
+    st.session_state.leaderboard = []
+if "show_notification" not in st.session_state:
+    st.session_state.show_notification = True
+if "dark_mode" not in st.session_state:
+    st.session_state.dark_mode = False
+if "hints_used" not in st.session_state:
+    st.session_state.hints_used = 0
+if "selected_answer" not in st.session_state:
+    st.session_state.selected_answer = None
+if "chat_messages" not in st.session_state:
+    st.session_state.chat_messages = load_chat_messages()
 
-# --- DATA PERSISTENCE FUNCTIONS ---
-def load_users_data():
-    if os.path.exists(DATA_FILE):
-        with open(DATA_FILE, "r") as f:
-            return json.load(f)
-    return {}
+# --- Sample minimal questions ---
+sample_questions = {
+    "Algebra": [
+        {
+            "question": "What is 2 + 2?",
+            "options": ["3", "4", "5", "6"],
+            "answer": "4",
+            "tips": "Think simple addition.",
+            "explanation": "2 plus 2 equals 4."
+        },
+        {
+            "question": "Solve for x: 2x = 6",
+            "options": ["2", "3", "4", "6"],
+            "answer": "3",
+            "tips": "Divide both sides by 2.",
+            "explanation": "2x=6 means x=6/2=3."
+        }
+    ],
+    "Geometry": [
+        {
+            "question": "How many sides in a triangle?",
+            "options": ["3", "4", "5", "6"],
+            "answer": "3",
+            "tips": "Count the edges.",
+            "explanation": "A triangle has 3 sides."
+        }
+    ]
+}
 
-def save_users_data():
-    with open(DATA_FILE, "w") as f:
-        json.dump(st.session_state.users_data, f, indent=4)
+# --- Avatar options ---
+avatar_emojis = ["😀", "😎", "🤓", "🧐", "👩‍🎓", "👨‍🎓", "🧙‍♂️", "🦸‍♀️", "🦸‍♂️", "🐱", "🐶", "🦄", "🐸"]
 
-def get_user_key(name, school):
-    return f"{name.lower()}_{school.lower().replace(' ', '_')}"
+# --- Screens ---
 
-def load_user_data():
-    key = get_user_key(st.session_state.user_name, st.session_state.school)
-    data = st.session_state.users_data.get(key)
-    if data:
-        st.session_state.streak = data.get("streak", 0)
-        last_date_str = data.get("last_practice_date")
-        if last_date_str:
-            st.session_state.last_practice_date = datetime.datetime.strptime(last_date_str, "%Y-%m-%d").date()
-        else:
-            st.session_state.last_practice_date = None
-        st.session_state.score = data.get("total_score", 0)
-        st.session_state.history = data.get("history", [])
-    else:
-        st.session_state.streak = 0
-        st.session_state.last_practice_date = None
-        st.session_state.score = 0
-        st.session_state.history = []
-
-def save_user_data():
-    key = get_user_key(st.session_state.user_name, st.session_state.school)
-    st.session_state.users_data[key] = {
-        "name": st.session_state.user_name,
-        "school": st.session_state.school,
-        "streak": st.session_state.streak,
-        "last_practice_date": st.session_state.last_practice_date.strftime("%Y-%m-%d") if st.session_state.last_practice_date else None,
-        "total_score": st.session_state.score,
-        "history": st.session_state.history,
-    }
-    save_users_data()
-
-# --- NAVIGATION FUNCTION ---
-def go_to(step):
-    st.session_state.step = step
-
-def shuffle_options(options):
-    shuffled = options[:]
-    random.shuffle(shuffled)
-    return shuffled
-
-# --- STREAK & BADGE ---
-def update_streak():
-    today = datetime.date.today()
-    last_date = st.session_state.last_practice_date
-    if last_date is None:
-        st.session_state.streak = 1
-    else:
-        delta = (today - last_date).days
-        if delta == 1:
-            st.session_state.streak += 1
-        elif delta > 1:
-            st.session_state.streak = 1
-    st.session_state.last_practice_date = today
-
-def get_streak_badge(streak):
-    if streak >= 30:
-        return "🥇 Gold Streak Master (30+ days!)"
-    elif streak >= 7:
-        return "🥈 Silver Streak Pro (7+ days!)"
-    elif streak >= 3:
-        return "🥉 Bronze Beginner (3+ days!)"
-    else:
-        return None
-
-# --- TIMER ---
-QUESTION_TIME_LIMIT = 30  # seconds
-
-def start_timer():
-    st.session_state.timer_start = time.time()
-    st.session_state.time_out = False
-    st.session_state.last_answered = False
-
-def check_timer():
-    if st.session_state.timer_start is None:
-        return False
-    elapsed = time.time() - st.session_state.timer_start
-    remaining = int(QUESTION_TIME_LIMIT - elapsed)
-    if remaining <= 0:
-        st.session_state.time_out = True
-        return True
-    else:
-        st.write(f"⏰ Time left: {remaining} seconds")
-        return False
-
-# --- ANIMATED HEADER ---
-def show_animated_header():
-    header_html = """
-    <style>
-    @keyframes fadeSlideUp {
-      0% {
-        opacity: 0;
-        transform: translateY(20px);
-      }
-      100% {
-        opacity: 1;
-        transform: translateY(0);
-      }
-    }
-    .centered-text {
-      font-size: 50px;
-      font-weight: bold;
-      color: #2E86C1;
-      animation: fadeSlideUp 1s ease forwards;
-      opacity: 0;
-      text-align: center;
-      margin-top: 40px;
-      font-family: Arial, sans-serif;
-    }
-    </style>
-
-    <div class="centered-text">MathFriend</div>
-    """
-    st.markdown(header_html, unsafe_allow_html=True)
-
-# --- LEADERBOARD ---
-def show_leaderboard():
-    show_animated_header()
-    st.header("🏆 Leaderboard")
-    if not st.session_state.users_data:
-        st.info("No users yet.")
-        return
-    # Sort users by streak descending, then by total_score descending
-    sorted_users = sorted(
-        st.session_state.users_data.values(),
-        key=lambda u: (u.get("streak",0), u.get("total_score",0)),
-        reverse=True
-    )
-    # Show top 10
-    top_users = sorted_users[:10]
-    st.write("Top users by streak and total score:")
-    for i, user in enumerate(top_users, start=1):
-        badge = get_streak_badge(user.get("streak",0)) or ""
-        st.write(f"{i}. {user['name']} ({user['school']}) — Streak: {user.get('streak',0)} days, Total Score: {user.get('total_score',0)} {badge}")
-
-    if st.button("⬅️ Back to Menu"):
-        go_to("menu")
-
-# --- THEORY MODE ---
-def show_theory():
-    show_animated_header()
-    topic = st.session_state.topic
-    st.header(f"📖 Theory: {topic}")
-
-    content = THEORY.get(topic, [])
-    index = st.session_state.theory_index
-    if not content:
-        st.info("Theory content coming soon!")
-    else:
-        st.write(content[index])
-        col1, col2 = st.columns(2)
-        with col1:
-            if st.button("⬅️ Previous") and index > 0:
-                st.session_state.theory_index -= 1
-        with col2:
-            if st.button("Next ➡️") and index < len(content) - 1:
-                st.session_state.theory_index += 1
-
-    if st.button("⬅️ Back to Menu"):
-        st.session_state.theory_index = 0
-        go_to("menu")
-
-# --- PROGRESS SCREEN ---
-def show_progress():
-    show_animated_header()
-    st.header(f"📊 Progress for {st.session_state.user_name}")
-    if not st.session_state.history:
-        st.info("No practice history yet. Start practicing to see your progress here!")
-    else:
-        for record in st.session_state.history[-10:][::-1]:  # last 10 attempts, newest first
-            date = record.get("date")
-            topic = record.get("topic")
-            mode = record.get("mode")
-            score = record.get("score")
-            total = record.get("total")
-            st.write(f"🗓️ {date} — Topic: **{topic}**, Mode: {mode}, Score: {score}/{total}")
-
-    if st.button("⬅️ Back to Menu"):
-        go_to("menu")
-
-# --- SCREENS ---
-if st.session_state.step == "splash":
-    show_animated_header()
-    st.markdown("**Your everyday buddy for mastering math!**")
-    if st.button("Start ➡️"):
-        go_to("register")
-
-elif st.session_state.step == "register":
-    show_animated_header()
-    st.header("👋 Welcome to MathFriend!")
-    first_time = st.radio("Is this your first time here?", ("Yes, first time", "No, I'm returning"))
-
-    if first_time == "Yes, first time":
-        name = st.text_input("Full Name")
-        school_choice = st.selectbox("School", ["Kajaji SHS", "Other"])
-        if school_choice == "Other":
-            school = st.text_input("Enter your school")
-        else:
-            school = "Kajaji SHS"
-
-        if st.button("Continue"):
-            if name.strip() == "":
-                st.warning("Please enter your name.")
-            else:
-                st.session_state.user_name = name.strip()
-                st.session_state.school = school.strip() if school_choice == "Other" else "Kajaji SHS"
-                # Load users data & user data
-                st.session_state.users_data = load_users_data()
-                load_user_data()
-                update_streak()
-                save_user_data()
-                go_to("menu")
-
-    else:
-        name = st.text_input("Enter your name")
-        if st.button("Continue"):
-            if name.strip() == "":
-                st.warning("Please enter your name.")
-            else:
-                st.session_state.user_name = name.strip()
-                st.session_state.users_data = load_users_data()
-                load_user_data()
-                update_streak()
-                save_user_data()
-                go_to("menu")
-
-elif st.session_state.step == "menu":
-    show_animated_header()
-    st.header(f"Welcome, {st.session_state.user_name} from {st.session_state.school}!")
-    st.info(f"🔥 Your current streak: {st.session_state.streak} day(s) in a row!")
-    badge = get_streak_badge(st.session_state.streak)
-    if badge:
-        st.markdown(f"**🏅 {badge}**")
-
-    st.markdown("**Choose an option:**")
+def login_screen():
+    if st.session_state.dark_mode:
+        st.markdown("<body class='dark-mode'>", unsafe_allow_html=True)
+    animated_header()
+    st.markdown("<h3 style='text-align:center; color:#2E86C1;'>Are you a new user or returning?</h3>", unsafe_allow_html=True)
     col1, col2 = st.columns(2)
     with col1:
-        if st.button("📝 Practice Questions"):
-            go_to("topic")
+        if st.button("New User"):
+            go_to("register")
     with col2:
-        if st.button("📚 Theory Lessons"):
-            go_to("topic_theory")
+        if st.button("Returning User"):
+            go_to("login_form")
+    footer()
 
-    if st.button("📈 View Progress"):
-        go_to("progress")
+def register_screen():
+    if st.session_state.dark_mode:
+        st.markdown("<body class='dark-mode'>", unsafe_allow_html=True)
+    animated_header()
+    st.subheader("Register New User")
+    with st.form("register_form"):
+        name = st.text_input("Full Name")
+        school = st.selectbox("School", ["Kajaji SHS", "Others"])
+        other_school = ""
+        if school == "Others":
+            other_school = st.text_input("Please specify your school")
+        avatar = st.selectbox("Pick an avatar emoji", avatar_emojis)
+        submitted = st.form_submit_button("Register")
+        if submitted:
+            full_school = other_school.strip() if school == "Others" else school
+            if not name.strip():
+                st.warning("Please enter your full name.")
+            elif not full_school.strip():
+                st.warning("Please specify your school.")
+            else:
+                user_key = name.strip().lower()
+                if user_key in st.session_state.users:
+                    st.warning("User already exists! Please login instead.")
+                else:
+                    st.session_state.users[user_key] = {
+                        "name": name.strip(),
+                        "school": full_school,
+                        "avatar": avatar,
+                        "history": [],
+                        "score": 0,
+                        "streak": 0,
+                        "last_login": None,
+                        "daily_challenge_done": False
+                    }
+                    save_user_data()
+                    # Auto login after registration:
+                    st.session_state.user = user_key
+                    st.session_state.logged_in = True
+                    save_current_user(user_key)
+                    reset_quiz_state()
+                    st.success(f"Welcome, {name.strip()}! You are now logged in.")
+                    go_to("menu")
 
-    if st.button("🏆 Leaderboard"):
-        go_to("leaderboard")
-    if st.button("🚪 Logout"):
-        # Clear user session data except for persistent data
-        st.session_state.step = "splash"
-        st.session_state.user_name = ""
-        st.session_state.school = "Kajaji SHS"
-        st.session_state.topic = ""
-        st.session_state.mode = ""
-        st.session_state.questions = []
-        st.session_state.question_index = 0
-        st.session_state.score = 0
-        st.session_state.streak = 0
-        st.session_state.last_practice_date = None
-        st.session_state.theory_index = 0
-        st.session_state.users_data = {}
-        st.session_state.hints_used = 0
-        st.session_state.timer_start = None
-        st.session_state.time_out = False
-        st.session_state.last_answered = True
-        st.session_state.history = []
+    footer()
 
-elif st.session_state.step == "topic":
-    show_animated_header()
-    st.header("📂 Choose Your Topic")
-    topic = st.selectbox("Select a math topic", list(QUESTIONS.keys()))
-    mode = st.radio("Choose Practice Mode", ["Multiple Choice"])
+def login_form_screen():
+    if st.session_state.dark_mode:
+        st.markdown("<body class='dark-mode'>", unsafe_allow_html=True)
+    animated_header()
+    st.subheader("Returning User Login")
+    with st.form("login_form"):
+        name = st.text_input("Enter your full name")
+        submitted = st.form_submit_button("Login")
+        if submitted:
+            user_key = name.strip().lower()
+            if user_key in st.session_state.users:
+                st.session_state.user = user_key
+                st.session_state.logged_in = True
+                save_current_user(user_key)
+                reset_quiz_state()
+                go_to("menu")
+            else:
+                st.warning("User not found. Please register first.")
+    footer()
 
-    if st.button("Start Practice"):
+def profile_settings_screen():
+    if st.session_state.dark_mode:
+        st.markdown("<body class='dark-mode'>", unsafe_allow_html=True)
+    animated_header()
+    st.subheader("Profile Settings")
+
+    user_data = st.session_state.users[st.session_state.user]
+    with st.form("profile_form"):
+        name = st.text_input("Full Name", value=user_data["name"])
+        school = st.selectbox("School", ["Kajaji SHS", "Others"], index=0 if user_data["school"] == "Kajaji SHS" else 1)
+        other_school = ""
+        if school == "Others":
+            other_school = st.text_input("Please specify your school", value=user_data["school"] if user_data["school"] != "Kajaji SHS" else "")
+        avatar = st.selectbox("Pick an avatar emoji", avatar_emojis, index=avatar_emojis.index(user_data.get("avatar", "😀")))
+        submitted = st.form_submit_button("Save Changes")
+        if submitted:
+            full_school = other_school.strip() if school == "Others" else school
+            if not name.strip():
+                st.warning("Please enter your full name.")
+            elif not full_school.strip():
+                st.warning("Please specify your school.")
+            else:
+                user_key_old = st.session_state.user
+                user_key_new = name.strip().lower()
+                if user_key_new != user_key_old and user_key_new in st.session_state.users:
+                    st.warning("Name already taken by another user. Choose a different name.")
+                else:
+                    # Update user data
+                    user_data["name"] = name.strip()
+                    user_data["school"] = full_school
+                    user_data["avatar"] = avatar
+
+                    # If username changed, rename key in dict
+                    if user_key_new != user_key_old:
+                        st.session_state.users[user_key_new] = st.session_state.users.pop(user_key_old)
+                        st.session_state.user = user_key_new
+                        save_current_user(user_key_new)
+                    save_user_data()
+                    st.success("Profile updated successfully.")
+    if st.button("Back to Menu"):
+        go_to("menu")
+    footer()
+
+def menu_screen():
+    if st.session_state.dark_mode:
+        st.markdown("<body class='dark-mode'>", unsafe_allow_html=True)
+    animated_header()
+    user_data = st.session_state.users[st.session_state.user]
+
+    # Dark mode toggle top-right
+    dm = st.checkbox("🌙 Dark mode", value=st.session_state.dark_mode)
+    if dm != st.session_state.dark_mode:
+        st.session_state.dark_mode = dm
+        go_to("menu")
+        st.experimental_rerun()
+
+    st.markdown(f"""
+        <div style="background:#D6EAF8; padding:10px; border-radius:8px; font-size:18px; font-weight:bold; text-align:center; display:flex; align-items:center; justify-content:center; gap:10px;">
+        <span style="font-size:32px;">{user_data.get('avatar','😀')}</span>
+        Welcome, <span style="color:#1B4F72;">{user_data['name']}</span> from <span style="color:#117A65;">{user_data['school']}</span>!
+        </div>
+        """, unsafe_allow_html=True)
+
+    # Daily challenge placeholder + streak info
+    today = datetime.date.today()
+    last_login = user_data.get("last_login")
+    streak = user_data.get("streak", 0)
+    daily_done = user_data.get("daily_challenge_done", False)
+
+    if last_login is not None:
+        last_login_date = datetime.datetime.strptime(last_login, "%Y-%m-%d").date()
+        if (today - last_login_date).days == 1:
+            streak += 1
+        elif (today - last_login_date).days > 1:
+            streak = 0
+    else:
+        streak = 1
+
+    user_data["streak"] = streak
+    user_data["last_login"] = str(today)
+    save_user_data()
+
+    st.markdown(f"**🔥 Current Streak:** {streak} days")
+
+    st.markdown("### What would you like to do?")
+    cols = st.columns(3, gap="small")
+    with cols[0]:
+        if st.button("Take a Quiz"):
+            st.session_state.topic = None
+            st.session_state.mode = "quiz"
+            reset_quiz_state()
+            go_to("select_topic")
+    with cols[1]:
+        if st.button("Study Theory"):
+            st.session_state.topic = None
+            st.session_state.mode = "theory"
+            go_to("select_topic")
+    with cols[2]:
+        if st.button("View Progress"):
+            go_to("progress")
+
+    # Second row with chat and profile
+    cols2 = st.columns(3, gap="small")
+    with cols2[0]:
+        if st.button("Chat Room"):
+            go_to("chat")
+    with cols2[1]:
+        if st.button("Profile Settings"):
+            go_to("profile")
+    with cols2[2]:
+        if st.button("Logout"):
+            st.session_state.logged_in = False
+            st.session_state.user = None
+            if os.path.exists(USER_PERSIST_FILE):
+                os.remove(USER_PERSIST_FILE)
+            go_to("login")
+
+    footer()
+
+def select_topic_screen():
+    if st.session_state.dark_mode:
+        st.markdown("<body class='dark-mode'>", unsafe_allow_html=True)
+    animated_header()
+    st.subheader("Select a topic")
+    topics = list(sample_questions.keys())
+    topic = st.radio("Choose a topic:", topics)
+    if st.button("Continue"):
         st.session_state.topic = topic
-        st.session_state.mode = mode
-        questions = QUESTIONS.get(topic, [])
-        if mode == "Multiple Choice" and questions:
-            questions = random.sample(questions, len(questions))
-            for q in questions:
-                q["shuffled_options"] = shuffle_options(q["options"])
+        if st.session_state.mode == "quiz":
+            reset_quiz_state()
+            go_to("quiz")
         else:
-            for q in questions:
-                q["shuffled_options"] = q["options"]
-        st.session_state.questions = questions
-        st.session_state.question_index = 0
-        st.session_state.score = 0
-        st.session_state.hints_used = 0
-        st.session_state.time_out = False
-        st.session_state.last_answered = True
-        go_to("questions")
+            go_to("theory")
+    if st.button("Back to Menu"):
+        go_to("menu")
+    footer()
 
-elif st.session_state.step == "topic_theory":
-    show_animated_header()
-    st.header("📂 Choose Your Topic for Theory")
-    topic = st.selectbox("Select a math topic", list(THEORY.keys()))
-    if st.button("Start Theory"):
-        st.session_state.topic = topic
-        st.session_state.theory_index = 0
-        go_to("theory")
+def theory_screen():
+    if st.session_state.dark_mode:
+        st.markdown("<body class='dark-mode'>", unsafe_allow_html=True)
+    animated_header()
+    st.subheader(f"Theory: {st.session_state.topic}")
 
-elif st.session_state.step == "questions":
-    show_animated_header()
-    questions = st.session_state.questions
+    # Display theory for chosen topic
+    if st.session_state.topic == "Algebra":
+        st.markdown("""
+        **Algebra** is the branch of mathematics dealing with symbols and the rules for manipulating those symbols.
+        It includes solving equations, understanding functions, and working with variables.
+        """)
+    elif st.session_state.topic == "Geometry":
+        st.markdown("""
+        **Geometry** is the branch of mathematics concerned with shapes, sizes, relative positions of figures,
+        and properties of space.
+        """)
+    else:
+        st.write("Theory content coming soon...")
+
+    if st.button("Back to Topics"):
+        go_to("select_topic")
+    if st.button("Back to Menu"):
+        go_to("menu")
+    footer()
+
+def quiz_screen():
+    if st.session_state.dark_mode:
+        st.markdown("<body class='dark-mode'>", unsafe_allow_html=True)
+    animated_header()
+
+    questions = sample_questions.get(st.session_state.topic, [])
     if not questions:
         st.warning("No questions available for this topic yet.")
-        if st.button("⬅️ Back to Menu"):
+        if st.button("Back to Topics"):
+            go_to("select_topic")
+        return
+
+    q_index = st.session_state.question_index
+    score = st.session_state.score
+    total = len(questions)
+
+    if q_index >= total:
+        # Quiz finished
+        st.success(f"Quiz Complete! Your score: {score} / {total}")
+        # Update user score & history
+        user_data = st.session_state.users[st.session_state.user]
+        user_data["score"] = max(user_data.get("score", 0), score)
+        user_data["history"].append({
+            "topic": st.session_state.topic,
+            "score": score,
+            "date": str(datetime.date.today())
+        })
+        save_user_data()
+
+        # Show confetti + sound on good score
+        if score >= total * 0.7:
+            show_confetti_and_sound()
+
+        if st.button("Back to Menu"):
             go_to("menu")
-    else:
-        q_index = st.session_state.question_index
-        question = questions[q_index]
+        if st.button("Retry Quiz"):
+            reset_quiz_state()
+            go_to("quiz")
+        return
 
-        st.subheader(f"Question {q_index + 1} of {len(questions)}")
-        st.write(question["question"])
+    question = questions[q_index]
+    st.markdown(f"**Question {q_index+1} of {total}:** {question['question']}")
 
-        # Timer start if first time on question
-        if st.session_state.timer_start is None or st.session_state.last_answered:
-            start_timer()
+    # Timer countdown
+    if st.session_state.timer_start is None:
+        st.session_state.timer_start = time.time()
+    elapsed = time.time() - st.session_state.timer_start
+    time_left = max(0, QUESTION_TIME_LIMIT - int(elapsed))
+    st.markdown(f"⏳ Time left: {time_left} seconds")
 
-        # Show timer and check if time is up
-        timed_out = check_timer()
+    # Show options with radio buttons
+    options = question["options"]
+    selected = st.radio("Select your answer:", options, key="answer_radio")
 
-        # Show Hint button if hints remain
-        if st.session_state.hints_used < 2:
-            if st.button("💡 Show Hint"):
-                st.info(f"Hint: {question['tip']}")
-                st.session_state.hints_used += 1
-
-        if st.session_state.mode == "Multiple Choice":
-            answer = st.radio("Choose your answer:", question["shuffled_options"])
-        else:
-            st.write("_Theory mode coming soon!_")
-            answer = None
-
-        submitted = st.button("Submit Answer")
-
-        if submitted and not st.session_state.last_answered:
-            if answer == question["answer"]:
-                st.success("🎉 Correct! Great job!")
+    col1, col2, col3 = st.columns([1, 1, 2])
+    with col1:
+        if st.button("Submit Answer"):
+            if selected == question["answer"]:
+                st.success("Correct! 🎉")
                 st.session_state.score += 1
+                show_confetti_and_sound()
             else:
-                st.error(f"❌ Incorrect. Explanation: {question['explanation']}")
-
+                st.error(f"Incorrect! The correct answer was: {question['answer']}")
             st.session_state.last_answered = True
-
-        if timed_out and not st.session_state.last_answered:
-            st.error(f"⏰ Time's up! The correct answer was: {question['answer']}")
-            st.session_state.last_answered = True
-
+            st.session_state.timer_start = None
+    with col2:
+        if st.button("Hint"):
+            if st.session_state.hints_used < MAX_HINTS_PER_QUIZ:
+                st.info(f"Hint: {question['tips']}")
+                st.session_state.hints_used += 1
+            else:
+                st.warning("Sorry, no more hints allowed for this quiz.")
+    with col3:
         if st.session_state.last_answered:
-            if st.button("➡️ Next Question"):
+            if st.button("Next Question"):
                 st.session_state.question_index += 1
-                st.session_state.timer_start = None
                 st.session_state.last_answered = False
+                st.session_state.selected_answer = None
+                st.session_state.timer_start = None
                 st.experimental_rerun()
 
-        if q_index + 1 > len(questions) - 1:
-            st.write(f"Quiz finished! Your score: {st.session_state.score} / {len(questions)}")
-            # Save result to history
-            today_str = datetime.date.today().strftime("%Y-%m-%d")
-            st.session_state.history.append({
-                "date": today_str,
-                "topic": st.session_state.topic,
-                "mode": st.session_state.mode,
-                "score": st.session_state.score,
-                "total": len(questions)
-            })
-            # Update total score
-            st.session_state.score += 0  # already counted during quiz
-            save_user_data()
-            if st.button("⬅️ Back to Menu"):
-                go_to("menu")
+    if st.session_state.last_answered:
+        st.markdown(f"**Explanation:** {question['explanation']}")
 
-elif st.session_state.step == "theory":
-    show_theory()
+    if st.button("Quit Quiz"):
+        go_to("menu")
 
-elif st.session_state.step == "progress":
-    show_progress()
+    footer()
 
-elif st.session_state.step == "leaderboard":
-    show_leaderboard()
+def progress_screen():
+    if st.session_state.dark_mode:
+        st.markdown("<body class='dark-mode'>", unsafe_allow_html=True)
+    animated_header()
+    st.subheader("Your Progress")
+    user_data = st.session_state.users[st.session_state.user]
+
+    history = user_data.get("history", [])
+    if not history:
+        st.info("You haven't taken any quizzes yet.")
+    else:
+        for record in history[-10:]:
+            st.markdown(f"**{record['date']}** - Topic: {record['topic']} — Score: {record['score']}")
+
+    st.markdown(f"**Best Score:** {user_data.get('score', 0)}")
+    st.markdown(f"**Current Streak:** {user_data.get('streak', 0)} days")
+
+    if st.button("Back to Menu"):
+        go_to("menu")
+
+    footer()
+
+def chat_screen():
+    if st.session_state.dark_mode:
+        st.markdown("<body class='dark-mode'>", unsafe_allow_html=True)
+
+    animated_header()
+    st.subheader("Public Chat Room")
+
+    chat_container_style = """
+    <style>
+    #chat-container {
+        display: flex;
+        flex-direction: column;
+    }
+    </style>
+    """
+    st.markdown(chat_container_style, unsafe_allow_html=True)
+
+    # Display messages in a scrollable container
+    messages = st.session_state.chat_messages
+
+    # Chat container box
+    st.markdown('<div class="chat-container" id="chat-container">', unsafe_allow_html=True)
+    for msg in messages[-50:]:  # show last 50 messages
+        own_msg = (msg["user_key"] == st.session_state.user)
+        cls = "own" if own_msg else "user"
+        timestamp = datetime.datetime.fromisoformat(msg["timestamp"]).strftime("%H:%M")
+        user_avatar = st.session_state.users.get(msg["user_key"], {}).get("avatar", "🙂")
+        user_name = st.session_state.users.get(msg["user_key"], {}).get("name", "Unknown")
+
+        st.markdown(
+            f'<div class="chat-message {cls}">'
+            f'<b>{user_avatar} {user_name}:</b> {msg["text"]}<br>'
+            f'<span class="chat-timestamp">{timestamp}</span>'
+            f'</div>', unsafe_allow_html=True
+        )
+    st.markdown('</div>', unsafe_allow_html=True)
+
+    # Input to send new message
+    with st.form("chat_form", clear_on_submit=True):
+        msg = st.text_input("Type your message here", max_chars=200, key="chat_input")
+        send = st.form_submit_button("Send")
+        if send:
+            if msg.strip():
+                new_msg = {
+                    "user_key": st.session_state.user,
+                    "text": msg.strip(),
+                    "timestamp": datetime.datetime.now().isoformat()
+                }
+                st.session_state.chat_messages.append(new_msg)
+                save_chat_messages(st.session_state.chat_messages)
+                st.experimental_rerun()
+
+    if st.button("Back to Menu"):
+        go_to("menu")
+
+    footer()
+
+# --- Routing ---
+def main():
+    if st.session_state.step == "login":
+        login_screen()
+    elif st.session_state.step == "register":
+        register_screen()
+    elif st.session_state.step == "login_form":
+        login_form_screen()
+    elif st.session_state.step == "menu":
+        menu_screen()
+    elif st.session_state.step == "profile":
+        profile_settings_screen()
+    elif st.session_state.step == "select_topic":
+        select_topic_screen()
+    elif st.session_state.step == "theory":
+        theory_screen()
+    elif st.session_state.step == "quiz":
+        quiz_screen()
+    elif st.session_state.step == "progress":
+        progress_screen()
+    elif st.session_state.step == "chat":
+        chat_screen()
+    else:
+        st.error("Unknown page")
+
+if __name__ == "__main__":
+    main()
