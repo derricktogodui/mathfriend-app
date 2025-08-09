@@ -79,13 +79,11 @@ def init_session():
         st.session_state.users = load_users()
     if "chat_messages" not in st.session_state:
         st.session_state.chat_messages = load_chats()
-    # route/step
     if "step" not in st.session_state:
         st.session_state.step = "login"  # login, register, login_form, menu, select_topic, quiz, theory, progress, leaderboard, profile, chat_public, chat_teacher
     if "logged_in" not in st.session_state:
         st.session_state.logged_in = False
     if "user" not in st.session_state:
-        # attempt persistent login
         saved = load_persist_user()
         if saved and saved in st.session_state.users:
             st.session_state.user = saved
@@ -110,20 +108,17 @@ def init_session():
         st.session_state.hints_used = 0
     if "selected_answer" not in st.session_state:
         st.session_state.selected_answer = None
-    # Chat auto-refresh toggle
-    if "chat_autorefresh_token" not in st.session_state:
-        st.session_state.chat_autorefresh_token = 0
-    # UI prefs
-    if "dark_mode" not in st.session_state:
-        st.session_state.dark_mode = False
-    # streaks/rewards
+    # Show/hide online users toggle for chat
+    if "show_online_users" not in st.session_state:
+        st.session_state.show_online_users = False
+    # Badges
     if "badges" not in st.session_state:
         st.session_state.badges = set()
 
 init_session()
 
 # ----------------------
-# Small helpers for navigation
+# Helpers
 # ----------------------
 def go_to(step):
     st.session_state.step = step
@@ -136,60 +131,44 @@ def reset_quiz_state():
     st.session_state.hints_used = 0
     st.session_state.selected_answer = None
 
+def back_button():
+    if st.button("⬅ Back"):
+        go_to("menu")
+        return True
+    return False
+
 # ----------------------
-# Animated header (old style restored)
+# Animated header (smaller welcome emoji + text)
 # ----------------------
 def animated_header_clickable():
-    # If '?home=1' in params, return home - detect query param
-    try:
-        params = st.query_params
-    except Exception:
-        params = {}
-    # If user clicked the anchor link previously, the query param will be present
-    if params.get("home", ["0"])[0] == "1":
-        # clear params and go home
-        try:
-            st.experimental_set_query_params()
-        except Exception:
-            pass
-        go_to("menu")
-    # ... rest of function
-
-    html = r"""
+    html = """
     <style>
-    @keyframes fadeSlideUp {
-      0% { opacity: 0; transform: translateY(20px); }
-      100% { opacity: 1; transform: translateY(0); }
-    }
     .mf-header {
-      font-size: 60px;
+      font-size: 40px;
       font-weight: 900;
       color: #2E86C1;
       text-align: center;
-      animation: fadeSlideUp 1s ease forwards;
-      margin-bottom: 6px;
+      margin-bottom: 4px;
       font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
       user-select:none;
     }
-    .mf-sub {
+    .mf-welcome {
       text-align:center;
       margin-bottom:10px;
       color:#555;
+      font-size: 18px;
+      user-select:none;
     }
     </style>
-
-    <!-- Clickable header: navigates by adding ?home=1 to URL -->
     <div style="text-align:center;">
-      <a href="?home=1" style="text-decoration:none;">
-        <div class="mf-header">MathFriend</div>
-      </a>
-      <div class="mf-sub">Learn, practice and play — built for our students</div>
+      <div class="mf-header">MathFriend <span style="font-size:24px;">🧮</span></div>
+      <div class="mf-welcome">Learn, practice and play — built for our students</div>
     </div>
     """
     st.markdown(html, unsafe_allow_html=True)
 
 # ----------------------
-# Confetti + sound helper (JS)
+# Confetti + sound helper
 # ----------------------
 def inject_confetti_and_sound_code():
     st.markdown("""
@@ -230,18 +209,40 @@ def inject_confetti_and_sound_code():
     """, unsafe_allow_html=True)
 
 def celebrate():
-    # call JS to play sound + confetti
     st.markdown("<script>launchConfetti(); playSound('mf-correct-sound');</script>", unsafe_allow_html=True)
 
-# Inject confetti once (global)
 inject_confetti_and_sound_code()
 
 # ----------------------
-# Core screens
+# Quick Access Panel
+# ----------------------
+def quick_access_panel(user_data):
+    st.markdown("### Quick Access")
+    last = user_data.get("history", [])[-3:]
+    if last:
+        st.markdown("**Recent activity:**")
+        for h in reversed(last):
+            st.markdown(f"- {h.get('date','?')}: {h.get('topic','?')} — {h.get('score','?')}/{h.get('total','?')}")
+    else:
+        st.markdown("No recent activity — start a quiz!")
+
+    cols = st.columns(3)
+    with cols[0]:
+        if st.button("Practice Quiz"):
+            go_to("select_topic")
+    with cols[1]:
+        if st.button("Chat (Public)"):
+            go_to("chat_public")
+    with cols[2]:
+        if st.button("Chat a Teacher"):
+            go_to("chat_teacher_request")
+
+# ----------------------
+# Screens
 # ----------------------
 def screen_login():
     animated_header_clickable()
-    st.write("")  # spacer
+    st.write("")
     st.markdown("### Are you a new user or a returning user?")
     c1, c2 = st.columns(2)
     with c1:
@@ -250,16 +251,15 @@ def screen_login():
     with c2:
         if st.button("Returning user — Login"):
             go_to("login_form")
-    # footer
     st.markdown("---")
     st.markdown("Tip: If you already registered and the app keeps asking you to log in, check that your name exactly matches your registered full name (case-insensitive).")
+    st.markdown("---")
+    st.markdown("<div style='text-align:center; font-size:14px;'>Powered by Derek Winters</div>", unsafe_allow_html=True)
 
 def screen_register():
     animated_header_clickable()
-    if st.button("⬅ Back"):
-        go_to("login")
+    if back_button():
         return
-
     st.header("Register new student")
     with st.form("register_form"):
         name = st.text_input("Full name")
@@ -300,8 +300,7 @@ def screen_register():
 
 def screen_login_form():
     animated_header_clickable()
-    if st.button("⬅ Back"):
-        go_to("login")
+    if back_button():
         return
     st.header("Login")
     with st.form("login_form"):
@@ -319,46 +318,12 @@ def screen_login_form():
             else:
                 st.warning("User not found. Please register.")
 
-def quick_access_panel(user_data):
-    st.markdown("### Quick Access")
-    # show last activity
-    last = user_data.get("history", [])[-3:]
-    if last:
-        st.markdown("**Recent activity:**")
-        for h in reversed(last):
-            st.markdown(f"- {h.get('date','?')}: {h.get('topic','?')} — {h.get('score','?')}/{h.get('total','?')}")
-    else:
-        st.markdown("No recent activity — start a quiz!")
-
-    cols = st.columns(3)
-    with cols[0]:
-        if st.button("Practice Quiz"):
-            go_to("select_topic")
-    with cols[1]:
-        if st.button("Chat (Public)"):
-            go_to("chat_public")
-    with cols[2]:
-        if st.button("Chat a Teacher"):
-            go_to("chat_teacher_request")
-
 def screen_menu():
     animated_header_clickable()
-
-    # clickable header already sets go_to menu if ?home=1
-    if st.button("🟨 Home"):  # extra home control
-        go_to("menu")
-
     user_key = st.session_state.user
     user_data = st.session_state.users.get(user_key, {})
     avatar = user_data.get("avatar", "😀")
-    st.markdown(f"<div style='text-align:center; font-size:18px;'><span style='font-size:36px'>{avatar}</span> Welcome <b>{user_data.get('name','')}</b> from <i>{user_data.get('school','')}</i></div>", unsafe_allow_html=True)
-
-    # Dark mode toggle
-    dm = st.checkbox("🌙 Dark mode", value=st.session_state.dark_mode)
-    if dm != st.session_state.dark_mode:
-        st.session_state.dark_mode = dm
-        # re-render menu to apply style
-        go_to("menu")
+    st.markdown(f"<div style='text-align:center; font-size:20px;'><span style='font-size:28px;'>{avatar}</span> Welcome <b>{user_data.get('name','')}</b> from <i>{user_data.get('school','')}</i></div>", unsafe_allow_html=True)
 
     # Streak handling
     today = datetime.date.today()
@@ -381,14 +346,12 @@ def screen_menu():
     save_users(st.session_state.users)
 
     st.markdown(f"**🔥 Streak:** {streak} day{'s' if streak!=1 else ''}")
-    # simple badges reward
     if streak >= 7 and "7-day" not in user_data.get("badges", []):
         st.session_state.users[user_key].setdefault("badges", []).append("7-day")
         save_users(st.session_state.users)
         st.balloons()
         st.success("🏅 Badge unlocked: 7-day streak!")
 
-    # Quick access
     quick_access_panel(user_data)
 
     st.markdown("---")
@@ -404,7 +367,6 @@ def screen_menu():
             go_to("leaderboard")
 
     st.markdown("---")
-    # Profile + logout
     c4, c5 = st.columns(2)
     with c4:
         if st.button("⚙️ Profile"):
@@ -413,7 +375,6 @@ def screen_menu():
         if st.button("🚪 Logout"):
             st.session_state.logged_in = False
             st.session_state.user = None
-            # remove persisted user
             try:
                 if os.path.exists(PERSIST_USER_FILE):
                     os.remove(PERSIST_USER_FILE)
@@ -423,8 +384,7 @@ def screen_menu():
 
 def screen_select_topic():
     animated_header_clickable()
-    if st.button("⬅ Back"):
-        go_to("menu")
+    if back_button():
         return
     st.header("Select topic for quiz")
     topics = list(SAMPLE_QUESTIONS.keys())
@@ -436,8 +396,7 @@ def screen_select_topic():
 
 def screen_select_topic_theory():
     animated_header_clickable()
-    if st.button("⬅ Back"):
-        go_to("menu")
+    if back_button():
         return
     st.header("Select topic for theory")
     topics = list(SAMPLE_QUESTIONS.keys())
@@ -448,10 +407,8 @@ def screen_select_topic_theory():
 
 def screen_quiz():
     animated_header_clickable()
-    if st.button("⬅ Back"):
-        go_to("menu")
+    if back_button():
         return
-
     topic = st.session_state.topic or "Algebra"
     questions = SAMPLE_QUESTIONS.get(topic, [])
     idx = st.session_state.question_index
@@ -479,10 +436,8 @@ def screen_quiz():
     st.markdown(f"**Question {idx+1} of {len(questions)}**")
     st.markdown(f"**{q['question']}**")
 
-    # Use autorefresh to drive timer (no limit so keeps counting)
     st_autorefresh(interval=1000, key=f"quiz_timer_{idx}")
 
-    # start timer once per question
     if st.session_state.timer_start is None or st.session_state.last_answered:
         st.session_state.timer_start = time.time()
         st.session_state.last_answered = False
@@ -497,7 +452,6 @@ def screen_quiz():
         st.error(f"⏰ Time's up! Correct answer: {q['answer']}")
         st.session_state.last_answered = True
 
-    # hints
     if st.session_state.hints_used < MAX_HINTS_PER_QUIZ:
         if st.button("Show Tip"):
             st.session_state.hints_used += 1
@@ -510,7 +464,6 @@ def screen_quiz():
             st.session_state.selected_answer = selected
             if selected == q["answer"]:
                 st.success("✅ Correct! Great job!")
-                # celebrate
                 celebrate()
                 st.session_state.score += 1
             else:
@@ -526,8 +479,7 @@ def screen_quiz():
 
 def screen_theory():
     animated_header_clickable()
-    if st.button("⬅ Back"):
-        go_to("menu")
+    if back_button():
         return
     st.header(f"Theory: {st.session_state.topic or 'Algebra'}")
     t = st.session_state.topic or "Algebra"
@@ -542,8 +494,7 @@ def screen_theory():
 
 def screen_progress():
     animated_header_clickable()
-    if st.button("⬅ Back"):
-        go_to("menu")
+    if back_button():
         return
     st.header("Your progress")
     user = st.session_state.users.get(st.session_state.user, {})
@@ -559,8 +510,7 @@ def screen_progress():
 
 def screen_leaderboard():
     animated_header_clickable()
-    if st.button("⬅ Back"):
-        go_to("menu")
+    if back_button():
         return
     st.header("Leaderboard")
     users = st.session_state.users
@@ -579,8 +529,7 @@ def screen_leaderboard():
 
 def screen_profile():
     animated_header_clickable()
-    if st.button("⬅ Back"):
-        go_to("menu")
+    if back_button():
         return
     st.header("Profile settings")
     user_key = st.session_state.user
@@ -594,7 +543,6 @@ def screen_profile():
             if not name.strip():
                 st.warning("Name cannot be empty.")
             else:
-                # update
                 user_data["name"] = name.strip()
                 user_data["school"] = school.strip()
                 user_data["avatar"] = avatar
@@ -604,18 +552,14 @@ def screen_profile():
         go_to("menu")
 
 # ----------------------
-# Chat: public and private teacher
+# Chat helpers
 # ----------------------
-# chats stored as list of dicts:
-# { "room": "public" or "teacher_{student_key}" , "user_key": "...", "text": "...", "timestamp": "iso" }
 def chat_display_box(messages, show_usernames=True):
-    # prints messages in nice blocks
     for m in messages:
         ts = datetime.datetime.fromisoformat(m["timestamp"]).strftime("%H:%M")
         name = st.session_state.users.get(m["user_key"], {}).get("name", m["user_key"])
         avatar = st.session_state.users.get(m["user_key"], {}).get("avatar", "🙂")
         own = (m["user_key"] == st.session_state.user)
-        # styling
         if own:
             st.markdown(f"<div style='text-align:right; margin:6px 0;'><div style='display:inline-block; background:#A9DFBF; padding:8px 12px; border-radius:12px; max-width:80%'>{m['text']}<div style='font-size:10px;color:#333;margin-top:6px'>{ts}</div></div></div>", unsafe_allow_html=True)
         else:
@@ -623,24 +567,31 @@ def chat_display_box(messages, show_usernames=True):
 
 def screen_chat_public():
     animated_header_clickable()
-    if st.button("⬅ Back"):
-        go_to("menu")
+    if back_button():
         return
 
     st.header("Public Chat — Study Lounge")
-    # autorefresh every 5s
     st_autorefresh(interval=5000, key="chat_public_refresh")
-
-    # load chats into session state (in case file changed)
     st.session_state.chat_messages = load_chats()
 
-    # show last 100 public messages
-    public_msgs = [m for m in st.session_state.chat_messages if m.get("room") == "public"]
-    public_msgs = public_msgs[-100:]
+    # Online users logic
+    online_users = [u for u, d in st.session_state.users.items() if d.get("last_login")]
+    online_count = len(online_users)
+    clicked = st.button(f"🟢 Online users: {online_count}")
+    if clicked:
+        st.session_state.show_online_users = not st.session_state.show_online_users
 
+    if st.session_state.show_online_users:
+        # Horizontal list with avatars and names
+        cols = st.columns(online_count if online_count>0 else 1)
+        for i, u in enumerate(online_users):
+            d = st.session_state.users[u]
+            with cols[i]:
+                st.markdown(f"<div style='text-align:center; font-size:18px;'>{d.get('avatar','🙂')}<br><small>{d.get('name','?')}</small></div>", unsafe_allow_html=True)
+
+    public_msgs = [m for m in st.session_state.chat_messages if m.get("room") == "public"][-100:]
     chat_display_box(public_msgs)
 
-    # message input via form
     with st.form("public_chat_form", clear_on_submit=True):
         text = st.text_input("Type message (max 300 chars):", max_chars=300)
         send = st.form_submit_button("Send")
@@ -651,14 +602,11 @@ def screen_chat_public():
                 "text": text.strip(),
                 "timestamp": datetime.datetime.now().isoformat()
             }
-            # append to storage and session
             st.session_state.chat_messages.append(msg)
             save_chats(st.session_state.chat_messages)
             st.success("Message sent.")
-            # no explicit rerun required — form submit causes rerun
 
     if st.button("Clear public chat (teacher only)"):
-        # only allow clearing if the logged-in user is a teacher (flag in users)
         u = st.session_state.user
         if st.session_state.users.get(u, {}).get("is_teacher", False):
             st.session_state.chat_messages = [m for m in st.session_state.chat_messages if m.get("room") != "public"]
@@ -669,19 +617,15 @@ def screen_chat_public():
 
 def screen_chat_teacher_request():
     animated_header_clickable()
-    if st.button("⬅ Back"):
-        go_to("menu")
+    if back_button():
         return
-
     st.header("Chat a Teacher (private)")
     st.write("This opens a private conversation between you and teachers. Teachers with accounts that have `is_teacher: true` in users.json can reply.")
 
-    # student creates a private thread (room name teacher_{student_key})
     room = f"teacher_{st.session_state.user}"
     st.session_state.chat_messages = load_chats()
-    # show existing private messages for this student
-    private_msgs = [m for m in st.session_state.chat_messages if m.get("room") == room]
-    private_msgs = private_msgs[-200:]
+    private_msgs = [m for m in st.session_state.chat_messages if m.get("room") == room][-200:]
+
     if private_msgs:
         chat_display_box(private_msgs)
     else:
@@ -702,9 +646,8 @@ def screen_chat_teacher_request():
             st.success("Your question was saved. Teachers can view and reply in their Teacher Dashboard.")
 
     st.markdown("---")
-    st.markdown("**How teachers reply:** Teachers log in with an account that has `is_teacher: true` in `users.json`. I can help you provision teacher accounts or add a simple in-app teacher reply screen if you'd like.")
+    st.markdown("**How teachers reply:** Teachers log in with an account that has `is_teacher: true` in `users.json`. Contact admin to get teacher access.")
 
-# Teacher dashboard (in-app): list all private threads if logged-in user is a teacher
 def screen_teacher_dashboard():
     animated_header_clickable()
     if not st.session_state.users.get(st.session_state.user, {}).get("is_teacher", False):
@@ -712,20 +655,20 @@ def screen_teacher_dashboard():
         if st.button("Back to Menu"):
             go_to("menu")
         return
-    if st.button("⬅ Back"):
-        go_to("menu")
+    if back_button():
         return
 
     st.header("Teacher Dashboard — Private student threads")
     st.session_state.chat_messages = load_chats()
-    # gather private rooms
+
     private = [m for m in st.session_state.chat_messages if m.get("room", "").startswith("teacher_")]
     rooms = {}
     for m in private:
         rooms.setdefault(m["room"], []).append(m)
-    # show each thread; allow teacher to reply
+
     for room, msgs in rooms.items():
-        st.subheader(f"Thread: {room.replace('teacher_','')}")
+        student_key = room.replace("teacher_", "")
+        st.subheader(f"Thread: {st.session_state.users.get(student_key, {}).get('name',student_key)}")
         chat_display_box(msgs)
         with st.form(f"reply_{room}", clear_on_submit=True):
             reply = st.text_input("Reply to student:")
@@ -747,16 +690,6 @@ def screen_teacher_dashboard():
 def main():
     st.set_page_config(page_title="MathFriend", page_icon="🧮", layout="centered", initial_sidebar_state="collapsed")
 
-    # Apply a tiny CSS for dark mode if toggled (basic)
-    if st.session_state.dark_mode:
-        st.markdown("""
-            <style>
-            .css-18e3th9 {background-color: #0f1720 !important;}
-            .stApp { background-color: #0f1720 !important; color: #e6eef8 !important; }
-            </style>
-        """, unsafe_allow_html=True)
-
-    # Route to screens
     if not st.session_state.logged_in:
         if st.session_state.step == "login":
             screen_login()
@@ -791,7 +724,6 @@ def main():
         elif step == "teacher_dashboard":
             screen_teacher_dashboard()
         else:
-            # fallback: menu
             go_to("menu")
             screen_menu()
 
