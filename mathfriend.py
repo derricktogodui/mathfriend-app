@@ -4,6 +4,10 @@ import bcrypt
 import time
 import random
 import pandas as pd
+import plotly.express as px
+
+# Streamlit-specific configuration must be at the very top of the script
+st.set_page_config(layout="wide")
 
 # --- Database Initialization ---
 conn = sqlite3.connect('users.db')
@@ -16,6 +20,12 @@ c.execute('''CREATE TABLE IF NOT EXISTS quiz_results
               username TEXT,
               topic TEXT,
               score INTEGER,
+              timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
+# Create a new table for chat messages
+c.execute('''CREATE TABLE IF NOT EXISTS chat_messages
+             (id INTEGER PRIMARY KEY AUTOINCREMENT,
+              username TEXT,
+              message TEXT,
               timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
 conn.commit()
 
@@ -80,6 +90,22 @@ def save_quiz_result(username, topic, score):
 def get_top_scores(topic):
     """Fetches the top 10 scores for a given topic."""
     c.execute("SELECT username, score FROM quiz_results WHERE topic=? ORDER BY score DESC, timestamp ASC LIMIT 10", (topic,))
+    return c.fetchall()
+
+def get_user_quiz_history(username):
+    """Fetches a user's quiz history."""
+    c.execute("SELECT topic, score, timestamp FROM quiz_results WHERE username=? ORDER BY timestamp DESC", (username,))
+    return c.fetchall()
+
+# --- Chat Functions ---
+def add_chat_message(username, message):
+    """Adds a new chat message to the database."""
+    c.execute("INSERT INTO chat_messages (username, message) VALUES (?, ?)", (username, message))
+    conn.commit()
+
+def get_chat_messages():
+    """Fetches all chat messages from the database."""
+    c.execute("SELECT username, message, timestamp FROM chat_messages ORDER BY timestamp ASC")
     return c.fetchall()
 
 # --- Page Rendering Logic ---
@@ -149,16 +175,46 @@ def show_signup_page():
 def show_main_app():
     st.title(f"Welcome to MathFriend, {st.session_state.username}! 🧑‍🏫")
     st.write("Your personal hub for mastering math.")
-    st.sidebar.title("Navigation")
     
-    selected_page = st.sidebar.radio("Go to", ["Dashboard", "Quiz", "Leaderboard", "Chat", "Learning Resources"])
+    st.sidebar.markdown("### **Menu**")
+    st.sidebar.markdown("---")
+    
+    selected_page = st.sidebar.radio(
+        "Go to", 
+        ["📊 Dashboard", "📝 Quiz", "🏆 Leaderboard", "💬 Chat", "📚 Learning Resources"],
+        label_visibility="collapsed"
+    )
+    
+    st.sidebar.markdown("---")
 
-    if selected_page == "Dashboard":
+    if selected_page == "📊 Dashboard":
         st.header("Progress Dashboard 📈")
-        st.info("Your personal progress charts, strengths, and weaknesses will go here.")
-        # Future development: Display charts, stats, and a summary of the user's progress.
+        user_history = get_user_quiz_history(st.session_state.username)
+        if user_history:
+            df = pd.DataFrame(user_history, columns=['Topic', 'Score', 'Timestamp'])
+            df['Timestamp'] = pd.to_datetime(df['Timestamp'])
+            df['Date'] = df['Timestamp'].dt.date
+            
+            # Group by topic and date to show trends
+            topic_scores = df.groupby(['Date', 'Topic'])['Score'].mean().reset_index()
 
-    elif selected_page == "Quiz":
+            # Display a line chart of scores over time
+            st.subheader("Quiz Scores Over Time")
+            fig = px.line(topic_scores, x='Date', y='Score', color='Topic', markers=True, title="Your Quiz Performance")
+            st.plotly_chart(fig, use_container_width=True)
+            
+            # Display a bar chart of average scores by topic
+            st.subheader("Average Score by Topic")
+            avg_scores = df.groupby('Topic')['Score'].mean().reset_index()
+            fig_bar = px.bar(avg_scores, x='Topic', y='Score', color='Topic', title="Your Average Score per Topic")
+            st.plotly_chart(fig_bar, use_container_width=True)
+            
+            st.subheader("Your Recent Quiz Results")
+            st.table(df[['Topic', 'Score', 'Timestamp']].head())
+        else:
+            st.info("Start taking quizzes to see your progress here!")
+
+    elif selected_page == "📝 Quiz":
         st.header("Quiz Time! 🧠")
         if 'quiz_active' not in st.session_state:
             st.session_state.quiz_active = False
@@ -209,8 +265,8 @@ def show_main_app():
                 st.session_state.quiz_active = False
                 st.button("Start a new quiz", on_click=st.rerun)
 
-    elif selected_page == "Leaderboard":
-        st.header("Global Leaderboard �")
+    elif selected_page == "🏆 Leaderboard":
+        st.header("Global Leaderboard 🏆")
         st.write("See who has the highest scores for each topic!")
         topic_options = ["Addition", "Subtraction", "Multiplication"]
         leaderboard_topic = st.selectbox("Select a topic to view the leaderboard:", topic_options)
@@ -224,28 +280,61 @@ def show_main_app():
         else:
             st.info("No scores have been recorded for this topic yet.")
 
-    elif selected_page == "Chat":
-        st.header("Chat 💬")
-        st.info("A place for you and your classmates to chat and help each other with homework.")
-        # Future development: Add real-time chat functionality here.
+    elif selected_page == "💬 Chat":
+        st.header("Community Chat 💬")
+        st.write("Help each other out with math homework!")
 
-    elif selected_page == "Learning Resources":
+        messages_container = st.container()
+
+        with messages_container:
+            all_messages = get_chat_messages()
+            for username, message, timestamp in all_messages:
+                st.markdown(f"**{username}** (`{timestamp}`): {message}")
+        
+        st.markdown("---")
+
+        with st.form("chat_form", clear_on_submit=True):
+            user_message = st.text_input("Say something...", key="chat_input")
+            col1, col2 = st.columns([1, 4])
+            with col1:
+                submitted = st.form_submit_button("Send")
+            
+            if submitted and user_message:
+                add_chat_message(st.session_state.username, user_message)
+                st.rerun()
+
+    elif selected_page == "📚 Learning Resources":
         st.header("Learning Resources 📚")
-        st.info("Mini-tutorials, videos, and helpful examples to help you study.")
-        # Future development: Add educational content and resources here.
+        st.write("Mini-tutorials and helpful examples to help you study.")
+
+        topic_options = ["Addition", "Subtraction", "Multiplication"]
+        resource_topic = st.selectbox("Select a topic to learn about:", topic_options)
+
+        if resource_topic == "Addition":
+            st.subheader("What is Addition?")
+            st.info("Addition is the process of combining two or more numbers to get a total sum. It's the most basic operation in math!")
+            st.markdown("For example: `3 + 5 = 8`. Here, we are combining the numbers 3 and 5 to get the total sum of 8.")
+        elif resource_topic == "Subtraction":
+            st.subheader("What is Subtraction?")
+            st.info("Subtraction is taking one number away from another. It's the opposite of addition.")
+            st.markdown("For example: `10 - 4 = 6`. We start with 10 and take away 4, leaving us with 6.")
+        elif resource_topic == "Multiplication":
+            st.subheader("What is Multiplication?")
+            st.info("Multiplication is a faster way of doing repeated addition. It's like adding the same number to itself a certain number of times.")
+            st.markdown("For example: `4 x 3 = 12`. This is the same as saying `4 + 4 + 4 = 12`.")
 
     st.sidebar.markdown("---")
     if st.sidebar.button("Logout"):
         st.session_state.logged_in = False
         st.session_state.page = "login"
         st.rerun()
+    st.sidebar.markdown("---")
 
 # --- Main App Logic with a robust splash screen ---
-if "splash_displayed" not in st.session_state:
-    st.session_state.splash_displayed = False
-    
-if not st.session_state.splash_displayed:
-    st.set_page_config(layout="wide")
+if "show_splash" not in st.session_state:
+    st.session_state.show_splash = True
+
+if st.session_state.show_splash:
     st.markdown("<style>.main {visibility: hidden;}</style>", unsafe_allow_html=True)
     st.markdown("""
     <style>
@@ -269,7 +358,9 @@ if not st.session_state.splash_displayed:
     </div>
     """, unsafe_allow_html=True)
     
-    st.session_state.splash_displayed = True
+    # Hide splash screen after a short delay
+    time.sleep(1)
+    st.session_state.show_splash = False
     st.rerun()
 else:
     st.markdown("<style>.main {visibility: visible;}</style>", unsafe_allow_html=True)
@@ -301,6 +392,13 @@ else:
     }
     .stButton > button:hover {
         background: linear-gradient(90deg, #0056b3, #004080) !important;
+    }
+    /* Custom CSS to make the sidebar radio buttons bold and beautiful */
+    div[data-testid="stSidebarNav"] li > a > div:first-child {
+        font-weight: bold;
+    }
+    div[data-testid="stSidebarNav"] li {
+        margin-bottom: 5px; /* Adds space between menu items */
     }
     </style>
     """, unsafe_allow_html=True)
