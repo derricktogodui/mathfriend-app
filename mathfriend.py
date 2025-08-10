@@ -298,7 +298,7 @@ def format_message(message, mentioned_usernames, current_user):
     if not message:
         return ""
     emoji_map = {
-        ":smile:": "😊", ":laughing:": "😂", ":thumbsup:": "👍", ":thumbsdown:": "👎",
+        ":smile:": "😊", ":laughing:": "😂", ":thumbsup:": "�", ":thumbsdown:": "👎",
         ":heart:": "❤️", ":star:": "⭐", ":100:": "💯", ":fire:": "🔥",
         ":thinking:": "🤔", ":nerd:": "🤓"
     }
@@ -667,20 +667,19 @@ def show_main_app():
         with st.form("chat_form", clear_on_submit=True):
             user_message = st.text_area("Say something...", key="chat_input", height=50)
             
-            # Use columns to place the uploader and send button next to each other
+            # --- THE FIX IS HERE ---
+            # Using st.columns for a clean layout
             col_upload, col_send = st.columns([0.7, 0.3])
             
             with col_upload:
-                # NEW: A custom button and hidden file uploader
-                st.markdown("""
-                    <label for="image_uploader" class="file-upload-label">
-                        <span style="font-size: 1rem; vertical-align: middle;">📎</span> Upload Photo
-                    </label>
-                """, unsafe_allow_html=True)
-                uploaded_file = st.file_uploader("", type=["png", "jpg", "jpeg"], key="image_uploader", label_visibility="collapsed")
+                # Replaced the custom markdown button with a standard Streamlit file uploader.
+                # This ensures the button works correctly across all platforms.
+                uploaded_file = st.file_uploader("Upload Photo", type=["png", "jpg", "jpeg"], label_visibility="visible")
             
             with col_send:
+                # st.form_submit_button now acts as the "Send" button
                 submitted = st.form_submit_button("Send")
+            # --- END OF FIX ---
             
             if submitted and (user_message or uploaded_file):
                 media_data = None
@@ -870,33 +869,6 @@ else:
     .mention-border {
         border: 2px solid #ffcc00 !important;
     }
-    /* Custom file uploader button */
-    .file-upload-label {
-        display: inline-block;
-        background: linear-gradient(90deg, #00C6FF, #0072FF);
-        color: white;
-        padding: 8px 12px;
-        border-radius: 8px;
-        cursor: pointer;
-        transition: all 0.3s ease;
-        text-align: center;
-        font-size: 0.9rem;
-        font-weight: bold;
-        border: none;
-        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
-        width: 100%;
-    }
-    .file-upload-label:hover {
-        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
-        transform: translateY(-1px);
-    }
-    .file-upload-label:active {
-        transform: translateY(1px);
-    }
-    div[data-testid="stFileUploader"] {
-        display: none;
-    }
-    
     /* NEW CSS for main content area */
     .main-content-container {
         background-color: #f0f2f6; /* A soft, light gray background */
@@ -925,7 +897,28 @@ else:
     .stMetric {
         font-size: 1.2rem;
     }
-
+    .stFileUploader > button {
+        background: linear-gradient(90deg, #00C6FF, #0072FF);
+        color: white;
+        font-weight: bold;
+        border: none;
+        border-radius: 8px;
+        padding: 8px 12px;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        width: 100%;
+        transition: all 0.3s ease;
+    }
+    .stFileUploader > button:hover {
+        box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+        transform: translateY(-1px);
+    }
+    .stFileUploader > button:active {
+        transform: translateY(1px);
+    }
+    .stFileUploader label {
+        font-weight: bold;
+        color: #475569;
+    }
     /* === NEW: Responsive design for mobile screens === */
     @media screen and (max-width: 600px) {
         .main-title {
