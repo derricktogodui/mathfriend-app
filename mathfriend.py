@@ -180,7 +180,7 @@ def format_message(message, mentioned_usernames, current_user):
     if not message:
         return ""
     emoji_map = {
-        ":smile:": "😊", ":laughing:": "😂", ":thumbsup:": "👍", ":thumbsdown:": "👎",
+        ":smile:": "😊", ":laughing:": "😂", ":thumbsup:": "👍", ":thumbsdown:": "�",
         ":heart:": "❤️", ":star:": "⭐", ":100:": "💯", ":fire:": "🔥",
         ":thinking:": "🤔", ":nerd:": "🤓"
     }
@@ -459,7 +459,7 @@ def show_main_app():
                         else:
                             st.error(f"Incorrect. The correct answer was {correct_answer}.")
                         
-                        st.session_state.current_question += 1
+                        st.session_question += 1
                         time.sleep(1)
                         st.rerun()
             else:
@@ -807,6 +807,23 @@ else:
     .stMetric {
         font-size: 1.2rem;
     }
+
+    /* === NEW: Responsive design for mobile screens === */
+    @media screen and (max-width: 600px) {
+        .main-title {
+            font-size: 1.8rem;
+        }
+        .content-card {
+            padding: 15px;
+        }
+        .dashboard-metric-card {
+            padding: 10px;
+        }
+        .stMetric > div:first-child > div:nth-child(2) > div:first-child {
+            font-size: 1.5rem !important; /* Make metric values larger for mobile */
+        }
+    }
+    
     </style>
     """, unsafe_allow_html=True)
     
