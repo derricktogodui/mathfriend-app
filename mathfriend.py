@@ -5,6 +5,7 @@ import time
 import random
 import pandas as pd
 import plotly.express as px
+import re
 
 # Streamlit-specific configuration must be at the very top of the script
 st.set_page_config(layout="wide")
@@ -107,6 +108,19 @@ def get_chat_messages():
     """Fetches all chat messages from the database."""
     c.execute("SELECT username, message, timestamp FROM chat_messages ORDER BY timestamp ASC")
     return c.fetchall()
+    
+# --- Emojis and Formatting Function ---
+def format_message(message):
+    """Replaces common emoji shortcuts with actual emojis."""
+    emoji_map = {
+        ":smile:": "😊", ":laughing:": "😂", ":thumbsup:": "👍", ":thumbsdown:": "👎",
+        ":heart:": "❤️", ":star:": "⭐", ":100:": "�", ":fire:": "🔥",
+        ":thinking:": "🤔", ":nerd:": "🤓"
+    }
+    for shortcut, emoji in emoji_map.items():
+        message = message.replace(shortcut, emoji)
+    # Apply basic markdown for bold, italic, etc.
+    return message
 
 # --- Page Rendering Logic ---
 def show_login_page():
@@ -283,21 +297,38 @@ def show_main_app():
     elif selected_page == "💬 Chat":
         st.header("Community Chat 💬")
         st.write("Help each other out with math homework!")
+        st.markdown("---")
 
-        messages_container = st.container()
+        chat_container = st.container(height=400)
 
-        with messages_container:
+        with chat_container:
             all_messages = get_chat_messages()
             for username, message, timestamp in all_messages:
-                st.markdown(f"**{username}** (`{timestamp}`): {message}")
+                formatted_message = format_message(message)
+                if username == st.session_state.username:
+                    st.markdown(f"""
+                        <div style="display:flex; justify-content: flex-end;">
+                            <div class="chat-bubble-user">
+                                <small style="display:block; text-align:right; color:#ddd; font-size:10px;">{username} - {timestamp}</small>
+                                <div>{formatted_message}</div>
+                            </div>
+                        </div>
+                    """, unsafe_allow_html=True)
+                else:
+                    st.markdown(f"""
+                        <div style="display:flex; justify-content: flex-start;">
+                            <div class="chat-bubble-other">
+                                <small style="display:block; text-align:left; color:#888; font-size:10px;">{username} - {timestamp}</small>
+                                <div>{formatted_message}</div>
+                            </div>
+                        </div>
+                    """, unsafe_allow_html=True)
         
         st.markdown("---")
 
         with st.form("chat_form", clear_on_submit=True):
-            user_message = st.text_input("Say something...", key="chat_input")
-            col1, col2 = st.columns([1, 4])
-            with col1:
-                submitted = st.form_submit_button("Send")
+            user_message = st.text_area("Say something...", key="chat_input", height=50)
+            submitted = st.form_submit_button("Send")
             
             if submitted and user_message:
                 add_chat_message(st.session_state.username, user_message)
@@ -399,6 +430,22 @@ else:
     }
     div[data-testid="stSidebarNav"] li {
         margin-bottom: 5px; /* Adds space between menu items */
+    }
+    .chat-bubble-user {
+        background-color: #007BFF;
+        color: white;
+        padding: 10px 15px;
+        border-radius: 15px 15px 0 15px;
+        margin-bottom: 10px;
+        max-width: 60%;
+    }
+    .chat-bubble-other {
+        background-color: #e0e0e0;
+        color: black;
+        padding: 10px 15px;
+        border-radius: 15px 15px 15px 0;
+        margin-bottom: 10px;
+        max-width: 60%;
     }
     </style>
     """, unsafe_allow_html=True)
