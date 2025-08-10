@@ -180,7 +180,7 @@ def format_message(message, mentioned_usernames, current_user):
     if not message:
         return ""
     emoji_map = {
-        ":smile:": "😊", ":laughing:": "😂", ":thumbsup:": "👍", ":thumbsdown:": "�",
+        ":smile:": "😊", ":laughing:": "😂", ":thumbsup:": "👍", ":thumbsdown:": "👎",
         ":heart:": "❤️", ":star:": "⭐", ":100:": "💯", ":fire:": "🔥",
         ":thinking:": "🤔", ":nerd:": "🤓"
     }
