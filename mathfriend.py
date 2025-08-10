@@ -10,9 +10,10 @@ import hashlib
 import json
 import math
 import base64
+from datetime import datetime
 from streamlit.components.v1 import html
 
-# Streamlit-specific configuration must be at the very top of the script
+# Streamlit-specific configuration
 st.set_page_config(
     layout="wide",
     page_title="MathFriend",
@@ -21,13 +22,12 @@ st.set_page_config(
 )
 
 # --- Database Setup and Connection Logic ---
-# (Keep your existing database code exactly the same)
 DB_FILE = 'users.db'
 
 def create_tables_if_not_exist():
     """
     Ensures all necessary tables and columns exist in the database.
-    This function now also handles adding the 'media' column if it's missing.
+    Now includes tables for profiles, online status, and typing indicators.
     """
     conn = None
     try:
@@ -54,13 +54,32 @@ def create_tables_if_not_exist():
                       media TEXT,
                       timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
 
+        # Create user profiles table
+        c.execute('''CREATE TABLE IF NOT EXISTS user_profiles
+                     (username TEXT PRIMARY KEY,
+                      full_name TEXT,
+                      school TEXT,
+                      age INTEGER,
+                      bio TEXT)''')
+        
+        # Create online status table
+        c.execute('''CREATE TABLE IF NOT EXISTS user_status
+                     (username TEXT PRIMARY KEY, 
+                      is_online BOOLEAN,
+                      last_seen TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
+        
+        # Create typing indicators table
+        c.execute('''CREATE TABLE IF NOT EXISTS typing_indicators
+                     (username TEXT PRIMARY KEY,
+                      is_typing BOOLEAN,
+                      timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
+
         # Check for the 'media' column and add it if it's missing
         c.execute("PRAGMA table_info(chat_messages)")
         columns = [column[1] for column in c.fetchall()]
         if 'media' not in columns:
             c.execute("ALTER TABLE chat_messages ADD COLUMN media TEXT")
-            st.info("The 'media' column has been added to the chat_messages table.")
-                      
+        
         conn.commit()
     except sqlite3.Error as e:
         st.error(f"Database setup error: {e}")
@@ -71,8 +90,8 @@ def create_tables_if_not_exist():
 # Call the setup function once when the script first runs
 create_tables_if_not_exist()
 
-# --- Functions for user authentication --- 
-# (Keep your existing auth functions exactly the same)
+# --- User Authentication Functions --- 
+# (Keep all existing auth functions exactly the same)
 def hash_password(password):
     """Hashes a password using bcrypt."""
     return bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
@@ -122,11 +141,128 @@ def signup_user(username, password):
         if conn:
             conn.close()
 
+# --- Profile Management Functions ---
+def get_user_profile(username):
+    """Gets a user's profile info"""
+    try:
+        conn = sqlite3.connect(DB_FILE)
+        conn.row_factory = sqlite3.Row
+        c = conn.cursor()
+        c.execute("SELECT * FROM user_profiles WHERE username=?", (username,))
+        profile = c.fetchone()
+        return dict(profile) if profile else None
+    except sqlite3.Error as e:
+        st.error(f"Get profile error: {e}")
+        return None
+    finally:
+        if conn:
+            conn.close()
+
+def update_user_profile(username, full_name, school, age, bio):
+    """Updates a user's profile"""
+    try:
+        conn = sqlite3.connect(DB_FILE)
+        c = conn.cursor()
+        c.execute('''INSERT OR REPLACE INTO user_profiles 
+                     (username, full_name, school, age, bio) 
+                     VALUES (?, ?, ?, ?, ?)''', 
+                     (username, full_name, school, age, bio))
+        conn.commit()
+        return True
+    except sqlite3.Error as e:
+        st.error(f"Profile update error: {e}")
+        return False
+    finally:
+        if conn:
+            conn.close()
+
+def change_password(username, current_password, new_password):
+    """Changes a user's password"""
+    if not login_user(username, current_password):
+        return False
+    try:
+        conn = sqlite3.connect(DB_FILE)
+        c = conn.cursor()
+        hashed_password = hash_password(new_password)
+        c.execute("UPDATE users SET password=? WHERE username=?", 
+                 (hashed_password, username))
+        conn.commit()
+        return True
+    except sqlite3.Error as e:
+        st.error(f"Password change error: {e}")
+        return False
+    finally:
+        if conn:
+            conn.close()
+
+# --- Online Status Functions ---
+def update_user_status(username, is_online):
+    """Updates a user's online status"""
+    try:
+        conn = sqlite3.connect(DB_FILE)
+        c = conn.cursor()
+        c.execute('''INSERT OR REPLACE INTO user_status (username, is_online) 
+                     VALUES (?, ?)''', (username, is_online))
+        conn.commit()
+    except sqlite3.Error as e:
+        st.error(f"Status update error: {e}")
+    finally:
+        if conn:
+            conn.close()
+
+def get_online_users():
+    """Returns list of users currently online"""
+    try:
+        conn = sqlite3.connect(DB_FILE)
+        c = conn.cursor()
+        # Consider users online if they've been active in the last 2 minutes
+        c.execute("""SELECT username FROM user_status 
+                     WHERE is_online = 1 AND 
+                     last_seen > datetime('now', '-2 minutes')""")
+        return [row[0] for row in c.fetchall()]
+    except sqlite3.Error as e:
+        st.error(f"Get online users error: {e}")
+        return []
+    finally:
+        if conn:
+            conn.close()
+
+def update_typing_status(username, is_typing):
+    """Updates a user's typing indicator status"""
+    try:
+        conn = sqlite3.connect(DB_FILE)
+        c = conn.cursor()
+        c.execute('''INSERT OR REPLACE INTO typing_indicators 
+                     (username, is_typing) VALUES (?, ?)''', 
+                     (username, is_typing))
+        conn.commit()
+    except sqlite3.Error as e:
+        st.error(f"Typing status update error: {e}")
+    finally:
+        if conn:
+            conn.close()
+
+def get_typing_users():
+    """Returns list of users currently typing"""
+    try:
+        conn = sqlite3.connect(DB_FILE)
+        c = conn.cursor()
+        # Consider typing indicators active for 5 seconds
+        c.execute("""SELECT username FROM typing_indicators 
+                     WHERE is_typing = 1 AND 
+                     timestamp > datetime('now', '-5 seconds')""")
+        return [row[0] for row in c.fetchall()]
+    except sqlite3.Error as e:
+        st.error(f"Get typing users error: {e}")
+        return []
+    finally:
+        if conn:
+            conn.close()
+
 # --- Quiz and Result Functions ---
-# (Keep your existing quiz functions exactly the same)
+# (Keep all existing quiz functions exactly the same)
 def generate_question(topic, difficulty):
     """Generates a random math question based on the topic and difficulty."""
-    # Placeholder for advanced topics
     if topic in ["sets and operations on sets", "surds", "binary operations", "relations and functions", "polynomial functions", "rational functions", "binomial theorem", "coordinate geometry", "probabilty", "vectors", "sequence and series"]:
         return "Quiz questions for this topic are coming soon!", None
     
@@ -251,7 +387,6 @@ def get_user_stats(username):
             conn.close()
 
 # --- Chat Functions ---
-# (Keep your existing chat functions exactly the same)
 def add_chat_message(username, message, media=None):
     """Adds a new chat message with optional media to the database."""
     try:
@@ -319,8 +454,8 @@ def format_message(message, mentioned_usernames, current_user):
     
     return message
 
-# --- MathBot Integration (in-app calculator and definer) ---
-# (Keep your existing MathBot functions exactly the same)
+# --- MathBot Integration ---
+# (Keep existing MathBot functions exactly the same)
 def get_mathbot_response(message):
     """
     Solves a basic math expression or provides a definition from a chat message.
@@ -331,7 +466,6 @@ def get_mathbot_response(message):
     query = message.replace("@MathBot", "").strip()
     query_lower = query.lower()
 
-    # Updated definitions for the new topics
     definitions = {
         "sets": "A set is a collection of distinct objects, considered as an object in its own right.",
         "surds": "A surd is an irrational number that can be expressed with a root symbol, like $\sqrt{2}$.",
@@ -503,6 +637,7 @@ def show_login_page():
                     if login_user(username, password):
                         st.session_state.logged_in = True
                         st.session_state.username = username
+                        update_user_status(username, True)  # Mark user as online
                         st.success(f"Welcome back, {username}!")
                         time.sleep(1)
                         st.rerun()
@@ -538,6 +673,51 @@ def show_login_page():
         
         st.markdown("</div>", unsafe_allow_html=True)
         st.markdown("<div style='text-align: center; margin-top: 20px; color: #64748b; font-size: 0.9rem;'>Built with ❤️ by Derrick Kwaku Togodui</div>", unsafe_allow_html=True)
+
+def show_profile_page():
+    """Displays the user profile page with editing capabilities"""
+    st.header("👤 Your Profile")
+    st.markdown("<div class='content-card'>", unsafe_allow_html=True)
+    
+    # Update online status
+    update_user_status(st.session_state.username, True)
+    
+    # Get current profile
+    profile = get_user_profile(st.session_state.username)
+    
+    with st.form("profile_form"):
+        col1, col2 = st.columns(2)
+        with col1:
+            full_name = st.text_input("Full Name", value=profile.get('full_name', '') if profile else '')
+            school = st.text_input("School", value=profile.get('school', '') if profile else '')
+        with col2:
+            age = st.number_input("Age", min_value=5, max_value=100, 
+                                 value=profile.get('age', 18) if profile else 18)
+            bio = st.text_area("Bio", value=profile.get('bio', '') if profile else '',
+                              help="Tell others about your math interests and goals")
+        
+        if st.form_submit_button("Save Profile", type="primary"):
+            if update_user_profile(st.session_state.username, full_name, school, age, bio):
+                st.success("Profile updated successfully!")
+                st.rerun()
+    
+    st.markdown("---")
+    st.subheader("Change Password")
+    with st.form("password_form"):
+        current_password = st.text_input("Current Password", type="password")
+        new_password = st.text_input("New Password", type="password",
+                                   help="Use at least 8 characters with a mix of letters and numbers")
+        confirm_password = st.text_input("Confirm New Password", type="password")
+        
+        if st.form_submit_button("Change Password", type="primary"):
+            if new_password != confirm_password:
+                st.error("New passwords don't match!")
+            elif change_password(st.session_state.username, current_password, new_password):
+                st.success("Password changed successfully!")
+            else:
+                st.error("Incorrect current password")
+    
+    st.markdown("</div>", unsafe_allow_html=True)
 
 def show_main_app():
     # Inject modern CSS styles
@@ -642,6 +822,28 @@ def show_main_app():
             box-shadow: 0 2px 5px rgba(0,0,0,0.1);
         }
         
+        .online-indicator {
+            position: absolute;
+            bottom: -2px;
+            right: -2px;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background-color: #4CAF50;
+            border: 2px solid white;
+        }
+        
+        .offline-indicator {
+            position: absolute;
+            bottom: -2px;
+            right: -2px;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background-color: #ccc;
+            border: 2px solid white;
+        }
+        
         .mention-highlight {
             font-weight: bold;
             color: white !important;
@@ -730,6 +932,46 @@ def show_main_app():
             color: white;
         }
         
+        /* Typing indicator */
+        .typing-indicator {
+            display: flex;
+            align-items: center;
+            margin-bottom: 10px;
+            color: #666;
+            font-size: 0.9rem;
+        }
+        
+        .typing-dots {
+            display: flex;
+            margin-left: 5px;
+        }
+        
+        .typing-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background-color: #666;
+            margin: 0 2px;
+            animation: typingAnimation 1.4s infinite ease-in-out;
+        }
+        
+        .typing-dot:nth-child(1) {
+            animation-delay: 0s;
+        }
+        
+        .typing-dot:nth-child(2) {
+            animation-delay: 0.2s;
+        }
+        
+        .typing-dot:nth-child(3) {
+            animation-delay: 0.4s;
+        }
+        
+        @keyframes typingAnimation {
+            0%, 60%, 100% { transform: translateY(0); }
+            30% { transform: translateY(-5px); }
+        }
+        
         /* Responsive adjustments */
         @media screen and (max-width: 768px) {
             .main-title {
@@ -789,11 +1031,17 @@ def show_main_app():
     
     # User greeting with avatar
     avatar_url = get_avatar_url(st.session_state.username)
+    profile = get_user_profile(st.session_state.username)
+    display_name = profile.get('full_name', st.session_state.username) if profile else st.session_state.username
+    
     st.markdown(f"""
     <div style="display: flex; align-items: center; margin-bottom: 20px;">
-        <img src="{avatar_url}" style="width: 60px; height: 60px; border-radius: 50%; margin-right: 15px; border: 3px solid #4361ee;">
+        <div style="position: relative; display: inline-block;">
+            <img src="{avatar_url}" style="width: 60px; height: 60px; border-radius: 50%; margin-right: 15px; border: 3px solid #4361ee;"/>
+            <div class="online-indicator"></div>
+        </div>
         <div>
-            <h1 class="main-title">Welcome back, {st.session_state.username}!</h1>
+            <h1 class="main-title">Welcome back, {display_name}!</h1>
             <p style="color: #666; margin-top: -10px;">Ready to master some math today?</p>
         </div>
     </div>
@@ -804,23 +1052,26 @@ def show_main_app():
     
     selected_page = st.sidebar.radio(
         "Go to", 
-        ["📊 Dashboard", "📝 Quiz", "🏆 Leaderboard", "💬 Chat", "📚 Learning Resources"],
+        ["📊 Dashboard", "📝 Quiz", "🏆 Leaderboard", "💬 Chat", "👤 Profile", "📚 Learning Resources"],
         label_visibility="collapsed"
     )
     
     st.sidebar.markdown("---")
-    
-    # Show dark mode toggle
     st.sidebar.markdown("### **Appearance**")
     
     st.sidebar.markdown("---")
     st.sidebar.markdown("### **Account**")
     if st.sidebar.button("Logout", type="primary"):
+        update_user_status(st.session_state.username, False)  # Mark user as offline
         st.session_state.logged_in = False
         st.session_state.page = "login"
         st.rerun()
     
+    # Update user status to online
+    update_user_status(st.session_state.username, True)
+    
     if selected_page == "📊 Dashboard":
+        # (Keep existing dashboard code exactly the same)
         st.markdown("---")
         st.markdown("<div class='content-card'>", unsafe_allow_html=True)
         st.header("📈 Progress Dashboard")
@@ -894,6 +1145,7 @@ def show_main_app():
         st.markdown("</div>", unsafe_allow_html=True)
 
     elif selected_page == "📝 Quiz":
+        # (Keep existing quiz code exactly the same)
         st.header("🧠 Quiz Time!")
         st.markdown("<div class='content-card'>", unsafe_allow_html=True)
         
@@ -1013,6 +1265,7 @@ def show_main_app():
         st.markdown("</div>", unsafe_allow_html=True)
 
     elif selected_page == "🏆 Leaderboard":
+        # (Keep existing leaderboard code exactly the same)
         st.header("🏆 Global Leaderboard")
         st.markdown("<div class='content-card'>", unsafe_allow_html=True)
         st.write("See who has the highest scores for each topic!")
@@ -1067,6 +1320,33 @@ def show_main_app():
         st.header("💬 Community Chat")
         st.markdown("<div class='content-card'>", unsafe_allow_html=True)
         st.write("Ask for help, share tips, or get an instant answer from **@MathBot**!")
+        
+        # Show online users
+        online_users = get_online_users()
+        typing_users = get_typing_users()
+        
+        if online_users:
+            st.markdown(f"""
+            <div style="display: flex; align-items: center; margin-bottom: 10px; color: #666; font-size: 0.9rem;">
+                <span style="margin-right: 5px;">Online:</span>
+                {', '.join([f'<span style="color: #4CAF50;">{user}</span>' for user in online_users])}
+            </div>
+            """, unsafe_allow_html=True)
+        
+        # Show typing indicators
+        current_typing_users = [u for u in typing_users if u != st.session_state.username]
+        if current_typing_users:
+            st.markdown(f"""
+            <div class="typing-indicator">
+                {current_typing_users[0]} is typing
+                <div class="typing-dots">
+                    <div class="typing-dot"></div>
+                    <div class="typing-dot"></div>
+                    <div class="typing-dot"></div>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+        
         st.markdown("---")
 
         all_usernames = get_all_usernames()
@@ -1088,6 +1368,7 @@ def show_main_app():
                     continue
 
                 avatar_url = get_avatar_url(username)
+                is_online = username in online_users
                 is_mentioned = re.search(r'(?i)(@' + re.escape(st.session_state.username) + r')', message or "")
                 mention_class = "mention-border" if is_mentioned else ""
                 
@@ -1098,7 +1379,10 @@ def show_main_app():
                                 <small style="display:block; text-align:right; color:#ddd; font-size:10px; margin-bottom: 5px;">{username} • {timestamp}</small>
                                 {"".join(message_parts)}
                             </div>
-                            <img class='avatar' src='{avatar_url}'/>
+                            <div style="position: relative;">
+                                <img class='avatar' src='{avatar_url}'/>
+                                <div class="{'online-indicator' if is_online else 'offline-indicator'}"></div>
+                            </div>
                         </div>
                     """, unsafe_allow_html=True)
                 else:
@@ -1106,7 +1390,10 @@ def show_main_app():
                     with col1:
                         st.markdown(f"""
                             <div style="display:flex; justify-content: flex-start; align-items:flex-end; margin-bottom: 15px;">
-                                <img class='avatar' src='{avatar_url}'/>
+                                <div style="position: relative;">
+                                    <img class='avatar' src='{avatar_url}'/>
+                                    <div class="{'online-indicator' if is_online else 'offline-indicator'}"></div>
+                                </div>
                                 <div class="chat-bubble-other {mention_class}">
                                     <small style="display:block; text-align:left; color:#666; font-size:10px; margin-bottom: 5px;">{username} • {timestamp}</small>
                                     {"".join(message_parts)}
@@ -1121,7 +1408,8 @@ def show_main_app():
 
         with st.form("chat_form", clear_on_submit=True):
             user_message = st.text_area("Say something...", key="chat_input", height=50, 
-                                       placeholder="Type your message here or mention @MathBot for help")
+                                       placeholder="Type your message here or mention @MathBot for help",
+                                       on_change=lambda: update_typing_status(st.session_state.username, True))
             
             col_upload, col_send = st.columns([0.7, 0.3])
             
@@ -1130,7 +1418,8 @@ def show_main_app():
                                                label_visibility="collapsed")
             
             with col_send:
-                submitted = st.form_submit_button("Send", type="primary", use_container_width=True)
+                submitted = st.form_submit_button("Send", type="primary", use_container_width=True,
+                                                on_click=lambda: update_typing_status(st.session_state.username, False))
             
             if submitted and (user_message or uploaded_file):
                 media_data = None
@@ -1148,7 +1437,11 @@ def show_main_app():
         
         st.markdown("</div>", unsafe_allow_html=True)
 
+    elif selected_page == "👤 Profile":
+        show_profile_page()
+
     elif selected_page == "📚 Learning Resources":
+        # (Keep existing learning resources code exactly the same)
         st.header("📚 Learning Resources")
         st.markdown("<div class='content-card'>", unsafe_allow_html=True)
         st.write("Mini-tutorials and helpful examples to help you study.")
@@ -1235,7 +1528,6 @@ def show_main_app():
                 else:
                     st.error("Not quite. Try factoring 18 into a perfect square and another number.")
 
-        # (Continue with other topics in similar fashion)
         elif resource_topic == "binary operations":
             st.subheader("⊕ Binary Operations")
             st.info("A **binary operation** is a calculation that combines two elements to produce a new one.")
@@ -1246,14 +1538,47 @@ def show_main_app():
             st.info("A **relation** is a set of ordered pairs showing a relationship between two sets.")
             st.markdown("A **function** is a special type of relation where every input has exactly one output.")
 
-        # (Remaining topics follow the same pattern)
+        elif resource_topic == "polynomial functions":
+            st.subheader("📈 Polynomial Functions")
+            st.info("A **polynomial function** is a function made up of variables and coefficients.")
+            st.markdown("Example: $f(x) = 3x^2 + 2x - 1$")
+
+        elif resource_topic == "rational functions":
+            st.subheader("➗ Rational Functions")
+            st.info("A **rational function** is any function that can be expressed as a ratio of two polynomials.")
+            st.markdown("Example: $f(x) = \\frac{2x+1}{x-3}$")
+
+        elif resource_topic == "binomial theorem":
+            st.subheader("🔢 Binomial Theorem")
+            st.info("The **binomial theorem** describes the algebraic expansion of powers of a binomial.")
+            st.markdown("Example: $(x+y)^2 = x^2 + 2xy + y^2$")
+
+        elif resource_topic == "coordinate geometry":
+            st.subheader("📐 Coordinate Geometry")
+            st.info("Coordinate geometry is the study of geometry using a coordinate system.")
+            st.markdown("Key concepts include distance between points, slope, and equations of lines.")
+
+        elif resource_topic == "probabilty":
+            st.subheader("🎲 Probability")
+            st.info("Probability is a measure of the likelihood that an event will occur.")
+            st.markdown("Example: Probability of rolling a 4 on a die is $\\frac{1}{6}$")
+
+        elif resource_topic == "vectors":
+            st.subheader("➡️ Vectors")
+            st.info("A **vector** is a quantity having both magnitude and direction.")
+            st.markdown("Used to represent forces, velocity, and displacement in physics.")
+
+        elif resource_topic == "sequence and series":
+            st.subheader("🔢 Sequence and Series")
+            st.info("A **sequence** is an ordered list of numbers. A **series** is the sum of terms in a sequence.")
+            st.markdown("Example: 2, 4, 6, 8... is a sequence. 2 + 4 + 6 + 8... is a series.")
         
         st.markdown("</div>", unsafe_allow_html=True)
 
     st.markdown("</div>", unsafe_allow_html=True) # Close main content container
 
 # --- Splash Screen and Main App Logic ---
-# (Keep your existing splash screen logic exactly the same)
+# (Keep existing splash screen logic exactly the same)
 if "show_splash" not in st.session_state:
     st.session_state.show_splash = True
 
