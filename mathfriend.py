@@ -20,16 +20,19 @@ DB_FILE = 'users.db'
 
 def create_tables_if_not_exist():
     """
-    Ensures all necessary tables exist in the database.
-    This is called only once at the start of the app's life.
+    Ensures all necessary tables and columns exist in the database.
+    This function now also handles adding the 'media' column if it's missing.
     """
+    conn = None
     try:
         conn = sqlite3.connect(DB_FILE)
         c = conn.cursor()
         
+        # Create users table
         c.execute('''CREATE TABLE IF NOT EXISTS users
                      (username TEXT PRIMARY KEY, password TEXT)''')
                      
+        # Create quiz_results table
         c.execute('''CREATE TABLE IF NOT EXISTS quiz_results
                      (id INTEGER PRIMARY KEY AUTOINCREMENT,
                       username TEXT,
@@ -37,12 +40,21 @@ def create_tables_if_not_exist():
                       score INTEGER,
                       timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
                       
+        # Create chat_messages table
         c.execute('''CREATE TABLE IF NOT EXISTS chat_messages
                      (id INTEGER PRIMARY KEY AUTOINCREMENT,
                       username TEXT,
                       message TEXT,
                       media TEXT,
                       timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
+
+        # Check for the 'media' column and add it if it's missing
+        # This is the key change to fix the "no such column" error
+        c.execute("PRAGMA table_info(chat_messages)")
+        columns = [column[1] for column in c.fetchall()]
+        if 'media' not in columns:
+            c.execute("ALTER TABLE chat_messages ADD COLUMN media TEXT")
+            st.info("The 'media' column has been added to the chat_messages table.")
                       
         conn.commit()
     except sqlite3.Error as e:
@@ -287,7 +299,7 @@ def format_message(message, mentioned_usernames, current_user):
         return ""
     emoji_map = {
         ":smile:": "😊", ":laughing:": "😂", ":thumbsup:": "👍", ":thumbsdown:": "👎",
-        ":heart:": "❤️", ":star:": "⭐", ":100:": "💯", ":fire:": "�",
+        ":heart:": "❤️", ":star:": "⭐", ":100:": "💯", ":fire:": "🔥",
         ":thinking:": "🤔", ":nerd:": "🤓"
     }
     for shortcut, emoji in emoji_map.items():
