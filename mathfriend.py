@@ -14,51 +14,45 @@ import base64
 # Streamlit-specific configuration must be at the very top of the script
 st.set_page_config(layout="wide")
 
-# --- Database Setup (CRITICAL FIX) ---
-# This function ensures the database and all tables are created every time the app starts.
-# It is called once at the top of the script before any other logic.
-def setup_database():
-    """
-    Initializes the database and creates all necessary tables.
-    This function is called once at the start to prevent 'no such table' errors.
-    """
-    conn = sqlite3.connect('users.db')
-    c = conn.cursor()
-    
-    # Create the users table if it doesn't exist
-    c.execute('''CREATE TABLE IF NOT EXISTS users
-                 (username TEXT PRIMARY KEY, password TEXT)''')
-                 
-    # Create the quiz results table if it doesn't exist
-    c.execute('''CREATE TABLE IF NOT EXISTS quiz_results
-                 (id INTEGER PRIMARY KEY AUTOINCREMENT,
-                  username TEXT,
-                  topic TEXT,
-                  score INTEGER,
-                  timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
-                  
-    # Create the chat messages table if it doesn't exist
-    c.execute('''CREATE TABLE IF NOT EXISTS chat_messages
-                 (id INTEGER PRIMARY KEY AUTOINCREMENT,
-                  username TEXT,
-                  message TEXT,
-                  media TEXT,
-                  timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
-                  
-    conn.commit()
-    conn.close()
+# --- Database Setup and Connection Logic ---
+# The database file name
+DB_FILE = 'users.db'
 
-# Call the setup function immediately upon script execution.
-setup_database()
+def create_tables_if_not_exist():
+    """
+    Ensures all necessary tables exist in the database.
+    This is called only once at the start of the app's life.
+    """
+    try:
+        conn = sqlite3.connect(DB_FILE)
+        c = conn.cursor()
+        
+        c.execute('''CREATE TABLE IF NOT EXISTS users
+                     (username TEXT PRIMARY KEY, password TEXT)''')
+                     
+        c.execute('''CREATE TABLE IF NOT EXISTS quiz_results
+                     (id INTEGER PRIMARY KEY AUTOINCREMENT,
+                      username TEXT,
+                      topic TEXT,
+                      score INTEGER,
+                      timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
+                      
+        c.execute('''CREATE TABLE IF NOT EXISTS chat_messages
+                     (id INTEGER PRIMARY KEY AUTOINCREMENT,
+                      username TEXT,
+                      message TEXT,
+                      media TEXT,
+                      timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
+                      
+        conn.commit()
+    except sqlite3.Error as e:
+        st.error(f"Database setup error: {e}")
+    finally:
+        if conn:
+            conn.close()
 
-# --- Functions for re-establishing connection for app functions ---
-def get_db_connection():
-    """
-    Creates and returns a new database connection object.
-    """
-    conn = sqlite3.connect("users.db")
-    conn.row_factory = sqlite3.Row  # This allows accessing columns by name
-    return conn
+# Call the setup function once when the script first runs
+create_tables_if_not_exist()
 
 # --- Functions for user authentication ---
 def hash_password(password):
@@ -70,31 +64,45 @@ def check_password(hashed_password, user_password):
     return bcrypt.checkpw(user_password.encode('utf-8'), hashed_password.encode('utf-8'))
 
 def login_user(username, password):
-    """Authenticates a user."""
-    conn = get_db_connection()
-    c = conn.cursor()
-    c.execute("SELECT password FROM users WHERE username=?", (username,))
-    result = c.fetchone()
-    conn.close()
-    if result:
-        hashed_password = result[0]
-        if check_password(hashed_password, password):
-            return True
-    return False
+    """
+    Authenticates a user. This function now creates and closes its
+    own database connection, making it thread-safe.
+    """
+    try:
+        conn = sqlite3.connect(DB_FILE)
+        c = conn.cursor()
+        c.execute("SELECT password FROM users WHERE username=?", (username,))
+        result = c.fetchone()
+        if result:
+            hashed_password = result[0]
+            return check_password(hashed_password, password)
+        return False
+    except sqlite3.Error as e:
+        st.error(f"Login database error: {e}")
+        return False
+    finally:
+        if conn:
+            conn.close()
 
 def signup_user(username, password):
-    """Creates a new user account."""
-    conn = get_db_connection()
-    c = conn.cursor()
+    """
+    Creates a new user account. This function is also now thread-safe.
+    """
     try:
+        conn = sqlite3.connect(DB_FILE)
+        c = conn.cursor()
         hashed_password = hash_password(password)
         c.execute("INSERT INTO users (username, password) VALUES (?, ?)", (username, hashed_password))
         conn.commit()
-        conn.close()
         return True
     except sqlite3.IntegrityError:
-        conn.close()
+        return False # Username already exists
+    except sqlite3.Error as e:
+        st.error(f"Signup database error: {e}")
         return False
+    finally:
+        if conn:
+            conn.close()
 
 # --- Quiz and Result Functions ---
 def generate_question(topic, difficulty):
@@ -103,7 +111,6 @@ def generate_question(topic, difficulty):
     if topic in ["sets and operations on sets", "surds", "binary operations", "relations and functions", "polynomial functions", "rational functions", "binomial theorem", "coordinate geometry", "probabilty", "vectors", "sequence and series"]:
         return "Quiz questions for this topic are coming soon!", None
     
-    # Old logic for basic topics (kept as a fallback, though not used with new list)
     a, b = 0, 0
     if difficulty == "Easy":
         a = random.randint(1, 10)
@@ -154,78 +161,120 @@ def generate_question(topic, difficulty):
 
 def save_quiz_result(username, topic, score):
     """Saves a user's quiz result to the database."""
-    conn = get_db_connection()
-    c = conn.cursor()
-    c.execute("INSERT INTO quiz_results (username, topic, score) VALUES (?, ?, ?)",
-              (username, topic, score))
-    conn.commit()
-    conn.close()
+    try:
+        conn = sqlite3.connect(DB_FILE)
+        c = conn.cursor()
+        c.execute("INSERT INTO quiz_results (username, topic, score) VALUES (?, ?, ?)",
+                  (username, topic, score))
+        conn.commit()
+    except sqlite3.Error as e:
+        st.error(f"Save quiz result database error: {e}")
+    finally:
+        if conn:
+            conn.close()
 
 def get_top_scores(topic):
     """Fetches the top 10 scores for a given topic."""
-    conn = get_db_connection()
-    c = conn.cursor()
-    c.execute("SELECT username, score FROM quiz_results WHERE topic=? ORDER BY score DESC, timestamp ASC LIMIT 10", (topic,))
-    results = c.fetchall()
-    conn.close()
-    return results
+    try:
+        conn = sqlite3.connect(DB_FILE)
+        c = conn.cursor()
+        c.execute("SELECT username, score FROM quiz_results WHERE topic=? ORDER BY score DESC, timestamp ASC LIMIT 10", (topic,))
+        results = c.fetchall()
+        return results
+    except sqlite3.Error as e:
+        st.error(f"Get top scores database error: {e}")
+        return []
+    finally:
+        if conn:
+            conn.close()
 
 def get_user_quiz_history(username):
     """Fetches a user's quiz history."""
-    conn = get_db_connection()
-    c = conn.cursor()
-    c.execute("SELECT topic, score, timestamp FROM quiz_results WHERE username=? ORDER BY timestamp DESC", (username,))
-    results = c.fetchall()
-    conn.close()
-    return results
+    try:
+        conn = sqlite3.connect(DB_FILE)
+        conn.row_factory = sqlite3.Row
+        c = conn.cursor()
+        c.execute("SELECT topic, score, timestamp FROM quiz_results WHERE username=? ORDER BY timestamp DESC", (username,))
+        results = c.fetchall()
+        return results
+    except sqlite3.Error as e:
+        st.error(f"Get quiz history database error: {e}")
+        return []
+    finally:
+        if conn:
+            conn.close()
 
 def get_user_stats(username):
     """Fetches key statistics for a user's dashboard."""
-    conn = get_db_connection()
-    c = conn.cursor()
-    # Get total quizzes taken
-    c.execute("SELECT COUNT(*) FROM quiz_results WHERE username=?", (username,))
-    total_quizzes = c.fetchone()[0]
+    try:
+        conn = sqlite3.connect(DB_FILE)
+        c = conn.cursor()
+        # Get total quizzes taken
+        c.execute("SELECT COUNT(*) FROM quiz_results WHERE username=?", (username,))
+        total_quizzes = c.fetchone()[0]
 
-    # Get last score
-    c.execute("SELECT score FROM quiz_results WHERE username=? ORDER BY timestamp DESC LIMIT 1", (username,))
-    last_score = c.fetchone()
-    last_score = last_score[0] if last_score else "N/A"
+        # Get last score
+        c.execute("SELECT score FROM quiz_results WHERE username=? ORDER BY timestamp DESC LIMIT 1", (username,))
+        last_score = c.fetchone()
+        last_score = last_score[0] if last_score else "N/A"
 
-    # Get top score
-    c.execute("SELECT MAX(score) FROM quiz_results WHERE username=?", (username,))
-    top_score = c.fetchone()
-    top_score = top_score[0] if top_score and top_score[0] is not None else "N/A"
-    
-    conn.close()
-    return total_quizzes, last_score, top_score
+        # Get top score
+        c.execute("SELECT MAX(score) FROM quiz_results WHERE username=?", (username,))
+        top_score = c.fetchone()
+        top_score = top_score[0] if top_score and top_score[0] is not None else "N/A"
+        
+        return total_quizzes, last_score, top_score
+    except sqlite3.Error as e:
+        st.error(f"Get user stats database error: {e}")
+        return 0, "N/A", "N/A"
+    finally:
+        if conn:
+            conn.close()
 
 # --- Chat Functions ---
 def add_chat_message(username, message, media=None):
     """Adds a new chat message with optional media to the database."""
-    conn = get_db_connection()
-    c = conn.cursor()
-    c.execute("INSERT INTO chat_messages (username, message, media) VALUES (?, ?, ?)", (username, message, media))
-    conn.commit()
-    conn.close()
+    try:
+        conn = sqlite3.connect(DB_FILE)
+        c = conn.cursor()
+        c.execute("INSERT INTO chat_messages (username, message, media) VALUES (?, ?, ?)", (username, message, media))
+        conn.commit()
+    except sqlite3.Error as e:
+        st.error(f"Add chat message database error: {e}")
+    finally:
+        if conn:
+            conn.close()
 
 def get_chat_messages():
     """Fetches all chat messages from the database."""
-    conn = get_db_connection()
-    c = conn.cursor()
-    c.execute("SELECT id, username, message, media, timestamp FROM chat_messages ORDER BY timestamp ASC")
-    results = c.fetchall()
-    conn.close()
-    return results
+    try:
+        conn = sqlite3.connect(DB_FILE)
+        conn.row_factory = sqlite3.Row
+        c = conn.cursor()
+        c.execute("SELECT id, username, message, media, timestamp FROM chat_messages ORDER BY timestamp ASC")
+        results = c.fetchall()
+        return results
+    except sqlite3.Error as e:
+        st.error(f"Get chat messages database error: {e}")
+        return []
+    finally:
+        if conn:
+            conn.close()
 
 def get_all_usernames():
     """Fetches all registered usernames."""
-    conn = get_db_connection()
-    c = conn.cursor()
-    c.execute("SELECT username FROM users")
-    results = [row[0] for row in c.fetchall()]
-    conn.close()
-    return results
+    try:
+        conn = sqlite3.connect(DB_FILE)
+        c = conn.cursor()
+        c.execute("SELECT username FROM users")
+        results = [row[0] for row in c.fetchall()]
+        return results
+    except sqlite3.Error as e:
+        st.error(f"Get all usernames database error: {e}")
+        return []
+    finally:
+        if conn:
+            conn.close()
 
 def report_message(message_id, reporter_username):
     """Logs a message report (to console for this example)."""
@@ -238,7 +287,7 @@ def format_message(message, mentioned_usernames, current_user):
         return ""
     emoji_map = {
         ":smile:": "😊", ":laughing:": "😂", ":thumbsup:": "👍", ":thumbsdown:": "👎",
-        ":heart:": "❤️", ":star:": "⭐", ":100:": "💯", ":fire:": "🔥",
+        ":heart:": "❤️", ":star:": "⭐", ":100:": "💯", ":fire:": "�",
         ":thinking:": "🤔", ":nerd:": "🤓"
     }
     for shortcut, emoji in emoji_map.items():
