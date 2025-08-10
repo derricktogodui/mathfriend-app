@@ -2,3 +2,4 @@ streamlit
 streamlit-autorefresh
 pyperclip
 bcrypt
+plotly
