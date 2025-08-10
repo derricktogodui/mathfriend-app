@@ -1406,34 +1406,49 @@ def show_main_app():
                             
         st.markdown("---")
 
-        with st.form("chat_form", clear_on_submit=True):
-            user_message = st.text_area("Say something...", key="chat_input", height=50, 
-                                       placeholder="Type your message here or mention @MathBot for help",
-                                       on_change=lambda: update_typing_status(st.session_state.username, True))
-            
-            col_upload, col_send = st.columns([0.7, 0.3])
-            
-            with col_upload:
-                uploaded_file = st.file_uploader("📷 Upload Photo", type=["png", "jpg", "jpeg"], 
-                                               label_visibility="collapsed")
-            
-            with col_send:
-                submitted = st.form_submit_button("Send", type="primary", use_container_width=True,
-                                                on_click=lambda: update_typing_status(st.session_state.username, False))
-            
-            if submitted and (user_message or uploaded_file):
-                media_data = None
-                if uploaded_file is not None:
-                    media_data = base64.b64encode(uploaded_file.getvalue()).decode('utf-8')
-                
-                add_chat_message(st.session_state.username, user_message, media_data)
+       # Add this at the beginning of your chat section (before the form)
+if 'is_typing' not in st.session_state:
+    st.session_state.is_typing = False
 
-                if user_message and user_message.startswith("@MathBot"):
-                    bot_response = get_mathbot_response(user_message)
-                    if bot_response:
-                        add_chat_message("MathBot", bot_response, None)
+# Replace the form with this:
+with st.form("chat_form", clear_on_submit=True):
+    user_message = st.text_area("Say something...", key="chat_input", height=50, 
+                               placeholder="Type your message here or mention @MathBot for help")
+    
+    col_upload, col_send = st.columns([0.7, 0.3])
+    
+    with col_upload:
+        uploaded_file = st.file_uploader("📷 Upload Photo", type=["png", "jpg", "jpeg"], 
+                                       label_visibility="collapsed")
+    
+    with col_send:
+        submitted = st.form_submit_button("Send", type="primary", use_container_width=True)
+    
+    if submitted:
+        update_typing_status(st.session_state.username, False)
+        if user_message or uploaded_file:
+            media_data = None
+            if uploaded_file is not None:
+                media_data = base64.b64encode(uploaded_file.getvalue()).decode('utf-8')
+            
+            add_chat_message(st.session_state.username, user_message, media_data)
 
-                st.rerun()
+            if user_message and user_message.startswith("@MathBot"):
+                bot_response = get_mathbot_response(user_message)
+                if bot_response:
+                    add_chat_message("MathBot", bot_response, None)
+
+            st.rerun()
+
+# Add this right after the form (for typing detection)
+if st.session_state.get("chat_input", ""):
+    if not st.session_state.is_typing:
+        update_typing_status(st.session_state.username, True)
+        st.session_state.is_typing = True
+else:
+    if st.session_state.is_typing:
+        update_typing_status(st.session_state.username, False)
+        st.session_state.is_typing = False
         
         st.markdown("</div>", unsafe_allow_html=True)
 
@@ -1623,3 +1638,4 @@ else:
         show_signup_page()
     else:
         show_login_page()
+
