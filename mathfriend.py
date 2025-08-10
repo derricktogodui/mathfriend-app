@@ -6,6 +6,7 @@ import random
 import pandas as pd
 import plotly.express as px
 import re
+import hashlib
 
 # Streamlit-specific configuration must be at the very top of the script
 st.set_page_config(layout="wide")
@@ -111,16 +112,48 @@ def get_chat_messages():
     
 # --- Emojis and Formatting Function ---
 def format_message(message):
-    """Replaces common emoji shortcuts with actual emojis."""
+    """Replaces common emoji shortcuts with actual emojis and formats message."""
     emoji_map = {
-        ":smile:": "😊", ":laughing:": "😂", ":thumbsup:": "👍", ":thumbsdown:": "👎",
-        ":heart:": "❤️", ":star:": "⭐", ":100:": "�", ":fire:": "🔥",
+        ":smile:": "😊", ":laughing:": "😂", ":thumbsup:": "�", ":thumbsdown:": "👎",
+        ":heart:": "❤️", ":star:": "⭐", ":100:": "💯", ":fire:": "🔥",
         ":thinking:": "🤔", ":nerd:": "🤓"
     }
     for shortcut, emoji in emoji_map.items():
         message = message.replace(shortcut, emoji)
-    # Apply basic markdown for bold, italic, etc.
     return message
+
+# --- MathBot Integration ---
+def get_mathbot_response(message):
+    """Simulates a MathBot that can solve simple arithmetic problems."""
+    # Check if the message is a question for the bot
+    if not message.startswith("@MathBot"):
+        return None
+
+    # Extract the math expression from the message
+    expression = message.replace("@MathBot", "").strip()
+    
+    # A simple and safe way to evaluate arithmetic expressions
+    if re.match(r"^[0-9+\-*/().\s]+$", expression):
+        try:
+            result = eval(expression)
+            return f"The answer is: {result}"
+        except:
+            return "Sorry, I couldn't solve that. Please provide a valid math expression."
+    else:
+        return "I can only solve simple arithmetic problems like '5+3' or '(10-2)*4'."
+
+def get_avatar_url(username):
+    """Generates a unique, consistent avatar based on the username."""
+    # Create a simple hash of the username
+    hash_object = hashlib.md5(username.encode())
+    hash_hex = hash_object.hexdigest()
+    
+    # Use the hash to get a consistent color and letter
+    first_letter = username[0].upper()
+    color_code = hash_hex[0:6]
+    
+    return f"https://placehold.co/40x40/{color_code}/ffffff?text={first_letter}"
+
 
 # --- Page Rendering Logic ---
 def show_login_page():
@@ -296,27 +329,32 @@ def show_main_app():
 
     elif selected_page == "💬 Chat":
         st.header("Community Chat 💬")
-        st.write("Help each other out with math homework!")
+        st.write("Ask for help, share tips, or get an instant answer from the **@MathBot**!")
         st.markdown("---")
 
+        # Chat history container with fixed height and scroll
         chat_container = st.container(height=400)
 
         with chat_container:
             all_messages = get_chat_messages()
             for username, message, timestamp in all_messages:
                 formatted_message = format_message(message)
+                avatar_url = get_avatar_url(username)
+
                 if username == st.session_state.username:
                     st.markdown(f"""
-                        <div style="display:flex; justify-content: flex-end;">
+                        <div style="display:flex; justify-content: flex-end; align-items:flex-end;">
                             <div class="chat-bubble-user">
                                 <small style="display:block; text-align:right; color:#ddd; font-size:10px;">{username} - {timestamp}</small>
                                 <div>{formatted_message}</div>
                             </div>
+                            <img class='avatar' src='{avatar_url}'/>
                         </div>
                     """, unsafe_allow_html=True)
                 else:
                     st.markdown(f"""
-                        <div style="display:flex; justify-content: flex-start;">
+                        <div style="display:flex; justify-content: flex-start; align-items:flex-end;">
+                            <img class='avatar' src='{avatar_url}'/>
                             <div class="chat-bubble-other">
                                 <small style="display:block; text-align:left; color:#888; font-size:10px;">{username} - {timestamp}</small>
                                 <div>{formatted_message}</div>
@@ -331,7 +369,14 @@ def show_main_app():
             submitted = st.form_submit_button("Send")
             
             if submitted and user_message:
+                # Add the user's message
                 add_chat_message(st.session_state.username, user_message)
+
+                # Check for MathBot query
+                bot_response = get_mathbot_response(user_message)
+                if bot_response:
+                    add_chat_message("MathBot", bot_response)
+
                 st.rerun()
 
     elif selected_page == "📚 Learning Resources":
@@ -446,6 +491,19 @@ else:
         border-radius: 15px 15px 15px 0;
         margin-bottom: 10px;
         max-width: 60%;
+    }
+    .avatar {
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        object-fit: cover;
+        margin: 0 10px;
+    }
+    .chat-bubble-user + .avatar {
+        order: 2; /* Puts avatar after the bubble */
+    }
+    .chat-bubble-user {
+        order: 1; /* Puts bubble before the avatar */
     }
     </style>
     """, unsafe_allow_html=True)
