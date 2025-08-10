@@ -14,38 +14,44 @@ import base64
 # Streamlit-specific configuration must be at the very top of the script
 st.set_page_config(layout="wide")
 
-# --- Database Initialization (MUST be at the top of the script) ---
-# This block ensures all necessary tables are created every time the app starts.
-conn = sqlite3.connect('users.db')
-c = conn.cursor()
+# --- Database Setup (CRITICAL FIX) ---
+# This function ensures the database and all tables are created every time the app starts.
+# It is called once at the top of the script before any other logic.
+def setup_database():
+    """
+    Initializes the database and creates all necessary tables.
+    This function is called once at the start to prevent 'no such table' errors.
+    """
+    conn = sqlite3.connect('users.db')
+    c = conn.cursor()
+    
+    # Create the users table if it doesn't exist
+    c.execute('''CREATE TABLE IF NOT EXISTS users
+                 (username TEXT PRIMARY KEY, password TEXT)''')
+                 
+    # Create the quiz results table if it doesn't exist
+    c.execute('''CREATE TABLE IF NOT EXISTS quiz_results
+                 (id INTEGER PRIMARY KEY AUTOINCREMENT,
+                  username TEXT,
+                  topic TEXT,
+                  score INTEGER,
+                  timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
+                  
+    # Create the chat messages table if it doesn't exist
+    c.execute('''CREATE TABLE IF NOT EXISTS chat_messages
+                 (id INTEGER PRIMARY KEY AUTOINCREMENT,
+                  username TEXT,
+                  message TEXT,
+                  media TEXT,
+                  timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
+                  
+    conn.commit()
+    conn.close()
 
-# Create the users table
-c.execute('''CREATE TABLE IF NOT EXISTS users
-             (username TEXT PRIMARY KEY, password TEXT)''')
-             
-# Create the quiz results table
-c.execute('''CREATE TABLE IF NOT EXISTS quiz_results
-             (id INTEGER PRIMARY KEY AUTOINCREMENT,
-              username TEXT,
-              topic TEXT,
-              score INTEGER,
-              timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
-              
-# Create the chat messages table (the source of your error)
-c.execute('''CREATE TABLE IF NOT EXISTS chat_messages
-             (id INTEGER PRIMARY KEY AUTOINCREMENT,
-              username TEXT,
-              message TEXT,
-              media TEXT,
-              timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
-              
-conn.commit()
-# It is safe to close the connection here and reopen it in functions as needed,
-# or keep it open for the duration of the app session.
-conn.close()
+# Call the setup function immediately upon script execution.
+setup_database()
 
-
-# --- Re-establish connection for app functions ---
+# --- Functions for re-establishing connection for app functions ---
 def get_db_connection():
     """
     Creates and returns a new database connection object.
