@@ -1056,99 +1056,6 @@ def show_main_app():
     </style>
     """, unsafe_allow_html=True)
 
-    # 2. Add the optimized Tawk.to integration
-    html("""
-    <style>
-      /* Tawk.to Container Fixes */
-      .tawk-iframe-container {
-        position: fixed !important;
-        bottom: 20px !important;
-        right: 20px !important;
-        z-index: 1000 !important;
-        height: 60px !important;
-        width: 60px !important;
-        pointer-events: none !important;
-      }
-      .tawk-iframe-container iframe {
-        height: min(76vh, 600px) !important;
-        width: min(400px, 90vw) !important;
-        position: absolute !important;
-        bottom: 70px !important;
-        right: 0 !important;
-        border: none !important;
-        box-shadow: 0 4px 20px rgba(0,0,0,0.15) !important;
-        border-radius: 12px !important;
-        overflow: hidden !important;
-        opacity: 0 !important;
-        transform: scale(0.9) translateY(20px) !important;
-        transform-origin: bottom right !important;
-        transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.1) !important;
-        pointer-events: all !important;
-      }
-      .tawk-iframe-container iframe.show {
-        opacity: 1 !important;
-        transform: scale(1) translateY(0) !important;
-      }
-      .tawk-minimized-container {
-        position: fixed !important;
-        bottom: 20px !important;
-        right: 20px !important;
-        z-index: 1000 !important;
-        cursor: pointer !important;
-        pointer-events: all !important;
-      }
-    </style>
-
-    <div class="tawk-iframe-container" id="custom-tawk-container"></div>
-    <div class="tawk-minimized-container" id="tawk-minimized">💬</div>
-
-    <script>
-    // Enhanced Tawk.to integration
-    var Tawk_API = Tawk_API || {};
-    Tawk_API.onLoad = function(){
-      const container = document.getElementById('custom-tawk-container');
-      const iframe = container.querySelector('iframe');
-      const minimizedBtn = document.getElementById('tawk-minimized');
-      
-      // Show/hide logic
-      minimizedBtn.onclick = function() {
-        iframe.classList.toggle('show');
-        minimizedBtn.style.display = iframe.classList.contains('show') ? 'none' : 'block';
-      };
-      
-      // Close when clicking outside
-      document.addEventListener('click', function(e) {
-        if (!e.target.closest('#custom-tawk-container') && 
-            !e.target.closest('#tawk-minimized') &&
-            iframe.classList.contains('show')) {
-          iframe.classList.remove('show');
-          minimizedBtn.style.display = 'block';
-        }
-      });
-      
-      // Fix input focus
-      iframe.contentWindow.document.body.style.pointerEvents = 'auto';
-    };
-
-    (function(){
-      var s1=document.createElement('script'),
-          s0=document.getElementsByTagName('script')[0],
-          container=document.getElementById('custom-tawk-container');
-      
-      s1.async=true;
-      s1.src='https://embed.tawk.to/689a6b2ecb88dd19275a68c5/1j2dj5c2l';
-      s1.charset='UTF-8';
-      s1.setAttribute('crossorigin','*');
-      
-      var iframe = document.createElement('iframe');
-      iframe.style.display = 'none';
-      container.appendChild(iframe);
-      
-      s0.parentNode.insertBefore(s1,s0);
-    })();
-    </script>
-    """)
-
     # 3. Continue with your existing dark mode and app code
     if 'dark_mode' not in st.session_state:
         st.session_state.dark_mode = False
@@ -1945,5 +1852,6 @@ s0.parentNode.insertBefore(s1,s0);
 </script>
 """
 html(tawk_to_script, height=0, width=0, scrolling=False)
+
 
 
