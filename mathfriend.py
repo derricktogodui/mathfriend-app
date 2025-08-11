@@ -1338,6 +1338,8 @@ def show_main_app():
 # (UNCHANGED CONTENT REMOVED FOR BREVITY UNTIL THE CHAT FORM SECTION)
 
 
+# [Previous imports and code remain exactly the same until the Chat section]
+
     elif selected_page == "💬 Chat":
         st.header("💬 Community Chat")
         st.markdown("""
@@ -1360,19 +1362,117 @@ def show_main_app():
             line-height: 1.3;
             word-wrap: break-word;
             animation: fadeIn 0.4s ease-in;
-        
-            color: #222; /* Force readable dark text */}
-        .msg-own .msg-bubble { background-color: #dcf8c6; border-bottom-right-radius: 4px; 
-            color: #222; /* Force readable dark text */}
-        .msg-other .msg-bubble { background-color: #fff; border-bottom-left-radius: 4px; 
-            color: #222; /* Force readable dark text */}
+            color: #222; /* Force readable dark text */
+        }
+        .msg-own .msg-bubble { background-color: #dcf8c6; border-bottom-right-radius: 4px; color: #222; }
+        .msg-other .msg-bubble { background-color: #fff; border-bottom-left-radius: 4px; color: #222; }
         .avatar-small { width: 32px; height: 32px; border-radius: 50%; object-fit: cover; margin: 0 6px; }
         .msg-meta { font-size: 0.75rem; color: #888; margin-bottom: 3px; }
         .date-separator { text-align: center; font-size: 0.75rem; color: #999; margin: 10px 0; animation: fadeIn 0.5s ease-in; }
-        .chat-image { max-width: 150px; max-height: 150px; border-radius: 8px; cursor: pointer; animation: fadeIn 0.4s ease-in; }
+        .chat-image { 
+            max-width: 150px; 
+            max-height: 150px; 
+            border-radius: 8px; 
+            cursor: pointer; 
+            animation: fadeIn 0.4s ease-in;
+            transition: transform 0.2s ease;
+        }
+        .chat-image:hover {
+            transform: scale(1.02);
+        }
         .chat-input-area { position: sticky; bottom: 0; background: #f7f7f7; padding: 8px; border-top: 1px solid #ddd; }
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+        
+        /* Image Modal Styles */
+        .chat-image-modal {
+            display: none;
+            position: fixed;
+            z-index: 9999;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.9);
+            animation: fadeIn 0.3s;
+        }
+        
+        .modal-image-content {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100%;
+            width: 100%;
+        }
+        
+        .modal-image {
+            max-width: 90%;
+            max-height: 90%;
+            object-fit: contain;
+        }
+        
+        .close-modal {
+            position: absolute;
+            top: 20px;
+            right: 30px;
+            color: white;
+            font-size: 35px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: color 0.2s;
+        }
+        
+        .close-modal:hover {
+            color: #ddd;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
         </style>
+
+        <!-- Image Modal HTML -->
+        <div id="imageModal" class="chat-image-modal">
+            <span class="close-modal">&times;</span>
+            <div class="modal-image-content">
+                <img id="modalImage" class="modal-image">
+            </div>
+        </div>
+
+        <script>
+            // Get the modal elements
+            const modal = document.getElementById("imageModal");
+            const modalImg = document.getElementById("modalImage");
+            const closeBtn = document.querySelector(".close-modal");
+            
+            // Function to open modal with clicked image
+            function openImageModal(imgSrc) {
+                modal.style.display = "flex";
+                modalImg.src = imgSrc;
+                document.body.style.overflow = "hidden"; // Prevent scrolling
+            }
+            
+            // Close modal when X is clicked
+            closeBtn.onclick = function() {
+                modal.style.display = "none";
+                document.body.style.overflow = "auto";
+            }
+            
+            // Close modal when clicking outside image
+            modal.onclick = function(event) {
+                if (event.target === modal) {
+                    modal.style.display = "none";
+                    document.body.style.overflow = "auto";
+                }
+            }
+            
+            // Close modal with Escape key
+            document.addEventListener('keydown', function(event) {
+                if (event.key === "Escape") {
+                    modal.style.display = "none";
+                    document.body.style.overflow = "auto";
+                }
+            });
+        </script>
         """, unsafe_allow_html=True)
 
         st.write("Ask for help, share tips, or get an instant answer from **@MathBot**!")
@@ -1419,8 +1519,9 @@ def show_main_app():
                 formatted_message = format_message(message, all_usernames, st.session_state.username)
                 parts.append(f"<div>{formatted_message}</div>")
             if media:
-                parts.append(f"<a href='data:image/png;base64,{media}' target='_blank'><img src='data:image/png;base64,{media}' class='chat-image'/></a>")
-
+                # Updated image display with modal functionality
+                parts.append(f"<img src='data:image/png;base64,{media}' class='chat-image' onclick='openImageModal(this.src)'/>")
+            
             bubble_html = f"""
             <div>
                 <div class="msg-meta">{username} • {time_str}</div>
@@ -1431,6 +1532,8 @@ def show_main_app():
             st.markdown(f"<div class='{row_class}'>{avatar_html}{bubble_html}</div>", unsafe_allow_html=True)
             last_user = username
         st.markdown('</div>', unsafe_allow_html=True)
+
+        # [Rest of the chat section code remains exactly the same]
 
         # JS for lazy load + scroll position preservation
         st.markdown(f"""
