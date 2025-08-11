@@ -1009,64 +1009,6 @@ def show_main_app():
         }
     </style>
     """, unsafe_allow_html=True)
-
-   st.markdown("""
-    <style>
-        :root {
-            --primary: #4361ee;
-            --secondary: #3a0ca3;
-            --accent: #4895ef;
-            --light: #f8f9fa;
-            --dark: #212529;
-            --success: #4cc9f0;
-            --warning: #f8961e;
-            --danger: #f72585;
-        }
-        
-        [data-theme="dark"] {
-            --primary: #3a86ff;
-            --secondary: #8338ec;
-            --accent: #ff006e;
-            --light: #212529;
-            --dark: #f8f9fa;
-        }
-        
-        /* Add these protection rules */
-        .stApp > header {
-            z-index: 1001 !important;  /* Keeps header above Tawk.to */
-        }
-        .main .block-container {
-            z-index: 1 !important;
-            position: relative;
-        }
-        .stButton > button {
-            position: relative;
-            z-index: 2 !important;
-        }
-        /* Your existing CSS continues below... */
-        .main-content-container {
-            background-color: var(--light);
-            color: var(--dark);
-            padding: 20px;
-            border-radius: 12px;
-            transition: all 0.3s ease;
-        }
-        
-        /* ... rest of your existing CSS rules ... */
-    </style>
-    """, unsafe_allow_html=True)
-
-    # 3. Continue with your existing dark mode and app code
-    if 'dark_mode' not in st.session_state:
-        st.session_state.dark_mode = False
-    
-    if st.session_state.dark_mode:
-        st.markdown("""
-        <style>
-            .main-content-container {
-                background-color: #121212 !important;
-                color: #ffffff !important;
-            }
     
     # Dark mode toggle in sidebar
     if 'dark_mode' not in st.session_state:
@@ -1833,25 +1775,3 @@ else:
         show_main_app()
     else: # This handles both 'login' and 'signup' pages
         show_login_page()
-
-# --- Place the Tawk.to code here ---
-# It should be outside of all if/elif/else blocks to run unconditionally.
-from streamlit.components.v1 import html
-
-tawk_to_script = """
-<script type="text/javascript">
-var Tawk_API=Tawk_API||{}, Tawk_LoadStart=new Date();
-(function(){
-var s1=document.createElement("script"),s0=document.getElementsByTagName("script")[0];
-s1.async=true;
-s1.src='https://embed.tawk.to/689a6b2ecb88dd19275a68c5/1j2dj5c2l';
-s1.charset='UTF-8';
-s1.setAttribute('crossorigin','*');
-s0.parentNode.insertBefore(s1,s0);
-})();
-</script>
-"""
-html(tawk_to_script, height=0, width=0, scrolling=False)
-
-
-
