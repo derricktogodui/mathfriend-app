@@ -741,6 +741,22 @@ def show_profile_page():
     st.markdown("</div>", unsafe_allow_html=True)
 
 def show_main_app():
+    # Tawk.to Script Injection using st.markdown for correct rendering
+    tawk_to_script = """
+    <script type="text/javascript">
+    var Tawk_API=Tawk_API||{}, Tawk_LoadStart=new Date();
+    (function(){
+    var s1=document.createElement("script"),s0=document.getElementsByTagName("script")[0];
+    s1.async=true;
+    s1.src='https://embed.tawk.to/689a6b2ecb88dd19275a68c5/1j2dj5c2l';
+    s1.charset='UTF-8';
+    s1.setAttribute('crossorigin','*');
+    s0.parentNode.insertBefore(s1,s0);
+    })();
+    </script>
+    """
+    st.markdown(tawk_to_script, unsafe_allow_html=True)
+
     # Inject modern CSS styles
     st.markdown("""
     <style>
@@ -1009,21 +1025,6 @@ def show_main_app():
         }
     </style>
     """, unsafe_allow_html=True)
-
-    # Tawk.to Script Injection
-    html("""
-    <script type="text/javascript">
-    var Tawk_API=Tawk_API||{}, Tawk_LoadStart=new Date();
-    (function(){
-    var s1=document.createElement("script"),s0=document.getElementsByTagName("script")[0];
-    s1.async=true;
-    s1.src='https://embed.tawk.to/689a6b2ecb88dd19275a68c5/1j2dj5c2l';
-    s1.charset='UTF-8';
-    s1.setAttribute('crossorigin','*');
-    s0.parentNode.insertBefore(s1,s0);
-    })();
-    </script>
-    """)
     
     # Dark mode toggle in sidebar
     if 'dark_mode' not in st.session_state:
