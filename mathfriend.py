@@ -12,6 +12,8 @@ import math
 import base64
 from datetime import datetime
 from streamlit.components.v1 import html
+from streamlit_autorefresh import st_autorefresh
+from streamlit.components.v1 import html
 
 # Streamlit-specific configuration
 st.set_page_config(
@@ -1773,3 +1775,22 @@ else:
         show_main_app()
     else: # This handles both 'login' and 'signup' pages
         show_login_page()
+
+# --- Place the Tawk.to code here ---
+# It should be outside of all if/elif/else blocks to run unconditionally.
+from streamlit.components.v1 import html
+
+tawk_to_script = """
+<script type="text/javascript">
+var Tawk_API=Tawk_API||{}, Tawk_LoadStart=new Date();
+(function(){
+var s1=document.createElement("script"),s0=document.getElementsByTagName("script")[0];
+s1.async=true;
+s1.src='https://embed.tawk.to/689a6b2ecb88dd19275a68c5/1j2dj5c2l';
+s1.charset='UTF-8';
+s1.setAttribute('crossorigin','*');
+s0.parentNode.insertBefore(s1,s0);
+})();
+</script>
+"""
+html(tawk_to_script, height=0, width=0, scrolling=False)
