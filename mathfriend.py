@@ -1342,282 +1342,140 @@ def show_main_app():
 
 # [Previous imports and code remain exactly the same until the Chat section]
 
-   elif selected_page == "💬 Chat":
-    # --- REAL-TIME UPDATE ---
-    # This automatically reruns the script every 3 seconds to fetch new messages.
-    st_autorefresh(interval=3000, key="chat_refresh")
-
-    # --- WHATSAPP-STYLE CSS AND IMAGE MODAL ---
-    st.markdown("""
-    <style>
-    /* Main container for chat messages */
-    .chat-container {
-        display: flex;
-        flex-direction: column;
-        height: 65vh; /* Responsive height */
-        overflow-y: auto;
-        padding: 10px;
-        background-color: #f0f2f5; /* WhatsApp-like background */
-        border-radius: 8px;
-    }
-
-    /* Row for each message, using flexbox for alignment */
-    .msg-row {
-        display: flex;
-        align-items: flex-end;
-        margin-bottom: 4px;
-        animation: fadeIn 0.3s ease-in;
-    }
-
-    /* Aligns messages from the current user to the right */
-    .msg-own {
-        justify-content: flex-end;
-    }
-
-    /* Aligns messages from other users to the left */
-    .msg-other {
-        justify-content: flex-start;
-    }
-
-    /* The chat bubble itself */
-    .msg-bubble {
-        padding: 8px 12px;
-        border-radius: 18px;
-        max-width: 80%; /* Responsive width for mobile */
-        word-wrap: break-word; /* Ensures long words don't overflow */
-        white-space: pre-wrap; /* Respects newlines in messages */
-        box-shadow: 0 1px 1px rgba(0,0,0,0.05);
-        font-size: 0.95rem;
-    }
-
-    /* Styling for the current user's chat bubble */
-    .msg-own .msg-bubble {
-        background-color: #dcf8c6; /* WhatsApp green */
-        border-bottom-right-radius: 4px;
-        color: #000;
-    }
-
-    /* Styling for other users' chat bubbles */
-    .msg-other .msg-bubble {
-        background-color: #ffffff; /* WhatsApp white */
-        border-bottom-left-radius: 4px;
-        color: #000;
-    }
-
-    /* On larger screens, give the bubbles a max pixel width */
-    @media (min-width: 600px) {
+    elif selected_page == "💬 Chat":
+        st.header("💬 Community Chat")
+        st.markdown("""
+        <style>
+        .chat-container {
+            height: 400px;
+            overflow-y: auto;
+            padding: 10px;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+        .msg-row { display: flex; align-items: flex-end; animation: fadeIn 0.4s ease-in; }
+        .msg-own { justify-content: flex-end; }
         .msg-bubble {
-            max-width: 500px;
+            max-width: 70%;
+            padding: 8px 12px;
+            border-radius: 18px;
+            font-size: 0.95rem;
+            line-height: 1.3;
+            word-wrap: break-word;
+            animation: fadeIn 0.4s ease-in;
+            color: #222; /* Force readable dark text */
         }
-    }
+        .msg-own .msg-bubble { background-color: #dcf8c6; border-bottom-right-radius: 4px; color: #222; }
+        .msg-other .msg-bubble { background-color: #fff; border-bottom-left-radius: 4px; color: #222; }
+        .avatar-small { width: 32px; height: 32px; border-radius: 50%; object-fit: cover; margin: 0 6px; }
+        .msg-meta { font-size: 0.75rem; color: #888; margin-bottom: 3px; }
+        .date-separator { text-align: center; font-size: 0.75rem; color: #999; margin: 10px 0; animation: fadeIn 0.5s ease-in; }
+        .chat-image { 
+            max-width: 150px; 
+            max-height: 150px; 
+            border-radius: 8px; 
+            cursor: pointer; 
+            animation: fadeIn 0.4s ease-in;
+            transition: transform 0.2s ease;
+        }
+        .chat-image:hover {
+            transform: scale(1.02);
+        }
+        .chat-input-area { position: sticky; bottom: 0; background: #f7f7f7; padding: 8px; border-top: 1px solid #ddd; }
+        
+        /* Image Modal Styles */
+        .chat-image-modal {
+            display: none;
+            position: fixed;
+            z-index: 9999;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.9);
+            animation: fadeIn 0.3s;
+        }
+        
+        .modal-image-content {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100%;
+            width: 100%;
+        }
+        
+        .modal-image {
+            max-width: 90%;
+            max-height: 90%;
+            object-fit: contain;
+        }
+        
+        .close-modal {
+            position: absolute;
+            top: 20px;
+            right: 30px;
+            color: white;
+            font-size: 35px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: color 0.2s;
+        }
+        
+        .close-modal:hover {
+            color: #ddd;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        </style>
 
-    /* Small, circular avatar for other users */
-    .avatar-small {
-        width: 30px;
-        height: 30px;
-        border-radius: 50%;
-        margin-right: 8px;
-        object-fit: cover;
-    }
-
-    /* Timestamp and username metadata */
-    .msg-meta {
-        font-size: 0.75rem;
-        color: #888;
-        padding: 0 5px;
-        margin-top: 2px;
-    }
-
-    /* Clickable image thumbnails in chat */
-    .chat-image {
-        max-height: 150px; /* Limits thumbnail height */
-        width: auto; /* Preserves aspect ratio */
-        max-width: 100%;
-        border-radius: 8px;
-        cursor: pointer;
-        transition: transform 0.2s;
-    }
-    .chat-image:hover {
-        transform: scale(1.02);
-    }
-
-    /* --- Image Modal for Click-to-Zoom --- */
-    .chat-image-modal {
-        display: none;
-        position: fixed;
-        z-index: 9999;
-        left: 0;
-        top: 0;
-        width: 100%;
-        height: 100%;
-        background-color: rgba(0,0,0,0.85);
-        animation: fadeIn 0.3s;
-    }
-    .modal-image-content {
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        height: 100%;
-        width: 100%;
-    }
-    .modal-image {
-        max-width: 90%;
-        max-height: 90%;
-        object-fit: contain;
-    }
-    .close-modal {
-        position: absolute;
-        top: 20px;
-        right: 35px;
-        color: white;
-        font-size: 40px;
-        font-weight: bold;
-        cursor: pointer;
-    }
-    @keyframes fadeIn {
-        from { opacity: 0; }
-        to { opacity: 1; }
-    }
-    </style>
-
-    <div id="imageModal" class="chat-image-modal">
-        <span class="close-modal" onclick="closeImageModal()">&times;</span>
-        <div class="modal-image-content">
-            <img id="modalImage" class="modal-image">
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
-
-    # --- CHAT PAGE HEADER ---
-    st.header("💬 Community Chat")
-    st.write("Ask for help, share tips, or get an instant answer from **@MathBot**!")
-
-    # Display online and typing users
-    online_users = get_online_users()
-    typing_users = get_typing_users()
-    if online_users:
-        st.markdown(f"**Online:** {', '.join([f'🟢 {u}' for u in online_users])}")
-
-    current_typing_users = [u for u in typing_users if u != st.session_state.username]
-    if current_typing_users:
-        st.markdown(f"*{', '.join(current_typing_users)} is typing...*")
-
-    # --- CHAT MESSAGE DISPLAY ---
-    # This container will hold all the messages
-    chat_container = st.container()
-
-    all_usernames = get_all_usernames()
-    all_messages = get_chat_messages() # Fetch ALL messages
-
-    with chat_container:
-        st.markdown('<div id="chat-container" class="chat-container">', unsafe_allow_html=True)
-        last_user = None
-        for msg in all_messages:
-            message_id, username, message, media, timestamp = msg['id'], msg['username'], msg['message'], msg['media'], msg['timestamp']
-            time_str = datetime.strptime(timestamp, "%Y-%m-%d %H:%M:%S").strftime("%H:%M")
-
-            is_own_message = (username == st.session_state.username)
-            row_class = "msg-row msg-own" if is_own_message else "msg-row msg-other"
-
-            # Avatar logic: show only if the sender is different from the previous one
-            avatar_html = ""
-            if not is_own_message and last_user != username:
-                avatar_url = get_avatar_url(username)
-                avatar_html = f"<img src='{avatar_url}' class='avatar-small'/>"
-            
-            # Message bubble content
-            bubble_content = ""
-            if message:
-                formatted_message = format_message(message, all_usernames, st.session_state.username)
-                bubble_content += f"<div>{formatted_message}</div>"
-            if media:
-                bubble_content += f"<img src='data:image/png;base64,{media}' class='chat-image' onclick='openImageModal(this.src)'/>"
-
-            # Construct the full message bubble HTML
-            bubble_html = f"""
-            <div class="msg-bubble">
-                {bubble_content}
-                <div class="msg-meta" style="text-align: right;">{time_str}</div>
+        <!-- Image Modal HTML -->
+        <div id="imageModal" class="chat-image-modal">
+            <span class="close-modal">&times;</span>
+            <div class="modal-image-content">
+                <img id="modalImage" class="modal-image">
             </div>
-            """
+        </div>
+
+        <script>
+            // Get the modal elements
+            const modal = document.getElementById("imageModal");
+            const modalImg = document.getElementById("modalImage");
+            const closeBtn = document.querySelector(".close-modal");
             
-            # Combine avatar and bubble into a single row
-            st.markdown(f"<div class='{row_class}'>{avatar_html}{bubble_html}</div>", unsafe_allow_html=True)
-            last_user = username
-        st.markdown('</div>', unsafe_allow_html=True)
-
-    # --- CHAT INPUT FORM ---
-    with st.form("chat_form", clear_on_submit=True):
-        col1, col2, col3 = st.columns([0.8, 0.1, 0.1])
-        with col1:
-            user_message = st.text_input("Type a message...", key="chat_input", placeholder="Type a message...", label_visibility="collapsed")
-        with col2:
-            uploaded_file = st.file_uploader("📷", type=["png", "jpg", "jpeg"], label_visibility="collapsed")
-        with col3:
-            submitted = st.form_submit_button("➤", use_container_width=True)
-
-        if submitted and (user_message or uploaded_file):
-            media_data = None
-            if uploaded_file:
-                media_data = base64.b64encode(uploaded_file.getvalue()).decode('utf-8')
-
-            add_chat_message(st.session_state.username, user_message, media_data)
+            // Function to open modal with clicked image
+            function openImageModal(imgSrc) {
+                modal.style.display = "flex";
+                modalImg.src = imgSrc;
+                document.body.style.overflow = "hidden"; // Prevent scrolling
+            }
             
-            if user_message and user_message.startswith("@MathBot"):
-                bot_response = get_mathbot_response(user_message)
-                if bot_response:
-                    time.sleep(0.5) # small delay for bot response
-                    add_chat_message("MathBot", bot_response, None)
+            // Close modal when X is clicked
+            closeBtn.onclick = function() {
+                modal.style.display = "none";
+                document.body.style.overflow = "auto";
+            }
             
-            # A targeted rerun that only affects this part of the app
-            st.rerun()
-
-    # --- JAVASCRIPT FOR SCROLLING AND MODAL ---
-    st.markdown("""
-    <script>
-    const chatContainer = document.getElementById("chat-container");
-
-    // Function to check if the user is scrolled to the bottom
-    function isScrolledToBottom() {
-        // Add a 30px tolerance
-        return chatContainer.scrollHeight - chatContainer.clientHeight <= chatContainer.scrollTop + 30;
-    }
-
-    // Preserve scroll only if user is NOT at the bottom before a refresh
-    if (!isScrolledToBottom()) {
-        sessionStorage.setItem("isScrolledUp", "true");
-    } else {
-        sessionStorage.removeItem("isScrolledUp");
-    }
-    
-    // On page load, scroll to bottom only if user wasn't scrolled up
-    window.onload = function() {
-        if (sessionStorage.getItem("isScrolledUp") !== "true") {
-            chatContainer.scrollTop = chatContainer.scrollHeight;
-        }
-    };
-
-    // --- Image Modal Functions ---
-    const modal = document.getElementById("imageModal");
-    const modalImg = document.getElementById("modalImage");
-    
-    function openImageModal(imgSrc) {
-        modal.style.display = "flex";
-        modalImg.src = imgSrc;
-    }
-    
-    function closeImageModal() {
-        modal.style.display = "none";
-    }
-    
-    // Close modal if escape key is pressed
-    document.addEventListener('keydown', function(event) {
-        if (event.key === "Escape") {
-            closeImageModal();
-        }
-    });
-    </script>
-    """, unsafe_allow_html=True)
+            // Close modal when clicking outside image
+            modal.onclick = function(event) {
+                if (event.target === modal) {
+                    modal.style.display = "none";
+                    document.body.style.overflow = "auto";
+                }
+            }
+            
+            // Close modal with Escape key
+            document.addEventListener('keydown', function(event) {
+                if (event.key === "Escape") {
+                    modal.style.display = "none";
+                    document.body.style.overflow = "auto";
+                }
+            });
+        </script>
+        """, unsafe_allow_html=True)
 
         st.write("Ask for help, share tips, or get an instant answer from **@MathBot**!")
 
