@@ -1342,7 +1342,7 @@ def show_main_app():
 
 # [Previous imports and code remain exactly the same until the Chat section]
 
-    elif selected_page == "💬 Chat":
+   elif selected_page == "💬 Chat":
     # --- REAL-TIME UPDATE ---
     # This automatically reruns the script every 3 seconds to fetch new messages.
     st_autorefresh(interval=3000, key="chat_refresh")
@@ -1618,6 +1618,7 @@ def show_main_app():
     });
     </script>
     """, unsafe_allow_html=True)
+
         st.write("Ask for help, share tips, or get an instant answer from **@MathBot**!")
 
         online_users = get_online_users()
@@ -1916,4 +1917,3 @@ else:
         show_main_app()
     else: # This handles both 'login' and 'signup' pages
         show_login_page()
-
