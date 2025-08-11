@@ -1337,143 +1337,158 @@ def show_main_app():
    # ---------------- rest of your existing code exactly as before ----------------
 # (UNCHANGED CONTENT REMOVED FOR BREVITY UNTIL THE CHAT FORM SECTION)
 
+
     elif selected_page == "💬 Chat":
         st.header("💬 Community Chat")
-        st.markdown("<div class='content-card'>", unsafe_allow_html=True)
-        st.write("Ask for help, share tips, or get an instant answer from **@MathBot**!")
+        st.markdown("""
+        <style>
+        .chat-container {
+            height: 400px;
+            overflow-y: auto;
+            padding: 10px;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+        .msg-row { display: flex; align-items: flex-end; animation: fadeIn 0.4s ease-in; }
+        .msg-own { justify-content: flex-end; }
+        .msg-bubble {
+            max-width: 70%;
+            padding: 8px 12px;
+            border-radius: 18px;
+            font-size: 0.95rem;
+            line-height: 1.3;
+            word-wrap: break-word;
+            animation: fadeIn 0.4s ease-in;
         
-        # Show online users
+            color: #222; /* Force readable dark text */}
+        .msg-own .msg-bubble { background-color: #dcf8c6; border-bottom-right-radius: 4px; 
+            color: #222; /* Force readable dark text */}
+        .msg-other .msg-bubble { background-color: #fff; border-bottom-left-radius: 4px; 
+            color: #222; /* Force readable dark text */}
+        .avatar-small { width: 32px; height: 32px; border-radius: 50%; object-fit: cover; margin: 0 6px; }
+        .msg-meta { font-size: 0.75rem; color: #888; margin-bottom: 3px; }
+        .date-separator { text-align: center; font-size: 0.75rem; color: #999; margin: 10px 0; animation: fadeIn 0.5s ease-in; }
+        .chat-image { max-width: 150px; max-height: 150px; border-radius: 8px; cursor: pointer; animation: fadeIn 0.4s ease-in; }
+        .chat-input-area { position: sticky; bottom: 0; background: #f7f7f7; padding: 8px; border-top: 1px solid #ddd; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+        </style>
+        """, unsafe_allow_html=True)
+
+        st.write("Ask for help, share tips, or get an instant answer from **@MathBot**!")
+
         online_users = get_online_users()
         typing_users = get_typing_users()
-        
         if online_users:
-            st.markdown(f"""
-            <div style="display: flex; align-items: center; margin-bottom: 10px; color: #666; font-size: 0.9rem;">
-                <span style="margin-right: 5px;">Online:</span>
-                {', '.join([f'<span style="color: #4CAF50;">{user}</span>' for user in online_users])}
-            </div>
-            """, unsafe_allow_html=True)
-        
-        # Show typing indicators
+            st.markdown(f"**Online:** {', '.join([f'🟢 {u}' for u in online_users])}")
+
         current_typing_users = [u for u in typing_users if u != st.session_state.username]
         if current_typing_users:
-            st.markdown(f"""
-            <div class="typing-indicator">
-                {current_typing_users[0]} is typing
-                <div class="typing-dots">
-                    <div class="typing-dot"></div>
-                    <div class="typing-dot"></div>
-                    <div class="typing-dot"></div>
-                </div>
-            </div>
-            """, unsafe_allow_html=True)
-        
-        st.markdown("---")
+            st.markdown(f"*{current_typing_users[0]} is typing...*")
 
         all_usernames = get_all_usernames()
         all_messages = get_chat_messages()
 
-        chat_container = st.container(height=400)
+        # Lazy-load state
+        if "chat_load_count" not in st.session_state:
+            st.session_state.chat_load_count = 30  # Start with last 30 messages
 
-        with chat_container:
-            for message_id, username, message, media, timestamp in all_messages:
-                message_parts = []
-                if media:
-                    message_parts.append(f"<img src='data:image/png;base64,{media}' style='max-width:100%; height:auto; border-radius: 8px; margin-bottom: 5px;'/>")
-                
-                if message:
-                    formatted_message = format_message(message, all_usernames, st.session_state.username)
-                    message_parts.append(f"<div style='margin-bottom: 5px;'>{formatted_message}</div>")
+        visible_messages = all_messages[-st.session_state.chat_load_count:]
 
-                if not message_parts:
-                    continue
+        # Chat display
+        st.markdown('<div id="chat-container" class="chat-container">', unsafe_allow_html=True)
+        last_date = None
+        last_user = None
+        for message_id, username, message, media, timestamp in visible_messages:
+            date_str = datetime.strptime(timestamp, "%Y-%m-%d %H:%M:%S").strftime("%b %d, %Y")
+            time_str = datetime.strptime(timestamp, "%Y-%m-%d %H:%M:%S").strftime("%H:%M")
+            if date_str != last_date:
+                st.markdown(f'<div class="date-separator">{date_str}</div>', unsafe_allow_html=True)
+                last_date = date_str
 
+            own = username == st.session_state.username
+            row_class = "msg-row msg-own" if own else "msg-row msg-other"
+
+            avatar_html = ""
+            if not own and last_user != username:
                 avatar_url = get_avatar_url(username)
-                is_online = username in online_users
-                is_mentioned = re.search(r'(?i)(@' + re.escape(st.session_state.username) + r')', message or "")
-                mention_class = "mention-border" if is_mentioned else ""
-                
-                if username == st.session_state.username:
-                    st.markdown(f"""
-                        <div style="display:flex; justify-content: flex-end; align-items:flex-end; margin-bottom: 15px;">
-                            <div class="chat-bubble-user {mention_class}">
-                                <small style="display:block; text-align:right; color:#ddd; font-size:10px; margin-bottom: 5px;">{username} • {timestamp}</small>
-                                {"".join(message_parts)}
-                            </div>
-                            <div style="position: relative;">
-                                <img class='avatar' src='{avatar_url}'/>
-                                <div class="{'online-indicator' if is_online else 'offline-indicator'}"></div>
-                            </div>
-                        </div>
-                    """, unsafe_allow_html=True)
-                else:
-                    col1, col2 = st.columns([0.9, 0.1])
-                    with col1:
-                        st.markdown(f"""
-                            <div style="display:flex; justify-content: flex-start; align-items:flex-end; margin-bottom: 15px;">
-                                <div style="position: relative;">
-                                    <img class='avatar' src='{avatar_url}'/>
-                                    <div class="{'online-indicator' if is_online else 'offline-indicator'}"></div>
-                                </div>
-                                <div class="chat-bubble-other {mention_class}">
-                                    <small style="display:block; text-align:left; color:#666; font-size:10px; margin-bottom: 5px;">{username} • {timestamp}</small>
-                                    {"".join(message_parts)}
-                                </div>
-                            </div>
-                        """, unsafe_allow_html=True)
-                    with col2:
-                        if st.button("🚩", key=f"report_{message_id}", help="Report this message"):
-                            report_message(message_id, st.session_state.username)
-                            
-        st.markdown("---")
+                avatar_html = f"<img src='{avatar_url}' class='avatar-small'/>"
 
-        # ✅ FIXED FORM — removed illegal on_change and handled typing status in submit logic
+            parts = []
+            if message:
+                formatted_message = format_message(message, all_usernames, st.session_state.username)
+                parts.append(f"<div>{formatted_message}</div>")
+            if media:
+                parts.append(f"<a href='data:image/png;base64,{media}' target='_blank'><img src='data:image/png;base64,{media}' class='chat-image'/></a>")
+
+            bubble_html = f"""
+            <div>
+                <div class="msg-meta">{username} • {time_str}</div>
+                <div class="msg-bubble">{''.join(parts)}</div>
+            </div>
+            """
+
+            st.markdown(f"<div class='{row_class}'>{avatar_html}{bubble_html}</div>", unsafe_allow_html=True)
+            last_user = username
+        st.markdown('</div>', unsafe_allow_html=True)
+
+        # JS for lazy load + scroll position preservation
+        st.markdown(f"""
+        <script>
+        const chatBox = document.getElementById("chat-container");
+        if (chatBox) {{
+            if (!sessionStorage.getItem("lazy_loading")) {{
+                chatBox.scrollTop = chatBox.scrollHeight;
+            }} else {{
+                const prevHeight = parseInt(sessionStorage.getItem("prevHeight"));
+                const prevScroll = parseInt(sessionStorage.getItem("prevScroll"));
+                chatBox.scrollTop = chatBox.scrollHeight - prevHeight + prevScroll;
+                sessionStorage.removeItem("lazy_loading");
+            }}
+            chatBox.addEventListener('scroll', function() {{
+                if (chatBox.scrollTop <= 0) {{
+                    sessionStorage.setItem("lazy_loading", "1");
+                    sessionStorage.setItem("prevHeight", chatBox.scrollHeight);
+                    sessionStorage.setItem("prevScroll", chatBox.scrollTop);
+                    fetch('/?_lazy_load_chat=1').then(() => window.location.reload());
+                }}
+            }});
+        }}
+        </script>
+        """, unsafe_allow_html=True)
+
+        # Handle lazy load trigger
+        import streamlit.runtime.scriptrunner as scriptrunner
+        ctx = scriptrunner.get_script_run_ctx()
+        if ctx and "_lazy_load_chat" in st.query_params:
+            st.session_state.chat_load_count += 20  # Load 20 more messages
+            st.query_params.clear()
+
+        # Input area
+        st.markdown('<div class="chat-input-area">', unsafe_allow_html=True)
         with st.form("chat_form", clear_on_submit=True):
-            user_message = st.text_area(
-                "Say something...", 
-                key="chat_input", 
-                height=50, 
-                placeholder="Type your message here or mention @MathBot for help"
-            )
-            
-            col_upload, col_send = st.columns([0.7, 0.3])
-            
-            with col_upload:
-                uploaded_file = st.file_uploader(
-                    "📷 Upload Photo", 
-                    type=["png", "jpg", "jpeg"], 
-                    label_visibility="collapsed"
-                )
-            
-            with col_send:
-                submitted = st.form_submit_button(
-                    "Send", 
-                    type="primary", 
-                    use_container_width=True
-                )
-            
+            user_message = st.text_area("", key="chat_input", height=40, placeholder="Type a message", label_visibility="collapsed")
+            col1, col2 = st.columns([0.8, 0.2])
+            with col1:
+                uploaded_file = st.file_uploader("📷", type=["png", "jpg", "jpeg"], label_visibility="collapsed")
+            with col2:
+                submitted = st.form_submit_button("Send", type="primary", use_container_width=True)
+
             if submitted:
                 update_typing_status(st.session_state.username, False)
                 if user_message.strip():
                     update_typing_status(st.session_state.username, True)
-
                 if user_message or uploaded_file:
                     media_data = None
-                    if uploaded_file is not None:
+                    if uploaded_file:
                         media_data = base64.b64encode(uploaded_file.getvalue()).decode('utf-8')
-                    
                     add_chat_message(st.session_state.username, user_message, media_data)
-
                     if user_message and user_message.startswith("@MathBot"):
                         bot_response = get_mathbot_response(user_message)
                         if bot_response:
                             add_chat_message("MathBot", bot_response, None)
-
                 st.rerun()
-        
-        st.markdown("</div>", unsafe_allow_html=True)
-
-# ---------------- rest of your original code continues unchanged ----------------
+        st.markdown('</div>', unsafe_allow_html=True)
 
     elif selected_page == "👤 Profile":
         show_profile_page()
