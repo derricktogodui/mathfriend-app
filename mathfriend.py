@@ -1344,257 +1344,128 @@ def show_main_app():
 
     elif selected_page == "💬 Chat":
         st.header("💬 Community Chat")
+        # --- Styles for WhatsApp-like chat redesign ---
         st.markdown("""
         <style>
-        .chat-container {
-            height: 400px;
-            overflow-y: auto;
-            padding: 10px;
-            display: flex;
-            flex-direction: column;
-            gap: 6px;
-        }
-        .msg-row { display: flex; align-items: flex-end; animation: fadeIn 0.4s ease-in; }
+        .chat-container { flex: 1; height: 70vh; max-height: 70vh; overflow-y: auto; padding: 10px; display: flex; flex-direction: column; gap: 6px; scroll-behavior: smooth; }
+        .msg-row { display: flex; align-items: flex-end; }
         .msg-own { justify-content: flex-end; }
         .msg-bubble {
-            max-width: 70%;
+            max-width: min(80%, 500px);
             padding: 8px 12px;
             border-radius: 18px;
             font-size: 0.95rem;
             line-height: 1.3;
             word-wrap: break-word;
-            animation: fadeIn 0.4s ease-in;
-            color: #222; /* Force readable dark text */
         }
         .msg-own .msg-bubble { background-color: #dcf8c6; border-bottom-right-radius: 4px; color: #222; }
         .msg-other .msg-bubble { background-color: #fff; border-bottom-left-radius: 4px; color: #222; }
-        .avatar-small { width: 32px; height: 32px; border-radius: 50%; object-fit: cover; margin: 0 6px; }
+        .avatar-small { width: 30px; height: 30px; border-radius: 50%; object-fit: cover; margin: 0 6px; }
         .msg-meta { font-size: 0.75rem; color: #888; margin-bottom: 3px; }
-        .date-separator { text-align: center; font-size: 0.75rem; color: #999; margin: 10px 0; animation: fadeIn 0.5s ease-in; }
-        .chat-image { 
-            max-width: 150px; 
-            max-height: 150px; 
-            border-radius: 8px; 
-            cursor: pointer; 
-            animation: fadeIn 0.4s ease-in;
-            transition: transform 0.2s ease;
-        }
-        .chat-image:hover {
-            transform: scale(1.02);
-        }
+        .date-separator { text-align: center; font-size: 0.75rem; color: #999; margin: 10px 0; }
+        .chat-image { max-height: 150px; border-radius: 8px; cursor: pointer; }
         .chat-input-area { position: sticky; bottom: 0; background: #f7f7f7; padding: 8px; border-top: 1px solid #ddd; }
-        
-        /* Image Modal Styles */
-        .chat-image-modal {
-            display: none;
-            position: fixed;
-            z-index: 9999;
-            left: 0;
-            top: 0;
-            width: 100%;
-            height: 100%;
-            background-color: rgba(0,0,0,0.9);
-            animation: fadeIn 0.3s;
-        }
-        
-        .modal-image-content {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100%;
-            width: 100%;
-        }
-        
-        .modal-image {
-            max-width: 90%;
-            max-height: 90%;
-            object-fit: contain;
-        }
-        
-        .close-modal {
-            position: absolute;
-            top: 20px;
-            right: 30px;
-            color: white;
-            font-size: 35px;
-            font-weight: bold;
-            cursor: pointer;
-            transition: color 0.2s;
-        }
-        
-        .close-modal:hover {
-            color: #ddd;
-        }
-        
-        @keyframes fadeIn {
-            from { opacity: 0; }
-            to { opacity: 1; }
-        }
-        </style>
 
-        <!-- Image Modal HTML -->
+        /* Modal */
+        .chat-image-modal { display: none; position: fixed; z-index: 9999; left: 0; top: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); }
+        .modal-image-content { display: flex; justify-content: center; align-items: center; height: 100%; }
+        .modal-image { max-width: 90%; max-height: 90%; }
+        .close-modal { position: absolute; top: 20px; right: 30px; color: white; font-size: 35px; cursor: pointer; }
+        </style>
+        """, unsafe_allow_html=True)
+
+        # Image modal HTML
+        st.markdown("""
         <div id="imageModal" class="chat-image-modal">
             <span class="close-modal">&times;</span>
             <div class="modal-image-content">
                 <img id="modalImage" class="modal-image">
             </div>
         </div>
-
         <script>
-            // Get the modal elements
-            const modal = document.getElementById("imageModal");
-            const modalImg = document.getElementById("modalImage");
-            const closeBtn = document.querySelector(".close-modal");
-            
-            // Function to open modal with clicked image
-            function openImageModal(imgSrc) {
-                modal.style.display = "flex";
-                modalImg.src = imgSrc;
-                document.body.style.overflow = "hidden"; // Prevent scrolling
-            }
-            
-            // Close modal when X is clicked
-            closeBtn.onclick = function() {
-                modal.style.display = "none";
-                document.body.style.overflow = "auto";
-            }
-            
-            // Close modal when clicking outside image
-            modal.onclick = function(event) {
-                if (event.target === modal) {
-                    modal.style.display = "none";
-                    document.body.style.overflow = "auto";
-                }
-            }
-            
-            // Close modal with Escape key
-            document.addEventListener('keydown', function(event) {
-                if (event.key === "Escape") {
-                    modal.style.display = "none";
-                    document.body.style.overflow = "auto";
-                }
-            });
+        const modal = document.getElementById("imageModal");
+        const modalImg = document.getElementById("modalImage");
+        const closeBtn = document.querySelector(".close-modal");
+        function openImageModal(src) {
+            modal.style.display = "flex";
+            modalImg.src = src;
+            document.body.style.overflow = "hidden";
+        }
+        closeBtn.onclick = () => { modal.style.display = "none"; document.body.style.overflow = "auto"; }
+        modal.onclick = (e) => { if(e.target === modal){ modal.style.display = "none"; document.body.style.overflow = "auto"; } }
+        document.addEventListener('keydown', e => { if(e.key==="Escape"){ modal.style.display = "none"; document.body.style.overflow = "auto"; } });
         </script>
         """, unsafe_allow_html=True)
 
-        st.write("Ask for help, share tips, or get an instant answer from **@MathBot**!")
+        # Real-time refresh every 3s
+        st_autorefresh(interval=3000, key="chat_refresh")
 
+        # Get chat data
         online_users = get_online_users()
         typing_users = get_typing_users()
+        all_usernames = get_all_usernames()
+        all_messages = get_chat_messages()
+
         if online_users:
             st.markdown(f"**Online:** {', '.join([f'🟢 {u}' for u in online_users])}")
-
         current_typing_users = [u for u in typing_users if u != st.session_state.username]
         if current_typing_users:
             st.markdown(f"*{current_typing_users[0]} is typing...*")
 
-        all_usernames = get_all_usernames()
-        all_messages = get_chat_messages()
-
-        # Lazy-load state
-        if "chat_load_count" not in st.session_state:
-            st.session_state.chat_load_count = 30  # Start with last 30 messages
-
-        visible_messages = all_messages[-st.session_state.chat_load_count:]
-
         # Chat display
         st.markdown('<div id="chat-container" class="chat-container">', unsafe_allow_html=True)
-        last_date = None
-        last_user = None
-        for message_id, username, message, media, timestamp in visible_messages:
+        last_date, last_user = None, None
+        for msg in all_messages:
+            message_id, username, message, media, timestamp = msg
             date_str = datetime.strptime(timestamp, "%Y-%m-%d %H:%M:%S").strftime("%b %d, %Y")
             time_str = datetime.strptime(timestamp, "%Y-%m-%d %H:%M:%S").strftime("%H:%M")
             if date_str != last_date:
                 st.markdown(f'<div class="date-separator">{date_str}</div>', unsafe_allow_html=True)
                 last_date = date_str
-
             own = username == st.session_state.username
             row_class = "msg-row msg-own" if own else "msg-row msg-other"
-
             avatar_html = ""
             if not own and last_user != username:
-                avatar_url = get_avatar_url(username)
-                avatar_html = f"<img src='{avatar_url}' class='avatar-small'/>"
-
+                avatar_html = f"<img src='{get_avatar_url(username)}' class='avatar-small'/>"
             parts = []
             if message:
-                formatted_message = format_message(message, all_usernames, st.session_state.username)
-                parts.append(f"<div>{formatted_message}</div>")
+                parts.append(f"<div>{format_message(message, all_usernames, st.session_state.username)}</div>")
             if media:
-                # Updated image display with modal functionality
                 parts.append(f"<img src='data:image/png;base64,{media}' class='chat-image' onclick='openImageModal(this.src)'/>")
-            
-            bubble_html = f"""
-            <div>
-                <div class="msg-meta">{username} • {time_str}</div>
-                <div class="msg-bubble">{''.join(parts)}</div>
-            </div>
-            """
-
+            bubble_html = f"<div><div class='msg-meta'>{username} • {time_str}</div><div class='msg-bubble'>{''.join(parts)}</div></div>"
             st.markdown(f"<div class='{row_class}'>{avatar_html}{bubble_html}</div>", unsafe_allow_html=True)
             last_user = username
         st.markdown('</div>', unsafe_allow_html=True)
 
-        # [Rest of the chat section code remains exactly the same]
-
-        # JS for lazy load + scroll position preservation
-        st.markdown(f"""
+        # Auto-scroll to bottom
+        st.markdown("""
         <script>
-        const chatBox = document.getElementById("chat-container");
-        if (chatBox) {{
-            if (!sessionStorage.getItem("lazy_loading")) {{
-                chatBox.scrollTop = chatBox.scrollHeight;
-            }} else {{
-                const prevHeight = parseInt(sessionStorage.getItem("prevHeight"));
-                const prevScroll = parseInt(sessionStorage.getItem("prevScroll"));
-                chatBox.scrollTop = chatBox.scrollHeight - prevHeight + prevScroll;
-                sessionStorage.removeItem("lazy_loading");
-            }}
-            chatBox.addEventListener('scroll', function() {{
-                if (chatBox.scrollTop <= 0) {{
-                    sessionStorage.setItem("lazy_loading", "1");
-                    sessionStorage.setItem("prevHeight", chatBox.scrollHeight);
-                    sessionStorage.setItem("prevScroll", chatBox.scrollTop);
-                    fetch('/?_lazy_load_chat=1').then(() => window.location.reload());
-                }}
-            }});
-        }}
+        var chatBox = document.getElementById('chat-container');
+        if(chatBox){ chatBox.scrollTop = chatBox.scrollHeight; }
         </script>
         """, unsafe_allow_html=True)
 
-        # Handle lazy load trigger
-        import streamlit.runtime.scriptrunner as scriptrunner
-        ctx = scriptrunner.get_script_run_ctx()
-        if ctx and "_lazy_load_chat" in st.query_params:
-            st.session_state.chat_load_count += 20  # Load 20 more messages
-            st.query_params.clear()
-
-        # Input area
+        # Input
         st.markdown('<div class="chat-input-area">', unsafe_allow_html=True)
         with st.form("chat_form", clear_on_submit=True):
             user_message = st.text_area("", key="chat_input", height=40, placeholder="Type a message", label_visibility="collapsed")
             col1, col2 = st.columns([0.8, 0.2])
             with col1:
-                uploaded_file = st.file_uploader("📷", type=["png", "jpg", "jpeg"], label_visibility="collapsed")
+                uploaded_file = st.file_uploader("📷", type=["png","jpg","jpeg"], label_visibility="collapsed")
             with col2:
                 submitted = st.form_submit_button("Send", type="primary", use_container_width=True)
-
             if submitted:
-                update_typing_status(st.session_state.username, False)
-                if user_message.strip():
-                    update_typing_status(st.session_state.username, True)
-                if user_message or uploaded_file:
+                if user_message.strip() or uploaded_file:
                     media_data = None
                     if uploaded_file:
                         media_data = base64.b64encode(uploaded_file.getvalue()).decode('utf-8')
                     add_chat_message(st.session_state.username, user_message, media_data)
-                    if user_message and user_message.startswith("@MathBot"):
+                    if user_message.startswith("@MathBot"):
                         bot_response = get_mathbot_response(user_message)
                         if bot_response:
-                            add_chat_message("MathBot", bot_response, None)
+                            add_chat_message("MathBot", bot_response)
                 st.rerun()
         st.markdown('</div>', unsafe_allow_html=True)
-
     elif selected_page == "👤 Profile":
         show_profile_page()
 
