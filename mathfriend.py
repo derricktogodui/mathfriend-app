@@ -1342,25 +1342,25 @@ def show_main_app():
 
 # [Previous imports and code remain exactly the same until the Chat section]
 
-   elif selected_page == "💬 Chat":
-    st.header("💬 Community Chat")
-    # --- Improved chat styles ---
-    st.markdown("""
-    <style>
-    .chat-container { 
-        flex: 1; 
-        height: 60vh; 
-        max-height: 60vh; 
-        overflow-y: auto; 
-        padding: 10px; 
-        display: flex; 
-        flex-direction: column; 
-        gap: 6px; 
-        scroll-behavior: smooth; 
-        border: 1px solid #e0e0e0;
-        border-radius: 8px;
-        margin-bottom: 15px;
-        background-color: #f9f9f9;
+    elif selected_page == "💬 Chat":
+        st.header("💬 Community Chat")
+        # --- Improved chat styles ---
+        st.markdown("""
+        <style>
+        .chat-container { 
+            flex: 1; 
+            height: 60vh; 
+            max-height: 60vh; 
+            overflow-y: auto; 
+            padding: 10px; 
+            display: flex; 
+            flex-direction: column; 
+            gap: 6px; 
+            scroll-behavior: smooth; 
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            background-color: #f9f9f9;
     }
     .msg-row { 
         display: flex; 
@@ -1756,4 +1756,3 @@ else:
         show_main_app()
     else: # This handles both 'login' and 'signup' pages
         show_login_page()
-
