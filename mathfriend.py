@@ -1431,7 +1431,10 @@ def show_main_app():
             if message:
                 parts.append(f"<div>{format_message(message, all_usernames, st.session_state.username)}</div>")
             if media:
-                parts.append(f"<img src='data:image/png;base64,{media}' class='chat-image' onclick='openImageModal(this.src)'/>")
+                # The image tag itself, without the broken onclick
+                image_html = f"<img src='data:image/png;base64,{media}' class='chat-image'/>"
+                # Wrap the image tag in a link that opens in a new tab
+                parts.append(f"<a href='data:image/png;base64,{media}' target='_blank'>{image_html}</a>")
             bubble_html = f"<div><div class='msg-meta'>{username} • {time_str}</div><div class='msg-bubble'>{''.join(parts)}</div></div>"
             st.markdown(f"<div class='{row_class}'>{avatar_html}{bubble_html}</div>", unsafe_allow_html=True)
             last_user = username
@@ -1646,3 +1649,4 @@ else:
         show_main_app()
     else: # This handles both 'login' and 'signup' pages
         show_login_page()
+
