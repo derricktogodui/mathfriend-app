@@ -93,7 +93,6 @@ def create_tables_if_not_exist():
 create_tables_if_not_exist()
 
 # --- User Authentication Functions --- 
-# (Keep all existing auth functions exactly the same)
 def hash_password(password):
     """Hashes a password using bcrypt."""
     return bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
@@ -262,7 +261,6 @@ def get_typing_users():
             conn.close()
 
 # --- Quiz and Result Functions ---
-# (Keep all existing quiz functions exactly the same)
 def generate_question(topic, difficulty):
     """Generates a random math question based on the topic and difficulty."""
     if topic in ["sets and operations on sets", "surds", "binary operations", "relations and functions", "polynomial functions", "rational functions", "binomial theorem", "coordinate geometry", "probabilty", "vectors", "sequence and series"]:
@@ -457,7 +455,6 @@ def format_message(message, mentioned_usernames, current_user):
     return message
 
 # --- MathBot Integration ---
-# (Keep existing MathBot functions exactly the same)
 def get_mathbot_response(message):
     """
     Solves a basic math expression or provides a definition from a chat message.
@@ -695,6 +692,7 @@ def show_login_page():
         
         st.markdown("</div>", unsafe_allow_html=True)
         st.markdown("<div style='text-align: center; margin-top: 20px; color: #64748b; font-size: 0.9rem;'>Built with ❤️ by Derrick Kwaku Togodui</div>", unsafe_allow_html=True)
+
 def show_profile_page():
     """Displays the user profile page with editing capabilities"""
     st.header("👤 Your Profile")
@@ -1092,7 +1090,6 @@ def show_main_app():
     update_user_status(st.session_state.username, True)
     
     if selected_page == "📊 Dashboard":
-        # (Keep existing dashboard code exactly the same)
         st.markdown("---")
         st.markdown("<div class='content-card'>", unsafe_allow_html=True)
         st.header("📈 Progress Dashboard")
@@ -1166,7 +1163,6 @@ def show_main_app():
         st.markdown("</div>", unsafe_allow_html=True)
 
     elif selected_page == "📝 Quiz":
-        # (Keep existing quiz code exactly the same)
         st.header("🧠 Quiz Time!")
         st.markdown("<div class='content-card'>", unsafe_allow_html=True)
         
@@ -1285,7 +1281,6 @@ def show_main_app():
         st.markdown("</div>", unsafe_allow_html=True)
 
     elif selected_page == "🏆 Leaderboard":
-        # (Keep existing leaderboard code exactly the same)
         st.header("🏆 Global Leaderboard")
         st.markdown("<div class='content-card'>", unsafe_allow_html=True)
         st.write("See who has the highest scores for each topic!")
@@ -1336,19 +1331,27 @@ def show_main_app():
         
         st.markdown("</div>", unsafe_allow_html=True)
 
-   # ---------------- rest of your existing code exactly as before ----------------
-# (UNCHANGED CONTENT REMOVED FOR BREVITY UNTIL THE CHAT FORM SECTION)
-
-
-# [Previous imports and code remain exactly the same until the Chat section]
-
     elif selected_page == "💬 Chat":
         st.header("💬 Community Chat")
-        # --- Styles for WhatsApp-like chat redesign ---
+        # --- Improved chat styles with scroll and image zoom ---
         st.markdown("""
         <style>
-        .chat-container { flex: 1; height: 70vh; max-height: 70vh; overflow-y: auto; padding: 10px; display: flex; flex-direction: column; gap: 6px; scroll-behavior: smooth; }
-        .msg-row { display: flex; align-items: flex-end; }
+        .chat-container { 
+            flex: 1; 
+            height: 60vh; 
+            max-height: 60vh; 
+            overflow-y: auto; 
+            padding: 10px; 
+            display: flex; 
+            flex-direction: column; 
+            gap: 6px; 
+            scroll-behavior: smooth; 
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            background-color: #f9f9f9;
+        }
+        .msg-row { display: flex; align-items: flex-end; margin-bottom: 8px; }
         .msg-own { justify-content: flex-end; }
         .msg-bubble {
             max-width: min(80%, 500px);
@@ -1363,14 +1366,55 @@ def show_main_app():
         .avatar-small { width: 30px; height: 30px; border-radius: 50%; object-fit: cover; margin: 0 6px; }
         .msg-meta { font-size: 0.75rem; color: #888; margin-bottom: 3px; }
         .date-separator { text-align: center; font-size: 0.75rem; color: #999; margin: 10px 0; }
-        .chat-image { max-height: 150px; border-radius: 8px; cursor: pointer; }
-        .chat-input-area { position: sticky; bottom: 0; background: #f7f7f7; padding: 8px; border-top: 1px solid #ddd; }
+        .chat-image { 
+            max-height: 200px; 
+            max-width: 100%;
+            border-radius: 8px; 
+            cursor: pointer; 
+            transition: transform 0.2s;
+        }
+        .chat-image:hover {
+            transform: scale(1.02);
+        }
+        .chat-input-area { 
+            position: sticky; 
+            bottom: 0; 
+            background: #f7f7f7; 
+            padding: 8px; 
+            border-top: 1px solid #ddd; 
+        }
 
-        /* Modal */
-        .chat-image-modal { display: none; position: fixed; z-index: 9999; left: 0; top: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); }
-        .modal-image-content { display: flex; justify-content: center; align-items: center; height: 100%; }
-        .modal-image { max-width: 90%; max-height: 90%; }
-        .close-modal { position: absolute; top: 20px; right: 30px; color: white; font-size: 35px; cursor: pointer; }
+        /* Modal for enlarged images */
+        .chat-image-modal { 
+            display: none; 
+            position: fixed; 
+            z-index: 9999; 
+            left: 0; 
+            top: 0; 
+            width: 100%; 
+            height: 100%; 
+            background: rgba(0,0,0,0.9); 
+        }
+        .modal-image-content { 
+            display: flex; 
+            justify-content: center; 
+            align-items: center; 
+            height: 100%; 
+            padding: 20px;
+        }
+        .modal-image { 
+            max-width: 90%; 
+            max-height: 90%; 
+            object-fit: contain;
+        }
+        .close-modal { 
+            position: absolute; 
+            top: 20px; 
+            right: 30px; 
+            color: white; 
+            font-size: 35px; 
+            cursor: pointer; 
+        }
         </style>
         """, unsafe_allow_html=True)
 
@@ -1386,14 +1430,40 @@ def show_main_app():
         const modal = document.getElementById("imageModal");
         const modalImg = document.getElementById("modalImage");
         const closeBtn = document.querySelector(".close-modal");
+        
         function openImageModal(src) {
             modal.style.display = "flex";
             modalImg.src = src;
             document.body.style.overflow = "hidden";
         }
-        closeBtn.onclick = () => { modal.style.display = "none"; document.body.style.overflow = "auto"; }
-        modal.onclick = (e) => { if(e.target === modal){ modal.style.display = "none"; document.body.style.overflow = "auto"; } }
-        document.addEventListener('keydown', e => { if(e.key==="Escape"){ modal.style.display = "none"; document.body.style.overflow = "auto"; } });
+        
+        closeBtn.onclick = () => { 
+            modal.style.display = "none"; 
+            document.body.style.overflow = "auto"; 
+        }
+        
+        modal.onclick = (e) => { 
+            if(e.target === modal){ 
+                modal.style.display = "none"; 
+                document.body.style.overflow = "auto"; 
+            } 
+        }
+        
+        document.addEventListener('keydown', e => { 
+            if(e.key==="Escape"){ 
+                modal.style.display = "none"; 
+                document.body.style.overflow = "auto"; 
+            } 
+        });
+        
+        function scrollChatToBottom() {
+            var chatBox = document.getElementById('chat-container');
+            if(chatBox) { 
+                chatBox.scrollTop = chatBox.scrollHeight; 
+            }
+        }
+        
+        window.addEventListener('load', scrollChatToBottom);
         </script>
         """, unsafe_allow_html=True)
 
@@ -1412,7 +1482,7 @@ def show_main_app():
         if current_typing_users:
             st.markdown(f"*{current_typing_users[0]} is typing...*")
 
-        # Chat display
+        # Chat display in scrollable container
         st.markdown('<div id="chat-container" class="chat-container">', unsafe_allow_html=True)
         last_date, last_user = None, None
         for msg in all_messages:
@@ -1440,12 +1510,11 @@ def show_main_app():
         # Auto-scroll to bottom
         st.markdown("""
         <script>
-        var chatBox = document.getElementById('chat-container');
-        if(chatBox){ chatBox.scrollTop = chatBox.scrollHeight; }
+        scrollChatToBottom();
         </script>
         """, unsafe_allow_html=True)
 
-        # Input
+        # Input area
         st.markdown('<div class="chat-input-area">', unsafe_allow_html=True)
         with st.form("chat_form", clear_on_submit=True):
             user_message = st.text_area("", key="chat_input", height=40, placeholder="Type a message", label_visibility="collapsed")
@@ -1466,11 +1535,11 @@ def show_main_app():
                             add_chat_message("MathBot", bot_response)
                 st.rerun()
         st.markdown('</div>', unsafe_allow_html=True)
+
     elif selected_page == "👤 Profile":
         show_profile_page()
 
     elif selected_page == "📚 Learning Resources":
-        # (Keep existing learning resources code exactly the same)
         st.header("📚 Learning Resources")
         st.markdown("<div class='content-card'>", unsafe_allow_html=True)
         st.write("Mini-tutorials and helpful examples to help you study.")
@@ -1603,7 +1672,6 @@ def show_main_app():
     st.markdown("</div>", unsafe_allow_html=True) # Close main content container
 
 # --- Splash Screen and Main App Logic ---
-# (Keep existing splash screen logic exactly the same)
 if "show_splash" not in st.session_state:
     st.session_state.show_splash = True
 
