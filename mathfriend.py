@@ -93,7 +93,6 @@ def create_tables_if_not_exist():
 create_tables_if_not_exist()
 
 # --- User Authentication Functions --- 
-# (Keep all existing auth functions exactly the same)
 def hash_password(password):
     """Hashes a password using bcrypt."""
     return bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
@@ -262,7 +261,6 @@ def get_typing_users():
             conn.close()
 
 # --- Quiz and Result Functions ---
-# (Keep all existing quiz functions exactly the same)
 def generate_question(topic, difficulty):
     """Generates a random math question based on the topic and difficulty."""
     if topic in ["sets and operations on sets", "surds", "binary operations", "relations and functions", "polynomial functions", "rational functions", "binomial theorem", "coordinate geometry", "probabilty", "vectors", "sequence and series"]:
@@ -341,6 +339,26 @@ def get_top_scores(topic):
     except sqlite3.Error as e:
         st.error(f"Get top scores database error: {e}")
         return []
+    finally:
+        if conn:
+            conn.close()
+
+def get_user_rank(username, topic):
+    """Fetches the rank of a user for a specific topic."""
+    try:
+        conn = sqlite3.connect(DB_FILE)
+        c = conn.cursor()
+        c.execute("""
+            SELECT rank FROM (
+                SELECT username, RANK() OVER (ORDER BY score DESC, timestamp ASC) as rank
+                FROM quiz_results WHERE topic=?
+            ) WHERE username=?
+        """, (topic, username))
+        result = c.fetchone()
+        return result[0] if result else None
+    except sqlite3.Error as e:
+        st.error(f"Get user rank error: {e}")
+        return None
     finally:
         if conn:
             conn.close()
@@ -457,7 +475,6 @@ def format_message(message, mentioned_usernames, current_user):
     return message
 
 # --- MathBot Integration ---
-# (Keep existing MathBot functions exactly the same)
 def get_mathbot_response(message):
     """
     Solves a basic math expression or provides a definition from a chat message.
@@ -566,7 +583,7 @@ def metric_card(title, value, icon, color):
         <div style="font-size: 28px; font-weight: bold; color: {color};">{value}</div>
     </div>
     """
-
+    
 # --- Page Rendering Logic ---
 def show_login_page():
     col1, col2, col3 = st.columns([1, 3, 1])
@@ -771,14 +788,71 @@ def show_main_app():
             transition: all 0.3s ease;
         }
         
+        .main-content-container[data-theme="dark"] {
+            background-color: #121212 !important;
+            color: #ffffff !important;
+        }
+
+        .main-content-container[data-theme="dark"] .content-card {
+            background-color: #1e1e1e !important;
+            border: 1px solid #333 !important;
+        }
+
+        .main-content-container[data-theme="dark"] .dashboard-metric-card {
+            background-color: #1e1e1e !important;
+        }
+        
+        .main-content-container[data-theme="dark"] .chat-bubble-other {
+            background-color: #333 !important;
+            color: white !important;
+        }
+
+        .main-content-container[data-theme="dark"] .stTextInput>div>div>input, .main-content-container[data-theme="dark"] .stTextArea>div>div>textarea {
+            background-color: #333 !important;
+            color: white !important;
+            border-color: #555 !important;
+        }
+        
         .main-title {
             color: var(--primary);
-            font-size: 2.5rem;
+            font-size: 2.2rem;
             margin-bottom: 0.5rem;
             background: linear-gradient(90deg, var(--primary), var(--secondary));
             -webkit-background-clip: text;
             background-clip: text;
             color: transparent;
+        }
+        
+        .mathfriend-logo {
+            background: linear-gradient(90deg, var(--primary), var(--secondary));
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+            font-weight: 800;
+        }
+
+        .welcome-container {
+            display: flex;
+            align-items: center;
+            margin-bottom: 20px;
+            gap: 15px;
+        }
+        
+        .welcome-avatar {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            border: 3px solid #4361ee;
+        }
+
+        @media screen and (max-width: 768px) {
+            .welcome-avatar {
+                width: 40px;
+                height: 40px;
+            }
+            .welcome-container {
+                gap: 10px;
+            }
         }
         
         .content-card {
@@ -993,6 +1067,67 @@ def show_main_app():
             30% { transform: translateY(-5px); }
         }
         
+        /* Leaderboard styling */
+        .leaderboard-header {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(45deg, var(--primary), var(--secondary));
+            color: white;
+            padding: 20px;
+            border-radius: 12px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        
+        .crown-icon {
+            font-size: 3rem;
+            margin-right: 15px;
+        }
+        
+        .leaderboard-title {
+            font-size: 2rem;
+            margin: 0;
+            font-weight: bold;
+        }
+        
+        .top-3-card {
+            background: #fff;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+            text-align: center;
+            position: relative;
+        }
+
+        .gold { background: linear-gradient(to right, #FFD700, #DAA520); }
+        .silver { background: linear-gradient(to right, #C0C0C0, #A9A9A9); }
+        .bronze { background: linear-gradient(to right, #CD7F32, #A0522D); }
+
+        .top-3-rank-icon {
+            font-size: 2rem;
+            position: absolute;
+            top: 10px;
+            right: 15px;
+        }
+
+        /* Quiz answer feedback */
+        .feedback-container {
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 10px;
+        }
+
+        .feedback-correct {
+            background-color: #e6f7e6;
+            border-left: 4px solid #2ecc71;
+        }
+
+        .feedback-incorrect {
+            background-color: #ffebee;
+            border-left: 4px solid #e74c3c;
+        }
+        
         /* Responsive adjustments */
         @media screen and (max-width: 768px) {
             .main-title {
@@ -1014,41 +1149,12 @@ def show_main_app():
     if 'dark_mode' not in st.session_state:
         st.session_state.dark_mode = False
     
-    if st.session_state.dark_mode:
-        st.markdown("""
-        <style>
-            .main-content-container {
-                background-color: #121212 !important;
-                color: #ffffff !important;
-            }
-            
-            .content-card {
-                background-color: #1e1e1e !important;
-                border: 1px solid #333 !important;
-            }
-            
-            .dashboard-metric-card {
-                background-color: #1e1e1e !important;
-            }
-            
-            .chat-bubble-other {
-                background-color: #333 !important;
-                color: white !important;
-            }
-            
-            .stTextInput>div>div>input, .stTextArea>div>div>textarea {
-                background-color: #333 !important;
-                color: white !important;
-                border-color: #555 !important;
-            }
-        </style>
-        """, unsafe_allow_html=True)
-    
     with st.sidebar:
         st.session_state.dark_mode = st.toggle("🌙 Dark Mode", value=st.session_state.dark_mode)
-    
-    # Main content container
-    st.markdown(f"<div class='main-content-container'>", unsafe_allow_html=True)
+
+    # Main content container with data-theme attribute for dynamic dark mode
+    theme = "dark" if st.session_state.dark_mode else "light"
+    st.markdown(f"<div class='main-content-container' data-theme='{theme}'>", unsafe_allow_html=True)
     
     # User greeting with avatar
     avatar_url = get_avatar_url(st.session_state.username)
@@ -1056,19 +1162,19 @@ def show_main_app():
     display_name = profile.get('full_name', st.session_state.username) if profile else st.session_state.username
     
     st.markdown(f"""
-    <div style="display: flex; align-items: center; margin-bottom: 20px;">
+    <div class="welcome-container">
         <div style="position: relative; display: inline-block;">
-            <img src="{avatar_url}" style="width: 60px; height: 60px; border-radius: 50%; margin-right: 15px; border: 3px solid #4361ee;"/>
+            <img src="{avatar_url}" class="welcome-avatar"/>
             <div class="online-indicator"></div>
         </div>
         <div>
-            <h1 class="main-title">Welcome back, {display_name}!</h1>
+            <h2 class="main-title">Welcome back, {display_name}!</h2>
             <p style="color: #666; margin-top: -10px;">Ready to master some math today?</p>
         </div>
     </div>
     """, unsafe_allow_html=True)
     
-    st.sidebar.markdown("### **Menu**")
+    st.sidebar.markdown("### **<span class='mathfriend-logo'>MathFriend</span>**", unsafe_allow_html=True)
     st.sidebar.markdown("---")
     
     selected_page = st.sidebar.radio(
@@ -1076,9 +1182,6 @@ def show_main_app():
         ["📊 Dashboard", "📝 Quiz", "🏆 Leaderboard", "💬 Chat", "👤 Profile", "📚 Learning Resources"],
         label_visibility="collapsed"
     )
-    
-    st.sidebar.markdown("---")
-    st.sidebar.markdown("### **Appearance**")
     
     st.sidebar.markdown("---")
     st.sidebar.markdown("### **Account**")
@@ -1092,10 +1195,8 @@ def show_main_app():
     update_user_status(st.session_state.username, True)
     
     if selected_page == "📊 Dashboard":
-        # (Keep existing dashboard code exactly the same)
-        st.markdown("---")
-        st.markdown("<div class='content-card'>", unsafe_allow_html=True)
         st.header("📈 Progress Dashboard")
+        st.markdown("<div class='content-card'>", unsafe_allow_html=True)
         st.write("Track your math learning journey with these insights.")
         
         # Get user statistics
@@ -1166,7 +1267,6 @@ def show_main_app():
         st.markdown("</div>", unsafe_allow_html=True)
 
     elif selected_page == "📝 Quiz":
-        # (Keep existing quiz code exactly the same)
         st.header("🧠 Quiz Time!")
         st.markdown("<div class='content-card'>", unsafe_allow_html=True)
         
@@ -1178,6 +1278,7 @@ def show_main_app():
             st.session_state.difficulty = "Easy"
             st.session_state.questions = []
             st.session_state.quiz_started_time = None
+            st.session_state.last_answer_correct = None
 
         if not st.session_state.quiz_active:
             st.write("Select a topic and challenge yourself!")
@@ -1189,7 +1290,10 @@ def show_main_app():
                 "rational functions", "binomial theorem", "coordinate geometry",
                 "probabilty", "vectors", "sequence and series"
             ]
-            st.session_state.topic = st.selectbox("Choose a topic:", topic_options)
+            
+            # Add basic arithmetic for practice
+            basic_options = ["Addition", "Subtraction", "Multiplication", "Division", "Exponents"]
+            st.session_state.topic = st.selectbox("Choose a topic:", basic_options + topic_options)
             
             # Difficulty selection with visual indicators
             difficulty_options = ["Easy", "Medium", "Hard"]
@@ -1237,15 +1341,20 @@ def show_main_app():
                     
                     if submit_button:
                         if user_answer == correct_answer:
-                            st.success("Correct! 🎉")
+                            st.session_state.last_answer_correct = True
                             st.session_state.score += 1
-                            confetti_animation()
                         else:
-                            st.error(f"Incorrect. The correct answer was {correct_answer}.")
+                            st.session_state.last_answer_correct = False
                         
                         st.session_state.current_question += 1
-                        time.sleep(1)
                         st.rerun()
+                
+                if st.session_state.last_answer_correct is not None:
+                    if st.session_state.last_answer_correct:
+                        st.markdown(f'<div class="feedback-container feedback-correct"><h4>🎉 Correct!</h4></div>', unsafe_allow_html=True)
+                        confetti_animation()
+                    else:
+                        st.markdown(f'<div class="feedback-container feedback-incorrect"><h4>❌ Incorrect.</h4> The correct answer was {correct_answer}.</div>', unsafe_allow_html=True)
             else:
                 st.balloons()
                 st.success(f"""
@@ -1254,8 +1363,8 @@ def show_main_app():
                 """)
                 save_quiz_result(st.session_state.username, st.session_state.topic, st.session_state.score)
                 st.session_state.quiz_active = False
+                st.session_state.last_answer_correct = None
                 
-                # Show performance analysis
                 performance = st.session_state.score / len(st.session_state.questions)
                 if performance >= 0.8:
                     st.markdown("""
@@ -1285,9 +1394,9 @@ def show_main_app():
         st.markdown("</div>", unsafe_allow_html=True)
 
     elif selected_page == "🏆 Leaderboard":
-        # (Keep existing leaderboard code exactly the same)
         st.header("🏆 Global Leaderboard")
-        st.markdown("<div class='content-card'>", unsafe_allow_html=True)
+        
+        st.markdown(f"<div class='content-card'>", unsafe_allow_html=True)
         st.write("See who has the highest scores for each topic!")
         
         topic_options = [
@@ -1296,13 +1405,38 @@ def show_main_app():
             "rational functions", "binomial theorem", "coordinate geometry",
             "probabilty", "vectors", "sequence and series"
         ]
-        leaderboard_topic = st.selectbox("Select a topic to view the leaderboard:", topic_options)
+        
+        basic_options = ["Addition", "Subtraction", "Multiplication", "Division", "Exponents"]
+        leaderboard_topic = st.selectbox("Select a topic to view the leaderboard:", basic_options + topic_options)
         
         top_scores = get_top_scores(leaderboard_topic)
         
         if top_scores:
             df = pd.DataFrame(top_scores, columns=['Username', 'Score'])
-            df.index += 1  # Make rankings start at 1
+            
+            st.markdown("""
+            <div class="leaderboard-header">
+                <span class="crown-icon">👑</span>
+                <h3 class="leaderboard-title">Top 3 Players</h3>
+            </div>
+            """, unsafe_allow_html=True)
+
+            top_3_cols = st.columns(3)
+            for i, (username, score) in enumerate(top_scores[:3]):
+                with top_3_cols[i]:
+                    rank_icon = "🥇" if i == 0 else "🥈" if i == 1 else "🥉"
+                    card_class = "gold" if i == 0 else "silver" if i == 1 else "bronze"
+                    st.markdown(f"""
+                    <div class="top-3-card" style="background-color: {card_class};">
+                        <div class="top-3-rank-icon">{rank_icon}</div>
+                        <h4>{username}</h4>
+                        <h2 style="margin: 0; font-weight: bold;">{score}</h2>
+                    </div>
+                    """, unsafe_allow_html=True)
+            
+            st.markdown("---")
+            st.subheader("All Rankings")
+            df['Rank'] = df.index + 1
             
             # Highlight current user's position
             def highlight_user(row):
@@ -1311,12 +1445,12 @@ def show_main_app():
                 return [''] * len(row)
             
             st.dataframe(
-                df.style.apply(highlight_user, axis=1).format({
+                df[['Rank', 'Username', 'Score']].style.apply(highlight_user, axis=1).format({
                     'Score': '{:.0f}'
                 }),
+                hide_index=True,
                 use_container_width=True,
                 column_config={
-                    "Username": st.column_config.TextColumn("User"),
                     "Score": st.column_config.ProgressColumn(
                         "Score",
                         help="Score out of 5",
@@ -1327,22 +1461,22 @@ def show_main_app():
                 }
             )
             
-            # Check if current user is in top 10
-            user_in_top = any(user[0] == st.session_state.username for user in top_scores)
-            if not user_in_top:
-                st.info(f"Keep practicing to get on the leaderboard for {leaderboard_topic}!")
+            # Show user's personal rank
+            user_rank = get_user_rank(st.session_state.username, leaderboard_topic)
+            if user_rank:
+                st.info(f"You are currently ranked #{user_rank} for this topic.")
+            else:
+                st.info(f"Take a quiz to get on the leaderboard!")
+
         else:
             st.info("No scores have been recorded for this topic yet.")
         
         st.markdown("</div>", unsafe_allow_html=True)
 
-   # ---------------- rest of your existing code exactly as before ----------------
-# (UNCHANGED CONTENT REMOVED FOR BREVITY UNTIL THE CHAT FORM SECTION)
-
-
-# [Previous imports and code remain exactly the same until the Chat section]
-
     elif selected_page == "💬 Chat":
+        # Put autorefresh inside the chat page logic
+        st_autorefresh(interval=3000, key="chat_refresh")
+
         st.header("💬 Community Chat")
         # --- Styles for WhatsApp-like chat redesign ---
         st.markdown("""
@@ -1396,9 +1530,6 @@ def show_main_app():
         document.addEventListener('keydown', e => { if(e.key==="Escape"){ modal.style.display = "none"; document.body.style.overflow = "auto"; } });
         </script>
         """, unsafe_allow_html=True)
-
-        # Real-time refresh every 3s
-        st_autorefresh(interval=3000, key="chat_refresh")
 
         # Get chat data
         online_users = get_online_users()
@@ -1470,7 +1601,6 @@ def show_main_app():
         show_profile_page()
 
     elif selected_page == "📚 Learning Resources":
-        # (Keep existing learning resources code exactly the same)
         st.header("📚 Learning Resources")
         st.markdown("<div class='content-card'>", unsafe_allow_html=True)
         st.write("Mini-tutorials and helpful examples to help you study.")
@@ -1603,7 +1733,6 @@ def show_main_app():
     st.markdown("</div>", unsafe_allow_html=True) # Close main content container
 
 # --- Splash Screen and Main App Logic ---
-# (Keep existing splash screen logic exactly the same)
 if "show_splash" not in st.session_state:
     st.session_state.show_splash = True
 
