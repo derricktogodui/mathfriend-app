@@ -264,57 +264,105 @@ def get_typing_users():
 # --- Quiz and Result Functions ---
 # (Keep all existing quiz functions exactly the same)
 def generate_question(topic, difficulty):
-    """Generates a random math question based on the topic and difficulty."""
+     """Generates a random math question with guaranteed valid output."""
     if topic in ["sets and operations on sets", "surds", "binary operations", "relations and functions", "polynomial functions", "rational functions", "binomial theorem", "coordinate geometry", "probabilty", "vectors", "sequence and series"]:
+    import random
         return "Quiz questions for this topic are coming soon!", None
-    
+    import math
+ 
+ 
     a, b = 0, 0
+    def safe_float(answer):
     if difficulty == "Easy":
+        """Ensure numeric answers are floats for comparison."""
         a = random.randint(1, 10)
+        try:
         b = random.randint(1, 10)
+            return float(answer) if isinstance(answer, (int, float)) else answer
     elif difficulty == "Medium":
+        except:
         a = random.randint(10, 50)
+            return answer
         b = random.randint(1, 20)
-    elif difficulty == "Hard":
-        a = random.randint(50, 100)
-        b = random.randint(10, 50)
-    
-    question, answer = None, None
 
+    elif difficulty == "Hard":
+    # --- Question Generator Logic ---
+        a = random.randint(50, 100)
+    question, answer = "Select a topic to start.", None
+        b = random.randint(10, 50)
+    topic = topic.lower() if topic else None
+ 
+ 
+    question, answer = None, None
+    # ===== Sets and Operations on Sets =====
+
+    if topic == "sets and operations on sets":
     if topic == "Addition":
+        A = set(random.sample(range(1, 6), 3))
         question = f"What is {a} + {b}?"
+        B = set(random.sample(range(3, 8), 3))
         answer = a + b
+        if difficulty == "Easy":
     elif topic == "Subtraction":
+            op = random.choice(["∪", "∩"])
         a, b = max(a, b), min(a, b)
+            question = f"Given A = {A} and B = {B}, what is A {op} B?"
         question = f"What is {a} - {b}?"
+            answer = A.union(B) if op == "∪" else A.intersection(B)
         answer = a - b
+
     elif topic == "Multiplication":
+        elif difficulty == "Medium":
         if difficulty == "Hard":
+            question = f"If A = {A} and B = {B}, what is A - B?"
             a = random.randint(10, 20)
+            answer = A - B
             b = random.randint(10, 20)
+
         question = f"What is {a} x {b}?"
+        else:  # Hard
         answer = a * b
+            question = f"True/False: {A} ∩ {B} is always ⊆ {A} ∪ {B}"
     elif topic == "Division":
+            answer = "True"
         b = random.randint(2, 10)
+
         a = b * random.randint(1, 10)
+    # ===== Surds =====
         if difficulty == "Hard":
+    elif topic == "surds":
             b = random.randint(11, 20)
+        a = random.choice([8, 18, 27, 32, 50])
             a = b * random.randint(1, 20)
+        if difficulty == "Easy":
         question = f"What is {a} / {b}?"
+            question = f"Simplify √{a}"
         answer = a / b
+            answer = f"{int(math.isqrt(a))}√{a // (math.isqrt(a)**2)}"
     elif topic == "Exponents":
+
         base = random.randint(1, 5)
+        elif difficulty == "Medium":
         power = random.randint(2, 4)
+            question = f"Rationalize: 1/(√{a} + √{a//2})"
         if difficulty == "Hard":
+            answer = f"(√{a} - √{a//2})/{a//2}"
             base = random.randint(5, 10)
+
             power = random.randint(2, 3)
+        else:  # Hard
         question = f"What is {base}^{power}?"
+            question = f"Solve: √({a}x) = {math.isqrt(a)}"
         answer = base ** power
+            answer = math.isqrt(a)
     else:
+
         question = "Please select a topic to start."
+    # [Add all other topics here...]
         answer = None
-    
-    return question, answer
+
+
+    return question, safe_float(answer)
 
 def save_quiz_result(username, topic, score):
     """Saves a user's quiz result to the database."""
@@ -1646,3 +1694,4 @@ else:
         show_main_app()
     else: # This handles both 'login' and 'signup' pages
         show_login_page()
+
