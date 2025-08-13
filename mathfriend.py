@@ -740,9 +740,6 @@ def show_profile_page():
     
     st.markdown("</div>", unsafe_allow_html=True)
 
-# Add at the TOP of show_main_app() (before any other code)
-if 'dark_mode' not in st.session_state:
-    st.session_state.dark_mode = False
 def show_main_app():
     # Inject modern CSS styles
     st.markdown("""
@@ -1014,11 +1011,8 @@ def show_main_app():
     """, unsafe_allow_html=True)
     
     # Dark mode toggle in sidebar
-    # Replace the existing dark mode toggle in the sidebar with:
-with st.sidebar:
-    if st.toggle("🌙 Dark Mode", value=st.session_state.dark_mode, key="dark_mode_toggle"):
-        st.session_state.dark_mode = not st.session_state.dark_mode
-        st.rerun()
+    if 'dark_mode' not in st.session_state:
+        st.session_state.dark_mode = False
     
     if st.session_state.dark_mode:
         st.markdown("""
@@ -1351,18 +1345,21 @@ with st.sidebar:
     elif selected_page == "💬 Chat":
         st.header("💬 Community Chat")
         # --- Styles for WhatsApp-like chat redesign ---
-        st.markdown("""
-        <style>
-        .chat-container { flex: 1; height: 70vh; max-height: 70vh; overflow-y: auto; padding: 10px; display: flex; flex-direction: column; gap: 6px; scroll-behavior: smooth; }
-        .msg-row { display: flex; align-items: flex-end; }
-        .msg-own { justify-content: flex-end; }
-        .msg-bubble {
-            max-width: min(80%, 500px);
-            padding: 8px 12px;
-            border-radius: 18px;
-            font-size: 0.95rem;
-            line-height: 1.3;
-            word-wrap: break-word;
+        # Replace the chat container with:
+st.markdown(f"""
+<div id="chat-container" class="chat-container" style="
+    flex: 1; 
+    height: 60vh; 
+    max-height: 60vh; 
+    overflow-y: auto; 
+    padding: 10px; 
+    background-color: {'#f0f2f6' if not st.session_state.dark_mode else '#1e1e1e'};
+    border-radius: 12px;
+    margin-bottom: 10px;
+    border: 1px solid {'#ddd' if not st.session_state.dark_mode else '#333'};
+    scroll-behavior: smooth;
+">
+""", unsafe_allow_html=True)
         }
         .msg-own .msg-bubble { background-color: #dcf8c6; border-bottom-right-radius: 4px; color: #222; }
         .msg-other .msg-bubble { background-color: #fff; border-bottom-left-radius: 4px; color: #222; }
@@ -1652,4 +1649,3 @@ else:
         show_main_app()
     else: # This handles both 'login' and 'signup' pages
         show_login_page()
-
