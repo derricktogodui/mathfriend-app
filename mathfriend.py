@@ -1580,7 +1580,9 @@ def show_main_app():
             answer = st.text_input("Your answer:", key="sets_answer")
             if answer:
                 if answer.lower() in ["{b, c}", "b, c", "b c"]:
-                    st.success("f"Correct! The intersection is {{b, c}}")
+                    # --- THIS IS THE CORRECTED LINE ---
+                    # Using an f-string with escaped braces {{}} to prevent syntax errors.
+                    st.success(f"Correct! The intersection is {{b, c}}")
                 else:
                     st.error("Not quite. The intersection includes elements common to both sets.")
 
@@ -1711,4 +1713,5 @@ if not st.session_state.get("logged_in") and params.get("mf") == ['1'] and param
         show_main_app()
     else: # This handles both 'login' and 'signup' pages
         show_login_page()
+
 
