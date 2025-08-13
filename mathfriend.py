@@ -1345,21 +1345,29 @@ def show_main_app():
     elif selected_page == "💬 Chat":
         st.header("💬 Community Chat")
         # --- Styles for WhatsApp-like chat redesign ---
-        # Replace the chat container with:
+        st.markdown("""
 st.markdown(f"""
+        <style>
 <div id="chat-container" class="chat-container" style="
+        .chat-container { flex: 1; height: 70vh; max-height: 70vh; overflow-y: auto; padding: 10px; display: flex; flex-direction: column; gap: 6px; scroll-behavior: smooth; }
     flex: 1; 
+        .msg-row { display: flex; align-items: flex-end; }
     height: 60vh; 
+        .msg-own { justify-content: flex-end; }
     max-height: 60vh; 
+        .msg-bubble {
     overflow-y: auto; 
+            max-width: min(80%, 500px);
     padding: 10px; 
+            padding: 8px 12px;
     background-color: {'#f0f2f6' if not st.session_state.dark_mode else '#1e1e1e'};
+            border-radius: 18px;
     border-radius: 12px;
+            font-size: 0.95rem;
     margin-bottom: 10px;
+            line-height: 1.3;
     border: 1px solid {'#ddd' if not st.session_state.dark_mode else '#333'};
-    scroll-behavior: smooth;
-">
-""", unsafe_allow_html=True)
+            word-wrap: break-word;
         }
         .msg-own .msg-bubble { background-color: #dcf8c6; border-bottom-right-radius: 4px; color: #222; }
         .msg-other .msg-bubble { background-color: #fff; border-bottom-left-radius: 4px; color: #222; }
