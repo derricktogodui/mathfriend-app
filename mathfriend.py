@@ -431,7 +431,7 @@ def get_mathbot_response(message):
     }
     if query.startswith("define"):
         term = query.split("define", 1)[1].strip()
-        return f"**Definition:** {definitions.get(term, 'I don\\'t have a definition for that yet.')}"
+        return f"**Definition:** {definitions.get(term, 'I don\\'t have a definition for that yet.')}",
     try:
         expression = query.replace('x', '*').replace('^', '**')
         if not re.fullmatch(r'[\d\s\.\+\-\*\/\(\)]+', expression):
@@ -900,3 +900,4 @@ if __name__ == "__main__":
             show_main_app()
         else:
             show_login_page()
+
