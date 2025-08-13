@@ -1348,7 +1348,7 @@ def show_main_app():
         st.markdown("""
 st.markdown(f"""
         <style>
-<div id="chat-container" class="chat-container" style="
+<div id="chat-container" class="chat-container" style=
         .chat-container { flex: 1; height: 70vh; max-height: 70vh; overflow-y: auto; padding: 10px; display: flex; flex-direction: column; gap: 6px; scroll-behavior: smooth; }
     flex: 1; 
         .msg-row { display: flex; align-items: flex-end; }
@@ -1657,3 +1657,4 @@ else:
         show_main_app()
     else: # This handles both 'login' and 'signup' pages
         show_login_page()
+
