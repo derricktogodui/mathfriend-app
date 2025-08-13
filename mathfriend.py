@@ -263,196 +263,58 @@ def get_typing_users():
 
 # --- Quiz and Result Functions ---
 # (Keep all existing quiz functions exactly the same)
-
-# [Previous imports and setup code remain exactly the same until the generate_question function]
-
 def generate_question(topic, difficulty):
-    """Generates a random math question based on topic and difficulty."""
-    question, answer = None, None
-    r = random.random()  # For randomizing question types
+    """Generates a random math question based on the topic and difficulty."""
+    if topic in ["sets and operations on sets", "surds", "binary operations", "relations and functions", "polynomial functions", "rational functions", "binomial theorem", "coordinate geometry", "probabilty", "vectors", "sequence and series"]:
+        return "Quiz questions for this topic are coming soon!", None
     
-    # ===== Sets and Operations on Sets =====
-    if topic == "sets and operations on sets":
-        if difficulty == "Easy":
-            A = set(random.sample(range(1, 6), 3))
-            B = set(random.sample(range(3, 8), 3))
-            operation = random.choice(["∪", "∩"])
-            question = f"Given A = {A} and B = {B}, what is A {operation} B?"
-            answer = A.union(B) if operation == "∪" else A.intersection(B)
-            
-        elif difficulty == "Medium":
-            U = set(range(1, 11))
-            A = set(random.sample(U, 4))
-            B = set(random.sample(U, 4))
-            question = f"Given U = {U}, A = {A}, and B = {B}, what is (A ∩ B)'?"
-            answer = U - (A.intersection(B))
-            
-        else:  # Hard
-            A = {x for x in range(1, 11) if x % 2 == 0}
-            B = {2, 3, 5, 7}
-            question = f"If A = {A} (even numbers 1-10) and B = {B} (primes 1-10), what is |A ∩ B|?"
-            answer = len(A.intersection(B))
+    a, b = 0, 0
+    if difficulty == "Easy":
+        a = random.randint(1, 10)
+        b = random.randint(1, 10)
+    elif difficulty == "Medium":
+        a = random.randint(10, 50)
+        b = random.randint(1, 20)
+    elif difficulty == "Hard":
+        a = random.randint(50, 100)
+        b = random.randint(10, 50)
+    
+    question, answer = None, None
 
-    # ===== Surds =====
-    elif topic == "surds":
-        if difficulty == "Easy":
-            a = random.choice([8, 18, 32, 50])
-            question = f"Simplify √{a}"
-            answer = f"{int(math.sqrt(a))}√{a // (int(math.sqrt(a))**2)}"
-            
-        elif difficulty == "Medium":
-            a, b = random.choice([(2,3), (3,2), (5,2)])
-            question = f"Rationalize the denominator: 1/(√{a} + √{b})"
-            answer = f"(√{a} - √{b})/{a - b}" if a != b else "Cannot be rationalized"
-            
-        else:  # Hard
-            x = random.randint(2, 5)
-            question = f"Solve for x: √({x}x + 1) = {x}"
-            answer = (x**2 - 1)/x
-
-    # ===== Binary Operations =====
-    elif topic == "binary operations":
-        a, b = random.randint(1,5), random.randint(1,5)
-        if difficulty == "Easy":
-            question = f"If a * b = a + b + ab, what is {a} * {b}?"
-            answer = a + b + (a * b)
-            
-        elif difficulty == "Medium":
-            question = f"Is the operation a * b = a² - b commutative? (Yes/No)"
-            answer = "No" if a != b else "Yes"
-            
-        else:  # Hard
-            question = "Is * defined by a * b = |a - b| associative? (Yes/No)"
-            answer = "No"
-
-    # ===== Relations and Functions =====
-    elif topic == "relations and functions":
-        if difficulty == "Easy":
-            x = random.randint(1,5)
-            question = f"If f(x) = 2x - 3, what is f({x})?"
-            answer = 2*x - 3
-            
-        elif difficulty == "Medium":
-            question = "Is the relation {(1,1), (2,2), (3,3)} a function? (Yes/No)"
-            answer = "Yes"
-            
-        else:  # Hard
-            question = "Is f(x) = x³ - x odd, even, or neither?"
-            answer = "Odd"
-
-    # ===== Polynomial Functions =====
-    elif topic == "polynomial functions":
-        x = random.randint(1,3)
-        if difficulty == "Easy":
-            question = f"Evaluate f(x) = x² + 2x - 1 at x = {x}"
-            answer = x**2 + 2*x - 1
-            
-        elif difficulty == "Medium":
-            roots = sorted(random.sample(range(-3,4), 2)
-            question = f"Find a polynomial with roots at {roots[0]} and {roots[1]}"
-            answer = f"x² - {sum(roots)}x + {roots[0]*roots[1]}"
-            
-        else:  # Hard
-            question = "What is the degree of f(x) = (x-1)(x²+3)?"
-            answer = "3"
-
-    # ===== Rational Functions =====
-    elif topic == "rational functions":
-        if difficulty == "Easy":
-            x = random.randint(1,3)
-            question = f"Evaluate f(x) = (x+1)/(x-1) at x = {x} (simplify)"
-            answer = f"{(x+1)/(x-1)}"
-            
-        elif difficulty == "Medium":
-            question = "Find the vertical asymptote of f(x) = 1/(x+2)"
-            answer = "-2"
-            
-        else:  # Hard
-            question = "What is the domain of f(x) = 1/(x²-4)?"
-            answer = "x ≠ ±2"
-
-    # ===== Binomial Theorem =====
-    elif topic == "binomial theorem":
-        if difficulty == "Easy":
-            question = "Expand (x + y)²"
-            answer = "x² + 2xy + y²"
-            
-        elif difficulty == "Medium":
-            n = random.randint(2,3)
-            question = f"What is the coefficient of x in (1 + x)^{n}?"
-            answer = str(n)
-            
-        else:  # Hard
-            question = "Find the 3rd term in (2x - 3)⁵"
-            answer = "720x³"
-
-    # ===== Coordinate Geometry =====
-    elif topic == "coordinate geometry":
-        if difficulty == "Easy":
-            x1, y1, x2, y2 = [random.randint(1,5) for _ in range(4)]
-            question = f"Find distance between ({x1},{y1}) and ({x2},{y2})"
-            answer = math.sqrt((x2-x1)**2 + (y2-y1)**2)
-            
-        elif difficulty == "Medium":
-            m = random.randint(1,3)
-            b = random.randint(-2,2)
-            question = f"Find x-intercept of y = {m}x + {b}"
-            answer = f"{-b/m}"
-            
-        else:  # Hard
-            question = "Are lines y=2x+1 and y=-0.5x+3 perpendicular? (Yes/No)"
-            answer = "Yes"
-
-    # ===== Probability =====
-    elif topic == "probabilty":
-        if difficulty == "Easy":
-            question = "Probability of rolling a 3 on a die?"
-            answer = "1/6"
-            
-        elif difficulty == "Medium":
-            question = "If P(A)=0.3 and P(B)=0.4, and independent, what is P(A and B)?"
-            answer = "0.12"
-            
-        else:  # Hard
-            question = "In a deck, what's P(face card | card is heart)?"
-            answer = "3/13"
-
-    # ===== Vectors =====
-    elif topic == "vectors":
-        if difficulty == "Easy":
-            a, b = random.randint(1,3), random.randint(1,3)
-            question = f"Find magnitude of vector ({a}, {b})"
-            answer = math.sqrt(a**2 + b**2)
-            
-        elif difficulty == "Medium":
-            question = "Are vectors (1,2) and (2,4) parallel? (Yes/No)"
-            answer = "Yes"
-            
-        else:  # Hard
-            question = "Find angle (degrees) between (1,0) and (0,1)"
-            answer = "90"
-
-    # ===== Sequence and Series =====
-    elif topic == "sequence and series":
-        if difficulty == "Easy":
-            question = "Next term in 2, 4, 6, 8,...?"
-            answer = "10"
-            
-        elif difficulty == "Medium":
-            question = "Sum of first 5 natural numbers?"
-            answer = "15"
-            
-        else:  # Hard
-            question = "10th term of arithmetic sequence 3, 7, 11,...?"
-            answer = "39"
-
+    if topic == "Addition":
+        question = f"What is {a} + {b}?"
+        answer = a + b
+    elif topic == "Subtraction":
+        a, b = max(a, b), min(a, b)
+        question = f"What is {a} - {b}?"
+        answer = a - b
+    elif topic == "Multiplication":
+        if difficulty == "Hard":
+            a = random.randint(10, 20)
+            b = random.randint(10, 20)
+        question = f"What is {a} x {b}?"
+        answer = a * b
+    elif topic == "Division":
+        b = random.randint(2, 10)
+        a = b * random.randint(1, 10)
+        if difficulty == "Hard":
+            b = random.randint(11, 20)
+            a = b * random.randint(1, 20)
+        question = f"What is {a} / {b}?"
+        answer = a / b
+    elif topic == "Exponents":
+        base = random.randint(1, 5)
+        power = random.randint(2, 4)
+        if difficulty == "Hard":
+            base = random.randint(5, 10)
+            power = random.randint(2, 3)
+        question = f"What is {base}^{power}?"
+        answer = base ** power
     else:
         question = "Please select a topic to start."
         answer = None
     
     return question, answer
-
-# [Rest of your existing code remains exactly the same]
 
 def save_quiz_result(username, topic, score):
     """Saves a user's quiz result to the database."""
@@ -1322,10 +1184,10 @@ def show_main_app():
             
             # Topic selection
             topic_options = [
-                "Sets and Operations on Sets", "Surds", "Binary Operations",
-                "Relations and Functions", "Polynomial Functions",
-                "Rational Functions", "Binomial Theorem", "Coordinate Geometry",
-                "Probabilty", "Vectors", "Sequence and Series"
+                "sets and operations on sets", "surds", "binary operations",
+                "relations and functions", "polynomial functions",
+                "rational functions", "binomial theorem", "coordinate geometry",
+                "probabilty", "vectors", "sequence and series"
             ]
             st.session_state.topic = st.selectbox("Choose a topic:", topic_options)
             
@@ -1784,5 +1646,3 @@ else:
         show_main_app()
     else: # This handles both 'login' and 'signup' pages
         show_login_page()
-
-
