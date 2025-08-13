@@ -740,6 +740,9 @@ def show_profile_page():
     
     st.markdown("</div>", unsafe_allow_html=True)
 
+# Add at the TOP of show_main_app() (before any other code)
+if 'dark_mode' not in st.session_state:
+    st.session_state.dark_mode = False
 def show_main_app():
     # Inject modern CSS styles
     st.markdown("""
@@ -1011,8 +1014,11 @@ def show_main_app():
     """, unsafe_allow_html=True)
     
     # Dark mode toggle in sidebar
-    if 'dark_mode' not in st.session_state:
-        st.session_state.dark_mode = False
+    # Replace the existing dark mode toggle in the sidebar with:
+with st.sidebar:
+    if st.toggle("🌙 Dark Mode", value=st.session_state.dark_mode, key="dark_mode_toggle"):
+        st.session_state.dark_mode = not st.session_state.dark_mode
+        st.rerun()
     
     if st.session_state.dark_mode:
         st.markdown("""
@@ -1646,3 +1652,4 @@ else:
         show_main_app()
     else: # This handles both 'login' and 'signup' pages
         show_login_page()
+
