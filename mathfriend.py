@@ -1184,10 +1184,10 @@ def show_main_app():
             
             # Topic selection
             topic_options = [
-                "sets and operations on sets", "surds", "binary operations",
-                "relations and functions", "polynomial functions",
-                "rational functions", "binomial theorem", "coordinate geometry",
-                "probabilty", "vectors", "sequence and series"
+                "Sets and Operations on Sets", "Surds", "Binary Operations",
+                "Relations and Functions", "Polynomial Functions",
+                "Rational Functions", "Binomial Theorem", "Coordinate Geometry",
+                "Probabilty", "Vectors", "Sequence and Series"
             ]
             st.session_state.topic = st.selectbox("Choose a topic:", topic_options)
             
@@ -1646,3 +1646,4 @@ else:
         show_main_app()
     else: # This handles both 'login' and 'signup' pages
         show_login_page()
+
