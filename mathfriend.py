@@ -1036,12 +1036,6 @@ def show_main_app():
                 color: white !important;
             }
             
-            
-            .msg-own .msg-bubble { background-color: #2e7d32 !important; color: white !important; }
-            .msg-other .msg-bubble { background-color: #444 !important; color: white !important; }
-            .sidebar { background-color: #1e1e1e !important; color: white !important; }
-            .avatar { border-color: var(--primary) !important; }
-
             .stTextInput>div>div>input, .stTextArea>div>div>textarea {
                 background-color: #333 !important;
                 color: white !important;
@@ -1064,7 +1058,7 @@ def show_main_app():
     st.markdown(f"""
     <div style="display: flex; align-items: center; margin-bottom: 20px;">
         <div style="position: relative; display: inline-block;">
-            <img src="{avatar_url}" style="width: 60px; height: 60px; border-radius: 50%; object-fit: cover; margin-right: 15px; border: 3px solid #4361ee;"/>
+            <img src="{avatar_url}" style="width: 60px; height: 60px; border-radius: 50%; margin-right: 15px; border: 3px solid #4361ee;"/>
             <div class="online-indicator"></div>
         </div>
         <div>
@@ -1353,17 +1347,7 @@ def show_main_app():
         # --- Styles for WhatsApp-like chat redesign ---
         st.markdown("""
         <style>
-        .chat-container {
-        flex: 1;
-        height: calc(100vh - 180px); /* Full height minus header+input area */
-        overflow-y: auto;
-        padding: 10px;
-        display: flex;
-        flex-direction: column;
-        gap: 6px;
-        scroll-behavior: smooth;
-        background-color: var(--light);
-    }
+        .chat-container { flex: 1; height: 70vh; max-height: 70vh; overflow-y: auto; padding: 10px; display: flex; flex-direction: column; gap: 6px; scroll-behavior: smooth; }
         .msg-row { display: flex; align-items: flex-end; }
         .msg-own { justify-content: flex-end; }
         .msg-bubble {
@@ -1414,8 +1398,7 @@ def show_main_app():
         """, unsafe_allow_html=True)
 
         # Real-time refresh every 3s
-        if selected_page == "💬 Chat":
-            st_autorefresh(interval=3000, key="chat_refresh")
+        st_autorefresh(interval=3000, key="chat_refresh")
 
         # Get chat data
         online_users = get_online_users()
@@ -1456,17 +1439,10 @@ def show_main_app():
 
         # Auto-scroll to bottom
         st.markdown("""
-        
         <script>
         var chatBox = document.getElementById('chat-container');
-        if(chatBox){
-            let isAtBottom = chatBox.scrollHeight - chatBox.scrollTop - chatBox.clientHeight < 50;
-            if(isAtBottom){
-                chatBox.scrollTop = chatBox.scrollHeight;
-            }
-        }
+        if(chatBox){ chatBox.scrollTop = chatBox.scrollHeight; }
         </script>
-
         """, unsafe_allow_html=True)
 
         # Input
