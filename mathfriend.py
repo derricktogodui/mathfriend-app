@@ -1058,7 +1058,7 @@ def show_main_app():
     
     with st.sidebar:
         st.session_state.dark_mode = st.toggle("🌙 Dark Mode", value=st.session_state.dark_mode)
-    st.markdown(f"""
+    st.markdown("""
         <script data-dark-sync>
         (function(){
           try {
@@ -1713,5 +1713,6 @@ if not st.session_state.get("logged_in") and params.get("mf") == ['1'] and param
         show_main_app()
     else: # This handles both 'login' and 'signup' pages
         show_login_page()
+
 
 
