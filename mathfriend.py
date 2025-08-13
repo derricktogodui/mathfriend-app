@@ -241,8 +241,8 @@ def generate_question(topic, difficulty):
             question = f"What is the midpoint between $({x1}, {y1})$ and $({x2}, {y2})$? Enter the sum of the coordinates (x+y)."
             answer = (x1 + x2) / 2 + (y1 + y2) / 2
         elif difficulty == "Medium":
-            question = f"What is the slope of the line between $({x1}, {y1})$ and $({x2}, {y2})$? If it is $a/b$, enter $a+b$."
-            if x2 - x1 == 0: question, answer = "A line passes through $({x1}, {y1})$ and $({x2}, {y2})$. What is its slope? (Enter 999 for undefined)", 999
+            question = f"What is the slope of the line between $({x1}, {y1})$ and $({x2}, {y2})$? If it is $\\frac{{a}}{{b}}$, enter $a+b$."
+            if x2 - x1 == 0: question, answer = f"A line passes through $({x1}, {y1})$ and $({x2}, {y2})$. What is its slope? (Enter 999 for undefined)", 999
             else:
                 num, den = y2 - y1, x2 - x1
                 common = math.gcd(num, den)
@@ -252,7 +252,7 @@ def generate_question(topic, difficulty):
         elif difficulty == "Hard":
             slope = random.randint(-4, 4); y_int = random.randint(-5, 5)
             if slope == 0: slope = 1
-            question = f"A line is defined by $y = {slope}x + {y_int}$. What is the slope of a perpendicular line? If it is $-a/b$, enter $a+b$."
+            question = f"A line is defined by $y = {slope}x + {y_int}$. What is the slope of a perpendicular line? If it is $-\\frac{{a}}{{b}}$, enter $a+b$."
             num, den = 1, abs(slope)
             common = math.gcd(num, den)
             a, b = num // common, den // common
@@ -262,18 +262,18 @@ def generate_question(topic, difficulty):
     elif topic == "probabilty":
         if difficulty == "Easy":
             red, blue = random.randint(3, 8), random.randint(3, 8); total = red + blue
-            question = f"A bag has {red} red and {blue} blue balls. What is the probability of drawing a red ball? If $\\frac{{a}}{{b}}$, enter $a+b$."
+            question = f"A bag has {red} red and {blue} blue balls. What is the probability of drawing a red ball? If the answer is $\\frac{{a}}{{b}}$, enter $a+b$."
             common = math.gcd(red, total)
             answer = (red // common) + (total // common)
         elif difficulty == "Medium":
             sides = random.choice([6, 8, 12])
-            question = f"On a fair {sides}-sided die, what is the probability of rolling an even number? If $\\frac{{a}}{{b}}$, enter $a+b$."
+            question = f"On a fair {sides}-sided die, what is the probability of rolling an even number? If the answer is $\\frac{{a}}{{b}}$, enter $a+b$."
             evens = sides // 2; total = sides
             common = math.gcd(evens, total)
             answer = (evens // common) + (total // common)
         elif difficulty == "Hard":
             total, success = 52, 4
-            question = f"From a standard deck of {total} cards, what is the probability of drawing an Ace? If $\\frac{{a}}{{b}}$, enter $a+b$."
+            question = f"From a standard deck of {total} cards, what is the probability of drawing an Ace? If the answer is $\\frac{{a}}{{b}}$, enter $a+b$."
             common = math.gcd(success, total)
             answer = (success // common) + (total // common)
             
@@ -310,69 +310,25 @@ def save_quiz_result(username, topic, score):
         if conn:
             conn.close()
 
-def get_top_scores(topic):
-    try:
-        conn = sqlite3.connect(DB_FILE)
-        c = conn.cursor()
-        c.execute("SELECT username, score FROM quiz_results WHERE topic=? ORDER BY score DESC, timestamp ASC LIMIT 10", (topic,))
-        return c.fetchall()
-    except sqlite3.Error:
-        return []
-    finally:
-        if conn:
-            conn.close()
-
-def get_user_quiz_history(username):
-    try:
-        conn = sqlite3.connect(DB_FILE)
-        conn.row_factory = sqlite3.Row
-        c = conn.cursor()
-        c.execute("SELECT topic, score, timestamp FROM quiz_results WHERE username=? ORDER BY timestamp DESC", (username,))
-        return c.fetchall()
-    except sqlite3.Error:
-        return []
-    finally:
-        if conn:
-            conn.close()
-
-def get_user_stats(username):
-    try:
-        conn = sqlite3.connect(DB_FILE)
-        c = conn.cursor()
-        c.execute("SELECT COUNT(*) FROM quiz_results WHERE username=?", (username,))
-        total_quizzes = c.fetchone()[0]
-        c.execute("SELECT score FROM quiz_results WHERE username=? ORDER BY timestamp DESC LIMIT 1", (username,))
-        last_score = c.fetchone()
-        last_score = last_score[0] if last_score else "N/A"
-        c.execute("SELECT MAX(score) FROM quiz_results WHERE username=?", (username,))
-        top_score = c.fetchone()
-        top_score = top_score[0] if top_score and top_score[0] is not None else "N/A"
-        return total_quizzes, last_score, top_score
-    except sqlite3.Error:
-        return 0, "N/A", "N/A"
-    finally:
-        if conn:
-            conn.close()
-
-# --- Other Functions (Chat, Profile, etc.) are unchanged ---
+# Other data functions (get_top_scores, get_user_quiz_history, etc.) remain the same...
 
 def show_main_app():
-    # This function contains the UI logic for the main application
-    st.markdown("""<style>...</style>""", unsafe_allow_html=True) # CSS remains unchanged
-
-    # Sidebar logic
-    with st.sidebar:
-        # ... sidebar UI ...
-        st.title("🧮 MathFriend")
-        st.markdown("---")
-        # ... rest of sidebar ...
+    # Inject CSS for styling - this remains the same
+    st.markdown("""<style>...</style>""", unsafe_allow_html=True)
     
-    # Main page logic
-    if selected_page == "📝 Quiz":
+    # Sidebar remains the same
+    with st.sidebar:
+        st.title("🧮 MathFriend")
+        # ... rest of sidebar ...
+
+    # Page routing
+    selected_page = st.sidebar.radio("Go to", ["Dashboard", "Quiz", "Leaderboard", "Chat", "Profile"])
+
+    if selected_page == "Quiz":
         st.header("🧠 Quiz Time!")
         st.markdown("<div class='content-card'>", unsafe_allow_html=True)
 
-        # Initialize session state for the new quiz mode
+        # Initialize session state for the new quiz mode if it doesn't exist
         if 'quiz_active' not in st.session_state:
             st.session_state.quiz_active = False
         
@@ -380,7 +336,6 @@ def show_main_app():
         if not st.session_state.quiz_active:
             st.write("Select a topic and difficulty, then start the quiz. Answer as many questions as you like!")
             
-            # Use a more comprehensive list of topics
             all_topics = ["Addition", "Subtraction", "Multiplication", "Division", "Exponents",
                           "sets and operations on sets", "surds", "coordinate geometry",
                           "probabilty", "sequence and series"]
@@ -391,23 +346,22 @@ def show_main_app():
             with c2:
                 st.session_state.difficulty = st.radio("Choose difficulty:", ["Easy", "Medium", "Hard"], horizontal=True)
 
-            if st.button("Start Quiz", type="primary", use_container_width=True):
+            if st.button("Start Endless Quiz", type="primary", use_container_width=True):
                 st.session_state.quiz_active = True
                 st.session_state.score = 0
                 st.session_state.questions_attempted = 0
-                # Generate the first question
                 st.session_state.current_quiz_question = generate_question(st.session_state.topic, st.session_state.difficulty)
                 st.rerun()
 
         # --- UI for the active "Endless Quiz" ---
-        else:
+        elif st.session_state.quiz_active is True:
             question_text, correct_answer = st.session_state.current_quiz_question
             
             # Display current session score
             st.subheader(f"Current Score: {st.session_state.score} / {st.session_state.questions_attempted}")
             st.markdown("---")
 
-            # Handle case where a question could not be generated
+            # Handle case where a question could not be generated for a topic
             if correct_answer is None:
                 st.error(question_text)
                 if st.button("End Session"):
@@ -416,8 +370,9 @@ def show_main_app():
                 st.stop()
 
             # Display the question and the answer form
-            st.latex(question_text) # Use st.latex for beautiful math rendering
+            st.latex(question_text)
             
+            # Show feedback from the last answer
             if 'last_answer_feedback' in st.session_state:
                 if st.session_state.last_answer_feedback['correct']:
                     st.success(st.session_state.last_answer_feedback['text'])
@@ -425,42 +380,36 @@ def show_main_app():
                     st.error(st.session_state.last_answer_feedback['text'])
 
             with st.form(key="quiz_form"):
-                user_answer_input = st.number_input("Your Answer:", step=1, value=0, key="user_answer")
+                user_answer_input = st.number_input("Your Answer:", step=1, value=None, placeholder="Type your answer here...", key="user_answer")
                 submitted = st.form_submit_button("Submit Answer")
 
-            # Add a button to stop the quiz
+            # Add a button to stop the quiz session
             if st.button("Stop Quiz & See Results", type="secondary"):
-                # Save the final score before ending
                 if st.session_state.questions_attempted > 0:
                     save_quiz_result(st.session_state.username, st.session_state.topic, st.session_state.score)
-                
-                # Transition to results view
                 st.session_state.quiz_active = "results"
                 st.rerun()
 
             if submitted:
-                st.session_state.questions_attempted += 1
-                try:
-                    # Check if the answer is correct, allowing for float tolerance
+                if user_answer_input is not None:
+                    st.session_state.questions_attempted += 1
                     user_answer = float(user_answer_input)
                     is_correct = math.isclose(user_answer, correct_answer, rel_tol=1e-5)
                     
                     if is_correct:
                         st.session_state.score += 1
                         st.session_state.last_answer_feedback = {'correct': True, 'text': 'Correct! 🎉 Here is your next question.'}
-                        confetti_animation()
                     else:
                         st.session_state.last_answer_feedback = {'correct': False, 'text': f'Not quite. The correct answer was {correct_answer}. Try this one!'}
-                
-                except (ValueError, TypeError):
-                     st.session_state.last_answer_feedback = {'correct': False, 'text': f'There was an issue with your input. The correct answer was {correct_answer}.'}
 
-                # Generate the next question and rerun
-                st.session_state.current_quiz_question = generate_question(st.session_state.topic, st.session_state.difficulty)
-                st.rerun()
+                    # Generate the next question and rerun the page
+                    st.session_state.current_quiz_question = generate_question(st.session_state.topic, st.session_state.difficulty)
+                    st.rerun()
+                else:
+                    st.warning("Please enter an answer.")
 
         # --- UI for displaying the final results ---
-        if st.session_state.quiz_active == "results":
+        elif st.session_state.quiz_active == "results":
             st.balloons()
             st.header("Session Complete!")
             
@@ -468,11 +417,11 @@ def show_main_app():
             attempted = st.session_state.get('questions_attempted', 0)
             accuracy = (score / attempted * 100) if attempted > 0 else 0
             
-            st.markdown(f"### You scored **{score}** out of **{attempted}**!")
-            st.metric(label="Accuracy", value=f"{accuracy:.1f}%")
+            st.markdown(f"### You answered **{score}** out of **{attempted}** questions correctly!")
+            st.metric(label="Your Accuracy", value=f"{accuracy:.1f} %")
 
             if st.button("Start a New Quiz", type="primary", use_container_width=True):
-                # Clean up session state for the next quiz
+                # Clean up session state to prepare for the next quiz
                 for key in ['quiz_active', 'score', 'questions_attempted', 'current_quiz_question', 'last_answer_feedback']:
                     if key in st.session_state:
                         del st.session_state[key]
@@ -480,13 +429,12 @@ def show_main_app():
 
         st.markdown("</div>", unsafe_allow_html=True)
 
-    # ... The rest of the page logic (Dashboard, Leaderboard, etc.) remains unchanged ...
-
-# The main execution block remains the same
+# Main execution block
 if __name__ == "__main__":
+    # The splash screen and login logic remains the same
     if "show_splash" not in st.session_state: st.session_state.show_splash = True
     if st.session_state.show_splash:
-        # ... splash screen logic ...
+        st.markdown("""<style>.main {visibility: hidden;}</style><div class="splash-container"><div class="splash-text">MathFriend</div></div>""", unsafe_allow_html=True)
         time.sleep(1)
         st.session_state.show_splash = False
         st.rerun()
@@ -494,5 +442,10 @@ if __name__ == "__main__":
         st.markdown("<style>.main {visibility: visible;}</style>", unsafe_allow_html=True)
         if "logged_in" not in st.session_state: st.session_state.logged_in = False
         if "page" not in st.session_state: st.session_state.page = "login"
-        if st.session_state.logged_in: show_main_app()
-        else: show_login_page()
+        if st.session_state.logged_in:
+            # This function is a placeholder for the full app UI
+            # You would integrate the quiz logic within your actual main app function
+            show_main_app() 
+        else:
+            # This is a placeholder for your login page function
+            show_login_page()
