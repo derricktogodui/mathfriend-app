@@ -291,23 +291,31 @@ def show_profile_page():
             if update_user_profile(st.session_state.username, full_name, school, age, bio): st.success("Profile updated!"); st.rerun()
 
 def show_advanced_chat_page():
+    # --- FINAL, ROBUST STYLING ---
     st.markdown("""
     <style>
         .chat-header { padding: 10px 15px; border-bottom: 1px solid #e0e0e0; display: flex; justify-content: space-between; align-items: center; background-color: #f8f9fa; }
-        .scrollable-chat-container { height: 65vh; overflow-y: auto; display: flex; flex-direction: column-reverse; border: 1px solid #e0e0e0; border-radius: 8px; margin-bottom: 10px; padding: 10px; }
-        .msg-bubble { padding: 8px 14px; border-radius: 18px; max-width: 100%; word-wrap: break-word; box-shadow: 0 1px 1px rgba(0,0,0,0.08); }
-        .msg-own-bubble { background-color: #dcf8c6; color: #333; }
-        .msg-other-bubble { background-color: #fff; color: #333; }
-        .avatar-col { width: 56px; }
-        .reply-box { background: rgba(0,0,0,0.05); padding: 5px 10px; margin-bottom: 8px; border-left: 3px solid #007bff; font-size: 0.9em; border-radius: 4px; }
+        .scrollable-chat-container { height: 65vh; overflow-y: auto; display: flex; flex-direction: column; border: 1px solid #e0e0e0; border-radius: 8px; margin-bottom: 10px; padding: 10px; }
+        .msg-container { display: flex; width: 100%; margin-bottom: 12px; }
+        .msg-container.own { justify-content: flex-end; }
+        .avatar { width: 40px; height: 40px; border-radius: 50%; margin: 0 8px; }
+        .msg-content { max-width: 75%; display: flex; flex-direction: column; }
+        .msg-bubble { padding: 8px 14px; border-radius: 18px; word-wrap: break-word; box-shadow: 0 1px 1px rgba(0,0,0,0.08); }
+        .msg-container.own .msg-bubble { background-color: #dcf8c6; color: #333; align-self: flex-end; }
+        .msg-container.other .msg-bubble { background-color: #fff; color: #333; align-self: flex-start; }
+        .msg-meta { font-size: 0.8em; color: grey; padding: 0 5px; }
+        .msg-container.own .msg-meta { align-self: flex-end; }
+        .reply-box { background: rgba(0,0,0,0.05); padding: 5px 10px; margin-bottom: 8px; border-left: 3px solid #6c757d; font-size: 0.9em; border-radius: 4px; }
         .reactions { padding-top: 5px; cursor: default; }
         .reaction-pill { border: 1px solid #007bff; color: #007bff; background: #fff; border-radius: 10px; padding: 2px 8px; font-size: 0.8em; margin-right: 4px; display: inline-block; }
         .reaction-pill.reacted { background: #e0eaf7; }
         .reply-indicator { padding: 8px 12px; background: #e9e9e9; border-radius: 8px; margin-bottom: 8px; font-size: 0.9em; display: flex; justify-content: space-between; align-items: center; }
-        .stButton button { padding: 2px 6px; font-size: 0.8em; }
+        .action-links { padding: 0 5px; }
+        .action-links a { text-decoration: none; margin-right: 8px; font-size: 1.1em; color: #6c757d; }
     </style>
     """, unsafe_allow_html=True)
 
+    # --- DATA FETCHING ---
     all_messages = get_chat_messages()
     messages_by_id = {msg['id']: msg for msg in all_messages}
     message_ids = [msg['id'] for msg in all_messages]
@@ -315,43 +323,96 @@ def show_advanced_chat_page():
     online_users = get_online_users()
     typing_users = [u for u in get_typing_users() if u != st.session_state.username]
 
+    # --- HANDLE ACTIONS FROM QUERY PARAMS ---
+    query_params = st.query_params
+    if "action" in query_params:
+        action = query_params.get("action")
+        msg_id = int(query_params.get("msg_id"))
+        
+        if action == "reply":
+            st.session_state.reply_to_message = messages_by_id.get(msg_id)
+        elif action == "react":
+            emoji = query_params.get("emoji")
+            add_reaction(msg_id, st.session_state.username, emoji)
+        
+        st.query_params.clear()
+        st.rerun()
+
+    # --- HEADER ---
     st.markdown(f'<div class="chat-header"><strong>💬 Community Chat</strong> <span><strong>Online:</strong> {len(online_users)} 🟢</span></div>', unsafe_allow_html=True)
     
-    st.markdown('<div class="scrollable-chat-container">', unsafe_allow_html=True)
-    with st.container():
-        for msg in all_messages:
-            is_own = msg['username'] == st.session_state.username
-            cols = st.columns([1, 12] if not is_own else [12, 1])
-            avatar_col, bubble_col = (cols[0], cols[1]) if not is_own else (cols[1], cols[0])
-            with avatar_col:
-                st.image(get_avatar_url(msg['username']), width=40)
-            with bubble_col:
-                st.markdown(f"**{msg['username']}** <span style='font-size: 0.8em; color: grey;'>{datetime.strptime(msg['timestamp'], '%Y-%m-%d %H:%M:%S').strftime('%H:%M')}</span>", unsafe_allow_html=True)
-                if msg['reply_to_message_id'] and msg['reply_to_message_id'] in messages_by_id:
-                    original_msg = messages_by_id[msg['reply_to_message_id']]
-                    st.markdown(f"<div class='reply-box'><b>Replying to {original_msg['username']}</b><br>{original_msg['message'][:50]}...</div>", unsafe_allow_html=True)
-                st.markdown(f"<div class='msg-bubble {'msg-own-bubble' if is_own else 'msg-other-bubble'}'>{msg['message']}</div>", unsafe_allow_html=True)
-                if msg['id'] in reactions:
-                    pills = "".join([f"<span class='reaction-pill {'reacted' if st.session_state.username in r['users'] else ''}'>{r['emoji']} {r['count']}</span>" for r in reactions[msg['id']]])
-                    st.markdown(f"<div class='reactions'>{pills}</div>", unsafe_allow_html=True)
-                b_cols = st.columns([1, 1, 1, 10])
-                if b_cols[0].button("↪️", key=f"reply_{msg['id']}", help="Reply"): st.session_state.reply_to_message = msg; st.rerun()
-                if b_cols[1].button("👍", key=f"thumb_{msg['id']}", help="Like"): add_reaction(msg['id'], st.session_state.username, "👍"); st.rerun()
-                if b_cols[2].button("❤️", key=f"heart_{msg['id']}", help="Love"): add_reaction(msg['id'], st.session_state.username, "❤️"); st.rerun()
-    st.markdown('</div>', unsafe_allow_html=True)
+    # --- MESSAGE DISPLAY (BUILDING ONE HTML STRING) ---
+    chat_html_parts = []
+    for msg in all_messages:
+        is_own = msg['username'] == st.session_state.username
+        
+        # Reply Box HTML
+        reply_html = ""
+        if msg['reply_to_message_id'] and msg['reply_to_message_id'] in messages_by_id:
+            original_msg = messages_by_id[msg['reply_to_message_id']]
+            reply_html = f"<div class='reply-box'><b>Replying to {original_msg['username']}</b><br>{original_msg['message'][:50]}...</div>"
 
+        # Reactions HTML
+        reactions_html = ""
+        if msg['id'] in reactions:
+            pills = ""
+            for reaction in reactions[msg['id']]:
+                reacted_class = "reacted" if st.session_state.username in reaction['users'] else ""
+                pills += f"<span class='reaction-pill {reacted_class}'>{reaction['emoji']} {reaction['count']}</span>"
+            reactions_html = f"<div class='reactions'>{pills}</div>"
+        
+        # Action Links HTML (using query parameters)
+        actions_html = f"""
+            <div class="action-links">
+                <a href="?action=reply&msg_id={msg['id']}" title="Reply" target="_self">↪️</a>
+                <a href="?action=react&msg_id={msg['id']}&emoji=👍" title="Like" target="_self">👍</a>
+                <a href="?action=react&msg_id={msg['id']}&emoji=❤️" title="Love" target="_self">❤️</a>
+            </div>
+        """
+
+        # Assemble the full message HTML
+        avatar_html = f"<img class='avatar' src='{get_avatar_url(msg['username'])}'>"
+        meta_html = f"<div class='msg-meta'><b>{msg['username']}</b> @ {datetime.strptime(msg['timestamp'], '%Y-%m-%d %H:%M:%S').strftime('%H:%M')}</div>"
+        bubble_html = f"<div class='msg-bubble'>{reply_html}{msg['message']}</div>"
+        
+        message_part_html = f"""
+            <div class="msg-container {'own' if is_own else 'other'}">
+                {'<div style="width: 48px;"></div>' if is_own else avatar_html}
+                <div class="msg-content">
+                    {meta_html}
+                    {bubble_html}
+                    {reactions_html}
+                    {actions_html}
+                </div>
+                {avatar_html if is_own else '<div style="width: 48px;"></div>'}
+            </div>
+        """
+        chat_html_parts.append(message_part_html)
+
+    # Render the entire chat log at once inside the scrollable container
+    st.markdown(f'<div class="scrollable-chat-container">{"".join(chat_html_parts)}</div>', unsafe_allow_html=True)
+
+
+    # --- INPUT BAR ---
     st.markdown("---")
     if st.session_state.reply_to_message:
         c1, c2 = st.columns([10, 1])
-        with c1: st.markdown(f"<div class='reply-indicator'>↪️ Replying to <strong>{st.session_state.reply_to_message['username']}</strong></div>", unsafe_allow_html=True)
+        with c1:
+            st.markdown(f"<div class='reply-indicator'>↪️ Replying to <strong>{st.session_state.reply_to_message['username']}</strong>: <em>{st.session_state.reply_to_message['message'][:50]}...</em></div>", unsafe_allow_html=True)
         with c2:
-            if st.button("✖️", key="cancel_reply"): st.session_state.reply_to_message = None; st.rerun()
-    if typing_users: st.caption(f"{', '.join(typing_users)} is typing...")
+            if st.button("✖️", key="cancel_reply"):
+                st.session_state.reply_to_message = None
+                st.rerun()
+    if typing_users:
+        st.caption(f"{', '.join(typing_users)} is typing...")
+    
     user_message = st.text_area("Your message:", key="chat_input_main", placeholder="Type your message here...", height=75, label_visibility="collapsed")
     if st.button("Send", key="send_message", type="primary"):
         if user_message:
             reply_id = st.session_state.reply_to_message['id'] if st.session_state.reply_to_message else None
-            add_chat_message(st.session_state.username, user_message, reply_to_id=reply_id); st.session_state.reply_to_message = None; st.rerun()
+            add_chat_message(st.session_state.username, user_message, reply_to_id=reply_id)
+            st.session_state.reply_to_message = None
+            st.rerun()
 
 def show_main_app():
     with st.sidebar:
@@ -386,3 +447,4 @@ else:
         show_main_app()
     else:
         show_login_page()
+
