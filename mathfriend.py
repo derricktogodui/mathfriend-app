@@ -32,8 +32,9 @@ from streamlit.components.v1 import html
 import extra_streamlit_components as stx
 
 # --- Cookie Manager Setup ---
-cookie_manager = stx.CookieManager()
-COOKIE_NAME = "mathfriend_user"
+# At the top where you set up the cookie manager:
+cookie_manager = stx.CookieManager(key="mathfriend_cookie_manager")
+
 
 def set_login_cookie(username):
     cookie_manager.set(COOKIE_NAME, username, expires_at=time.time() + 60*60*24*7)  # 7 days
@@ -1688,5 +1689,6 @@ else:
         show_main_app()
     else: # This handles both 'login' and 'signup' pages
         show_login_page()
+
 
 
