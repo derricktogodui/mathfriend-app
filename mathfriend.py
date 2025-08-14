@@ -1361,10 +1361,11 @@ def show_main_app():
         
         st.markdown("</div>", unsafe_allow_html=True)
 
+
     elif selected_page == "💬 Chat":
         st.header("💬 Community Chat")
 
-        # --- NEW, MODERN CSS FOR THE CHAT INTERFACE ---
+        # --- CORRECTED CSS AND HTML STRUCTURE ---
         st.markdown("""
         <style>
             .chat-container-wrapper {
@@ -1393,6 +1394,7 @@ def show_main_app():
                 display: flex;
                 align-items: flex-end;
                 gap: 10px;
+                margin-bottom: 8px;
             }
             .msg-own {
                 justify-content: flex-end;
@@ -1405,12 +1407,20 @@ def show_main_app():
                 height: 35px;
                 border-radius: 50%;
                 object-fit: cover;
+                align-self: flex-start; /* Align avatar to the top of the bubble container */
             }
-            .msg-own .avatar-small {
-                display: none; /* Hide own avatar */
+            .msg-bubble-container {
+                display: flex;
+                flex-direction: column;
+                max-width: 75%;
+            }
+            .msg-own .msg-bubble-container {
+                align-items: flex-end;
+            }
+            .msg-other .msg-bubble-container {
+                align-items: flex-start;
             }
             .msg-bubble {
-                max-width: 70%;
                 padding: 10px 14px;
                 border-radius: 18px;
                 font-size: 0.95rem;
@@ -1429,12 +1439,8 @@ def show_main_app():
             }
             .msg-meta {
                 font-size: 0.75rem;
-                color: #666;
-                padding: 0 14px;
-                margin-top: 2px;
-            }
-            .msg-own .msg-meta {
-                text-align: right;
+                color: #6c757d;
+                margin-top: 3px;
             }
             .chat-image {
                 max-width: 100%;
@@ -1450,16 +1456,14 @@ def show_main_app():
             st.markdown('<div class="chat-container-wrapper">', unsafe_allow_html=True)
 
             # --- MESSAGE DISPLAY AREA ---
-            # We will build the HTML for all messages first
-            messages_html = ""
+            messages_html_parts = []
             all_messages = get_chat_messages()
-            all_usernames = get_all_usernames() # Fetch once
+            all_usernames = get_all_usernames()
 
             for msg in all_messages:
                 _, username, message_text, media, timestamp = msg
                 time_str = datetime.strptime(timestamp, "%Y-%m-%d %H:%M:%S").strftime("%H:%M")
                 
-                # Format message content (text and/or media)
                 content_html = ""
                 if message_text:
                     formatted_text = format_message(message_text, all_usernames, st.session_state.username)
@@ -1467,9 +1471,9 @@ def show_main_app():
                 if media:
                     content_html += f"<div><img src='data:image/png;base64,{media}' class='chat-image'/></div>"
 
-                # Assemble the full message row
+                # --- Meticulously Corrected HTML Assembly ---
                 if username == st.session_state.username:
-                    messages_html += f"""
+                    row_html = f"""
                     <div class="msg-row msg-own">
                         <div class="msg-bubble-container">
                             <div class="msg-bubble">{content_html}</div>
@@ -1479,7 +1483,7 @@ def show_main_app():
                     """
                 else:
                     avatar_url = get_avatar_url(username)
-                    messages_html += f"""
+                    row_html = f"""
                     <div class="msg-row msg-other">
                         <img src="{avatar_url}" class="avatar-small"/>
                         <div class="msg-bubble-container">
@@ -1488,20 +1492,22 @@ def show_main_app():
                         </div>
                     </div>
                     """
-
+                messages_html_parts.append(row_html)
+            
+            # Join all parts at the end
+            messages_html = "".join(messages_html_parts)
             st.markdown(f'<div class="messages-area" id="messages-area">{messages_html}</div>', unsafe_allow_html=True)
 
             # --- INPUT AREA ---
             st.markdown('<div class="input-area">', unsafe_allow_html=True)
             with st.form("chat_form", clear_on_submit=True):
-                col1, col2 = st.columns([1, 0.1])
+                col1, col2, col3 = st.columns([0.8, 0.1, 0.1])
                 with col1:
                     user_message = st.text_input("Message", key="chat_input", placeholder="Type a message...", label_visibility="collapsed")
                 with col2:
+                    uploaded_file = st.file_uploader("📎", type=["png", "jpg", "jpeg"], label_visibility="collapsed")
+                with col3:
                     submitted = st.form_submit_button("➤", type="primary")
-                
-                # This part for file uploader can be styled better if needed, but keeping it simple for now
-                uploaded_file = st.file_uploader("Attach image", label_visibility="collapsed")
 
                 if submitted:
                     if user_message.strip() or uploaded_file:
@@ -1512,11 +1518,10 @@ def show_main_app():
                             if bot_response:
                                 add_chat_message("MathBot", bot_response)
                         st.rerun()
-            st.markdown('</div>', unsafe_allow_html=True) # Close input-area
+            st.markdown('</div>', unsafe_allow_html=True)
 
-            st.markdown('</div>', unsafe_allow_html=True) # Close chat-container-wrapper
+            st.markdown('</div>', unsafe_allow_html=True)
 
-        # JavaScript to scroll to the bottom of the messages area
         st.markdown("""
             <script>
                 const messagesArea = document.getElementById("messages-area");
@@ -1526,9 +1531,7 @@ def show_main_app():
             </script>
         """, unsafe_allow_html=True)
 
-        # We can re-enable auto-refresh, but it might feel jerky.
-        # Consider letting the user refresh manually or with a button.
-        st_autorefresh(interval=5000, key="chat_refresh")
+        st_autorefresh(interval=3000, key="chat_refresh")
     elif selected_page == "👤 Profile":
         show_profile_page()
 
@@ -1617,6 +1620,7 @@ else:
         show_main_app()
     else:
         show_login_page()
+
 
 
 
