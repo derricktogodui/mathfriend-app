@@ -1061,6 +1061,9 @@ def show_main_app():
     # --- ###################################################### ---
     # --- ### MERGED: OVERHAULED QUIZ SECTION ### ---
     # --- ###################################################### ---
+    # --- ###################################################### ---
+    # --- ### CORRECTED QUIZ SECTION ### ---
+    # --- ###################################################### ---
     elif selected_page == "📝 Quiz":
         st.header("🧠 Quiz Time!")
         st.markdown("<div class='content-card'>", unsafe_allow_html=True)
@@ -1110,6 +1113,7 @@ def show_main_app():
                     if submitted:
                         user_choice = st.session_state.user_answer_choice
 
+                        # THIS IS THE CORRECTED LINE:
                         if user_choice is not None:
                             st.session_state.questions_answered += 1
                             if str(user_choice) == str(q_data["answer"]):
@@ -1138,7 +1142,6 @@ def show_main_app():
                 st.rerun()
 
         st.markdown("</div>", unsafe_allow_html=True)
-
 
     # --- ###################################################### ---
     # --- ### MERGED: OVERHAULED LEADERBOARD SECTION ### ---
@@ -1371,3 +1374,4 @@ else:
         show_main_app()
     else:
         show_login_page()
+
