@@ -547,10 +547,11 @@ def show_main_app():
                 st.rerun()
 
         # --- Active Quiz Screen ---
+        # --- Active Quiz Screen ---
         else:
             st.write(f"**Topic: {st.session_state.quiz_topic}** | **Score: {st.session_state.quiz_score} / {st.session_state.questions_answered}**")
             
-            # Generate a new question for this round, identified by the number of questions answered
+            # Generate a new question for this round
             q_data = generate_question(st.session_state.quiz_topic)
             
             # Check for "coming soon" messages
@@ -568,11 +569,20 @@ def show_main_app():
 
                 # Use a form to contain the radio and buttons
                 with st.form(key=f"quiz_form_{st.session_state.questions_answered}"):
-                    user_choice = st.radio("Select your answer:", options=q_data["options"], index=None)
+                    # 1. ADD a 'key' to the radio button. This is the crucial change.
+                    st.radio(
+                        "Select your answer:", 
+                        options=q_data["options"], 
+                        index=None,
+                        key="user_answer_choice" 
+                    )
                     
                     submitted = st.form_submit_button("Submit Answer", type="primary")
 
                     if submitted:
+                        # 2. GET the user's choice directly from st.session_state using the key.
+                        user_choice = st.session_state.user_answer_choice
+
                         if user_choice:
                             st.session_state.questions_answered += 1
                             if user_choice == q_data["answer"]:
@@ -689,5 +699,6 @@ else:
         show_main_app()
     else:
         show_login_page()
+
 
 
