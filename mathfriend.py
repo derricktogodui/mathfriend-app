@@ -379,12 +379,11 @@ def _generate_percentages_question():
     
     return {"question": question_text, "options": list(set(options)), "answer": correct_answer, "hint": hint}
 
-def _format_fraction_latex(f: Fraction):
-    """Helper to format Fraction objects into LaTeX."""
+def _get_fraction_latex_code(f: Fraction):
+    """Helper to get the inner LaTeX code for a fraction, WITHOUT dollar signs."""
     if f.denominator == 1:
-        # --- THIS IS THE CORRECTED LINE ---
-        return f"${f.numerator}$" 
-    return f"$\\frac{{{f.numerator}}}{{{f.denominator}}}$"
+        return str(f.numerator)
+    return f"\\frac{{{f.numerator}}}{{{f.denominator}}}"
 
 def _format_fraction_text(f: Fraction):
     """Helper to format Fraction objects into plain text (e.g., '1/2')."""
@@ -396,16 +395,15 @@ def _generate_fractions_question():
     f1 = Fraction(random.randint(1, 10), random.randint(2, 10))
     f2 = Fraction(random.randint(1, 10), random.randint(2, 10))
 
-    # Use LaTeX for the question text itself, which is rendered by st.markdown()
+    # --- THIS ENTIRE SECTION IS REWRITTEN FOR ROBUSTNESS ---
     if q_type == 'add_sub':
         op_symbol = random.choice(['+', '-'])
-        question_text = f"Calculate: {_format_fraction_latex(f1)} {op_symbol} {_format_fraction_latex(f2)}$"
+        expression_code = f"{_get_fraction_latex_code(f1)} {op_symbol} {_get_fraction_latex_code(f2)}"
         correct_answer_obj = f1 + f2 if op_symbol == '+' else f1 - f2
         hint = "To add or subtract fractions, you must first find a common denominator."
     elif q_type == 'mul_div':
-        # --- THIS IS THE CORRECTED LINE ---
         op_symbol = random.choice(['\\times', '\\div'])
-        question_text = f"Calculate: ${_format_fraction_latex(f1)} {op_symbol} {_format_fraction_latex(f2)}$"
+        expression_code = f"{_get_fraction_latex_code(f1)} {op_symbol} {_get_fraction_latex_code(f2)}"
         if op_symbol == '\\div':
             if f2.numerator == 0: f2 = Fraction(1, f2.denominator)
             correct_answer_obj = f1 / f2
@@ -416,15 +414,21 @@ def _generate_fractions_question():
     else: # simplify
         common_factor = random.randint(2, 5)
         unsimplified_f = Fraction(f1.numerator * common_factor, f1.denominator * common_factor)
-        question_text = f"Simplify the fraction ${_format_fraction_latex(unsimplified_f)}$ to its lowest terms."
+        expression_code = f"{_get_fraction_latex_code(unsimplified_f)}"
         correct_answer_obj = f1
         hint = "Find the greatest common divisor (GCD) of the numerator and denominator and divide both by it."
 
-    # Use PLAIN TEXT for the options and the answer key, which are handled by st.radio()
+    # Now, wrap the entire expression in ONE SINGLE LaTeX block
+    if q_type == 'simplify':
+        question_text = f"Simplify the fraction ${expression_code}$ to its lowest terms."
+    else:
+        question_text = f"Calculate: ${expression_code}$"
+    # --- END OF REWRITTEN SECTION ---
+
+    # The options/answer logic remains the same (plain text)
     correct_answer = _format_fraction_text(correct_answer_obj)
     options = {correct_answer}
     while len(options) < 4:
-        # Generate plausible distractors
         distractor_f = random.choice([f1 + 1, f2, f1*f2, f1/f2 if f2 !=0 else f1, Fraction(f1.numerator, f2.denominator)])
         options.add(_format_fraction_text(distractor_f))
     
@@ -1540,6 +1544,7 @@ else:
         show_main_app()
     else:
         show_login_page()
+
 
 
 
