@@ -716,7 +716,7 @@ def show_login_page():
                         st.success("Account created successfully! Please log in.")
                         time.sleep(1)
                         clear_login_cookie()
-        st.session_state.page = "login"
+                        st.session_state.page = "login"
                         st.rerun()
                     else:
                         st.error("Username already exists. Please choose a different one.")
@@ -1688,3 +1688,4 @@ else:
         show_main_app()
     else: # This handles both 'login' and 'signup' pages
         show_login_page()
+
