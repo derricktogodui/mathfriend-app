@@ -55,28 +55,58 @@ def create_tables_if_not_exist():
     """
     conn = None
     try:
+        # Increased timeout for robustness under load
         conn = sqlite3.connect(DB_FILE, timeout=15)
         c = conn.cursor()
         
-        c.execute('''CREATE TABLE IF NOT EXISTS users (username TEXT PRIMARY KEY, password TEXT)''')
+        # Create users table
+        c.execute('''CREATE TABLE IF NOT EXISTS users
+                     (username TEXT PRIMARY KEY, password TEXT)''')
+                     
+        # Create quiz_results table
         c.execute('''CREATE TABLE IF NOT EXISTS quiz_results
-                     (id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT, topic TEXT, score INTEGER,
-                      questions_answered INTEGER, timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
-        c.execute('''CREATE TABLE IF NOT EXISTS chat_messages
-                     (id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT, message TEXT, media TEXT,
+                     (id INTEGER PRIMARY KEY AUTOINCREMENT,
+                      username TEXT,
+                      topic TEXT,
+                      score INTEGER,
+                      questions_answered INTEGER,
                       timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
-        c.execute('''CREATE TABLE IF NOT EXISTS user_profiles
-                     (username TEXT PRIMARY KEY, full_name TEXT, school TEXT, age INTEGER, bio TEXT)''')
-        c.execute('''CREATE TABLE IF NOT EXISTS user_status
-                     (username TEXT PRIMARY KEY, is_online BOOLEAN, last_seen TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
-        c.execute('''CREATE TABLE IF NOT EXISTS typing_indicators
-                     (username TEXT PRIMARY KEY, is_typing BOOLEAN, timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
+                      
+        # Create chat_messages table
+        c.execute('''CREATE TABLE IF NOT EXISTS chat_messages
+                     (id INTEGER PRIMARY KEY AUTOINCREMENT,
+                      username TEXT,
+                      message TEXT,
+                      media TEXT,
+                      timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
 
+        # Create user profiles table
+        c.execute('''CREATE TABLE IF NOT EXISTS user_profiles
+                     (username TEXT PRIMARY KEY,
+                      full_name TEXT,
+                      school TEXT,
+                      age INTEGER,
+                      bio TEXT)''')
+        
+        # Create online status table
+        c.execute('''CREATE TABLE IF NOT EXISTS user_status
+                     (username TEXT PRIMARY KEY, 
+                      is_online BOOLEAN,
+                      last_seen TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
+        
+        # Create typing indicators table
+        c.execute('''CREATE TABLE IF NOT EXISTS typing_indicators
+                     (username TEXT PRIMARY KEY,
+                      is_typing BOOLEAN,
+                      timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
+
+        # Check for the 'media' column and add it if it's missing
         c.execute("PRAGMA table_info(chat_messages)")
         chat_columns = [column[1] for column in c.fetchall()]
         if 'media' not in chat_columns:
             c.execute("ALTER TABLE chat_messages ADD COLUMN media TEXT")
         
+        # Check for and add 'questions_answered' column in quiz_results if missing
         c.execute("PRAGMA table_info(quiz_results)")
         quiz_columns = [column[1] for column in c.fetchall()]
         if 'questions_answered' not in quiz_columns:
@@ -659,3 +689,4 @@ else:
             show_login_page()
         else:
             show_signup_page()
+
