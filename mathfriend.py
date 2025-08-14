@@ -13,6 +13,7 @@ import base64
 from datetime import datetime
 from streamlit.components.v1 import html
 from streamlit_autorefresh import st_autorefresh
+from fractions import Fraction
 
 # Streamlit-specific configuration
 st.set_page_config(
@@ -378,6 +379,133 @@ def _generate_percentages_question():
     
     return {"question": question_text, "options": list(set(options)), "answer": correct_answer, "hint": hint}
 
+def _format_fraction_latex(f: Fraction):
+    """Helper to format Fraction objects into LaTeX."""
+    if f.denominator == 1:
+        return str(f.numerator)
+    return f"$\\frac{{{f.numerator}}}{{{f.denominator}}}$"
+
+def _generate_fractions_question():
+    q_type = random.choice(['add_sub', 'mul_div', 'simplify'])
+    f1 = Fraction(random.randint(1, 10), random.randint(2, 10))
+    f2 = Fraction(random.randint(1, 10), random.randint(2, 10))
+
+    if q_type == 'add_sub':
+        op_symbol = random.choice(['+', '-'])
+        question_text = f"Calculate: ${_format_fraction_latex(f1)} {op_symbol} {_format_fraction_latex(f2)}$"
+        correct_answer_obj = f1 + f2 if op_symbol == '+' else f1 - f2
+        hint = "To add or subtract fractions, you must first find a common denominator."
+    elif q_type == 'mul_div':
+        op_symbol = random.choice(['\times', '\div'])
+        question_text = f"Calculate: ${_format_fraction_latex(f1)} {op_symbol} {_format_fraction_latex(f2)}$"
+        if op_symbol == '\div':
+            if f2.numerator == 0: f2 = Fraction(1, f2.denominator)
+            correct_answer_obj = f1 / f2
+            hint = "To divide by a fraction, invert the second fraction and multiply."
+        else:
+            correct_answer_obj = f1 * f2
+            hint = "To multiply fractions, multiply the numerators together and the denominators together."
+    else: # simplify
+        common_factor = random.randint(2, 5)
+        unsimplified_f = Fraction(f1.numerator * common_factor, f1.denominator * common_factor)
+        question_text = f"Simplify the fraction ${_format_fraction_latex(unsimplified_f)}$ to its lowest terms."
+        correct_answer_obj = f1
+        hint = "Find the greatest common divisor (GCD) of the numerator and denominator and divide both by it."
+
+    correct_answer = _format_fraction_latex(correct_answer_obj)
+    options = {correct_answer}
+    while len(options) < 4:
+        distractor_f = random.choice([f1 + 1, f2, f1*f2, f1/f2 if f2 !=0 else f1, Fraction(f1.numerator, f2.denominator)])
+        options.add(_format_fraction_latex(distractor_f))
+    
+    shuffled_options = list(options)
+    random.shuffle(shuffled_options)
+    return {"question": question_text, "options": shuffled_options, "answer": correct_answer, "hint": hint}
+
+def _generate_surds_question():
+    q_type = random.choice(['simplify', 'operate'])
+    
+    if q_type == 'simplify':
+        perfect_squares = [4, 9, 16, 25]
+        non_squares = [2, 3, 5, 6, 7]
+        p = random.choice(perfect_squares)
+        n = random.choice(non_squares)
+        num_inside = p * n
+        coeff_out = int(math.sqrt(p))
+        
+        question_text = f"Simplify $\sqrt{{{num_inside}}}$"
+        correct_answer = f"${coeff_out}\sqrt{{{n}}}$"
+        hint = f"Look for the largest perfect square that divides {num_inside}. In this case, {p}."
+        options = {correct_answer, f"${n}\sqrt{{{coeff_out}}}$", f"$\sqrt{{{num_inside}}}$"}
+    
+    else: # operate
+        base_surd = random.choice([2, 3, 5])
+        c1 = random.randint(1, 5)
+        c2 = random.randint(1, 5)
+        op = random.choice(['+', '-'])
+        
+        question_text = f"Calculate: ${c1}\sqrt{{{base_surd}}} {op} {c2}\sqrt{{{base_surd}}}$"
+        result_coeff = c1 + c2 if op == '+' else c1 - c2
+        correct_answer = f"${result_coeff}\sqrt{{{base_surd}}}$"
+        hint = "You can only add or subtract 'like' surds, just like you would with variables (e.g., 2x + 3x = 5x)."
+        options = {correct_answer, f"${c1+c2}\sqrt{{{base_surd*2}}}$", f"${c1*c2}\sqrt{{{base_surd}}}$"}
+        
+    while len(options) < 4:
+        options.add(f"${random.randint(1,10)}\sqrt{{{random.randint(2,7)}}}$")
+        
+    shuffled_options = list(options)
+    random.shuffle(shuffled_options)
+    return {"question": question_text, "options": shuffled_options, "answer": correct_answer, "hint": hint}
+
+def _generate_binary_ops_question():
+    a = random.randint(1, 10)
+    b = random.randint(1, 10)
+    op_def, op_func = random.choice([
+        ("a \\oplus b = 2a + b", lambda x, y: 2*x + y),
+        ("a \\oplus b = a^2 - b", lambda x, y: x**2 - y),
+        ("a \\oplus b = ab + a", lambda x, y: x*y + x),
+        ("a \\oplus b = (a+b)^2", lambda x, y: (x+y)**2)
+    ])
+    
+    question_text = f"Given the binary operation ${op_def}$, what is the value of ${a} \\oplus {b}$?"
+    correct_answer = str(op_func(a, b))
+    hint = "Substitute the values of 'a' and 'b' into the given definition for the operation."
+    
+    options = {correct_answer, str(op_func(b, a)), str(a+b), str(a*b)}
+    while len(options) < 4:
+        options.add(str(random.randint(1, 100)))
+        
+    shuffled_options = list(options)
+    random.shuffle(shuffled_options)
+    return {"question": question_text, "options": shuffled_options, "answer": correct_answer, "hint": hint}
+
+def _generate_word_problems_question():
+    x = random.randint(2, 10)
+    k = random.randint(2, 5)
+    
+    op_word, op_func = random.choice([
+        ("tripled", lambda n: 3*n),
+        ("doubled", lambda n: 2*n)
+    ])
+    adjust_word, adjust_func = random.choice([
+        ("added to", lambda n, v: n + v),
+        ("subtracted from", lambda n, v: n - v)
+    ])
+    
+    result = adjust_func(op_func(x), k)
+    
+    question_text = f"When a number is {op_word} and {k} is {adjust_word} the result, the answer is {result}. What is the number?"
+    correct_answer = str(x)
+    hint = "Let the unknown number be 'x'. Translate the sentence into a mathematical equation and solve for x."
+    
+    options = {correct_answer, str(result-k), str(x+k), str(result)}
+    while len(options) < 4:
+        options.add(str(random.randint(1, 20)))
+        
+    shuffled_options = list(options)
+    random.shuffle(shuffled_options)
+    return {"question": question_text, "options": shuffled_options, "answer": correct_answer, "hint": hint}
+
 def generate_question(topic):
     """
     Master question generator. Routes to the correct sub-generator based on topic.
@@ -386,14 +514,20 @@ def generate_question(topic):
         return _generate_sets_question()
     elif topic == "Percentages":
         return _generate_percentages_question()
-    # Add other topics here with `elif topic == "New Topic": return _generate_new_topic_question()`
+    elif topic == "Fractions":
+        return _generate_fractions_question()
+    elif topic == "Surds":
+        return _generate_surds_question()
+    elif topic == "Binary Operations":
+        return _generate_binary_ops_question()
+    elif topic == "Word Problems":
+        return _generate_word_problems_question()
     else:
         # Fallback for topics not yet implemented
         return {
             "question": f"Questions for **{topic}** are coming soon!",
-            "options": ["OK"],
-            "answer": "OK",
-            "hint": "Please select another topic from the list to start a quiz."
+            "options": ["OK"], "answer": "OK",
+            "hint": "This topic is under development."
         }
 
 
@@ -1396,5 +1530,6 @@ else:
         show_main_app()
     else:
         show_login_page()
+
 
 
