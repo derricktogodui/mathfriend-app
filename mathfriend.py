@@ -12,8 +12,38 @@ import math
 import base64
 from datetime import datetime
 from streamlit.components.v1 import html
+import extra_streamlit_components as stx
+
+# --- Cookie Manager Setup ---
+cookie_manager = stx.CookieManager()
+COOKIE_NAME = "mathfriend_user"
+
+def set_login_cookie(username):
+    cookie_manager.set(COOKIE_NAME, username, expires_at=time.time() + 60*60*24*7)  # 7 days
+
+def get_login_cookie():
+    return cookie_manager.get(COOKIE_NAME)
+
+def clear_login_cookie():
+    cookie_manager.delete(COOKIE_NAME)
+
 from streamlit_autorefresh import st_autorefresh
 from streamlit.components.v1 import html
+import extra_streamlit_components as stx
+
+# --- Cookie Manager Setup ---
+cookie_manager = stx.CookieManager()
+COOKIE_NAME = "mathfriend_user"
+
+def set_login_cookie(username):
+    cookie_manager.set(COOKIE_NAME, username, expires_at=time.time() + 60*60*24*7)  # 7 days
+
+def get_login_cookie():
+    return cookie_manager.get(COOKIE_NAME)
+
+def clear_login_cookie():
+    cookie_manager.delete(COOKIE_NAME)
+
 
 # Streamlit-specific configuration
 st.set_page_config(
@@ -658,6 +688,7 @@ def show_login_page():
                         st.session_state.logged_in = True
                         st.session_state.username = username
                         update_user_status(username, True)
+                        set_login_cookie(username)
                         st.success(f"Welcome back, {username}!")
                         time.sleep(1)
                         st.rerun()
@@ -684,13 +715,15 @@ def show_login_page():
                     elif signup_user(new_username, new_password):
                         st.success("Account created successfully! Please log in.")
                         time.sleep(1)
-                        st.session_state.page = "login"
+                        clear_login_cookie()
+        st.session_state.page = "login"
                         st.rerun()
                     else:
                         st.error("Username already exists. Please choose a different one.")
             
             if st.button("Already have an account? Log In", key="login_button"):
-                st.session_state.page = "login"
+                clear_login_cookie()
+        st.session_state.page = "login"
                 st.rerun()
         
         st.markdown("</div>", unsafe_allow_html=True)
@@ -1085,6 +1118,7 @@ def show_main_app():
     if st.sidebar.button("Logout", type="primary"):
         update_user_status(st.session_state.username, False)  # Mark user as offline
         st.session_state.logged_in = False
+        clear_login_cookie()
         st.session_state.page = "login"
         st.rerun()
     
@@ -1636,10 +1670,18 @@ if st.session_state.show_splash:
     st.rerun()
 else:
     st.markdown("<style>.main {visibility: visible;}</style>", unsafe_allow_html=True)
+    # --- Auto-login from cookie ---
+    if not st.session_state.get("logged_in", False):
+        saved_user = get_login_cookie()
+        if saved_user:
+            st.session_state.logged_in = True
+            st.session_state.username = saved_user
+
     
     if "logged_in" not in st.session_state:
         st.session_state.logged_in = False
     if "page" not in st.session_state:
+        clear_login_cookie()
         st.session_state.page = "login"
 
     if st.session_state.logged_in:
