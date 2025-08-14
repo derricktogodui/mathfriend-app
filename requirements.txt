@@ -3,3 +3,4 @@ streamlit-autorefresh
 pyperclip
 bcrypt
 plotly
+stx
