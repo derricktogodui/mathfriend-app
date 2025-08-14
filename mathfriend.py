@@ -1361,7 +1361,7 @@ def show_main_app():
         
         st.markdown("</div>", unsafe_allow_html=True)
 
-    elif selected_page == "💬 Chat":
+   elif selected_page == "💬 Chat":
     st.header("💬 Community Chat")
     
     # Inject modern chat CSS
@@ -1619,7 +1619,6 @@ def show_main_app():
         }
     </style>
     
-    <!-- Image Modal -->
     <div id="imageModal" class="chat-image-modal">
         <span class="close-modal">&times;</span>
         <div class="modal-image-content">
@@ -1908,6 +1907,7 @@ else:
         show_main_app()
     else:
         show_login_page()
+
 
 
 
