@@ -1062,7 +1062,7 @@ def show_main_app():
     # --- ### MERGED: OVERHAULED QUIZ SECTION ### ---
     # --- ###################################################### ---
     # --- ###################################################### ---
-    # --- ### CORRECTED QUIZ SECTION ### ---
+    # --- ### DEFINITIVELY CORRECTED QUIZ SECTION ### ---
     # --- ###################################################### ---
     elif selected_page == "📝 Quiz":
         st.header("🧠 Quiz Time!")
@@ -1079,18 +1079,29 @@ def show_main_app():
                 st.session_state.quiz_active = True
                 st.session_state.quiz_score = 0
                 st.session_state.questions_answered = 0
+                # Clear any leftover state from previous quizzes
+                if 'current_q_data' in st.session_state:
+                    del st.session_state['current_q_data']
+                if 'user_answer_choice' in st.session_state:
+                    del st.session_state['user_answer_choice']
                 st.rerun()
 
         # --- Active Quiz Screen ---
         else:
             st.write(f"**Topic: {st.session_state.quiz_topic}** | **Score: {st.session_state.quiz_score} / {st.session_state.questions_answered}**")
             
-            q_data = generate_question(st.session_state.quiz_topic)
+            # 1. Check for a stored question in the session state. If not present, generate a new one.
+            if 'current_q_data' not in st.session_state:
+                st.session_state.current_q_data = generate_question(st.session_state.quiz_topic)
+            
+            # 2. Use the stored question for this entire script run.
+            q_data = st.session_state.current_q_data
             
             # Check for "coming soon" messages
             if "coming soon" in q_data["question"]:
                 st.info(q_data["question"])
                 st.session_state.quiz_active = False # End quiz if topic is not ready
+                del st.session_state.current_q_data # Clean up
                 if st.button("Back to Topic Selection"):
                     st.rerun()
             else:
@@ -1100,6 +1111,7 @@ def show_main_app():
                 with st.expander("🤔 Need a hint?"):
                     st.info(q_data["hint"])
 
+                # 3. The form will now work correctly because q_data is stable across the submit-rerun.
                 with st.form(key=f"quiz_form_{st.session_state.questions_answered}"):
                     st.radio(
                         "Select your answer:", 
@@ -1112,8 +1124,7 @@ def show_main_app():
 
                     if submitted:
                         user_choice = st.session_state.user_answer_choice
-
-                        # THIS IS THE CORRECTED LINE:
+                        
                         if user_choice is not None:
                             st.session_state.questions_answered += 1
                             if str(user_choice) == str(q_data["answer"]):
@@ -1125,8 +1136,13 @@ def show_main_app():
                                 st.error(f"Not quite. The correct answer was: **{q_data['answer']}**")
                                 st.warning(random.choice(encouragements))
                             
-                            time.sleep(1.5) # Pause to show feedback
-                            st.rerun() # Rerun for the next question
+                            # 4. CRITICAL: After processing the answer, delete the stored question and the radio choice.
+                            # This will trigger the generation of a new question on the next rerun.
+                            del st.session_state.current_q_data
+                            del st.session_state.user_answer_choice
+                            
+                            time.sleep(1.5) 
+                            st.rerun()
                         else:
                             st.warning("Please select an answer before submitting.")
 
@@ -1137,7 +1153,13 @@ def show_main_app():
                 else:
                     st.info("Quiz stopped. No questions were answered, so no score was recorded.")
                 
+                # 5. Clean up all quiz-related state when stopping.
                 st.session_state.quiz_active = False
+                if 'current_q_data' in st.session_state:
+                    del st.session_state.current_q_data
+                if 'user_answer_choice' in st.session_state:
+                    del st.session_state.user_answer_choice
+                
                 time.sleep(2)
                 st.rerun()
 
@@ -1374,4 +1396,5 @@ else:
         show_main_app()
     else:
         show_login_page()
+
 
