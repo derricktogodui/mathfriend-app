@@ -33,7 +33,10 @@ import extra_streamlit_components as stx
 
 # --- Cookie Manager Setup ---
 # At the top where you set up the cookie manager:
-cookie_manager = stx.CookieManager(key="mathfriend_cookie_manager")
+if "cookie_manager" not in st.session_state:
+    st.session_state.cookie_manager = stx.CookieManager(key="mathfriend_cookie_manager")
+cookie_manager = st.session_state.cookie_manager
+
 
 
 def set_login_cookie(username):
@@ -1689,6 +1692,7 @@ else:
         show_main_app()
     else: # This handles both 'login' and 'signup' pages
         show_login_page()
+
 
 
 
