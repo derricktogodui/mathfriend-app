@@ -406,7 +406,7 @@ def get_mathbot_response(message):
     definitions = { "sets": "A set is a collection of distinct objects." }
     if query.startswith("define"):
         term = query.split("define", 1)[1].strip()
-        return f"**Definition:** {definitions.get(term, 'I don\\'t have a definition for that yet.')}"
+        return f"**Definition:** {definitions.get(term, 'I don't have a definition for that yet.')}"
     # Simplified for brevity
     return "I can help with definitions. Try '@MathBot define sets'."
 
@@ -689,3 +689,4 @@ else:
         show_main_app()
     else:
         show_login_page()
+
