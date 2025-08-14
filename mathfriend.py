@@ -23,6 +23,34 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
+# --- Session State Initialization ---
+# Centralize all session state variables here to ensure they are initialized only once.
+
+if "logged_in" not in st.session_state:
+    st.session_state.logged_in = False
+
+if "page" not in st.session_state:
+    st.session_state.page = "login"
+    
+if "username" not in st.session_state:
+    st.session_state.username = ""
+
+if "show_splash" not in st.session_state:
+    st.session_state.show_splash = True
+
+if "dark_mode" not in st.session_state:
+    st.session_state.dark_mode = False
+
+# Quiz-related session state
+if 'quiz_active' not in st.session_state:
+    st.session_state.quiz_active = False
+    st.session_state.current_question = 0
+    st.session_state.score = 0
+    st.session_state.topic = "Addition" # A sensible default
+    st.session_state.difficulty = "Easy"
+    st.session_state.questions = []
+    st.session_state.quiz_started_time = None
+
 # --- Database Setup and Connection Logic ---
 DB_FILE = 'users.db'
 
@@ -695,6 +723,7 @@ def show_login_page():
         
         st.markdown("</div>", unsafe_allow_html=True)
         st.markdown("<div style='text-align: center; margin-top: 20px; color: #64748b; font-size: 0.9rem;'>Built with ❤️ by Derrick Kwaku Togodui</div>", unsafe_allow_html=True)
+
 def show_profile_page():
     """Displays the user profile page with editing capabilities"""
     st.header("👤 Your Profile")
@@ -1011,9 +1040,6 @@ def show_main_app():
     """, unsafe_allow_html=True)
     
     # Dark mode toggle in sidebar
-    if 'dark_mode' not in st.session_state:
-        st.session_state.dark_mode = False
-    
     if st.session_state.dark_mode:
         st.markdown("""
         <style>
@@ -1166,19 +1192,9 @@ def show_main_app():
         st.markdown("</div>", unsafe_allow_html=True)
 
     elif selected_page == "📝 Quiz":
-        # (Keep existing quiz code exactly the same)
         st.header("🧠 Quiz Time!")
         st.markdown("<div class='content-card'>", unsafe_allow_html=True)
         
-        if 'quiz_active' not in st.session_state:
-            st.session_state.quiz_active = False
-            st.session_state.current_question = 0
-            st.session_state.score = 0
-            st.session_state.topic = "sets and operations on sets"
-            st.session_state.difficulty = "Easy"
-            st.session_state.questions = []
-            st.session_state.quiz_started_time = None
-
         if not st.session_state.quiz_active:
             st.write("Select a topic and challenge yourself!")
             
@@ -1285,7 +1301,6 @@ def show_main_app():
         st.markdown("</div>", unsafe_allow_html=True)
 
     elif selected_page == "🏆 Leaderboard":
-        # (Keep existing leaderboard code exactly the same)
         st.header("🏆 Global Leaderboard")
         st.markdown("<div class='content-card'>", unsafe_allow_html=True)
         st.write("See who has the highest scores for each topic!")
@@ -1335,12 +1350,6 @@ def show_main_app():
             st.info("No scores have been recorded for this topic yet.")
         
         st.markdown("</div>", unsafe_allow_html=True)
-
-   # ---------------- rest of your existing code exactly as before ----------------
-# (UNCHANGED CONTENT REMOVED FOR BREVITY UNTIL THE CHAT FORM SECTION)
-
-
-# [Previous imports and code remain exactly the same until the Chat section]
 
     elif selected_page == "💬 Chat":
         st.header("💬 Community Chat")
@@ -1470,7 +1479,6 @@ def show_main_app():
         show_profile_page()
 
     elif selected_page == "📚 Learning Resources":
-        # (Keep existing learning resources code exactly the same)
         st.header("📚 Learning Resources")
         st.markdown("<div class='content-card'>", unsafe_allow_html=True)
         st.write("Mini-tutorials and helpful examples to help you study.")
@@ -1603,9 +1611,6 @@ def show_main_app():
     st.markdown("</div>", unsafe_allow_html=True) # Close main content container
 
 # --- Splash Screen and Main App Logic ---
-# (Keep existing splash screen logic exactly the same)
-if "show_splash" not in st.session_state:
-    st.session_state.show_splash = True
 
 if st.session_state.show_splash:
     st.markdown("<style>.main {visibility: hidden;}</style>", unsafe_allow_html=True)
@@ -1637,11 +1642,6 @@ if st.session_state.show_splash:
 else:
     st.markdown("<style>.main {visibility: visible;}</style>", unsafe_allow_html=True)
     
-    if "logged_in" not in st.session_state:
-        st.session_state.logged_in = False
-    if "page" not in st.session_state:
-        st.session_state.page = "login"
-
     if st.session_state.logged_in:
         show_main_app()
     else: # This handles both 'login' and 'signup' pages
