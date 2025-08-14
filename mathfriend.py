@@ -39,7 +39,7 @@ if 'quiz_active' not in st.session_state:
     st.session_state.quiz_active = False
     st.session_state.current_question = 0
     st.session_state.score = 0
-    st.session_state.topic = "Addition"
+    st.session_state.topic = "Addition" 
     st.session_state.difficulty = "Easy"
     st.session_state.questions = []
     st.session_state.quiz_started_time = None
@@ -57,7 +57,7 @@ def create_tables_if_not_exist():
         conn = sqlite3.connect(DB_FILE)
         c = conn.cursor()
         
-        # Original Tables (UNCHANGED)
+        # Original Tables
         c.execute('''CREATE TABLE IF NOT EXISTS users (username TEXT PRIMARY KEY, password TEXT)''')
         c.execute('''CREATE TABLE IF NOT EXISTS quiz_results (id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT, topic TEXT, score INTEGER, timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
         c.execute('''CREATE TABLE IF NOT EXISTS user_profiles (username TEXT PRIMARY KEY, full_name TEXT, school TEXT, age INTEGER, bio TEXT)''')
@@ -158,11 +158,20 @@ def generate_question(topic, difficulty):
     question, answer = None, None
     if topic == "Addition": question, answer = f"What is {a} + {b}?", a + b
     elif topic == "Subtraction": a, b = max(a, b), min(a, b); question, answer = f"What is {a} - {b}?", a - b
-    elif topic == "Multiplication": question, answer = f"What is {a} x {b}?", a * b
-    elif topic == "Division": b = random.randint(2, 10); a = b * random.randint(1, 10); question, answer = f"What is {a} / {b}?", a / b
-    elif topic == "Exponents": base = random.randint(1, 5); power = random.randint(2, 4); question, answer = f"What is {base}^{power}?", base ** power
+    elif topic == "Multiplication":
+        if difficulty == "Hard": a = random.randint(10, 20); b = random.randint(10, 20)
+        question, answer = f"What is {a} x {b}?", a * b
+    elif topic == "Division":
+        b = random.randint(2, 10); a = b * random.randint(1, 10)
+        if difficulty == "Hard": b = random.randint(11, 20); a = b * random.randint(1, 20)
+        question, answer = f"What is {a} / {b}?", a / b
+    elif topic == "Exponents":
+        base = random.randint(1, 5); power = random.randint(2, 4)
+        if difficulty == "Hard": base = random.randint(5, 10); power = random.randint(2, 3)
+        question, answer = f"What is {base}^{power}?", base ** power
     else: question, answer = "Please select a topic to start.", None
     return question, answer
+
 def save_quiz_result(username, topic, score):
     try:
         conn = sqlite3.connect(DB_FILE); c = conn.cursor()
@@ -191,7 +200,7 @@ def get_user_stats(username):
     finally:
         if conn: conn.close()
 
-# --- NEW: ADVANCED Chat & Reaction Functions ---
+# --- ADVANCED Chat & Reaction Functions ---
 def add_chat_message(username, message, media=None, reply_to_id=None):
     try:
         conn = sqlite3.connect(DB_FILE); c = conn.cursor()
@@ -234,9 +243,16 @@ def get_all_usernames():
         c.execute("SELECT username FROM users"); return [row[0] for row in c.fetchall()]
     finally:
         if conn: conn.close()
-def get_mathbot_response(message): return "MathBot is thinking..." # Placeholder
 
-# --- Helper & UI Functions ---
+# --- MathBot, Helper & UI Functions ---
+def get_mathbot_response(message):
+    if not message.startswith("@MathBot"): return None
+    query = message.replace("@MathBot", "").strip().lower()
+    definitions = {"sets": "A set is a collection of distinct objects, considered as an object in its own right."}
+    if query.startswith("define"):
+        term = query.split("define", 1)[1].strip()
+        return f"**Definition:** {definitions.get(term, "I don't have a definition for that yet.")}"
+    return "MathBot is thinking..."
 def get_avatar_url(username):
     hash_object = hashlib.md5(username.encode()); hash_hex = hash_object.hexdigest()
     return f"https://placehold.co/40x40/{hash_hex[0:6]}/ffffff?text={username[0].upper()}"
@@ -244,7 +260,6 @@ def confetti_animation():
     st_html("""<script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.5.1/dist/confetti.browser.min.js"></script><script>setTimeout(() => confetti({particleCount: 150, spread: 70, origin: { y: 0.6 }}), 100);</script>""")
 def metric_card(title, value, icon, color):
     return f"""<div style="background: white; border-radius: 12px; padding: 15px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); border-left: 4px solid {color}; margin-bottom: 15px;"><div style="display: flex; align-items: center; margin-bottom: 8px;"><div style="font-size: 24px; margin-right: 10px;">{icon}</div><div style="font-size: 14px; color: #666;">{title}</div></div><div style="font-size: 28px; font-weight: bold; color: {color};">{value}</div></div>"""
-
 
 # --- ### PAGE RENDERING LOGIC ### ---
 
@@ -281,18 +296,36 @@ def show_login_page():
             st.markdown("</div>", unsafe_allow_html=True)
 
 def show_profile_page():
+    # This is the full, original profile page
     st.header("👤 Your Profile")
-    profile = get_user_profile(st.session_state.username) or {}
+    st.markdown("<div class='content-card'>", unsafe_allow_html=True)
+    update_user_status(st.session_state.username, True)
+    profile = get_user_profile(st.session_state.username)
     with st.form("profile_form"):
-        full_name = st.text_input("Full Name", value=profile.get('full_name', ''))
-        school = st.text_input("School", value=profile.get('school', ''))
-        age = st.number_input("Age", min_value=5, max_value=100, value=profile.get('age', 18))
-        bio = st.text_area("Bio", value=profile.get('bio', ''))
+        col1, col2 = st.columns(2)
+        with col1:
+            full_name = st.text_input("Full Name", value=profile.get('full_name', '') if profile else '')
+            school = st.text_input("School", value=profile.get('school', '') if profile else '')
+        with col2:
+            age = st.number_input("Age", min_value=5, max_value=100, value=profile.get('age', 18) if profile else 18)
+            bio = st.text_area("Bio", value=profile.get('bio', '') if profile else '', help="Tell others about your math interests and goals")
         if st.form_submit_button("Save Profile", type="primary"):
-            if update_user_profile(st.session_state.username, full_name, school, age, bio): st.success("Profile updated!"); st.rerun()
+            if update_user_profile(st.session_state.username, full_name, school, age, bio):
+                st.success("Profile updated successfully!"); st.rerun()
+    st.markdown("---")
+    st.subheader("Change Password")
+    with st.form("password_form"):
+        current_password = st.text_input("Current Password", type="password")
+        new_password = st.text_input("New Password", type="password", help="Use at least 8 characters with a mix of letters and numbers")
+        confirm_password = st.text_input("Confirm New Password", type="password")
+        if st.form_submit_button("Change Password", type="primary"):
+            if new_password != confirm_password: st.error("New passwords don't match!")
+            elif change_password(st.session_state.username, current_password, new_password): st.success("Password changed successfully!")
+            else: st.error("Incorrect current password")
+    st.markdown("</div>", unsafe_allow_html=True)
 
 def show_advanced_chat_page():
-    # This is the final, working chat page function
+    # This is the new, fully functional, and scrollable chat page
     st.markdown("""
     <style>
         .chat-header { padding: 10px 15px; border-bottom: 1px solid #e0e0e0; display: flex; justify-content: space-between; align-items: center; background-color: #f8f9fa; }
@@ -336,13 +369,13 @@ def show_advanced_chat_page():
     for msg in all_messages:
         is_own = msg['username'] == st.session_state.username
         safe_username = html.escape(msg['username'])
-        safe_message = html.escape(msg['message']).replace("\n", "<br>")
+        safe_message = html.escape(msg['message'] or "").replace("\n", "<br>")
 
         reply_html = ""
         if msg['reply_to_message_id'] and msg['reply_to_message_id'] in messages_by_id:
             original_msg = messages_by_id[msg['reply_to_message_id']]
             safe_original_user = html.escape(original_msg['username'])
-            safe_original_message = html.escape(original_msg['message'][:50])
+            safe_original_message = html.escape(original_msg['message'][:50] or "")
             reply_html = f"<div class='reply-box'><b>Replying to {safe_original_user}</b><br>{safe_original_message}...</div>"
 
         reactions_html = ""
@@ -390,8 +423,8 @@ def show_advanced_chat_page():
             add_chat_message(st.session_state.username, user_message, reply_to_id=reply_id); st.session_state.reply_to_message = None; st.rerun()
 
 def show_main_app():
-    # This is the original main app router
-    st.markdown("""<style> /* Your original app CSS here */ </style>""", unsafe_allow_html=True) # Placeholder for your main CSS
+    # The main app router, now calling the correct page functions
+    st.markdown("""<style>/* Your main app CSS */</style>""", unsafe_allow_html=True) # Main app CSS can go here
     
     with st.sidebar:
         st.markdown(f"### Welcome, {st.session_state.username}!")
@@ -399,30 +432,82 @@ def show_main_app():
         if st.button("Logout", type="primary"):
             st.session_state.logged_in = False; st.session_state.quiz_active = False; st.rerun()
 
+    update_user_status(st.session_state.username, True)
+    
     if selected_page == "Chat":
         show_advanced_chat_page() # Call the new chat page
     elif selected_page == "Profile":
         show_profile_page()
-    else:
-        # All other pages use the original, stable code from your file
-        if selected_page == "Dashboard":
-            st.header("📈 Progress Dashboard")
-            total_quizzes, last_score, top_score = get_user_stats(st.session_state.username)
-            col1, col2, col3 = st.columns(3)
-            col1.markdown(metric_card("Total Quizzes", total_quizzes, "📚", "#4361ee"), unsafe_allow_html=True)
-            col2.markdown(metric_card("Last Score", f"{last_score}/5" if last_score != "N/A" else "N/A", "⭐", "#4cc9f0"), unsafe_allow_html=True)
-            col3.markdown(metric_card("Top Score", f"{top_score}/5" if top_score != "N/A" else "N/A", "🏆", "#f72585"), unsafe_allow_html=True)
-            # ... and so on for the rest of your original dashboard...
-        elif selected_page == "Quiz":
-            st.header("🧠 Quiz Time!")
-            # ... and so on for your original quiz page ...
-        elif selected_page == "Leaderboard":
-            st.header("🏆 Global Leaderboard")
-            # ... and so on for your original leaderboard page ...
-        elif selected_page == "Learning Resources":
-            st.header("📚 Learning Resources")
-            # ... and so on for your original learning resources page ...
-
+    elif selected_page == "Dashboard":
+        st.header("📈 Progress Dashboard")
+        total_quizzes, last_score, top_score = get_user_stats(st.session_state.username)
+        col1, col2, col3 = st.columns(3)
+        with col1: st.markdown(metric_card("Total Quizzes", total_quizzes, "📚", "#4361ee"), unsafe_allow_html=True)
+        with col2: st.markdown(metric_card("Last Score", f"{last_score}/5" if last_score != "N/A" else "N/A", "⭐", "#4cc9f0"), unsafe_allow_html=True)
+        with col3: st.markdown(metric_card("Top Score", f"{top_score}/5" if top_score != "N/A" else "N/A", "🏆", "#f72585"), unsafe_allow_html=True)
+        st.markdown("<div class='content-card'>", unsafe_allow_html=True)
+        st.subheader("🌟 Motivational Quote")
+        st.markdown("""<blockquote style="border-left: 4px solid #4361ee; padding-left: 15px; font-style: italic; color: #555;">"Mathematics is not about numbers, equations, computations, or algorithms: it is about understanding." — William Paul Thurston</blockquote>""", unsafe_allow_html=True)
+        st.markdown("</div>", unsafe_allow_html=True)
+        user_history = get_user_quiz_history(st.session_state.username)
+        if user_history:
+            df = pd.DataFrame(user_history, columns=['Topic', 'Score', 'Timestamp'])
+            df['Timestamp'] = pd.to_datetime(df['Timestamp'])
+            df['Date'] = df['Timestamp'].dt.date
+            st.markdown("<div class='content-card'>", unsafe_allow_html=True)
+            st.subheader("📅 Your Progress Over Time")
+            fig = px.line(df.groupby(['Date', 'Topic'])['Score'].mean().reset_index(), x='Date', y='Score', color='Topic', markers=True, template="plotly_white")
+            st.plotly_chart(fig, use_container_width=True)
+            st.markdown("</div>", unsafe_allow_html=True)
+    elif selected_page == "Quiz":
+        st.header("🧠 Quiz Time!")
+        st.markdown("<div class='content-card'>", unsafe_allow_html=True)
+        if not st.session_state.quiz_active:
+            topic_options = ["Addition", "Subtraction", "Multiplication", "Division", "Exponents", "sets and operations on sets", "surds"]
+            st.session_state.topic = st.selectbox("Choose a topic:", topic_options)
+            difficulty_options = ["Easy", "Medium", "Hard"]
+            st.session_state.difficulty = st.radio("Choose difficulty:", difficulty_options, horizontal=True)
+            if st.button("Start Quiz", type="primary", use_container_width=True):
+                st.session_state.quiz_active = True
+                st.session_state.current_question = 0
+                st.session_state.score = 0
+                st.session_state.questions = [generate_question(st.session_state.topic, st.session_state.difficulty) for _ in range(5)]
+                st.session_state.quiz_started_time = time.time()
+                st.rerun()
+        else:
+            if st.session_state.current_question < len(st.session_state.questions):
+                question_text, correct_answer = st.session_state.questions[st.session_state.current_question]
+                st.subheader(f"Question {st.session_state.current_question + 1}:")
+                st.markdown(f"<div>{question_text}</div>", unsafe_allow_html=True)
+                with st.form(key=f"quiz_form_{st.session_state.current_question}"):
+                    user_answer = st.number_input("Your answer:", step=1, key=f"answer_{st.session_state.current_question}")
+                    if st.form_submit_button("Submit Answer", type="primary"):
+                        if user_answer == correct_answer: st.success("Correct! 🎉"); st.session_state.score += 1; confetti_animation()
+                        else: st.error(f"Incorrect. The correct answer was {correct_answer}.")
+                        st.session_state.current_question += 1; time.sleep(1); st.rerun()
+            else:
+                st.balloons()
+                st.success(f"Quiz complete! You scored {st.session_state.score} out of 5.")
+                save_quiz_result(st.session_state.username, st.session_state.topic, st.session_state.score)
+                st.session_state.quiz_active = False
+                if st.button("Start a New Quiz", type="primary"): st.rerun()
+        st.markdown("</div>", unsafe_allow_html=True)
+    elif selected_page == "Leaderboard":
+        st.header("🏆 Global Leaderboard")
+        st.markdown("<div class='content-card'>", unsafe_allow_html=True)
+        topic_options = ["Addition", "Subtraction", "Multiplication", "Division", "Exponents"]
+        leaderboard_topic = st.selectbox("Select a topic:", topic_options)
+        top_scores = get_top_scores(leaderboard_topic)
+        if top_scores:
+            df = pd.DataFrame(top_scores, columns=['Username', 'Score']); df.index += 1
+            st.dataframe(df, use_container_width=True)
+        else: st.info("No scores yet for this topic.")
+        st.markdown("</div>", unsafe_allow_html=True)
+    elif selected_page == "Learning Resources":
+        st.header("📚 Learning Resources")
+        st.markdown("<div class='content-card'>", unsafe_allow_html=True)
+        st.info("Learning resources are coming soon.")
+        st.markdown("</div>", unsafe_allow_html=True)
 
 # --- Main App Logic ---
 if st.session_state.show_splash:
