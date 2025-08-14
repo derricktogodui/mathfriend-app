@@ -4,3 +4,4 @@ pyperclip
 bcrypt
 plotly
 stx
+extra-streamlit-components
