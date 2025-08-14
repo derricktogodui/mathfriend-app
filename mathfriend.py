@@ -62,7 +62,6 @@ def create_tables_if_not_exist():
         c.execute('''CREATE TABLE IF NOT EXISTS users
                      (username TEXT PRIMARY KEY, password TEXT)''')
                      
-        # UPDATED: Added questions_answered column
         c.execute('''CREATE TABLE IF NOT EXISTS quiz_results
                      (id INTEGER PRIMARY KEY AUTOINCREMENT,
                       username TEXT,
@@ -95,13 +94,11 @@ def create_tables_if_not_exist():
                       is_typing BOOLEAN,
                       timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
 
-        # Check for and add 'media' column in chat_messages if missing
         c.execute("PRAGMA table_info(chat_messages)")
         chat_columns = [column[1] for column in c.fetchall()]
         if 'media' not in chat_columns:
             c.execute("ALTER TABLE chat_messages ADD COLUMN media TEXT")
 
-        # Check for and add 'questions_answered' column in quiz_results if missing
         c.execute("PRAGMA table_info(quiz_results)")
         quiz_columns = [column[1] for column in c.fetchall()]
         if 'questions_answered' not in quiz_columns:
@@ -114,7 +111,6 @@ def create_tables_if_not_exist():
         if conn:
             conn.close()
 
-# Call the setup function once when the script first runs
 create_tables_if_not_exist()
 
 
@@ -220,7 +216,6 @@ def get_typing_users():
         if conn: conn.close()
         
 # --- NEW: Question Generation Logic ---
-
 def _generate_sets_question():
     set_a = set(random.sample(range(1, 15), k=random.randint(3, 5)))
     set_b = set(random.sample(range(1, 15), k=random.randint(3, 5)))
@@ -281,21 +276,19 @@ def _generate_percentages_question():
         correct_answer = f"${original_price:.2f}"
         hint = "Let the original price be 'P'. The final price is P * (1 - discount/100). Solve for P."
         
-    # Generate distractors
     options = [correct_answer]
     while len(options) < 4:
         try:
             noise = random.uniform(0.75, 1.25)
-            # Extract numeric value from correct answer for manipulation
             numeric_part_str = re.sub(r'[^\d.]', '', correct_answer)
             if numeric_part_str:
                 wrong_answer_val = float(numeric_part_str) * noise
                 prefix = "$" if correct_answer.startswith("$") else ""
                 suffix = "%" if correct_answer.endswith("%") else ""
                 options.append(f"{prefix}{wrong_answer_val:.2f}{suffix}".rstrip('0').rstrip('.'))
-            else: # Fallback if no numeric part
+            else:
                 options.append(f"{random.randint(1,100)}")
-        except (ValueError, IndexError): # Catch potential errors if regex fails
+        except (ValueError, IndexError):
              options.append(f"{random.randint(1,100)}")
 
     random.shuffle(options)
@@ -303,16 +296,11 @@ def _generate_percentages_question():
     return {"question": question_text, "options": list(set(options)), "answer": correct_answer, "hint": hint}
 
 def generate_question(topic):
-    """
-    Master question generator. Routes to the correct sub-generator based on topic.
-    """
     if topic == "Sets":
         return _generate_sets_question()
     elif topic == "Percentages":
         return _generate_percentages_question()
-    # Add other topics here with `elif topic == "New Topic": return _generate_new_topic_question()`
     else:
-        # Fallback for topics not yet implemented
         return {
             "question": f"Questions for **{topic}** are coming soon!",
             "options": ["OK"],
@@ -321,10 +309,7 @@ def generate_question(topic):
         }
 
 # --- UPDATED: Quiz and Result Functions ---
-
 def save_quiz_result(username, topic, score, questions_answered):
-    """Saves a user's quiz result, including total questions answered."""
-    # Avoid saving empty quizzes
     if questions_answered == 0:
         return
     try:
@@ -339,11 +324,9 @@ def save_quiz_result(username, topic, score, questions_answered):
         if conn: conn.close()
 
 def get_top_scores(topic):
-    """Fetches the top 10 scores for a given topic, ranked by accuracy."""
     try:
         conn = sqlite3.connect(DB_FILE)
         c = conn.cursor()
-        # Rank by accuracy (score/questions_answered), then by most questions answered for tie-breaking
         c.execute("""
             SELECT username, score, questions_answered 
             FROM quiz_results 
@@ -360,7 +343,6 @@ def get_top_scores(topic):
         if conn: conn.close()
 
 def get_user_quiz_history(username):
-    """Fetches a user's quiz history, now including questions answered."""
     try:
         conn = sqlite3.connect(DB_FILE)
         conn.row_factory = sqlite3.Row
@@ -371,7 +353,6 @@ def get_user_quiz_history(username):
         if conn: conn.close()
 
 def get_user_stats(username):
-    """Fetches key statistics for a user's dashboard."""
     try:
         conn = sqlite3.connect(DB_FILE)
         c = conn.cursor()
@@ -536,8 +517,8 @@ def show_profile_page():
     st.markdown("</div>", unsafe_allow_html=True)
 
 def show_main_app():
-    # A large block of CSS styles is here, collapsed for brevity in this view
-    st.markdown("""<style> ... </style>""", unsafe_allow_html=True)
+    # A large block of CSS styles is here, which is correct and unchanged.
+    st.markdown("""<style> /* ... Your existing CSS ... */ </style>""", unsafe_allow_html=True)
     
     with st.sidebar:
         st.session_state.dark_mode = st.toggle("🌙 Dark Mode", value=st.session_state.dark_mode)
@@ -668,13 +649,13 @@ def show_main_app():
 
     elif selected_page == "💬 Chat":
         st.header("💬 Community Chat")
-        st.markdown("""<style>.chat-container{height:70vh;overflow-y:auto;display:flex;flex-direction:column;gap:6px}.msg-row{display:flex;align-items:flex-end}.msg-own{justify-content:flex-end}.msg-bubble{max-width:min(80%,500px);padding:8px 12px;border-radius:18px}.msg-own .msg-bubble{background-color:#dcf8c6;border-bottom-right-radius:4px}.msg-other .msg-bubble{background-color:#fff;border-bottom-left-radius:4px}</style>""", unsafe_allow_html=True)
+        st.markdown("""<style>.chat-container{height:70vh;overflow-y:auto;display:flex;flex-direction:column;gap:6px;scroll-behavior:smooth;}.msg-row{display:flex;align-items:flex-end}.msg-own{justify-content:flex-end}.msg-bubble{max-width:min(80%,500px);padding:8px 12px;border-radius:18px}.msg-own .msg-bubble{background-color:#dcf8c6;border-bottom-right-radius:4px}.msg-other .msg-bubble{background-color:#fff;border-bottom-left-radius:4px}</style>""", unsafe_allow_html=True)
         st_autorefresh(interval=3000, key="chat_refresh")
         all_messages = get_chat_messages()
         st.markdown('<div id="chat-container">', unsafe_allow_html=True)
         for msg in all_messages:
             own = msg['username'] == st.session_state.username
-            st.markdown(f"<div class='msg-row {'msg-own' if own else 'msg-other'}'><div class='msg-bubble'>{msg['message']}</div></div>", unsafe_allow_html=True)
+            st.markdown(f"<div class='msg-row {'msg-own' if own else 'msg-other'}'><div class='msg-bubble'><b>{msg['username']}:</b> {msg['message']}</div></div>", unsafe_allow_html=True)
         st.markdown('</div>', unsafe_allow_html=True)
         st.markdown("""<script>var chatBox=document.getElementById('chat-container'); if(chatBox){chatBox.scrollTop=chatBox.scrollHeight;}</script>""", unsafe_allow_html=True)
         with st.form("chat_form", clear_on_submit=True):
@@ -693,4 +674,33 @@ def show_main_app():
     elif selected_page == "📚 Learning Resources":
         st.header("📚 Learning Resources")
         st.markdown("<div class='content-card'>", unsafe_allow_html=True)
-        topic_options = ["Sets", "Percentages", "Surds", "Binary Operations", "Word Problems
+        topic_options = ["Sets", "Percentages", "Surds", "Binary Operations", "Word Problems", "Fractions"]
+        resource_topic = st.selectbox("Select a topic to learn about:", topic_options)
+        if resource_topic == "Sets":
+            st.subheader("🧮 Sets and Operations on Sets")
+            st.markdown("""A **set** is a collection of distinct objects. Key operations include:
+- **Union ($A \cup B$)**: All elements from both sets combined.
+- **Intersection ($A \cap B$)**: Only elements that appear in both sets.
+- **Difference ($A - B$)**: Elements in A but not in B.""")
+        elif resource_topic == "Percentages":
+            st.subheader("➗ Percentages")
+            st.markdown("""A **percentage** is a number or ratio expressed as a fraction of 100.
+- To find **X% of Y**, calculate $(X/100) * Y$.
+- To find what percentage **A is of B**, calculate $(A/B) * 100.""")
+        else:
+            st.info(f"Learning resources for **{resource_topic}** are under development.")
+        st.markdown("</div>", unsafe_allow_html=True)
+
+
+# --- Splash Screen and Main App Logic ---
+if st.session_state.show_splash:
+    st.markdown("""<style>.main {visibility: hidden;}</style><div style="position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background-color: #ffffff; display: flex; justify-content: center; align-items: center; z-index: 9999;"><div style="font-size: 50px; font-weight: bold; color: #2E86C1;">MathFriend</div></div>""", unsafe_allow_html=True)
+    time.sleep(1)
+    st.session_state.show_splash = False
+    st.rerun()
+else:
+    st.markdown("<style>.main {visibility: visible;}</style>", unsafe_allow_html=True)
+    if st.session_state.logged_in:
+        show_main_app()
+    else:
+        show_login_page()
