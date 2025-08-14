@@ -385,11 +385,18 @@ def _format_fraction_latex(f: Fraction):
         return str(f.numerator)
     return f"$\\frac{{{f.numerator}}}{{{f.denominator}}}$"
 
+def _format_fraction_text(f: Fraction):
+    """Helper to format Fraction objects into plain text (e.g., '1/2')."""
+    if f.denominator == 1:
+        return str(f.numerator)
+    return f"{f.numerator}/{f.denominator}"
+
 def _generate_fractions_question():
     q_type = random.choice(['add_sub', 'mul_div', 'simplify'])
     f1 = Fraction(random.randint(1, 10), random.randint(2, 10))
     f2 = Fraction(random.randint(1, 10), random.randint(2, 10))
 
+    # Use LaTeX for the question text itself, which is rendered by st.markdown()
     if q_type == 'add_sub':
         op_symbol = random.choice(['+', '-'])
         question_text = f"Calculate: ${_format_fraction_latex(f1)} {op_symbol} {_format_fraction_latex(f2)}$"
@@ -412,11 +419,13 @@ def _generate_fractions_question():
         correct_answer_obj = f1
         hint = "Find the greatest common divisor (GCD) of the numerator and denominator and divide both by it."
 
-    correct_answer = _format_fraction_latex(correct_answer_obj)
+    # Use PLAIN TEXT for the options and the answer key, which are handled by st.radio()
+    correct_answer = _format_fraction_text(correct_answer_obj)
     options = {correct_answer}
     while len(options) < 4:
+        # Generate plausible distractors
         distractor_f = random.choice([f1 + 1, f2, f1*f2, f1/f2 if f2 !=0 else f1, Fraction(f1.numerator, f2.denominator)])
-        options.add(_format_fraction_latex(distractor_f))
+        options.add(_format_fraction_text(distractor_f))
     
     shuffled_options = list(options)
     random.shuffle(shuffled_options)
@@ -1530,6 +1539,7 @@ else:
         show_main_app()
     else:
         show_login_page()
+
 
 
 
