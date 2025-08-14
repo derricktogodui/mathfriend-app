@@ -1364,7 +1364,7 @@ def show_main_app():
     elif selected_page == "💬 Chat":
         st.header("💬 Community Chat")
 
-        # --- NEW DISCORD-INSPIRED CSS ---
+        # --- FINAL, STABLE CSS AND HTML ---
         st.markdown("""
         <style>
             .chat-frame {
@@ -1375,97 +1375,67 @@ def show_main_app():
                 flex-direction: column;
                 box-shadow: 0 4px 12px rgba(0,0,0,0.08);
             }
-
             .message-list {
                 flex-grow: 1;
                 overflow-y: auto;
                 padding: 20px 10px;
-                display: flex;
-                flex-direction: column;
             }
-
             /* Custom Scrollbar */
-            .message-list::-webkit-scrollbar {
-                width: 8px;
-            }
-            .message-list::-webkit-scrollbar-track {
-                background: #f0f2f5;
-            }
-            .message-list::-webkit-scrollbar-thumb {
-                background-color: #c1c1c1;
-                border-radius: 10px;
-                border: 2px solid #f0f2f5;
-            }
+            .message-list::-webkit-scrollbar { width: 8px; }
+            .message-list::-webkit-scrollbar-track { background: #f0f2f5; }
+            .message-list::-webkit-scrollbar-thumb { background-color: #c1c1c1; border-radius: 10px; border: 2px solid #f0f2f5; }
 
             .message-row {
                 display: flex;
                 align-items: flex-start;
                 gap: 10px;
-                padding: 8px 10px;
-                border-radius: 8px;
-                transition: background-color 0.2s;
+                margin-bottom: 4px;
             }
-            
-            .message-row:hover {
-                background-color: #e9e9eb;
-            }
-
             .avatar-large {
                 width: 40px;
                 height: 40px;
                 border-radius: 50%;
                 object-fit: cover;
+                margin-top: 5px;
             }
-
             .message-content {
                 display: flex;
                 flex-direction: column;
-                gap: 4px;
+                gap: 2px;
                 width: 100%;
             }
-
             .message-header {
                 display: flex;
                 align-items: center;
                 gap: 8px;
             }
-
-            .username {
-                font-weight: bold;
-                color: #1a1a1a;
-            }
-            
-            .timestamp {
-                font-size: 0.75rem;
-                color: #65676b;
-            }
-            
+            .username { font-weight: bold; color: #1a1a1a; }
+            .timestamp { font-size: 0.75rem; color: #65676b; }
             .message-text {
                 font-size: 0.95rem;
                 color: #050505;
                 word-wrap: break-word;
+                padding: 8px 12px;
+                border-radius: 18px;
+                background-color: #e5e5ea;
+                max-width: fit-content;
+            }
+            .message-text img {
+                max-width: 300px;
+                border-radius: 8px;
             }
             
             /* Special style for MathBot */
-            .mathbot-row .username {
-                color: #007aff; /* Blue username for the bot */
-            }
-            .mathbot-row .message-text {
-                background-color: #e7f3ff;
-                padding: 8px;
-                border-radius: 8px;
-                border: 1px solid #cce1f8;
-            }
+            .mathbot-row .username { color: #007aff; }
+            .mathbot-row .message-text { background-color: #e7f3ff; border: 1px solid #cce1f8; }
 
-            .chat-image {
-                max-width: 300px;
-                border-radius: 8px;
-                margin-top: 5px;
-            }
+            /* Consecutive messages styling */
+            .consecutive .message-header { display: none; }
+            .consecutive { padding-left: 50px; margin-bottom: 8px;}
 
             /* Styling Streamlit's native form */
             .stForm {
-                padding: 15px;
+                padding: 15px 10px 10px 10px;
                 border-top: 1px solid #ddd;
                 background-color: #f0f2f5;
             }
@@ -1475,7 +1445,7 @@ def show_main_app():
         # --- CHAT UI LAYOUT ---
         with st.container():
             # Build the HTML for all messages
-            messages_html_parts = []
+            html_parts = []
             all_messages = get_chat_messages()
             all_usernames = get_all_usernames()
             last_username = None
@@ -1485,52 +1455,36 @@ def show_main_app():
                 time_obj = datetime.strptime(timestamp, "%Y-%m-%d %H:%M:%S")
                 time_str = time_obj.strftime("%H:%M")
                 
-                # Show avatar and header only if the user is different from the last one
                 is_new_user = (username != last_username)
-                
-                avatar_url = get_avatar_url(username)
                 bot_class = " mathbot-row" if username == "MathBot" else ""
+                consecutive_class = "" if is_new_user else " consecutive"
                 
-                message_html = ""
-                # Render header for new user messages
-                if is_new_user:
-                    message_html += f"""
-                        <div class="message-header">
-                            <span class="username">{username}</span>
-                            <span class="timestamp">{time_str}</span>
-                        </div>
-                    """
-                
-                # Render message content
-                content_html = ""
+                # --- Simplified and Robust HTML Assembly ---
+                message_body_html = ""
                 if message_text:
                     formatted_text = format_message(message_text, all_usernames, st.session_state.username)
-                    content_html += f"<div class='message-text'>{formatted_text}</div>"
+                    message_body_html += f"<div class='message-text'>{formatted_text}</div>"
                 if media:
-                    content_html += f"<div class='message-text'><img src='data:image/png;base64,{media}' class='chat-image'/></div>"
+                    # Media now gets its own bubble on a new line for clarity
+                    message_body_html += f"<div class='message-text'><img src='data:image/png;base64,{media}' class='chat-image'/></div>"
 
-                # If it's a new user, wrap with avatar. If not, just show content.
-                if is_new_user:
-                    row_html = f"""
-                    <div class="message-row{bot_class}">
-                        <img src="{avatar_url}" class="avatar-large"/>
-                        <div class="message-content">{message_html}{content_html}</div>
+                avatar_url = get_avatar_url(username)
+                row_html = f"""
+                <div class="message-row{bot_class}{consecutive_class}">
+                    {"<img src='" + avatar_url + "' class='avatar-large'/>" if is_new_user else ""}
+                    <div class="message-content">
+                        {"<div class='message-header'><span class='username'>" + username + "</span><span class='timestamp'>" + time_str + "</span></div>" if is_new_user else ""}
+                        {message_body_html}
                     </div>
-                    """
-                else:
-                    # For consecutive messages, add some left padding to align with previous messages
-                    row_html = f"""
-                    <div class="message-row{bot_class}" style="padding-left: 50px;">
-                        <div class="message-content">{content_html}</div>
-                    </div>
-                    """
+                </div>
+                """
                 
-                messages_html_parts.append(row_html)
+                html_parts.append(row_html)
                 last_username = username
             
-            all_messages_html = "".join(messages_html_parts)
+            all_messages_html = "".join(html_parts)
 
-            # Assemble the entire chat panel and render with a single command
+            # Assemble and render the entire chat panel
             chat_panel_html = f"""
             <div class="chat-frame">
                 <div class="message-list" id="message-list">
@@ -1661,6 +1615,7 @@ else:
         show_main_app()
     else:
         show_login_page()
+
 
 
 
