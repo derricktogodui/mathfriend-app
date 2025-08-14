@@ -35,7 +35,7 @@ if "show_splash" not in st.session_state:
 if "dark_mode" not in st.session_state:
     st.session_state.dark_mode = False
 
-# --- NEW: Quiz-related session state for the dynamic MCQ system ---
+# --- Quiz-related session state for the dynamic MCQ system ---
 if 'quiz_active' not in st.session_state:
     st.session_state.quiz_active = False
 if 'quiz_topic' not in st.session_state:
@@ -101,7 +101,7 @@ def create_tables_if_not_exist():
         if 'media' not in chat_columns:
             c.execute("ALTER TABLE chat_messages ADD COLUMN media TEXT")
 
-        # UPDATED: Check for and add 'questions_answered' column in quiz_results if missing
+        # Check for and add 'questions_answered' column in quiz_results if missing
         c.execute("PRAGMA table_info(quiz_results)")
         quiz_columns = [column[1] for column in c.fetchall()]
         if 'questions_answered' not in quiz_columns:
@@ -118,7 +118,7 @@ def create_tables_if_not_exist():
 create_tables_if_not_exist()
 
 
-# --- User Authentication & Profile Functions (UNCHANGED) ---
+# --- User Authentication & Profile Functions ---
 def hash_password(password):
     return bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
 
@@ -182,7 +182,7 @@ def change_password(username, current_password, new_password):
     finally:
         if conn: conn.close()
 
-# --- Online Status Functions (UNCHANGED) ---
+# --- Online Status Functions ---
 def update_user_status(username, is_online):
     try:
         conn = sqlite3.connect(DB_FILE)
@@ -197,6 +197,24 @@ def get_online_users():
         conn = sqlite3.connect(DB_FILE)
         c = conn.cursor()
         c.execute("SELECT username FROM user_status WHERE is_online = 1 AND last_seen > datetime('now', '-2 minutes')")
+        return [row[0] for row in c.fetchall()]
+    finally:
+        if conn: conn.close()
+
+def update_typing_status(username, is_typing):
+    try:
+        conn = sqlite3.connect(DB_FILE)
+        c = conn.cursor()
+        c.execute("INSERT OR REPLACE INTO typing_indicators (username, is_typing) VALUES (?, ?)", (username, is_typing))
+        conn.commit()
+    finally:
+        if conn: conn.close()
+
+def get_typing_users():
+    try:
+        conn = sqlite3.connect(DB_FILE)
+        c = conn.cursor()
+        c.execute("SELECT username FROM typing_indicators WHERE is_typing = 1 AND timestamp > datetime('now', '-5 seconds')")
         return [row[0] for row in c.fetchall()]
     finally:
         if conn: conn.close()
@@ -237,24 +255,27 @@ def _generate_sets_question():
 
 def _generate_percentages_question():
     q_type = random.choice(['percent_of', 'what_percent', 'original_price'])
+    correct_answer = ""
 
     if q_type == 'percent_of':
-        percent = random.randint(1, 40) * 5 # e.g., 5, 10, 15... 200
-        number = random.randint(1, 50) * 10 # e.g., 10, 20, 30... 500
+        percent = random.randint(1, 40) * 5
+        number = random.randint(1, 50) * 10
         question_text = f"What is {percent}% of {number}?"
-        correct_answer = f"{(percent / 100) * number:.2f}"
+        correct_answer_val = (percent / 100) * number
+        correct_answer = f"{correct_answer_val:.2f}".rstrip('0').rstrip('.')
         hint = "To find the percent of a number, convert the percent to a decimal (divide by 100) and multiply."
     
     elif q_type == 'what_percent':
         part = random.randint(1, 20)
         whole = random.randint(part + 1, 50)
         question_text = f"What percent of {whole} is {part}?"
-        correct_answer = f"{(part / whole) * 100:.2f}%"
+        correct_answer_val = (part / whole) * 100
+        correct_answer = f"{correct_answer_val:.2f}".rstrip('0').rstrip('.') + "%"
         hint = "To find what percent a part is of a whole, divide the part by the whole and multiply by 100."
 
     else: # original_price
         original_price = random.randint(20, 200)
-        discount_percent = random.randint(1, 8) * 5 # 5% to 40%
+        discount_percent = random.randint(1, 8) * 5
         final_price = original_price * (1 - discount_percent/100)
         question_text = f"An item is sold for ${final_price:.2f} after a {discount_percent}% discount. What was the original price?"
         correct_answer = f"${original_price:.2f}"
@@ -263,13 +284,20 @@ def _generate_percentages_question():
     # Generate distractors
     options = [correct_answer]
     while len(options) < 4:
-        # Generate a plausible but incorrect number
-        noise = random.uniform(0.75, 1.25)
-        wrong_answer_val = float(re.sub(r'[^\d.]', '', correct_answer)) * noise
-        prefix = "$" if correct_answer.startswith("$") else ""
-        suffix = "%" if correct_answer.endswith("%") else ""
-        options.append(f"{prefix}{wrong_answer_val:.2f}{suffix}")
-    
+        try:
+            noise = random.uniform(0.75, 1.25)
+            # Extract numeric value from correct answer for manipulation
+            numeric_part_str = re.sub(r'[^\d.]', '', correct_answer)
+            if numeric_part_str:
+                wrong_answer_val = float(numeric_part_str) * noise
+                prefix = "$" if correct_answer.startswith("$") else ""
+                suffix = "%" if correct_answer.endswith("%") else ""
+                options.append(f"{prefix}{wrong_answer_val:.2f}{suffix}".rstrip('0').rstrip('.'))
+            else: # Fallback if no numeric part
+                options.append(f"{random.randint(1,100)}")
+        except (ValueError, IndexError): # Catch potential errors if regex fails
+             options.append(f"{random.randint(1,100)}")
+
     random.shuffle(options)
     
     return {"question": question_text, "options": list(set(options)), "answer": correct_answer, "hint": hint}
@@ -296,6 +324,9 @@ def generate_question(topic):
 
 def save_quiz_result(username, topic, score, questions_answered):
     """Saves a user's quiz result, including total questions answered."""
+    # Avoid saving empty quizzes
+    if questions_answered == 0:
+        return
     try:
         conn = sqlite3.connect(DB_FILE)
         c = conn.cursor()
@@ -347,21 +378,22 @@ def get_user_stats(username):
         c.execute("SELECT COUNT(*) FROM quiz_results WHERE username=?", (username,))
         total_quizzes = c.fetchone()[0]
         
-        # Get last score as a fraction
         c.execute("SELECT score, questions_answered FROM quiz_results WHERE username=? ORDER BY timestamp DESC LIMIT 1", (username,))
         last_result = c.fetchone()
         last_score_str = f"{last_result[0]}/{last_result[1]}" if last_result else "N/A"
         
-        # Get top score based on accuracy
         c.execute("SELECT score, questions_answered FROM quiz_results WHERE username=? AND questions_answered > 0 ORDER BY (CAST(score AS REAL) / questions_answered) DESC, score DESC LIMIT 1", (username,))
         top_result = c.fetchone()
         top_score_str = f"{top_result[0]}/{top_result[1]}" if top_result else "N/A"
 
         return total_quizzes, last_score_str, top_score_str
+    except sqlite3.Error as e:
+        st.error(f"Get user stats error: {e}")
+        return 0, "N/A", "N/A"
     finally:
         if conn: conn.close()
 
-# --- Chat Functions & UI Components (UNCHANGED) ---
+# --- Chat, MathBot, and UI Component Functions ---
 def add_chat_message(username, message, media=None):
     try:
         conn = sqlite3.connect(DB_FILE)
@@ -376,7 +408,7 @@ def get_chat_messages():
         conn = sqlite3.connect(DB_FILE)
         conn.row_factory = sqlite3.Row
         c = conn.cursor()
-        c.execute("SELECT id, username, message, media, timestamp FROM chat_messages ORDER BY timestamp ASC")
+        c.execute("SELECT * FROM chat_messages ORDER BY timestamp ASC")
         return c.fetchall()
     finally:
         if conn: conn.close()
@@ -401,13 +433,18 @@ def format_message(message, mentioned_usernames, current_user):
     return message
 
 def get_mathbot_response(message):
-    if not message.startswith("@MathBot"): return None
+    if not message.startswith("@MathBot"):
+        return None
     query = message.replace("@MathBot", "").strip().lower()
-    definitions = { "sets": "A set is a collection of distinct objects." }
+    definitions = {
+        "sets": "A set is a collection of distinct objects, considered as an object in its own right.",
+        "surds": "A surd is an irrational number that can be expressed with a root symbol, like $\sqrt{2}$.",
+        "binary operation": "A binary operation is a calculation that combines two elements to produce a new one.",
+        "percentages": "A percentage is a number or ratio expressed as a fraction of 100."
+    }
     if query.startswith("define"):
         term = query.split("define", 1)[1].strip()
         return f"**Definition:** {definitions.get(term, "I don't have a definition for that yet.")}"
-    # Simplified for brevity
     return "I can help with definitions. Try '@MathBot define sets'."
 
 def get_avatar_url(username):
@@ -418,13 +455,13 @@ def get_avatar_url(username):
     return f"https://placehold.co/40x40/{color_code}/ffffff?text={first_letter}"
 
 def confetti_animation():
-    html("""<script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.5.1/dist/confetti.browser.min.js"></script><script>confetti({particleCount: 150, spread: 70, origin: { y: 0.6 }});</script>""")
+    html("""<script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.5.1/dist/confetti.browser.min.js"></script><script>setTimeout(() => confetti({particleCount: 150, spread: 70, origin: { y: 0.6 }}), 100);</script>""")
 
 def metric_card(title, value, icon, color):
     return f"""<div style="background: white; border-radius: 12px; padding: 15px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); border-left: 4px solid {color}; margin-bottom: 15px;"><div style="display: flex; align-items: center; margin-bottom: 8px;"><div style="font-size: 24px; margin-right: 10px;">{icon}</div><div style="font-size: 14px; color: #666;">{title}</div></div><div style="font-size: 28px; font-weight: bold; color: {color};">{value}</div></div>"""
 
 
-# --- Page Rendering Logic (show_login_page and show_profile_page are UNCHANGED) ---
+# --- Page Rendering Logic ---
 def show_login_page():
     col1, col2, col3 = st.columns([1, 3, 1])
     with col2:
@@ -459,7 +496,7 @@ def show_login_page():
                 new_password = st.text_input("New Password", type="password")
                 confirm_password = st.text_input("Confirm Password", type="password")
                 if st.form_submit_button("Create Account", type="primary"):
-                    if not new_username or not new_password: st.error("All fields are required.")
+                    if not all([new_username, new_password, confirm_password]): st.error("All fields are required.")
                     elif new_password != confirm_password: st.error("Passwords do not match.")
                     elif signup_user(new_username, new_password):
                         st.success("Account created! Please log in."); time.sleep(1)
@@ -498,10 +535,9 @@ def show_profile_page():
             else: st.error("Incorrect current password")
     st.markdown("</div>", unsafe_allow_html=True)
 
-# --- Main App with OVERHAULED Quiz and Leaderboard ---
 def show_main_app():
-    # CSS remains unchanged
-    st.markdown("""<style>... a lot of css ...</style>""", unsafe_allow_html=True) # Keeping CSS collapsed for brevity
+    # A large block of CSS styles is here, collapsed for brevity in this view
+    st.markdown("""<style> ... </style>""", unsafe_allow_html=True)
     
     with st.sidebar:
         st.session_state.dark_mode = st.toggle("🌙 Dark Mode", value=st.session_state.dark_mode)
@@ -512,67 +548,87 @@ def show_main_app():
         if st.sidebar.button("Logout", type="primary"):
             update_user_status(st.session_state.username, False)
             st.session_state.logged_in = False
+            st.session_state.quiz_active = False # End quiz on logout
             st.rerun()
 
     update_user_status(st.session_state.username, True)
 
     if selected_page == "📊 Dashboard":
+        st.markdown("<div class='content-card'>", unsafe_allow_html=True)
         st.header("📈 Progress Dashboard")
+        st.write("Track your math learning journey with these insights.")
+        
         total_quizzes, last_score_str, top_score_str = get_user_stats(st.session_state.username)
+        
         col1, col2, col3 = st.columns(3)
-        col1.markdown(metric_card("Total Quizzes", total_quizzes, "📚", "#4361ee"), unsafe_allow_html=True)
-        col2.markdown(metric_card("Last Score", last_score_str, "⭐", "#4cc9f0"), unsafe_allow_html=True)
-        col3.markdown(metric_card("Top Score", top_score_str, "🏆", "#f72585"), unsafe_allow_html=True)
-        # More dashboard items... (logic is preserved but condensed for brevity)
+        with col1:
+            st.markdown(metric_card("Total Quizzes", total_quizzes, "📚", "#4361ee"), unsafe_allow_html=True)
+        with col2:
+            st.markdown(metric_card("Last Score", last_score_str, "⭐", "#4cc9f0"), unsafe_allow_html=True)
+        with col3:
+            st.markdown(metric_card("Top Score (by Accuracy)", top_score_str, "🏆", "#f72585"), unsafe_allow_html=True)
+        
+        st.markdown("<div class='content-card' style='margin-top: 20px;'>", unsafe_allow_html=True)
+        st.subheader("🌟 Motivational Quote")
+        st.markdown("""<blockquote style="border-left: 4px solid #4361ee; padding-left: 15px; font-style: italic; color: #555;">"Mathematics is not about numbers, equations, computations, or algorithms: it is about understanding." — William Paul Thurston</blockquote>""", unsafe_allow_html=True)
+        st.markdown("</div>", unsafe_allow_html=True)
+        
+        user_history = get_user_quiz_history(st.session_state.username)
+        if user_history:
+            df = pd.DataFrame(user_history)
+            df['Timestamp'] = pd.to_datetime(df['timestamp'])
+            df['Date'] = df['Timestamp'].dt.date
+            df['Accuracy'] = df.apply(lambda row: (row['score'] / row['questions_answered']) * 100 if row['questions_answered'] > 0 else 0, axis=1)
+            
+            st.markdown("<div class='content-card' style='margin-top: 20px;'>", unsafe_allow_html=True)
+            st.subheader("📅 Your Accuracy Over Time")
+            fig = px.line(df, x='Date', y='Accuracy', color='topic', markers=True, template="plotly_white")
+            fig.update_layout(plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', yaxis_title="Accuracy (%)")
+            st.plotly_chart(fig, use_container_width=True)
+            st.markdown("</div>", unsafe_allow_html=True)
+            
+            st.markdown("<div class='content-card' style='margin-top: 20px;'>", unsafe_allow_html=True)
+            st.subheader("📝 Recent Quiz Results")
+            df_display = df[['topic', 'score', 'questions_answered', 'Accuracy', 'Timestamp']].copy()
+            df_display['Result'] = df_display['score'].astype(str) + "/" + df_display['questions_answered'].astype(str)
+            st.dataframe(df_display[['topic', 'Result', 'Accuracy', 'Timestamp']].rename(columns={'topic': 'Topic'}).head(10).style.format({'Accuracy': '{:.1f}%', 'Timestamp': lambda x: x.strftime('%Y-%m-%d %H:%M')}), use_container_width=True)
+            st.markdown("</div>", unsafe_allow_html=True)
+        else:
+            st.info("Start taking quizzes to see your progress here!")
+        
+        st.markdown("</div>", unsafe_allow_html=True)
 
-    # --- ###################################################### ---
-    # --- ### OVERHAULED QUIZ SECTION ### ---
-    # --- ###################################################### ---
     elif selected_page == "📝 Quiz":
         st.header("🧠 Quiz Time!")
         st.markdown("<div class='content-card'>", unsafe_allow_html=True)
 
-        # --- Quiz Setup Screen ---
         if not st.session_state.quiz_active:
             st.write("Select a topic and challenge yourself with unlimited questions!")
-            
             topic_options = ["Sets", "Percentages", "Surds", "Binary Operations", "Word Problems", "Fractions"]
             st.session_state.quiz_topic = st.selectbox("Choose a topic:", topic_options)
-            
             if st.button("Start Quiz", type="primary", use_container_width=True):
-                # Initialize quiz state
                 st.session_state.quiz_active = True
                 st.session_state.quiz_score = 0
                 st.session_state.questions_answered = 0
                 st.rerun()
-
-        # --- Active Quiz Screen ---
         else:
             st.write(f"**Topic: {st.session_state.quiz_topic}** | **Score: {st.session_state.quiz_score} / {st.session_state.questions_answered}**")
-            
-            # Generate a new question for this round, identified by the number of questions answered
             q_data = generate_question(st.session_state.quiz_topic)
             
-            # Check for "coming soon" messages
             if "coming soon" in q_data["question"]:
                 st.info(q_data["question"])
-                st.session_state.quiz_active = False # End quiz if topic is not ready
+                st.session_state.quiz_active = False
                 if st.button("Back to Topic Selection"):
                     st.rerun()
             else:
                 st.markdown("---")
                 st.markdown(q_data["question"])
-
                 with st.expander("🤔 Need a hint?"):
                     st.info(q_data["hint"])
-
-                # Use a form to contain the radio and buttons
                 with st.form(key=f"quiz_form_{st.session_state.questions_answered}"):
-                    user_choice = st.radio("Select your answer:", options=q_data["options"], index=None)
-                    
-                    submitted = st.form_submit_button("Submit Answer", type="primary")
-
-                    if submitted:
+                    st.radio("Select your answer:", options=q_data["options"], index=None, key="user_answer_choice")
+                    if st.form_submit_button("Submit Answer", type="primary"):
+                        user_choice = st.session_state.user_answer_choice
                         if user_choice:
                             st.session_state.questions_answered += 1
                             if user_choice == q_data["answer"]:
@@ -580,114 +636,61 @@ def show_main_app():
                                 st.success("Correct! Well done! 🎉")
                                 confetti_animation()
                             else:
-                                encouragements = ["Don't give up!", "That was a tricky one. Try again!", "So close! You'll get the next one.", "Every mistake is a step towards learning."]
                                 st.error(f"Not quite. The correct answer was: **{q_data['answer']}**")
-                                st.warning(random.choice(encouragements))
-                            
-                            time.sleep(1.5) # Pause to show feedback
-                            st.rerun() # Rerun for the next question
+                                st.warning(random.choice(["Don't give up!", "That was tricky. Try again!", "So close! You'll get the next one."]))
+                            time.sleep(1.5)
+                            st.rerun()
                         else:
                             st.warning("Please select an answer before submitting.")
-
             if st.button("Stop Quiz & Save Score"):
-                if st.session_state.questions_answered > 0:
-                    save_quiz_result(st.session_state.username, st.session_state.quiz_topic, st.session_state.quiz_score, st.session_state.questions_answered)
-                    st.info(f"Quiz stopped. Your final score of {st.session_state.quiz_score}/{st.session_state.questions_answered} has been recorded.")
-                else:
-                    st.info("Quiz stopped. No questions were answered, so no score was recorded.")
-                
+                save_quiz_result(st.session_state.username, st.session_state.quiz_topic, st.session_state.quiz_score, st.session_state.questions_answered)
+                st.info(f"Quiz stopped. Your final score of {st.session_state.quiz_score}/{st.session_state.questions_answered} has been recorded.")
                 st.session_state.quiz_active = False
                 time.sleep(2)
                 st.rerun()
-
         st.markdown("</div>", unsafe_allow_html=True)
 
-
-    # --- ###################################################### ---
-    # --- ### OVERHAULED LEADERBOARD SECTION ### ---
-    # --- ###################################################### ---
     elif selected_page == "🏆 Leaderboard":
         st.header("🏆 Global Leaderboard")
         st.markdown("<div class='content-card'>", unsafe_allow_html=True)
         st.write("See who has the highest accuracy for each topic!")
-        
         topic_options = ["Sets", "Percentages", "Surds", "Binary Operations", "Word Problems", "Fractions"]
         leaderboard_topic = st.selectbox("Select a topic to view:", topic_options)
-        
         top_scores = get_top_scores(leaderboard_topic)
-        
         if top_scores:
-            # Prepare data for display
-            leaderboard_data = []
-            for rank, (username, score, total) in enumerate(top_scores, 1):
-                accuracy = (score / total) * 100
-                leaderboard_data.append({
-                    "Rank": f"#{rank}",
-                    "Username": username,
-                    "Score": f"{score}/{total}",
-                    "Accuracy": f"{accuracy:.1f}%"
-                })
-            
+            leaderboard_data = [{"Rank": f"#{r}", "Username": u, "Score": f"{s}/{t}", "Accuracy": f"{(s/t)*100:.1f}%"} for r, (u, s, t) in enumerate(top_scores, 1)]
             df = pd.DataFrame(leaderboard_data)
-            
-            # Highlight current user's position
-            def highlight_user(row):
-                if row.Username == st.session_state.username:
-                    return ['background-color: #e6f7ff; font-weight: bold;'] * len(row)
-                return [''] * len(row)
-
-            st.dataframe(
-                df.style.apply(highlight_user, axis=1).hide(axis="index"),
-                use_container_width=True
-            )
+            def highlight_user(row): return ['background-color: #e6f7ff; font-weight: bold;'] * len(row) if row.Username == st.session_state.username else [''] * len(row)
+            st.dataframe(df.style.apply(highlight_user, axis=1).hide(axis="index"), use_container_width=True)
         else:
             st.info(f"No scores have been recorded for **{leaderboard_topic}** yet. Be the first!")
-        
         st.markdown("</div>", unsafe_allow_html=True)
 
     elif selected_page == "💬 Chat":
-        # Chat functionality remains the same
         st.header("💬 Community Chat")
-        # Code is preserved but condensed for brevity
-        st.info("Chat system is active.")
-
+        st.markdown("""<style>.chat-container{height:70vh;overflow-y:auto;display:flex;flex-direction:column;gap:6px}.msg-row{display:flex;align-items:flex-end}.msg-own{justify-content:flex-end}.msg-bubble{max-width:min(80%,500px);padding:8px 12px;border-radius:18px}.msg-own .msg-bubble{background-color:#dcf8c6;border-bottom-right-radius:4px}.msg-other .msg-bubble{background-color:#fff;border-bottom-left-radius:4px}</style>""", unsafe_allow_html=True)
+        st_autorefresh(interval=3000, key="chat_refresh")
+        all_messages = get_chat_messages()
+        st.markdown('<div id="chat-container">', unsafe_allow_html=True)
+        for msg in all_messages:
+            own = msg['username'] == st.session_state.username
+            st.markdown(f"<div class='msg-row {'msg-own' if own else 'msg-other'}'><div class='msg-bubble'>{msg['message']}</div></div>", unsafe_allow_html=True)
+        st.markdown('</div>', unsafe_allow_html=True)
+        st.markdown("""<script>var chatBox=document.getElementById('chat-container'); if(chatBox){chatBox.scrollTop=chatBox.scrollHeight;}</script>""", unsafe_allow_html=True)
+        with st.form("chat_form", clear_on_submit=True):
+            user_message = st.text_area("", key="chat_input", height=40, placeholder="Type a message", label_visibility="collapsed")
+            if st.form_submit_button("Send", type="primary"):
+                if user_message.strip():
+                    add_chat_message(st.session_state.username, user_message)
+                    if user_message.startswith("@MathBot"):
+                        bot_response = get_mathbot_response(user_message)
+                        if bot_response: add_chat_message("MathBot", bot_response)
+                    st.rerun()
+    
     elif selected_page == "👤 Profile":
         show_profile_page()
 
     elif selected_page == "📚 Learning Resources":
         st.header("📚 Learning Resources")
         st.markdown("<div class='content-card'>", unsafe_allow_html=True)
-        st.write("Mini-tutorials and helpful examples to help you study.")
-        
-        topic_options = ["Sets", "Percentages", "Surds", "Binary Operations", "Word Problems", "Fractions"]
-        resource_topic = st.selectbox("Select a topic to learn about:", topic_options)
-
-        if resource_topic == "Sets":
-            st.subheader("🧮 Sets and Operations on Sets")
-            st.markdown("""A **set** is a collection of distinct objects. Key operations include:
-- **Union ($A \cup B$)**: All elements from both sets combined.
-- **Intersection ($A \cap B$)**: Only elements that appear in both sets.
-- **Difference ($A - B$)**: Elements in A but not in B.""")
-        elif resource_topic == "Percentages":
-            st.subheader("➗ Percentages")
-            st.markdown("""A **percentage** is a number or ratio expressed as a fraction of 100.
-- To find **X% of Y**, calculate $(X/100) * Y$.
-- To find what percentage **A is of B**, calculate $(A/B) * 100.""")
-        else:
-            st.info(f"Learning resources for **{resource_topic}** are under development.")
-        st.markdown("</div>", unsafe_allow_html=True)
-
-# --- Splash Screen and Main App Logic (UNCHANGED) ---
-if st.session_state.show_splash:
-    st.markdown("""<style>.main {visibility: hidden;}</style><div style="position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background-color: #ffffff; display: flex; justify-content: center; align-items: center; z-index: 9999;"><div style="font-size: 50px; font-weight: bold; color: #2E86C1;">MathFriend</div></div>""", unsafe_allow_html=True)
-    time.sleep(1)
-    st.session_state.show_splash = False
-    st.rerun()
-else:
-    st.markdown("<style>.main {visibility: visible;}</style>", unsafe_allow_html=True)
-    if st.session_state.logged_in:
-        show_main_app()
-    else:
-        show_login_page()
-
-
+        topic_options = ["Sets", "Percentages", "Surds", "Binary Operations", "Word Problems
