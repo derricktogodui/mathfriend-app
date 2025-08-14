@@ -1340,9 +1340,9 @@ def show_main_app():
             
             def highlight_user(row):
                 if row.Username == st.session_state.username:
-                    return ['background-color: #e6f7ff; font-weight: bold;'] * len(row)
+        # This line now includes 'color: #000000;' to ensure the text is black
+                    return ['background-color: #e6f7ff; font-weight: bold; color: #000000;'] * len(row)
                 return [''] * len(row)
-
             st.dataframe(
                 df.style.apply(highlight_user, axis=1).format({'Accuracy': "{:.1f}%"}).hide(axis="index"),
                 column_config={
@@ -1544,6 +1544,7 @@ else:
         show_main_app()
     else:
         show_login_page()
+
 
 
 
