@@ -1363,98 +1363,215 @@ def show_main_app():
 
     elif selected_page == "💬 Chat":
         st.header("💬 Community Chat")
+
+        # --- NEW DISCORD-INSPIRED CSS ---
         st.markdown("""
         <style>
-        .chat-container { flex: 1; height: 70vh; max-height: 70vh; overflow-y: auto; padding: 10px; display: flex; flex-direction: column; gap: 6px; scroll-behavior: smooth; }
-        .msg-row { display: flex; align-items: flex-end; }
-        .msg-own { justify-content: flex-end; }
-        .msg-bubble { max-width: min(80%, 500px); padding: 8px 12px; border-radius: 18px; font-size: 0.95rem; line-height: 1.3; word-wrap: break-word; }
-        .msg-own .msg-bubble { background-color: #dcf8c6; border-bottom-right-radius: 4px; color: #222; }
-        .msg-other .msg-bubble { background-color: #fff; border-bottom-left-radius: 4px; color: #222; }
-        .avatar-small { width: 30px; height: 30px; border-radius: 50%; object-fit: cover; margin: 0 6px; }
-        .msg-meta { font-size: 0.75rem; color: #888; margin-bottom: 3px; }
-        .date-separator { text-align: center; font-size: 0.75rem; color: #999; margin: 10px 0; }
-        .chat-image { max-height: 150px; border-radius: 8px; cursor: pointer; }
-        .chat-input-area { position: sticky; bottom: 0; background: #f7f7f7; padding: 8px; border-top: 1px solid #ddd; }
-        /* Modal */
-        .chat-image-modal { display: none; position: fixed; z-index: 9999; left: 0; top: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); }
-        .modal-image-content { display: flex; justify-content: center; align-items: center; height: 100%; }
-        .modal-image { max-width: 90%; max-height: 90%; }
-        .close-modal { position: absolute; top: 20px; right: 30px; color: white; font-size: 35px; cursor: pointer; }
+            .chat-frame {
+                background-color: #f0f2f5;
+                border-radius: 12px;
+                height: 75vh;
+                display: flex;
+                flex-direction: column;
+                box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+            }
+
+            .message-list {
+                flex-grow: 1;
+                overflow-y: auto;
+                padding: 20px 10px;
+                display: flex;
+                flex-direction: column;
+            }
+
+            /* Custom Scrollbar */
+            .message-list::-webkit-scrollbar {
+                width: 8px;
+            }
+            .message-list::-webkit-scrollbar-track {
+                background: #f0f2f5;
+            }
+            .message-list::-webkit-scrollbar-thumb {
+                background-color: #c1c1c1;
+                border-radius: 10px;
+                border: 2px solid #f0f2f5;
+            }
+
+            .message-row {
+                display: flex;
+                align-items: flex-start;
+                gap: 10px;
+                padding: 8px 10px;
+                border-radius: 8px;
+                transition: background-color 0.2s;
+            }
+            
+            .message-row:hover {
+                background-color: #e9e9eb;
+            }
+
+            .avatar-large {
+                width: 40px;
+                height: 40px;
+                border-radius: 50%;
+                object-fit: cover;
+            }
+
+            .message-content {
+                display: flex;
+                flex-direction: column;
+                gap: 4px;
+                width: 100%;
+            }
+
+            .message-header {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+            }
+
+            .username {
+                font-weight: bold;
+                color: #1a1a1a;
+            }
+            
+            .timestamp {
+                font-size: 0.75rem;
+                color: #65676b;
+            }
+            
+            .message-text {
+                font-size: 0.95rem;
+                color: #050505;
+                word-wrap: break-word;
+            }
+            
+            /* Special style for MathBot */
+            .mathbot-row .username {
+                color: #007aff; /* Blue username for the bot */
+            }
+            .mathbot-row .message-text {
+                background-color: #e7f3ff;
+                padding: 8px;
+                border-radius: 8px;
+                border: 1px solid #cce1f8;
+            }
+
+            .chat-image {
+                max-width: 300px;
+                border-radius: 8px;
+                margin-top: 5px;
+            }
+
+            /* Styling Streamlit's native form */
+            .stForm {
+                padding: 15px;
+                border-top: 1px solid #ddd;
+                background-color: #f0f2f5;
+            }
         </style>
         """, unsafe_allow_html=True)
-        st.markdown("""
-        <div id="imageModal" class="chat-image-modal">
-            <span class="close-modal">&times;</span>
-            <div class="modal-image-content"><img id="modalImage" class="modal-image"></div>
-        </div>
-        <script>
-        const modal = document.getElementById("imageModal");
-        const modalImg = document.getElementById("modalImage");
-        const closeBtn = document.querySelector(".close-modal");
-        function openImageModal(src) { modal.style.display = "flex"; modalImg.src = src; document.body.style.overflow = "hidden"; }
-        closeBtn.onclick = () => { modal.style.display = "none"; document.body.style.overflow = "auto"; }
-        modal.onclick = (e) => { if(e.target === modal){ modal.style.display = "none"; document.body.style.overflow = "auto"; } }
-        document.addEventListener('keydown', e => { if(e.key==="Escape"){ modal.style.display = "none"; document.body.style.overflow = "auto"; } });
-        </script>
-        """, unsafe_allow_html=True)
 
-        st_autorefresh(interval=3000, key="chat_refresh")
+        # --- CHAT UI LAYOUT ---
+        with st.container():
+            # Build the HTML for all messages
+            messages_html_parts = []
+            all_messages = get_chat_messages()
+            all_usernames = get_all_usernames()
+            last_username = None
 
-        online_users = get_online_users()
-        typing_users = get_typing_users()
-        all_usernames = get_all_usernames()
-        all_messages = get_chat_messages()
+            for msg in all_messages:
+                _, username, message_text, media, timestamp = msg
+                time_obj = datetime.strptime(timestamp, "%Y-%m-%d %H:%M:%S")
+                time_str = time_obj.strftime("%H:%M")
+                
+                # Show avatar and header only if the user is different from the last one
+                is_new_user = (username != last_username)
+                
+                avatar_url = get_avatar_url(username)
+                bot_class = " mathbot-row" if username == "MathBot" else ""
+                
+                message_html = ""
+                # Render header for new user messages
+                if is_new_user:
+                    message_html += f"""
+                        <div class="message-header">
+                            <span class="username">{username}</span>
+                            <span class="timestamp">{time_str}</span>
+                        </div>
+                    """
+                
+                # Render message content
+                content_html = ""
+                if message_text:
+                    formatted_text = format_message(message_text, all_usernames, st.session_state.username)
+                    content_html += f"<div class='message-text'>{formatted_text}</div>"
+                if media:
+                    content_html += f"<div class='message-text'><img src='data:image/png;base64,{media}' class='chat-image'/></div>"
 
-        if online_users:
-            st.markdown(f"**Online:** {', '.join([f'🟢 {u}' for u in online_users])}")
-        current_typing_users = [u for u in typing_users if u != st.session_state.username]
-        if current_typing_users:
-            st.markdown(f"*{current_typing_users[0]} is typing...*")
+                # If it's a new user, wrap with avatar. If not, just show content.
+                if is_new_user:
+                    row_html = f"""
+                    <div class="message-row{bot_class}">
+                        <img src="{avatar_url}" class="avatar-large"/>
+                        <div class="message-content">{message_html}{content_html}</div>
+                    </div>
+                    """
+                else:
+                    # For consecutive messages, add some left padding to align with previous messages
+                    row_html = f"""
+                    <div class="message-row{bot_class}" style="padding-left: 50px;">
+                        <div class="message-content">{content_html}</div>
+                    </div>
+                    """
+                
+                messages_html_parts.append(row_html)
+                last_username = username
+            
+            all_messages_html = "".join(messages_html_parts)
 
-        st.markdown('<div id="chat-container" class="chat-container">', unsafe_allow_html=True)
-        last_date, last_user = None, None
-        for msg in all_messages:
-            _, username, message, media, timestamp = msg
-            date_str = datetime.strptime(timestamp, "%Y-%m-%d %H:%M:%S").strftime("%b %d, %Y")
-            time_str = datetime.strptime(timestamp, "%Y-%m-%d %H:%M:%S").strftime("%H:%M")
-            if date_str != last_date:
-                st.markdown(f'<div class="date-separator">{date_str}</div>', unsafe_allow_html=True)
-                last_date = date_str
-            own = username == st.session_state.username
-            row_class = "msg-row msg-own" if own else "msg-row msg-other"
-            avatar_html = ""
-            if not own and last_user != username:
-                avatar_html = f"<img src='{get_avatar_url(username)}' class='avatar-small'/>"
-            parts = []
-            if message:
-                parts.append(f"<div>{format_message(message, all_usernames, st.session_state.username)}</div>")
-            if media:
-                parts.append(f"<img src='data:image/png;base64,{media}' class='chat-image' onclick='openImageModal(this.src)'/>")
-            bubble_html = f"<div><div class='msg-meta'>{username} • {time_str}</div><div class='msg-bubble'>{''.join(parts)}</div></div>"
-            st.markdown(f"<div class='{row_class}'>{avatar_html}{bubble_html}</div>", unsafe_allow_html=True)
-            last_user = username
-        st.markdown('</div>', unsafe_allow_html=True)
+            # Assemble the entire chat panel and render with a single command
+            chat_panel_html = f"""
+            <div class="chat-frame">
+                <div class="message-list" id="message-list">
+                    {all_messages_html}
+                </div>
+            </div>
+            """
+            st.markdown(chat_panel_html, unsafe_allow_html=True)
+            
+            # Chat Input Form
+            with st.form("chat_form", clear_on_submit=True):
+                col1, col2, col3 = st.columns([0.8, 0.1, 0.1])
+                with col1:
+                    user_message = st.text_input("Message", key="chat_input", placeholder=f"Message as {st.session_state.username}", label_visibility="collapsed")
+                with col2:
+                    uploaded_file = st.file_uploader("📎", type=["png", "jpg", "jpeg"], label_visibility="collapsed")
+                with col3:
+                    submitted = st.form_submit_button("➤", type="primary")
 
-        st.markdown("""<script>var chatBox = document.getElementById('chat-container'); if(chatBox){ chatBox.scrollTop = chatBox.scrollHeight; }</script>""", unsafe_allow_html=True)
-
-        st.markdown('<div class="chat-input-area">', unsafe_allow_html=True)
-        with st.form("chat_form", clear_on_submit=True):
-            user_message = st.text_area("", key="chat_input", height=40, placeholder="Type a message", label_visibility="collapsed")
-            col1, col2 = st.columns([0.8, 0.2])
-            with col1:
-                uploaded_file = st.file_uploader("📷", type=["png","jpg","jpeg"], label_visibility="collapsed")
-            with col2:
-                submitted = st.form_submit_button("Send", type="primary", use_container_width=True)
-            if submitted:
-                if user_message.strip() or uploaded_file:
-                    media_data = base64.b64encode(uploaded_file.getvalue()).decode('utf-8') if uploaded_file else None
-                    add_chat_message(st.session_state.username, user_message, media_data)
-                    if user_message.startswith("@MathBot"):
-                        bot_response = get_mathbot_response(user_message)
-                        if bot_response: add_chat_message("MathBot", bot_response)
-                st.rerun()
-        st.markdown('</div>', unsafe_allow_html=True)
+                if submitted:
+                    if user_message.strip() or uploaded_file:
+                        media_data = base64.b64encode(uploaded_file.getvalue()).decode('utf-8') if uploaded_file else None
+                        add_chat_message(st.session_state.username, user_message, media_data)
+                        if user_message.startswith("@MathBot"):
+                            bot_response = get_mathbot_response(user_message)
+                            if bot_response:
+                                add_chat_message("MathBot", bot_response)
+                        st.rerun()
+            
+            # JavaScript for auto-scrolling
+            st.markdown("""
+                <script>
+                    const messageList = document.getElementById("message-list");
+                    if (messageList) {
+                        messageList.scrollTop = messageList.scrollHeight;
+                    }
+                </script>
+            """, unsafe_allow_html=True)
+            
+            # Auto-refresh for real-time feel
+            st_autorefresh(interval=3000, key="chat_refresh")
 
     elif selected_page == "👤 Profile":
         show_profile_page()
@@ -1544,6 +1661,7 @@ else:
         show_main_app()
     else:
         show_login_page()
+
 
 
 
