@@ -1078,6 +1078,7 @@ def show_main_app():
     </style>
     """, unsafe_allow_html=True)
     
+    # Dark mode toggle in sidebar
     if st.session_state.dark_mode:
         st.markdown("""
         <style>
@@ -1093,8 +1094,10 @@ def show_main_app():
     with st.sidebar:
         st.session_state.dark_mode = st.toggle("🌙 Dark Mode", value=st.session_state.dark_mode)
     
+    # Main content container
     st.markdown(f"<div class='main-content-container'>", unsafe_allow_html=True)
     
+    # User greeting with avatar
     avatar_url = get_avatar_url(st.session_state.username)
     profile = get_user_profile(st.session_state.username)
     display_name = profile.get('full_name', st.session_state.username) if profile else st.session_state.username
@@ -1124,14 +1127,15 @@ def show_main_app():
     st.sidebar.markdown("---")
     st.sidebar.markdown("### **Account**")
     if st.sidebar.button("Logout", type="primary"):
-        update_user_status(st.session_state.username, False)
+        update_user_status(st.session_state.username, False)  # Mark user as offline
         st.session_state.logged_in = False
         st.session_state.page = "login"
         st.rerun()
     
     update_user_status(st.session_state.username, True)
     
-    topic_options = ["Sets", "Percentages", "Fractions", "Surds", "Binary Operations", "Word Problems"]
+    # Define consistent topic list
+    topic_options = ["Sets", "Percentages", "Surds", "Binary Operations", "Word Problems", "Fractions"]
     
     if selected_page == "📊 Dashboard":
         st.markdown("---")
@@ -1149,39 +1153,126 @@ def show_main_app():
         with col3:
             st.markdown(metric_card("Top Score", top_score, "🏆", "#f72585"), unsafe_allow_html=True)
         
+        st.markdown("<div class='content-card' style='margin-top: 20px;'>", unsafe_allow_html=True)
+        st.subheader("🌟 Motivational Quote")
+        st.markdown("""
+        <blockquote style="border-left: 4px solid #4361ee; padding-left: 15px; font-style: italic; color: #555;">
+            "Mathematics is not about numbers, equations, computations, or algorithms: 
+            it is about understanding." — William Paul Thurston
+        </blockquote>
+        """, unsafe_allow_html=True)
+        st.markdown("</div>", unsafe_allow_html=True)
+        
+        user_history = get_user_quiz_history(st.session_state.username)
+        if user_history:
+            df_data = []
+            for row in user_history:
+                row_dict = dict(row)
+                accuracy = (row_dict['score'] / row_dict['questions_answered']) * 100 if row_dict['questions_answered'] > 0 else 0
+                df_data.append({
+                    'Topic': row_dict['topic'],
+                    'Score': f"{row_dict['score']}/{row_dict['questions_answered']}",
+                    'Accuracy': accuracy,
+                    'Timestamp': row_dict['timestamp']
+                })
+
+            df = pd.DataFrame(df_data)
+            df['Timestamp'] = pd.to_datetime(df['Timestamp'])
+            df['Date'] = df['Timestamp'].dt.date
+            
+            st.markdown("<div class='content-card'>", unsafe_allow_html=True)
+            st.subheader("📅 Your Accuracy Over Time")
+            fig = px.line(df, x='Date', y='Accuracy', color='Topic', 
+                          markers=True, template="plotly_white",
+                          color_discrete_sequence=px.colors.qualitative.Plotly,
+                          labels={'Accuracy': 'Accuracy (%)'})
+            fig.update_layout(plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)')
+            st.plotly_chart(fig, use_container_width=True)
+            st.markdown("</div>", unsafe_allow_html=True)
+            
+            st.markdown("<div class='content-card'>", unsafe_allow_html=True)
+            st.subheader("📊 Average Accuracy by Topic")
+            avg_scores = df.groupby('Topic')['Accuracy'].mean().reset_index().sort_values('Accuracy', ascending=False)
+            fig_bar = px.bar(avg_scores, x='Topic', y='Accuracy', color='Topic',
+                             template="plotly_white", text='Accuracy',
+                             color_discrete_sequence=px.colors.qualitative.Pastel)
+            fig_bar.update_traces(texttemplate='%{text:.1f}%', textposition='outside')
+            fig_bar.update_layout(showlegend=False, plot_bgcolor='rgba(0,0,0,0)', 
+                                 paper_bgcolor='rgba(0,0,0,0)', xaxis_title=None)
+            st.plotly_chart(fig_bar, use_container_width=True)
+            st.markdown("</div>", unsafe_allow_html=True)
+        else:
+            st.info("Start taking quizzes to see your progress here!")
+        
         st.markdown("</div>", unsafe_allow_html=True)
 
+    # --- ###################################################### ---
+    # --- ### MERGED: OVERHAULED QUIZ SECTION ### ---
+    # --- ###################################################### ---
+    # --- ###################################################### ---
+    # --- ### DEFINITIVELY CORRECTED QUIZ SECTION ### ---
+    # --- ###################################################### ---
     elif selected_page == "📝 Quiz":
         st.header("🧠 Quiz Time!")
         st.markdown("<div class='content-card'>", unsafe_allow_html=True)
+
+        # --- Quiz Setup Screen ---
         if not st.session_state.quiz_active:
             st.write("Select a topic and challenge yourself with unlimited questions!")
+            
             st.session_state.quiz_topic = st.selectbox("Choose a topic:", topic_options)
+            
             if st.button("Start Quiz", type="primary", use_container_width=True):
+                # Initialize quiz state
                 st.session_state.quiz_active = True
                 st.session_state.quiz_score = 0
                 st.session_state.questions_answered = 0
-                if 'current_q_data' in st.session_state: del st.session_state['current_q_data']
-                if 'user_answer_choice' in st.session_state: del st.session_state['user_answer_choice']
+                # Clear any leftover state from previous quizzes
+                if 'current_q_data' in st.session_state:
+                    del st.session_state['current_q_data']
+                if 'user_answer_choice' in st.session_state:
+                    del st.session_state['user_answer_choice']
                 st.rerun()
+
+        # --- Active Quiz Screen ---
         else:
             st.write(f"**Topic: {st.session_state.quiz_topic}** | **Score: {st.session_state.quiz_score} / {st.session_state.questions_answered}**")
+            
+            # 1. Check for a stored question in the session state. If not present, generate a new one.
             if 'current_q_data' not in st.session_state:
                 st.session_state.current_q_data = generate_question(st.session_state.quiz_topic)
+            
+            # 2. Use the stored question for this entire script run.
             q_data = st.session_state.current_q_data
+            
+            # Check for "coming soon" messages
             if "coming soon" in q_data["question"]:
                 st.info(q_data["question"])
-                st.session_state.quiz_active = False
-                del st.session_state.current_q_data
-                if st.button("Back to Topic Selection"): st.rerun()
+                st.session_state.quiz_active = False # End quiz if topic is not ready
+                del st.session_state.current_q_data # Clean up
+                if st.button("Back to Topic Selection"):
+                    st.rerun()
             else:
                 st.markdown("---")
                 st.markdown(q_data["question"], unsafe_allow_html=True)
-                with st.expander("🤔 Need a hint?"): st.info(q_data["hint"])
+
+                with st.expander("🤔 Need a hint?"):
+                    st.info(q_data["hint"])
+
+                # 3. The form will now work correctly because q_data is stable across the submit-rerun.
                 with st.form(key=f"quiz_form_{st.session_state.questions_answered}"):
-                    st.radio("Select your answer:", options=q_data["options"], index=None, key="user_answer_choice")
-                    if st.form_submit_button("Submit Answer", type="primary"):
+                    st.radio(
+                        "Select your answer:", 
+                        options=q_data["options"], 
+                        index=None,
+                        key="user_answer_choice" 
+                    )
+                    
+                    submitted = st.form_submit_button("Submit Answer", type="primary")
+
+                    if submitted:
                         user_choice = st.session_state.user_answer_choice
+                        
                         if user_choice is not None:
                             st.session_state.questions_answered += 1
                             if str(user_choice) == str(q_data["answer"]):
@@ -1189,104 +1280,172 @@ def show_main_app():
                                 st.success("Correct! Well done! 🎉")
                                 confetti_animation()
                             else:
+                                encouragements = ["Don't give up!", "That was a tricky one. Try again!", "So close! You'll get the next one.", "Every mistake is a step towards learning."]
                                 st.error(f"Not quite. The correct answer was: **{q_data['answer']}**")
+                                st.warning(random.choice(encouragements))
+                            
+                            # 4. CRITICAL: After processing the answer, delete the stored question and the radio choice.
+                            # This will trigger the generation of a new question on the next rerun.
                             del st.session_state.current_q_data
                             del st.session_state.user_answer_choice
-                            time.sleep(1.5)
+                            
+                            time.sleep(1.5) 
                             st.rerun()
                         else:
                             st.warning("Please select an answer before submitting.")
+
             if st.button("Stop Quiz & Save Score"):
                 if st.session_state.questions_answered > 0:
                     save_quiz_result(st.session_state.username, st.session_state.quiz_topic, st.session_state.quiz_score, st.session_state.questions_answered)
                     st.info(f"Quiz stopped. Your final score of {st.session_state.quiz_score}/{st.session_state.questions_answered} has been recorded.")
                 else:
-                    st.info("Quiz stopped. No questions were answered.")
+                    st.info("Quiz stopped. No questions were answered, so no score was recorded.")
+                
+                # 5. Clean up all quiz-related state when stopping.
                 st.session_state.quiz_active = False
-                if 'current_q_data' in st.session_state: del st.session_state.current_q_data
-                if 'user_answer_choice' in st.session_state: del st.session_state.user_answer_choice
+                if 'current_q_data' in st.session_state:
+                    del st.session_state.current_q_data
+                if 'user_answer_choice' in st.session_state:
+                    del st.session_state.user_answer_choice
+                
                 time.sleep(2)
                 st.rerun()
+
         st.markdown("</div>", unsafe_allow_html=True)
 
+    # --- ###################################################### ---
+    # --- ### MERGED: OVERHAULED LEADERBOARD SECTION ### ---
+    # --- ###################################################### ---
     elif selected_page == "🏆 Leaderboard":
         st.header("🏆 Global Leaderboard")
         st.markdown("<div class='content-card'>", unsafe_allow_html=True)
         st.write("See who has the highest accuracy for each topic!")
+        
         leaderboard_topic = st.selectbox("Select a topic to view:", topic_options)
+        
         top_scores = get_top_scores(leaderboard_topic)
+        
         if top_scores:
             leaderboard_data = []
             for rank, (username, score, total) in enumerate(top_scores, 1):
                 accuracy = (score / total) * 100
-                leaderboard_data.append({"Rank": f"#{rank}", "Username": username, "Score": f"{score}/{total}", "Accuracy": accuracy})
+                leaderboard_data.append({
+                    "Rank": f"#{rank}",
+                    "Username": username,
+                    "Score": f"{score}/{total}",
+                    "Accuracy": accuracy
+                })
+            
             df = pd.DataFrame(leaderboard_data)
-            st.dataframe(df.style.apply(lambda row: ['background-color: #e6f7ff; font-weight: bold;'] * len(row) if row.Username == st.session_state.username else [''] * len(row), axis=1).format({'Accuracy': "{:.1f}%"}).hide(axis="index"), use_container_width=True)
+            
+            def highlight_user(row):
+                if row.Username == st.session_state.username:
+                    return ['background-color: #e6f7ff; font-weight: bold;'] * len(row)
+                return [''] * len(row)
+
+            st.dataframe(
+                df.style.apply(highlight_user, axis=1).format({'Accuracy': "{:.1f}%"}).hide(axis="index"),
+                column_config={
+                    "Username": st.column_config.TextColumn("User"),
+                    "Accuracy": st.column_config.ProgressColumn(
+                        "Accuracy",
+                        format="%.1f%%",
+                        min_value=0,
+                        max_value=100,
+                    )
+                },
+                use_container_width=True
+            )
         else:
             st.info(f"No scores have been recorded for **{leaderboard_topic}** yet. Be the first!")
+        
         st.markdown("</div>", unsafe_allow_html=True)
 
     elif selected_page == "💬 Chat":
         st.header("💬 Community Chat")
         st.markdown("""
         <style>
-            .chat-panel {
-                border: 1px solid #e6e6e6; border-radius: 12px; height: 70vh;
-                display: flex; flex-direction: column; background-color: #ffffff;
-                box-shadow: 0 4px 8px rgba(0,0,0,0.05);
-            }
-            .messages-area {
-                flex-grow: 1; overflow-y: auto; padding: 15px; display: flex;
-                flex-direction: column; gap: 12px;
-            }
-            .msg-row { display: flex; align-items: flex-end; gap: 10px; margin-bottom: 8px; }
-            .msg-own { justify-content: flex-end; }
-            .msg-other { justify-content: flex-start; }
-            .avatar-small { width: 35px; height: 35px; border-radius: 50%; object-fit: cover; }
-            .msg-bubble-container { display: flex; flex-direction: column; max-width: 75%; }
-            .msg-own .msg-bubble-container { align-items: flex-end; }
-            .msg-other .msg-bubble-container { align-items: flex-start; }
-            .msg-bubble { padding: 10px 14px; border-radius: 18px; font-size: 0.95rem; line-height: 1.4; word-wrap: break-word; }
-            .msg-other .msg-bubble { background-color: #e5e5ea; color: #000; border-bottom-left-radius: 4px; }
-            .msg-own .msg-bubble { background-color: #007aff; color: white; border-bottom-right-radius: 4px; }
-            .msg-meta { font-size: 0.75rem; color: #6c757d; margin-top: 3px; }
-            .chat-image { max-width: 100%; border-radius: 8px; margin-top: 5px; cursor: pointer; }
+        .chat-container { flex: 1; height: 70vh; max-height: 70vh; overflow-y: auto; padding: 10px; display: flex; flex-direction: column; gap: 6px; scroll-behavior: smooth; }
+        .msg-row { display: flex; align-items: flex-end; }
+        .msg-own { justify-content: flex-end; }
+        .msg-bubble { max-width: min(80%, 500px); padding: 8px 12px; border-radius: 18px; font-size: 0.95rem; line-height: 1.3; word-wrap: break-word; }
+        .msg-own .msg-bubble { background-color: #dcf8c6; border-bottom-right-radius: 4px; color: #222; }
+        .msg-other .msg-bubble { background-color: #fff; border-bottom-left-radius: 4px; color: #222; }
+        .avatar-small { width: 30px; height: 30px; border-radius: 50%; object-fit: cover; margin: 0 6px; }
+        .msg-meta { font-size: 0.75rem; color: #888; margin-bottom: 3px; }
+        .date-separator { text-align: center; font-size: 0.75rem; color: #999; margin: 10px 0; }
+        .chat-image { max-height: 150px; border-radius: 8px; cursor: pointer; }
+        .chat-input-area { position: sticky; bottom: 0; background: #f7f7f7; padding: 8px; border-top: 1px solid #ddd; }
+        /* Modal */
+        .chat-image-modal { display: none; position: fixed; z-index: 9999; left: 0; top: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); }
+        .modal-image-content { display: flex; justify-content: center; align-items: center; height: 100%; }
+        .modal-image { max-width: 90%; max-height: 90%; }
+        .close-modal { position: absolute; top: 20px; right: 30px; color: white; font-size: 35px; cursor: pointer; }
         </style>
         """, unsafe_allow_html=True)
-        
-        messages_html_parts = []
-        all_messages = get_chat_messages()
+        st.markdown("""
+        <div id="imageModal" class="chat-image-modal">
+            <span class="close-modal">&times;</span>
+            <div class="modal-image-content"><img id="modalImage" class="modal-image"></div>
+        </div>
+        <script>
+        const modal = document.getElementById("imageModal");
+        const modalImg = document.getElementById("modalImage");
+        const closeBtn = document.querySelector(".close-modal");
+        function openImageModal(src) { modal.style.display = "flex"; modalImg.src = src; document.body.style.overflow = "hidden"; }
+        closeBtn.onclick = () => { modal.style.display = "none"; document.body.style.overflow = "auto"; }
+        modal.onclick = (e) => { if(e.target === modal){ modal.style.display = "none"; document.body.style.overflow = "auto"; } }
+        document.addEventListener('keydown', e => { if(e.key==="Escape"){ modal.style.display = "none"; document.body.style.overflow = "auto"; } });
+        </script>
+        """, unsafe_allow_html=True)
+
+        st_autorefresh(interval=3000, key="chat_refresh")
+
+        online_users = get_online_users()
+        typing_users = get_typing_users()
         all_usernames = get_all_usernames()
+        all_messages = get_chat_messages()
 
+        if online_users:
+            st.markdown(f"**Online:** {', '.join([f'🟢 {u}' for u in online_users])}")
+        current_typing_users = [u for u in typing_users if u != st.session_state.username]
+        if current_typing_users:
+            st.markdown(f"*{current_typing_users[0]} is typing...*")
+
+        st.markdown('<div id="chat-container" class="chat-container">', unsafe_allow_html=True)
+        last_date, last_user = None, None
         for msg in all_messages:
-            _, username, message_text, media, timestamp = msg
+            _, username, message, media, timestamp = msg
+            date_str = datetime.strptime(timestamp, "%Y-%m-%d %H:%M:%S").strftime("%b %d, %Y")
             time_str = datetime.strptime(timestamp, "%Y-%m-%d %H:%M:%S").strftime("%H:%M")
-            content_html = ""
-            if message_text:
-                formatted_text = format_message(message_text, all_usernames, st.session_state.username)
-                content_html += f"<div>{formatted_text}</div>"
+            if date_str != last_date:
+                st.markdown(f'<div class="date-separator">{date_str}</div>', unsafe_allow_html=True)
+                last_date = date_str
+            own = username == st.session_state.username
+            row_class = "msg-row msg-own" if own else "msg-row msg-other"
+            avatar_html = ""
+            if not own and last_user != username:
+                avatar_html = f"<img src='{get_avatar_url(username)}' class='avatar-small'/>"
+            parts = []
+            if message:
+                parts.append(f"<div>{format_message(message, all_usernames, st.session_state.username)}</div>")
             if media:
-                content_html += f"<div><img src='data:image/png;base64,{media}' class='chat-image'/></div>"
-            if username == st.session_state.username:
-                row_html = f"""<div class="msg-row msg-own"><div class="msg-bubble-container"><div class="msg-bubble">{content_html}</div><div class="msg-meta">{time_str}</div></div></div>"""
-            else:
-                avatar_url = get_avatar_url(username)
-                row_html = f"""<div class="msg-row msg-other"><img src="{avatar_url}" class="avatar-small"/><div class="msg-bubble-container"><div class="msg-meta">{username} &bull; {time_str}</div><div class="msg-bubble">{content_html}</div></div></div>"""
-            messages_html_parts.append(row_html)
-        
-        all_messages_html = "".join(messages_html_parts)
-        chat_panel_html = f"""<div class="chat-panel"><div class="messages-area" id="messages-area">{all_messages_html}</div></div>"""
-        st.markdown(chat_panel_html, unsafe_allow_html=True)
-        
-        with st.form("chat_form", clear_on_submit=True):
-            col1, col2, col3 = st.columns([0.8, 0.1, 0.1])
-            with col1:
-                user_message = st.text_input("Message", key="chat_input", placeholder="Type a message...", label_visibility="collapsed")
-            with col2:
-                uploaded_file = st.file_uploader("📎", type=["png", "jpg", "jpeg"], label_visibility="collapsed")
-            with col3:
-                submitted = st.form_submit_button("➤", type="primary")
+                parts.append(f"<img src='data:image/png;base64,{media}' class='chat-image' onclick='openImageModal(this.src)'/>")
+            bubble_html = f"<div><div class='msg-meta'>{username} • {time_str}</div><div class='msg-bubble'>{''.join(parts)}</div></div>"
+            st.markdown(f"<div class='{row_class}'>{avatar_html}{bubble_html}</div>", unsafe_allow_html=True)
+            last_user = username
+        st.markdown('</div>', unsafe_allow_html=True)
 
+        st.markdown("""<script>var chatBox = document.getElementById('chat-container'); if(chatBox){ chatBox.scrollTop = chatBox.scrollHeight; }</script>""", unsafe_allow_html=True)
+
+        st.markdown('<div class="chat-input-area">', unsafe_allow_html=True)
+        with st.form("chat_form", clear_on_submit=True):
+            user_message = st.text_area("", key="chat_input", height=40, placeholder="Type a message", label_visibility="collapsed")
+            col1, col2 = st.columns([0.8, 0.2])
+            with col1:
+                uploaded_file = st.file_uploader("📷", type=["png","jpg","jpeg"], label_visibility="collapsed")
+            with col2:
+                submitted = st.form_submit_button("Send", type="primary", use_container_width=True)
             if submitted:
                 if user_message.strip() or uploaded_file:
                     media_data = base64.b64encode(uploaded_file.getvalue()).decode('utf-8') if uploaded_file else None
@@ -1294,10 +1453,8 @@ def show_main_app():
                     if user_message.startswith("@MathBot"):
                         bot_response = get_mathbot_response(user_message)
                         if bot_response: add_chat_message("MathBot", bot_response)
-                    st.rerun()
-                    
-        st.markdown("""<script>const messagesArea = document.getElementById("messages-area"); if (messagesArea) { messagesArea.scrollTop = messages-area.scrollHeight; }</script>""", unsafe_allow_html=True)
-        st_autorefresh(interval=3000, key="chat_refresh")
+                st.rerun()
+        st.markdown('</div>', unsafe_allow_html=True)
 
     elif selected_page == "👤 Profile":
         show_profile_page()
@@ -1305,11 +1462,9 @@ def show_main_app():
     elif selected_page == "📚 Learning Resources":
         st.header("📚 Learning Resources")
         st.markdown("<div class='content-card'>", unsafe_allow_html=True)
+        st.write("Mini-tutorials and helpful examples to help you study.")
+        
         resource_topic = st.selectbox("Select a topic to learn about:", topic_options)
-        st.info(f"Learning resources for **{resource_topic}** are under development.")
-        st.markdown("</div>", unsafe_allow_html=True)
-
-    st.markdown("</div>", unsafe_allow_html=True)
 
         if resource_topic == "Sets":
             st.subheader("🧮 Sets and Operations on Sets")
@@ -1389,10 +1544,6 @@ else:
         show_main_app()
     else:
         show_login_page()
-
-
-
-
 
 
 
