@@ -723,7 +723,7 @@ def show_login_page():
 
             if st.button("Already have an account? Log In", key="login_button"):
                 clear_login_cookie()
-        st.session_state.page = "login"
+                st.session_state.page = "login"
                 st.rerun()
 
         st.markdown("</div>", unsafe_allow_html=True)
@@ -1688,4 +1688,5 @@ else:
         show_main_app()
     else: # This handles both 'login' and 'signup' pages
         show_login_page()
+
 
