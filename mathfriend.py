@@ -391,7 +391,6 @@ def _format_fraction_text(f: Fraction):
     if f.denominator == 1:
         return str(f.numerator)
     return f"{f.numerator}/{f.denominator}"
-
 def _generate_fractions_question():
     q_type = random.choice(['add_sub', 'mul_div', 'simplify'])
     f1 = Fraction(random.randint(1, 10), random.randint(2, 10))
@@ -400,13 +399,14 @@ def _generate_fractions_question():
     # Use LaTeX for the question text itself, which is rendered by st.markdown()
     if q_type == 'add_sub':
         op_symbol = random.choice(['+', '-'])
-        question_text = f"Calculate: ${_format_fraction_latex(f1)} {op_symbol} {_format_fraction_latex(f2)}$"
+        question_text = f"Calculate: {_format_fraction_latex(f1)} {op_symbol} {_format_fraction_latex(f2)}$"
         correct_answer_obj = f1 + f2 if op_symbol == '+' else f1 - f2
         hint = "To add or subtract fractions, you must first find a common denominator."
     elif q_type == 'mul_div':
-        op_symbol = random.choice(['\times', '\div'])
+        # --- THIS IS THE CORRECTED LINE ---
+        op_symbol = random.choice(['\\times', '\\div'])
         question_text = f"Calculate: ${_format_fraction_latex(f1)} {op_symbol} {_format_fraction_latex(f2)}$"
-        if op_symbol == '\div':
+        if op_symbol == '\\div':
             if f2.numerator == 0: f2 = Fraction(1, f2.denominator)
             correct_answer_obj = f1 / f2
             hint = "To divide by a fraction, invert the second fraction and multiply."
@@ -1540,6 +1540,7 @@ else:
         show_main_app()
     else:
         show_login_page()
+
 
 
 
