@@ -382,7 +382,8 @@ def _generate_percentages_question():
 def _format_fraction_latex(f: Fraction):
     """Helper to format Fraction objects into LaTeX."""
     if f.denominator == 1:
-        return str(f.numerator)
+        # --- THIS IS THE CORRECTED LINE ---
+        return f"${f.numerator}$" 
     return f"$\\frac{{{f.numerator}}}{{{f.denominator}}}$"
 
 def _format_fraction_text(f: Fraction):
@@ -1539,6 +1540,7 @@ else:
         show_main_app()
     else:
         show_login_page()
+
 
 
 
