@@ -23,19 +23,24 @@ st.set_page_config(
 )
 
 # --- Session State Initialization ---
-# Centralize all session state variables here
+# Centralize all session state variables here.
+
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
+
 if "page" not in st.session_state:
     st.session_state.page = "login"
+    
 if "username" not in st.session_state:
     st.session_state.username = ""
+
 if "show_splash" not in st.session_state:
     st.session_state.show_splash = True
+
 if "dark_mode" not in st.session_state:
     st.session_state.dark_mode = False
 
-# --- NEW: Quiz-related session state for the dynamic MCQ system ---
+# MERGED: New quiz-related session state for the dynamic MCQ system
 if 'quiz_active' not in st.session_state:
     st.session_state.quiz_active = False
 if 'quiz_topic' not in st.session_state:
@@ -59,10 +64,11 @@ def create_tables_if_not_exist():
         conn = sqlite3.connect(DB_FILE)
         c = conn.cursor()
         
+        # Create users table
         c.execute('''CREATE TABLE IF NOT EXISTS users
                      (username TEXT PRIMARY KEY, password TEXT)''')
                      
-        # UPDATED: Added questions_answered column
+        # UPDATED: Added questions_answered column to quiz_results
         c.execute('''CREATE TABLE IF NOT EXISTS quiz_results
                      (id INTEGER PRIMARY KEY AUTOINCREMENT,
                       username TEXT,
@@ -71,6 +77,7 @@ def create_tables_if_not_exist():
                       questions_answered INTEGER,
                       timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
                       
+        # Create chat_messages table
         c.execute('''CREATE TABLE IF NOT EXISTS chat_messages
                      (id INTEGER PRIMARY KEY AUTOINCREMENT,
                       username TEXT,
@@ -78,6 +85,7 @@ def create_tables_if_not_exist():
                       media TEXT,
                       timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
 
+        # Create user profiles table
         c.execute('''CREATE TABLE IF NOT EXISTS user_profiles
                      (username TEXT PRIMARY KEY,
                       full_name TEXT,
@@ -85,22 +93,24 @@ def create_tables_if_not_exist():
                       age INTEGER,
                       bio TEXT)''')
         
+        # Create online status table
         c.execute('''CREATE TABLE IF NOT EXISTS user_status
                      (username TEXT PRIMARY KEY, 
                       is_online BOOLEAN,
                       last_seen TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
         
+        # Create typing indicators table
         c.execute('''CREATE TABLE IF NOT EXISTS typing_indicators
                      (username TEXT PRIMARY KEY,
                       is_typing BOOLEAN,
                       timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
 
-        # Check for and add 'media' column in chat_messages if missing
+        # Check for the 'media' column and add it if it's missing
         c.execute("PRAGMA table_info(chat_messages)")
         chat_columns = [column[1] for column in c.fetchall()]
         if 'media' not in chat_columns:
             c.execute("ALTER TABLE chat_messages ADD COLUMN media TEXT")
-
+        
         # UPDATED: Check for and add 'questions_answered' column in quiz_results if missing
         c.execute("PRAGMA table_info(quiz_results)")
         quiz_columns = [column[1] for column in c.fetchall()]
@@ -118,38 +128,58 @@ def create_tables_if_not_exist():
 create_tables_if_not_exist()
 
 
-# --- User Authentication & Profile Functions (UNCHANGED) ---
+# --- User Authentication Functions --- 
 def hash_password(password):
+    """Hashes a password using bcrypt."""
     return bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
 
 def check_password(hashed_password, user_password):
+    """Checks a password against its hash."""
     return bcrypt.checkpw(user_password.encode('utf-8'), hashed_password.encode('utf-8'))
 
 def login_user(username, password):
+    """Authenticates a user."""
+    conn = None
     try:
         conn = sqlite3.connect(DB_FILE)
         c = conn.cursor()
         c.execute("SELECT password FROM users WHERE username=?", (username,))
         result = c.fetchone()
         if result:
-            return check_password(result[0], password)
+            hashed_password = result[0]
+            return check_password(hashed_password, password)
+        return False
+    except sqlite3.Error as e:
+        st.error(f"Login database error: {e}")
         return False
     finally:
-        if conn: conn.close()
+        if conn:
+            conn.close()
 
 def signup_user(username, password):
+    """Creates a new user account."""
+    conn = None
     try:
         conn = sqlite3.connect(DB_FILE)
         c = conn.cursor()
-        c.execute("INSERT INTO users (username, password) VALUES (?, ?)", (username, hash_password(password)))
+        hashed_password = hash_password(password)
+        c.execute("INSERT INTO users (username, password) VALUES (?, ?)", (username, hashed_password))
         conn.commit()
         return True
     except sqlite3.IntegrityError:
+        return False # Username already exists
+    except sqlite3.Error as e:
+        st.error(f"Signup database error: {e}")
         return False
     finally:
-        if conn: conn.close()
+        if conn:
+            conn.close()
 
+
+# --- Profile Management Functions ---
 def get_user_profile(username):
+    """Gets a user's profile info"""
+    conn = None
     try:
         conn = sqlite3.connect(DB_FILE)
         conn.row_factory = sqlite3.Row
@@ -157,51 +187,123 @@ def get_user_profile(username):
         c.execute("SELECT * FROM user_profiles WHERE username=?", (username,))
         profile = c.fetchone()
         return dict(profile) if profile else None
+    except sqlite3.Error as e:
+        st.error(f"Get profile error: {e}")
+        return None
     finally:
-        if conn: conn.close()
+        if conn:
+            conn.close()
 
 def update_user_profile(username, full_name, school, age, bio):
+    """Updates a user's profile"""
+    conn = None
     try:
         conn = sqlite3.connect(DB_FILE)
         c = conn.cursor()
-        c.execute('''INSERT OR REPLACE INTO user_profiles (username, full_name, school, age, bio) VALUES (?, ?, ?, ?, ?)''', (username, full_name, school, age, bio))
+        c.execute('''INSERT OR REPLACE INTO user_profiles 
+                     (username, full_name, school, age, bio) 
+                     VALUES (?, ?, ?, ?, ?)''', 
+                     (username, full_name, school, age, bio))
         conn.commit()
         return True
+    except sqlite3.Error as e:
+        st.error(f"Profile update error: {e}")
+        return False
     finally:
-        if conn: conn.close()
+        if conn:
+            conn.close()
 
 def change_password(username, current_password, new_password):
+    """Changes a user's password"""
     if not login_user(username, current_password):
         return False
+    conn = None
     try:
         conn = sqlite3.connect(DB_FILE)
         c = conn.cursor()
-        c.execute("UPDATE users SET password=? WHERE username=?", (hash_password(new_password), username))
+        hashed_password = hash_password(new_password)
+        c.execute("UPDATE users SET password=? WHERE username=?", 
+                 (hashed_password, username))
         conn.commit()
         return True
+    except sqlite3.Error as e:
+        st.error(f"Password change error: {e}")
+        return False
     finally:
-        if conn: conn.close()
+        if conn:
+            conn.close()
 
-# --- Online Status Functions (UNCHANGED) ---
+
+# --- Online Status Functions ---
 def update_user_status(username, is_online):
+    """Updates a user's online status"""
+    conn = None
     try:
         conn = sqlite3.connect(DB_FILE)
         c = conn.cursor()
-        c.execute("INSERT OR REPLACE INTO user_status (username, is_online) VALUES (?, ?)", (username, is_online))
+        c.execute('''INSERT OR REPLACE INTO user_status (username, is_online) 
+                     VALUES (?, ?)''', (username, is_online))
         conn.commit()
+    except sqlite3.Error as e:
+        st.error(f"Status update error: {e}")
     finally:
-        if conn: conn.close()
+        if conn:
+            conn.close()
 
 def get_online_users():
+    """Returns list of users currently online"""
+    conn = None
     try:
         conn = sqlite3.connect(DB_FILE)
         c = conn.cursor()
-        c.execute("SELECT username FROM user_status WHERE is_online = 1 AND last_seen > datetime('now', '-2 minutes')")
+        # Consider users online if they've been active in the last 2 minutes
+        c.execute("""SELECT username FROM user_status 
+                     WHERE is_online = 1 AND 
+                     last_seen > datetime('now', '-2 minutes')""")
         return [row[0] for row in c.fetchall()]
+    except sqlite3.Error as e:
+        st.error(f"Get online users error: {e}")
+        return []
     finally:
-        if conn: conn.close()
-        
-# --- NEW: Question Generation Logic ---
+        if conn:
+            conn.close()
+
+def update_typing_status(username, is_typing):
+    """Updates a user's typing indicator status"""
+    conn = None
+    try:
+        conn = sqlite3.connect(DB_FILE)
+        c = conn.cursor()
+        c.execute('''INSERT OR REPLACE INTO typing_indicators 
+                     (username, is_typing) VALUES (?, ?)''', 
+                     (username, is_typing))
+        conn.commit()
+    except sqlite3.Error as e:
+        st.error(f"Typing status update error: {e}")
+    finally:
+        if conn:
+            conn.close()
+
+def get_typing_users():
+    """Returns list of users currently typing"""
+    conn = None
+    try:
+        conn = sqlite3.connect(DB_FILE)
+        c = conn.cursor()
+        # Consider typing indicators active for 5 seconds
+        c.execute("""SELECT username FROM typing_indicators 
+                     WHERE is_typing = 1 AND 
+                     timestamp > datetime('now', '-5 seconds')""")
+        return [row[0] for row in c.fetchall()]
+    except sqlite3.Error as e:
+        st.error(f"Get typing users error: {e}")
+        return []
+    finally:
+        if conn:
+            conn.close()
+
+
+# --- MERGED: New Question Generation Logic ---
 
 def _generate_sets_question():
     set_a = set(random.sample(range(1, 15), k=random.randint(3, 5)))
@@ -268,7 +370,9 @@ def _generate_percentages_question():
         wrong_answer_val = float(re.sub(r'[^\d.]', '', correct_answer)) * noise
         prefix = "$" if correct_answer.startswith("$") else ""
         suffix = "%" if correct_answer.endswith("%") else ""
-        options.append(f"{prefix}{wrong_answer_val:.2f}{suffix}")
+        new_option = f"{prefix}{wrong_answer_val:.2f}{suffix}"
+        if new_option not in options:
+            options.append(new_option)
     
     random.shuffle(options)
     
@@ -292,10 +396,12 @@ def generate_question(topic):
             "hint": "Please select another topic from the list to start a quiz."
         }
 
-# --- UPDATED: Quiz and Result Functions ---
+
+# --- MERGED: UPDATED Quiz and Result Functions ---
 
 def save_quiz_result(username, topic, score, questions_answered):
     """Saves a user's quiz result, including total questions answered."""
+    conn = None
     try:
         conn = sqlite3.connect(DB_FILE)
         c = conn.cursor()
@@ -309,6 +415,7 @@ def save_quiz_result(username, topic, score, questions_answered):
 
 def get_top_scores(topic):
     """Fetches the top 10 scores for a given topic, ranked by accuracy."""
+    conn = None
     try:
         conn = sqlite3.connect(DB_FILE)
         c = conn.cursor()
@@ -330,17 +437,22 @@ def get_top_scores(topic):
 
 def get_user_quiz_history(username):
     """Fetches a user's quiz history, now including questions answered."""
+    conn = None
     try:
         conn = sqlite3.connect(DB_FILE)
         conn.row_factory = sqlite3.Row
         c = conn.cursor()
         c.execute("SELECT topic, score, questions_answered, timestamp FROM quiz_results WHERE username=? ORDER BY timestamp DESC", (username,))
         return c.fetchall()
+    except sqlite3.Error as e:
+        st.error(f"Get quiz history database error: {e}")
+        return []
     finally:
         if conn: conn.close()
 
 def get_user_stats(username):
     """Fetches key statistics for a user's dashboard."""
+    conn = None
     try:
         conn = sqlite3.connect(DB_FILE)
         c = conn.cursor()
@@ -350,100 +462,280 @@ def get_user_stats(username):
         # Get last score as a fraction
         c.execute("SELECT score, questions_answered FROM quiz_results WHERE username=? ORDER BY timestamp DESC LIMIT 1", (username,))
         last_result = c.fetchone()
-        last_score_str = f"{last_result[0]}/{last_result[1]}" if last_result else "N/A"
+        last_score_str = f"{last_result[0]}/{last_result[1]}" if last_result and last_result[1] > 0 else "N/A"
         
         # Get top score based on accuracy
         c.execute("SELECT score, questions_answered FROM quiz_results WHERE username=? AND questions_answered > 0 ORDER BY (CAST(score AS REAL) / questions_answered) DESC, score DESC LIMIT 1", (username,))
         top_result = c.fetchone()
-        top_score_str = f"{top_result[0]}/{top_result[1]}" if top_result else "N/A"
+        top_score_str = f"{top_result[0]}/{top_result[1]}" if top_result and top_result[1] > 0 else "N/A"
 
         return total_quizzes, last_score_str, top_score_str
+    except sqlite3.Error as e:
+        st.error(f"Get user stats database error: {e}")
+        return 0, "N/A", "N/A"
     finally:
         if conn: conn.close()
 
-# --- Chat Functions & UI Components (UNCHANGED) ---
+# --- Chat Functions ---
 def add_chat_message(username, message, media=None):
+    """Adds a new chat message with optional media to the database."""
+    conn = None
     try:
         conn = sqlite3.connect(DB_FILE)
         c = conn.cursor()
         c.execute("INSERT INTO chat_messages (username, message, media) VALUES (?, ?, ?)", (username, message, media))
         conn.commit()
+    except sqlite3.Error as e:
+        st.error(f"Add chat message database error: {e}")
     finally:
-        if conn: conn.close()
-        
+        if conn:
+            conn.close()
+
 def get_chat_messages():
+    """Fetches all chat messages from the database."""
+    conn = None
     try:
         conn = sqlite3.connect(DB_FILE)
         conn.row_factory = sqlite3.Row
         c = conn.cursor()
         c.execute("SELECT id, username, message, media, timestamp FROM chat_messages ORDER BY timestamp ASC")
-        return c.fetchall()
+        results = c.fetchall()
+        return results
+    except sqlite3.Error as e:
+        st.error(f"Get chat messages database error: {e}")
+        return []
     finally:
-        if conn: conn.close()
+        if conn:
+            conn.close()
 
 def get_all_usernames():
+    """Fetches all registered usernames."""
+    conn = None
     try:
         conn = sqlite3.connect(DB_FILE)
         c = conn.cursor()
         c.execute("SELECT username FROM users")
-        return [row[0] for row in c.fetchall()]
+        results = [row[0] for row in c.fetchall()]
+        return results
+    except sqlite3.Error as e:
+        st.error(f"Get all usernames database error: {e}")
+        return []
     finally:
-        if conn: conn.close()
+        if conn:
+            conn.close()
+
+def report_message(message_id, reporter_username):
+    """Logs a message report (to console for this example)."""
+    st.warning(f"Message ID {message_id} reported by {reporter_username}.")
+    pass
 
 def format_message(message, mentioned_usernames, current_user):
-    if not message: return ""
-    emoji_map = {":smile:": "😊", ":laughing:": "😂", ":thumbsup:": "👍", ":heart:": "❤️"}
+    """Replaces common emoji shortcuts with actual emojis and formats message."""
+    if not message:
+        return ""
+    emoji_map = {
+        ":smile:": "😊", ":laughing:": "😂", ":thumbsup:": "👍", ":thumbsdown:": "👎",
+        ":heart:": "❤️", ":star:": "⭐", ":100:": "💯", ":fire:": "🔥",
+        ":thinking:": "🤔", ":nerd:": "🤓"
+    }
     for shortcut, emoji in emoji_map.items():
         message = message.replace(shortcut, emoji)
+
     for user in mentioned_usernames:
         if user == current_user:
             message = re.sub(r'(?i)(@' + re.escape(user) + r')', r'<span class="mention-highlight">\1</span>', message)
+    
     return message
 
+
+# --- MathBot Integration ---
 def get_mathbot_response(message):
-    if not message.startswith("@MathBot"): return None
-    query = message.replace("@MathBot", "").strip().lower()
-    definitions = { "sets": "A set is a collection of distinct objects." }
-    if query.startswith("define"):
-        term = query.split("define", 1)[1].strip()
-        return f"**Definition:** {definitions.get(term, "I don't have a definition for that yet.")}"
-    # Simplified for brevity
-    return "I can help with definitions. Try '@MathBot define sets'."
+    """
+    Solves a basic math expression or provides a definition from a chat message.
+    """
+    if not message.startswith("@MathBot"):
+        return None
+
+    query = message.replace("@MathBot", "").strip()
+    query_lower = query.lower()
+
+    definitions = {
+        "sets": "A set is a collection of distinct objects, considered as an object in its own right.",
+        "surds": "A surd is an irrational number that can be expressed with a root symbol, like $\sqrt{2}$.",
+        "binary operation": "A binary operation is a calculation that combines two elements to produce a new one.",
+        "relations and functions": "A relation is a set of ordered pairs, while a function is a special type of relation where each input has exactly one output.",
+        "polynomial functions": "A polynomial is an expression consisting of variables and coefficients, involving only the operations of addition, subtraction, multiplication, and non-negative integer exponents.",
+        "rational functions": "A rational function is any function that can be expressed as a ratio of two polynomials, such as $f(x) = \frac{P(x)}{Q(x)}$.",
+        "binomial theorem": "The binomial theorem describes the algebraic expansion of powers of a binomial $(x+y)^n$.",
+        "coordinate geometry": "Coordinate geometry is the study of geometry using a coordinate system, like plotting points on a graph.",
+        "probability": "Probability is a measure of the likelihood that an event will occur.",
+        "vectors": "A vector is a quantity having magnitude and direction, often represented by a directed line segment.",
+        "sequence and series": "A sequence is an ordered list of numbers, and a series is the sum of the terms in a sequence."
+    }
+    if query_lower.startswith("define"):
+        term = query_lower.split("define", 1)[1].strip()
+        if term in definitions:
+            return f"**Definition:** {definitions[term]}"
+        else:
+            return f"Sorry, I don't have a definition for '{term}' yet."
+
+    if query_lower.startswith("plot"):
+        return "Sorry, plotting functionality is still in development, but it's a great idea!"
+
+    if query_lower.startswith("solve"):
+        return "Sorry, solving algebraic equations is a feature we're working on, but it's not ready yet."
+    
+    expression = query.replace('x', '*')
+    expression = expression.replace('^', '**')
+    
+    if "root" in expression.lower():
+        match = re.search(r'root\s*(\d+)', expression.lower())
+        if match:
+            number = float(match.group(1))
+            try:
+                result = math.sqrt(number)
+                return f"The square root of {int(number)} is {result}."
+            except ValueError:
+                return "I can't calculate the square root of a negative number."
+        return "Sorry, I can only calculate the square root of a single number (e.g., 'root 16')."
+    
+    if not re.fullmatch(r'[\d\s\.\+\-\*\/\(\)]+', expression):
+        return "I can only solve simple arithmetic expressions."
+
+    try:
+        result = eval(expression)
+        return f"The result is {result}."
+    except Exception as e:
+        return f"Sorry, I couldn't solve that expression. Error: {e}"
 
 def get_avatar_url(username):
+    """Generates a unique, consistent avatar based on the username."""
     hash_object = hashlib.md5(username.encode())
     hash_hex = hash_object.hexdigest()
+    
     first_letter = username[0].upper()
     color_code = hash_hex[0:6]
+    
     return f"https://placehold.co/40x40/{color_code}/ffffff?text={first_letter}"
 
+
+# --- Modern UI Components ---
 def confetti_animation():
-    html("""<script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.5.1/dist/confetti.browser.min.js"></script><script>confetti({particleCount: 150, spread: 70, origin: { y: 0.6 }});</script>""")
+    """Displays a confetti animation for achievements"""
+    html("""
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.5.1/dist/confetti.browser.min.js"></script>
+    <script>
+    function fireConfetti() {
+        confetti({
+            particleCount: 150,
+            spread: 70,
+            origin: { y: 0.6 }
+        });
+    }
+    setTimeout(fireConfetti, 100);
+    </script>
+    """)
 
 def metric_card(title, value, icon, color):
-    return f"""<div style="background: white; border-radius: 12px; padding: 15px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); border-left: 4px solid {color}; margin-bottom: 15px;"><div style="display: flex; align-items: center; margin-bottom: 8px;"><div style="font-size: 24px; margin-right: 10px;">{icon}</div><div style="font-size: 14px; color: #666;">{title}</div></div><div style="font-size: 28px; font-weight: bold; color: {color};">{value}</div></div>"""
+    """Creates a modern metric card"""
+    return f"""
+    <div style="background: white; border-radius: 12px; padding: 15px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); 
+                border-left: 4px solid {color}; margin-bottom: 15px;">
+        <div style="display: flex; align-items: center; margin-bottom: 8px;">
+            <div style="font-size: 24px; margin-right: 10px;">{icon}</div>
+            <div style="font-size: 14px; color: #666;">{title}</div>
+        </div>
+        <div style="font-size: 28px; font-weight: bold; color: {color};">{value}</div>
+    </div>
+    """
 
 
-# --- Page Rendering Logic (show_login_page and show_profile_page are UNCHANGED) ---
+# --- Page Rendering Logic ---
 def show_login_page():
     col1, col2, col3 = st.columns([1, 3, 1])
     with col2:
         st.markdown("""
         <style>
-            .login-container { background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%); border-radius: 16px; padding: 40px; box-shadow: 0 8px 32px rgba(31, 38, 135, 0.15); text-align: center; }
-            .login-title { background: linear-gradient(90deg, #667eea 0%, #764ba2 100%); -webkit-background-clip: text; background-clip: text; color: transparent; font-size: 2.2rem; font-weight: 800; margin-bottom: 10px; }
-            .login-subtitle { color: #475569; margin-bottom: 30px; font-size: 1rem; }
+            .login-container {
+                background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+                border-radius: 16px;
+                padding: 40px;
+                box-shadow: 0 8px 32px rgba(31, 38, 135, 0.15);
+                backdrop-filter: blur(4px);
+                -webkit-backdrop-filter: blur(4px);
+                border: 1px solid rgba(255, 255, 255, 0.18);
+                text-align: center;
+            }
+            .login-title {
+                background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+                -webkit-background-clip: text;
+                background-clip: text;
+                color: transparent;
+                font-size: 2.2rem;
+                font-weight: 800;
+                margin-bottom: 10px;
+            }
+            .login-subtitle {
+                color: #475569;
+                margin-bottom: 30px;
+                font-size: 1rem;
+            }
+            .stTextInput>div>div>input {
+                border-radius: 8px !important;
+                padding: 10px 15px !important;
+            }
+            .login-btn {
+                background: linear-gradient(90deg, #667eea 0%, #764ba2 100%) !important;
+                border: none !important;
+                color: white !important;
+                font-weight: 600 !important;
+                padding: 12px 24px !important;
+                border-radius: 8px !important;
+                transition: all 0.3s ease !important;
+            }
+            .login-btn:hover {
+                transform: translateY(-2px);
+                box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4) !important;
+            }
+            .toggle-btn {
+                background: transparent !important;
+                border: none !important;
+                color: #667eea !important;
+                font-weight: 500 !important;
+            }
+            .toggle-btn:hover {
+                text-decoration: underline !important;
+            }
+            .forgot-password {
+                text-align: right;
+                margin-top: -10px;
+                margin-bottom: 15px;
+            }
+            .forgot-password a {
+                color: #666;
+                font-size: 0.85rem;
+                text-decoration: none;
+            }
+            .forgot-password a:hover {
+                text-decoration: underline;
+            }
         </style>
         <div class="login-container">
             <div class="login-title">🔐 MathFriend</div>
             <div class="login-subtitle">Your personal math learning companion</div>
         """, unsafe_allow_html=True)
 
+        # Login form
         if st.session_state.page == "login":
             with st.form("login_form"):
                 username = st.text_input("Username", key="login_username")
                 password = st.text_input("Password", type="password", key="login_password")
-                if st.form_submit_button("Login", type="primary"):
+                
+                st.markdown('<div class="forgot-password"><a href="#" onclick="window.alert(\'Password reset feature coming soon! For now, please create a new account.\')">Forgot password?</a></div>', unsafe_allow_html=True)
+                
+                submitted = st.form_submit_button("Login", type="primary")
+                
+                if submitted:
                     if login_user(username, password):
                         st.session_state.logged_in = True
                         st.session_state.username = username
@@ -451,82 +743,323 @@ def show_login_page():
                         st.success(f"Welcome back, {username}!")
                         time.sleep(1)
                         st.rerun()
-                    else: st.error("Invalid username or password.")
-            if st.button("Don't have an account? Sign Up"): st.session_state.page = "signup"; st.rerun()
-        else: # Signup
+                    else:
+                        st.error("Invalid username or password.")
+            
+            if st.button("Don't have an account? Sign Up", key="signup_button"):
+                st.session_state.page = "signup"
+                st.rerun()
+        
+        # Signup form
+        else:
             with st.form("signup_form"):
-                new_username = st.text_input("New Username")
-                new_password = st.text_input("New Password", type="password")
-                confirm_password = st.text_input("Confirm Password", type="password")
-                if st.form_submit_button("Create Account", type="primary"):
-                    if not new_username or not new_password: st.error("All fields are required.")
-                    elif new_password != confirm_password: st.error("Passwords do not match.")
+                new_username = st.text_input("New Username", key="signup_username")
+                new_password = st.text_input("New Password", type="password", key="signup_password")
+                confirm_password = st.text_input("Confirm Password", type="password", key="confirm_password")
+                signup_submitted = st.form_submit_button("Create Account", type="primary")
+
+                if signup_submitted:
+                    if not new_username or not new_password or not confirm_password:
+                        st.error("All fields are required.")
+                    elif new_password != confirm_password:
+                        st.error("Passwords do not match.")
                     elif signup_user(new_username, new_password):
-                        st.success("Account created! Please log in."); time.sleep(1)
-                        st.session_state.page = "login"; st.rerun()
-                    else: st.error("Username already exists.")
-            if st.button("Already have an account? Log In"): st.session_state.page = "login"; st.rerun()
+                        st.success("Account created successfully! Please log in.")
+                        time.sleep(1)
+                        st.session_state.page = "login"
+                        st.rerun()
+                    else:
+                        st.error("Username already exists. Please choose a different one.")
+            
+            if st.button("Already have an account? Log In", key="login_button"):
+                st.session_state.page = "login"
+                st.rerun()
+        
         st.markdown("</div>", unsafe_allow_html=True)
+        st.markdown("<div style='text-align: center; margin-top: 20px; color: #64748b; font-size: 0.9rem;'>Built with ❤️ by Derrick Kwaku Togodui</div>", unsafe_allow_html=True)
 
 def show_profile_page():
+    """Displays the user profile page with editing capabilities"""
     st.header("👤 Your Profile")
     st.markdown("<div class='content-card'>", unsafe_allow_html=True)
+    
     update_user_status(st.session_state.username, True)
+    
     profile = get_user_profile(st.session_state.username) or {}
     
     with st.form("profile_form"):
         col1, col2 = st.columns(2)
         full_name = col1.text_input("Full Name", value=profile.get('full_name', ''))
-        school = col2.text_input("School", value=profile.get('school', ''))
-        age = col1.number_input("Age", min_value=5, max_value=100, value=profile.get('age', 18))
-        bio = col2.text_area("Bio", value=profile.get('bio', ''))
+        school = col1.text_input("School", value=profile.get('school', ''))
+        age = col2.number_input("Age", min_value=5, max_value=100, 
+                                 value=profile.get('age', 18))
+        bio = col2.text_area("Bio", value=profile.get('bio', ''),
+                              help="Tell others about your math interests and goals")
         
         if st.form_submit_button("Save Profile", type="primary"):
             if update_user_profile(st.session_state.username, full_name, school, age, bio):
-                st.success("Profile updated!"); st.rerun()
-
+                st.success("Profile updated successfully!")
+                st.rerun()
+    
     st.markdown("---")
     st.subheader("Change Password")
     with st.form("password_form"):
         current_password = st.text_input("Current Password", type="password")
-        new_password = st.text_input("New Password", type="password")
+        new_password = st.text_input("New Password", type="password",
+                                   help="Use at least 8 characters with a mix of letters and numbers")
         confirm_password = st.text_input("Confirm New Password", type="password")
         
         if st.form_submit_button("Change Password", type="primary"):
-            if new_password != confirm_password: st.error("New passwords don't match!")
-            elif change_password(st.session_state.username, current_password, new_password): st.success("Password changed successfully!")
-            else: st.error("Incorrect current password")
+            if new_password != confirm_password:
+                st.error("New passwords don't match!")
+            elif change_password(st.session_state.username, current_password, new_password):
+                st.success("Password changed successfully!")
+            else:
+                st.error("Incorrect current password")
+    
     st.markdown("</div>", unsafe_allow_html=True)
 
-# --- Main App with OVERHAULED Quiz and Leaderboard ---
 def show_main_app():
-    # CSS remains unchanged
-    st.markdown("""<style>... a lot of css ...</style>""", unsafe_allow_html=True) # Keeping CSS collapsed for brevity
+    # Inject modern CSS styles
+    st.markdown("""
+    <style>
+        :root {
+            --primary: #4361ee;
+            --secondary: #3a0ca3;
+            --accent: #4895ef;
+            --light: #f8f9fa;
+            --dark: #212529;
+            --success: #4cc9f0;
+            --warning: #f8961e;
+            --danger: #f72585;
+        }
+        
+        [data-theme="dark"] {
+            --primary: #3a86ff;
+            --secondary: #8338ec;
+            --accent: #ff006e;
+            --light: #212529;
+            --dark: #f8f9fa;
+        }
+        
+        .main-content-container {
+            background-color: var(--light);
+            color: var(--dark);
+            padding: 20px;
+            border-radius: 12px;
+            transition: all 0.3s ease;
+        }
+        
+        .main-title {
+            color: var(--primary);
+            font-size: 2.5rem;
+            margin-bottom: 0.5rem;
+            background: linear-gradient(90deg, var(--primary), var(--secondary));
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+        }
+        
+        .content-card {
+            background-color: rgba(255, 255, 255, 0.9);
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+            margin-bottom: 20px;
+            border: 1px solid rgba(0, 0, 0, 0.05);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+        
+        .content-card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 6px 16px rgba(0, 0, 0, 0.1);
+        }
+        
+        .dashboard-metric-card {
+            background-color: white;
+            padding: 15px;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+            text-align: center;
+            border-left: 4px solid var(--primary);
+        }
+        
+        .stMetric { font-size: 1.2rem; }
+        .stMetric > div > div > div { font-weight: 700 !important; }
+        
+        .avatar {
+            width: 40px; height: 40px; border-radius: 50%; object-fit: cover;
+            margin: 0 10px; border: 2px solid white; box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        
+        .online-indicator {
+            position: absolute; bottom: -2px; right: -2px; width: 12px; height: 12px;
+            border-radius: 50%; background-color: #4CAF50; border: 2px solid white;
+        }
+        
+        .mention-highlight {
+            font-weight: bold; color: white !important; background-color: var(--accent);
+            padding: 2px 6px; border-radius: 6px;
+        }
+        
+        .stButton > button {
+            border-radius: 8px !important; padding: 8px 16px !important;
+            font-weight: 500 !important; transition: all 0.3s ease !important;
+        }
+        
+        .stButton > button:hover {
+            transform: translateY(-2px); box-shadow: 0 4px 8px rgba(0,0,0,0.1) !important;
+        }
+        
+        .sidebar .stRadio > div > label {
+            padding: 10px 15px; border-radius: 8px; transition: all 0.3s ease;
+        }
+        
+        .sidebar .stRadio > div > label:hover { background-color: rgba(67, 97, 238, 0.1); }
+        
+        .typing-indicator {
+            display: flex; align-items: center; margin-bottom: 10px;
+            color: #666; font-size: 0.9rem;
+        }
+        
+        /* Responsive adjustments */
+        @media screen and (max-width: 768px) {
+            .main-title { font-size: 1.8rem; }
+            .content-card { padding: 15px; }
+        }
+    </style>
+    """, unsafe_allow_html=True)
+    
+    # Dark mode toggle in sidebar
+    if st.session_state.dark_mode:
+        st.markdown("""
+        <style>
+            .main-content-container { background-color: #121212 !important; color: #ffffff !important; }
+            .content-card { background-color: #1e1e1e !important; border: 1px solid #333 !important; }
+            .dashboard-metric-card { background-color: #1e1e1e !important; }
+            .stTextInput>div>div>input, .stTextArea>div>div>textarea {
+                background-color: #333 !important; color: white !important; border-color: #555 !important;
+            }
+        </style>
+        """, unsafe_allow_html=True)
     
     with st.sidebar:
         st.session_state.dark_mode = st.toggle("🌙 Dark Mode", value=st.session_state.dark_mode)
-        st.markdown("### **Menu**")
-        selected_page = st.sidebar.radio("Go to", ["📊 Dashboard", "📝 Quiz", "🏆 Leaderboard", "💬 Chat", "👤 Profile", "📚 Learning Resources"], label_visibility="collapsed")
-        st.markdown("---")
-        st.sidebar.markdown("### **Account**")
-        if st.sidebar.button("Logout", type="primary"):
-            update_user_status(st.session_state.username, False)
-            st.session_state.logged_in = False
-            st.rerun()
-
+    
+    # Main content container
+    st.markdown(f"<div class='main-content-container'>", unsafe_allow_html=True)
+    
+    # User greeting with avatar
+    avatar_url = get_avatar_url(st.session_state.username)
+    profile = get_user_profile(st.session_state.username)
+    display_name = profile.get('full_name', st.session_state.username) if profile else st.session_state.username
+    
+    st.markdown(f"""
+    <div style="display: flex; align-items: center; margin-bottom: 20px;">
+        <div style="position: relative; display: inline-block;">
+            <img src="{avatar_url}" style="width: 60px; height: 60px; border-radius: 50%; margin-right: 15px; border: 3px solid #4361ee;"/>
+            <div class="online-indicator"></div>
+        </div>
+        <div>
+            <h1 class="main-title">Welcome back, {display_name}!</h1>
+            <p style="color: #666; margin-top: -10px;">Ready to master some math today?</p>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    st.sidebar.markdown("### **Menu**")
+    st.sidebar.markdown("---")
+    
+    selected_page = st.sidebar.radio(
+        "Go to", 
+        ["📊 Dashboard", "📝 Quiz", "🏆 Leaderboard", "💬 Chat", "👤 Profile", "📚 Learning Resources"],
+        label_visibility="collapsed"
+    )
+    
+    st.sidebar.markdown("---")
+    st.sidebar.markdown("### **Account**")
+    if st.sidebar.button("Logout", type="primary"):
+        update_user_status(st.session_state.username, False)  # Mark user as offline
+        st.session_state.logged_in = False
+        st.session_state.page = "login"
+        st.rerun()
+    
     update_user_status(st.session_state.username, True)
-
+    
+    # Define consistent topic list
+    topic_options = ["Sets", "Percentages", "Surds", "Binary Operations", "Word Problems", "Fractions"]
+    
     if selected_page == "📊 Dashboard":
+        st.markdown("---")
+        st.markdown("<div class='content-card'>", unsafe_allow_html=True)
         st.header("📈 Progress Dashboard")
-        total_quizzes, last_score_str, top_score_str = get_user_stats(st.session_state.username)
+        st.write("Track your math learning journey with these insights.")
+        
+        total_quizzes, last_score, top_score = get_user_stats(st.session_state.username)
+        
         col1, col2, col3 = st.columns(3)
-        col1.markdown(metric_card("Total Quizzes", total_quizzes, "📚", "#4361ee"), unsafe_allow_html=True)
-        col2.markdown(metric_card("Last Score", last_score_str, "⭐", "#4cc9f0"), unsafe_allow_html=True)
-        col3.markdown(metric_card("Top Score", top_score_str, "🏆", "#f72585"), unsafe_allow_html=True)
-        # More dashboard items... (logic is preserved but condensed for brevity)
+        with col1:
+            st.markdown(metric_card("Total Quizzes", total_quizzes, "📚", "#4361ee"), unsafe_allow_html=True)
+        with col2:
+            st.markdown(metric_card("Last Score", last_score, "⭐", "#4cc9f0"), unsafe_allow_html=True)
+        with col3:
+            st.markdown(metric_card("Top Score", top_score, "🏆", "#f72585"), unsafe_allow_html=True)
+        
+        st.markdown("<div class='content-card' style='margin-top: 20px;'>", unsafe_allow_html=True)
+        st.subheader("🌟 Motivational Quote")
+        st.markdown("""
+        <blockquote style="border-left: 4px solid #4361ee; padding-left: 15px; font-style: italic; color: #555;">
+            "Mathematics is not about numbers, equations, computations, or algorithms: 
+            it is about understanding." — William Paul Thurston
+        </blockquote>
+        """, unsafe_allow_html=True)
+        st.markdown("</div>", unsafe_allow_html=True)
+        
+        user_history = get_user_quiz_history(st.session_state.username)
+        if user_history:
+            df_data = []
+            for row in user_history:
+                row_dict = dict(row)
+                accuracy = (row_dict['score'] / row_dict['questions_answered']) * 100 if row_dict['questions_answered'] > 0 else 0
+                df_data.append({
+                    'Topic': row_dict['topic'],
+                    'Score': f"{row_dict['score']}/{row_dict['questions_answered']}",
+                    'Accuracy': accuracy,
+                    'Timestamp': row_dict['timestamp']
+                })
+
+            df = pd.DataFrame(df_data)
+            df['Timestamp'] = pd.to_datetime(df['Timestamp'])
+            df['Date'] = df['Timestamp'].dt.date
+            
+            st.markdown("<div class='content-card'>", unsafe_allow_html=True)
+            st.subheader("📅 Your Accuracy Over Time")
+            fig = px.line(df, x='Date', y='Accuracy', color='Topic', 
+                          markers=True, template="plotly_white",
+                          color_discrete_sequence=px.colors.qualitative.Plotly,
+                          labels={'Accuracy': 'Accuracy (%)'})
+            fig.update_layout(plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)')
+            st.plotly_chart(fig, use_container_width=True)
+            st.markdown("</div>", unsafe_allow_html=True)
+            
+            st.markdown("<div class='content-card'>", unsafe_allow_html=True)
+            st.subheader("📊 Average Accuracy by Topic")
+            avg_scores = df.groupby('Topic')['Accuracy'].mean().reset_index().sort_values('Accuracy', ascending=False)
+            fig_bar = px.bar(avg_scores, x='Topic', y='Accuracy', color='Topic',
+                             template="plotly_white", text='Accuracy',
+                             color_discrete_sequence=px.colors.qualitative.Pastel)
+            fig_bar.update_traces(texttemplate='%{text:.1f}%', textposition='outside')
+            fig_bar.update_layout(showlegend=False, plot_bgcolor='rgba(0,0,0,0)', 
+                                 paper_bgcolor='rgba(0,0,0,0)', xaxis_title=None)
+            st.plotly_chart(fig_bar, use_container_width=True)
+            st.markdown("</div>", unsafe_allow_html=True)
+        else:
+            st.info("Start taking quizzes to see your progress here!")
+        
+        st.markdown("</div>", unsafe_allow_html=True)
 
     # --- ###################################################### ---
-    # --- ### OVERHAULED QUIZ SECTION ### ---
+    # --- ### MERGED: OVERHAULED QUIZ SECTION ### ---
     # --- ###################################################### ---
     elif selected_page == "📝 Quiz":
         st.header("🧠 Quiz Time!")
@@ -536,7 +1069,6 @@ def show_main_app():
         if not st.session_state.quiz_active:
             st.write("Select a topic and challenge yourself with unlimited questions!")
             
-            topic_options = ["Sets", "Percentages", "Surds", "Binary Operations", "Word Problems", "Fractions"]
             st.session_state.quiz_topic = st.selectbox("Choose a topic:", topic_options)
             
             if st.button("Start Quiz", type="primary", use_container_width=True):
@@ -547,11 +1079,9 @@ def show_main_app():
                 st.rerun()
 
         # --- Active Quiz Screen ---
-        # --- Active Quiz Screen ---
         else:
             st.write(f"**Topic: {st.session_state.quiz_topic}** | **Score: {st.session_state.quiz_score} / {st.session_state.questions_answered}**")
             
-            # Generate a new question for this round
             q_data = generate_question(st.session_state.quiz_topic)
             
             # Check for "coming soon" messages
@@ -562,14 +1092,12 @@ def show_main_app():
                     st.rerun()
             else:
                 st.markdown("---")
-                st.markdown(q_data["question"])
+                st.markdown(q_data["question"], unsafe_allow_html=True)
 
                 with st.expander("🤔 Need a hint?"):
                     st.info(q_data["hint"])
 
-                # Use a form to contain the radio and buttons
                 with st.form(key=f"quiz_form_{st.session_state.questions_answered}"):
-                    # 1. ADD a 'key' to the radio button. This is the crucial change.
                     st.radio(
                         "Select your answer:", 
                         options=q_data["options"], 
@@ -580,12 +1108,11 @@ def show_main_app():
                     submitted = st.form_submit_button("Submit Answer", type="primary")
 
                     if submitted:
-                        # 2. GET the user's choice directly from st.session_state using the key.
                         user_choice = st.session_state.user_answer_choice
 
-                        if user_choice:
+                        if user_choice is not None:
                             st.session_state.questions_answered += 1
-                            if user_choice == q_data["answer"]:
+                            if str(user_choice) == str(q_data["answer"]):
                                 st.session_state.quiz_score += 1
                                 st.success("Correct! Well done! 🎉")
                                 confetti_animation()
@@ -614,20 +1141,18 @@ def show_main_app():
 
 
     # --- ###################################################### ---
-    # --- ### OVERHAULED LEADERBOARD SECTION ### ---
+    # --- ### MERGED: OVERHAULED LEADERBOARD SECTION ### ---
     # --- ###################################################### ---
     elif selected_page == "🏆 Leaderboard":
         st.header("🏆 Global Leaderboard")
         st.markdown("<div class='content-card'>", unsafe_allow_html=True)
         st.write("See who has the highest accuracy for each topic!")
         
-        topic_options = ["Sets", "Percentages", "Surds", "Binary Operations", "Word Problems", "Fractions"]
         leaderboard_topic = st.selectbox("Select a topic to view:", topic_options)
         
         top_scores = get_top_scores(leaderboard_topic)
         
         if top_scores:
-            # Prepare data for display
             leaderboard_data = []
             for rank, (username, score, total) in enumerate(top_scores, 1):
                 accuracy = (score / total) * 100
@@ -635,19 +1160,27 @@ def show_main_app():
                     "Rank": f"#{rank}",
                     "Username": username,
                     "Score": f"{score}/{total}",
-                    "Accuracy": f"{accuracy:.1f}%"
+                    "Accuracy": accuracy
                 })
             
             df = pd.DataFrame(leaderboard_data)
             
-            # Highlight current user's position
             def highlight_user(row):
                 if row.Username == st.session_state.username:
                     return ['background-color: #e6f7ff; font-weight: bold;'] * len(row)
                 return [''] * len(row)
 
             st.dataframe(
-                df.style.apply(highlight_user, axis=1).hide(axis="index"),
+                df.style.apply(highlight_user, axis=1).format({'Accuracy': "{:.1f}%"}).hide(axis="index"),
+                column_config={
+                    "Username": st.column_config.TextColumn("User"),
+                    "Accuracy": st.column_config.ProgressColumn(
+                        "Accuracy",
+                        format="%.1f%%",
+                        min_value=0,
+                        max_value=100,
+                    )
+                },
                 use_container_width=True
             )
         else:
@@ -656,10 +1189,99 @@ def show_main_app():
         st.markdown("</div>", unsafe_allow_html=True)
 
     elif selected_page == "💬 Chat":
-        # Chat functionality remains the same
         st.header("💬 Community Chat")
-        # Code is preserved but condensed for brevity
-        st.info("Chat system is active.")
+        st.markdown("""
+        <style>
+        .chat-container { flex: 1; height: 70vh; max-height: 70vh; overflow-y: auto; padding: 10px; display: flex; flex-direction: column; gap: 6px; scroll-behavior: smooth; }
+        .msg-row { display: flex; align-items: flex-end; }
+        .msg-own { justify-content: flex-end; }
+        .msg-bubble { max-width: min(80%, 500px); padding: 8px 12px; border-radius: 18px; font-size: 0.95rem; line-height: 1.3; word-wrap: break-word; }
+        .msg-own .msg-bubble { background-color: #dcf8c6; border-bottom-right-radius: 4px; color: #222; }
+        .msg-other .msg-bubble { background-color: #fff; border-bottom-left-radius: 4px; color: #222; }
+        .avatar-small { width: 30px; height: 30px; border-radius: 50%; object-fit: cover; margin: 0 6px; }
+        .msg-meta { font-size: 0.75rem; color: #888; margin-bottom: 3px; }
+        .date-separator { text-align: center; font-size: 0.75rem; color: #999; margin: 10px 0; }
+        .chat-image { max-height: 150px; border-radius: 8px; cursor: pointer; }
+        .chat-input-area { position: sticky; bottom: 0; background: #f7f7f7; padding: 8px; border-top: 1px solid #ddd; }
+        /* Modal */
+        .chat-image-modal { display: none; position: fixed; z-index: 9999; left: 0; top: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); }
+        .modal-image-content { display: flex; justify-content: center; align-items: center; height: 100%; }
+        .modal-image { max-width: 90%; max-height: 90%; }
+        .close-modal { position: absolute; top: 20px; right: 30px; color: white; font-size: 35px; cursor: pointer; }
+        </style>
+        """, unsafe_allow_html=True)
+        st.markdown("""
+        <div id="imageModal" class="chat-image-modal">
+            <span class="close-modal">&times;</span>
+            <div class="modal-image-content"><img id="modalImage" class="modal-image"></div>
+        </div>
+        <script>
+        const modal = document.getElementById("imageModal");
+        const modalImg = document.getElementById("modalImage");
+        const closeBtn = document.querySelector(".close-modal");
+        function openImageModal(src) { modal.style.display = "flex"; modalImg.src = src; document.body.style.overflow = "hidden"; }
+        closeBtn.onclick = () => { modal.style.display = "none"; document.body.style.overflow = "auto"; }
+        modal.onclick = (e) => { if(e.target === modal){ modal.style.display = "none"; document.body.style.overflow = "auto"; } }
+        document.addEventListener('keydown', e => { if(e.key==="Escape"){ modal.style.display = "none"; document.body.style.overflow = "auto"; } });
+        </script>
+        """, unsafe_allow_html=True)
+
+        st_autorefresh(interval=3000, key="chat_refresh")
+
+        online_users = get_online_users()
+        typing_users = get_typing_users()
+        all_usernames = get_all_usernames()
+        all_messages = get_chat_messages()
+
+        if online_users:
+            st.markdown(f"**Online:** {', '.join([f'🟢 {u}' for u in online_users])}")
+        current_typing_users = [u for u in typing_users if u != st.session_state.username]
+        if current_typing_users:
+            st.markdown(f"*{current_typing_users[0]} is typing...*")
+
+        st.markdown('<div id="chat-container" class="chat-container">', unsafe_allow_html=True)
+        last_date, last_user = None, None
+        for msg in all_messages:
+            _, username, message, media, timestamp = msg
+            date_str = datetime.strptime(timestamp, "%Y-%m-%d %H:%M:%S").strftime("%b %d, %Y")
+            time_str = datetime.strptime(timestamp, "%Y-%m-%d %H:%M:%S").strftime("%H:%M")
+            if date_str != last_date:
+                st.markdown(f'<div class="date-separator">{date_str}</div>', unsafe_allow_html=True)
+                last_date = date_str
+            own = username == st.session_state.username
+            row_class = "msg-row msg-own" if own else "msg-row msg-other"
+            avatar_html = ""
+            if not own and last_user != username:
+                avatar_html = f"<img src='{get_avatar_url(username)}' class='avatar-small'/>"
+            parts = []
+            if message:
+                parts.append(f"<div>{format_message(message, all_usernames, st.session_state.username)}</div>")
+            if media:
+                parts.append(f"<img src='data:image/png;base64,{media}' class='chat-image' onclick='openImageModal(this.src)'/>")
+            bubble_html = f"<div><div class='msg-meta'>{username} • {time_str}</div><div class='msg-bubble'>{''.join(parts)}</div></div>"
+            st.markdown(f"<div class='{row_class}'>{avatar_html}{bubble_html}</div>", unsafe_allow_html=True)
+            last_user = username
+        st.markdown('</div>', unsafe_allow_html=True)
+
+        st.markdown("""<script>var chatBox = document.getElementById('chat-container'); if(chatBox){ chatBox.scrollTop = chatBox.scrollHeight; }</script>""", unsafe_allow_html=True)
+
+        st.markdown('<div class="chat-input-area">', unsafe_allow_html=True)
+        with st.form("chat_form", clear_on_submit=True):
+            user_message = st.text_area("", key="chat_input", height=40, placeholder="Type a message", label_visibility="collapsed")
+            col1, col2 = st.columns([0.8, 0.2])
+            with col1:
+                uploaded_file = st.file_uploader("📷", type=["png","jpg","jpeg"], label_visibility="collapsed")
+            with col2:
+                submitted = st.form_submit_button("Send", type="primary", use_container_width=True)
+            if submitted:
+                if user_message.strip() or uploaded_file:
+                    media_data = base64.b64encode(uploaded_file.getvalue()).decode('utf-8') if uploaded_file else None
+                    add_chat_message(st.session_state.username, user_message, media_data)
+                    if user_message.startswith("@MathBot"):
+                        bot_response = get_mathbot_response(user_message)
+                        if bot_response: add_chat_message("MathBot", bot_response)
+                st.rerun()
+        st.markdown('</div>', unsafe_allow_html=True)
 
     elif selected_page == "👤 Profile":
         show_profile_page()
@@ -669,36 +1291,83 @@ def show_main_app():
         st.markdown("<div class='content-card'>", unsafe_allow_html=True)
         st.write("Mini-tutorials and helpful examples to help you study.")
         
-        topic_options = ["Sets", "Percentages", "Surds", "Binary Operations", "Word Problems", "Fractions"]
         resource_topic = st.selectbox("Select a topic to learn about:", topic_options)
 
         if resource_topic == "Sets":
             st.subheader("🧮 Sets and Operations on Sets")
-            st.markdown("""A **set** is a collection of distinct objects. Key operations include:
-- **Union ($A \cup B$)**: All elements from both sets combined.
-- **Intersection ($A \cap B$)**: Only elements that appear in both sets.
-- **Difference ($A - B$)**: Elements in A but not in B.""")
+            st.markdown("""
+            <div style="background-color: #f8f9fa; padding: 20px; border-radius: 10px; border-left: 4px solid #4361ee;">
+                <h4 style="margin-top: 0;">Key Concepts</h4>
+                <p>A <strong>set</strong> is a collection of distinct objects. Key operations include:</p>
+                <ul>
+                    <li><strong>Union ($A \cup B$)**: All elements from both sets combined.</li>
+                    <li><strong>Intersection ($A \cap B$)**: Only elements that appear in both sets.</li>
+                    <li><strong>Difference ($A - B$)**: Elements in A but not in B.</li>
+                </ul>
+                <hr>
+                <strong>Example:</strong> Let Set $A = \{1, 2, 3\}$ and Set $B = \{3, 4, 5\}$
+                <ul>
+                    <li>$A \cup B = \{1, 2, 3, 4, 5\}$</li>
+                    <li>$A \cap B = \{3\}$</li>
+                    <li>$A - B = \{1, 2\}$</li>
+                </ul>
+            </div>
+            """, unsafe_allow_html=True)
+
         elif resource_topic == "Percentages":
             st.subheader("➗ Percentages")
-            st.markdown("""A **percentage** is a number or ratio expressed as a fraction of 100.
-- To find **X% of Y**, calculate $(X/100) * Y$.
-- To find what percentage **A is of B**, calculate $(A/B) * 100.""")
+            st.markdown("""
+            <div style="background-color: #f8f9fa; padding: 20px; border-radius: 10px; border-left: 4px solid #4cc9f0;">
+                <h4 style="margin-top: 0;">Key Concepts</h4>
+                <p>A <strong>percentage</strong> is a number or ratio expressed as a fraction of 100.</p>
+                <ul>
+                    <li>To find <strong>X% of Y</strong>, calculate $(X/100) * Y$. <br><i>Example: 20% of 50 = (20/100) * 50 = 10</i></li>
+                    <li>To find what percentage <strong>A is of B</strong>, calculate $(A/B) * 100$. <br><i>Example: What % is 5 of 20? = (5/20) * 100 = 25%</i></li>
+                </ul>
+            </div>
+            """, unsafe_allow_html=True)
+
         else:
             st.info(f"Learning resources for **{resource_topic}** are under development.")
+        
         st.markdown("</div>", unsafe_allow_html=True)
 
-# --- Splash Screen and Main App Logic (UNCHANGED) ---
+    st.markdown("</div>", unsafe_allow_html=True) # Close main content container
+
+
+# --- Splash Screen and Main App Logic ---
+
 if st.session_state.show_splash:
-    st.markdown("""<style>.main {visibility: hidden;}</style><div style="position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background-color: #ffffff; display: flex; justify-content: center; align-items: center; z-index: 9999;"><div style="font-size: 50px; font-weight: bold; color: #2E86C1;">MathFriend</div></div>""", unsafe_allow_html=True)
+    st.markdown("<style>.main {visibility: hidden;}</style>", unsafe_allow_html=True)
+    st.markdown("""
+    <style>
+        @keyframes fade-in-slide-up {
+            0% { opacity: 0; transform: translateY(20px); }
+            100% { opacity: 1; transform: translateY(0); }
+        }
+        .splash-container {
+            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+            background-color: #ffffff; display: flex; justify-content: center;
+            align-items: center; z-index: 9999;
+        }
+        .splash-text {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            font-size: 50px; font-weight: bold; color: #2E86C1;
+            animation: fade-in-slide-up 1s ease-out forwards;
+        }
+    </style>
+    <div class="splash-container">
+        <div class="splash-text">MathFriend</div>
+    </div>
+    """, unsafe_allow_html=True)
+    
     time.sleep(1)
     st.session_state.show_splash = False
     st.rerun()
 else:
     st.markdown("<style>.main {visibility: visible;}</style>", unsafe_allow_html=True)
+    
     if st.session_state.logged_in:
         show_main_app()
     else:
         show_login_page()
-
-
-
