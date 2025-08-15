@@ -519,10 +519,24 @@ def load_css():
             color: #4F4F4F !important;
         }
 
-        /* This is the new rule for the 'Sign Up' button text */
+        /* Fixes secondary button text */
         div[data-testid="stButton"] > button {
             color: white !important;
         }
+
+        /* --- NEW RULES START HERE --- */
+
+        /* Fixes text color for radio button options in quizzes */
+        [data-testid="stRadio"] label {
+            color: #31333F !important;
+        }
+
+        /* Fixes text color for hint/info boxes */
+        [data-testid="stInfo"] {
+            color: #0c5460 !important;
+        }
+
+        /* --- NEW RULES END HERE --- */
 
         .stApp { 
             background-color: #f0f2f5; 
@@ -757,6 +771,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
