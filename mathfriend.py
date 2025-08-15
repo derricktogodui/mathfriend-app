@@ -621,59 +621,49 @@ def load_css():
             align-items: center;
         }
 
-        /* --- THE DEFINITIVE CHROME FIX --- */
-        /* This rule targets the main page area, not the sidebar. */
+        /* --- THE DEFINITIVE CHROME & SAFARI FIX --- */
+        /* This forces a default dark color on all elements in the main content area. */
         div[data-testid="stAppViewContainer"] * {
             color: #31333F !important;
         }
 
-        /* --- SIDEBAR STYLING FIX --- */
-        /* This block takes explicit control of the sidebar's appearance. */
-        div[data-testid="stSidebar"] {
-            background-color: #0F1116 !important; /* Optional: Force a dark background */
-        }
-        
-        div[data-testid="stSidebar"] h1 {
-            color: #FFFFFF !important; /* Make title text pure white */
-        }
-        
-        /* Targets the radio button labels in the sidebar for the navigation menu */
-        div[data-testid="stSidebar"] [data-testid="stRadio"] label {
-            color: #E0E0E0 !important; /* A bright, slightly off-white for readability */
-        }
-        
-        /* Targets the horizontal line in the sidebar */
-        div[data-testid="stSidebar"] hr {
-            border-color: #444955 !important;
+        /* --- SIDEBAR FIX --- */
+        /* This explicitly forces all elements in the sidebar to have light text. */
+        div[data-testid="stSidebarUserContent"] * {
+            color: #FAFAFA !important;
         }
 
-
-        /* --- COLOR OVERRIDES for main content --- */
-        /* We now selectively override the rule above for elements that NEED a different color. */
+        /* --- COLOR OVERRIDES --- */
+        /* After setting defaults, we selectively override colors for specific elements. */
         
+        /* Buttons with dark backgrounds need white text */
         button[data-testid="stFormSubmitButton"] *,
         div[data-testid="stButton"] > button * {
             color: white !important;
         }
 
+        /* Links should be blue */
         a, a * {
             color: #0068c9 !important;
         }
         
-        h1, h2, h3, h4, h5, h6 {
+        /* Headers can be a slightly darker black for emphasis */
+        .main-content h1, .main-content h2, .main-content h3, .main-content h4, .main-content h5, .main-content h6 {
             color: #1a1a1a !important; 
         }
 
+        /* The main value in a metric card can be darker */
         [data-testid="stMetricValue"] {
             color: #1a1a1a !important;
         }
 
+        /* Make the text in colored alert boxes contrast appropriately */
         [data-testid="stSuccess"] * { color: #155724 !important; }
         [data-testid="stInfo"] * { color: #0c5460 !important; }
         [data-testid="stWarning"] * { color: #856404 !important; }
         [data-testid="stError"] * { color: #721c24 !important; }
         
-        /* --- STYLING (UNCHANGED) --- */
+        /* --- GENERAL STYLING --- */
         .main-content h1, .main-content h2, .main-content h3 {
             border-left: 5px solid #0d6efd;
             padding-left: 15px;
@@ -688,15 +678,9 @@ def load_css():
             box-shadow: 0 4px 8px rgba(0,0,0,0.1);
             border-left: 5px solid #CCCCCC; 
         }
-        [data-testid="stHorizontalBlock"] > div:nth-of-type(1) [data-testid="stMetric"] {
-            border-left-color: #0d6efd;
-        }
-        [data-testid="stHorizontalBlock"] > div:nth-of-type(2) [data-testid="stMetric"] {
-            border-left-color: #28a745;
-        }
-        [data-testid="stHorizontalBlock"] > div:nth-of-type(3) [data-testid="stMetric"] {
-            border-left-color: #ffc107;
-        }
+        [data-testid="stHorizontalBlock"] > div:nth-of-type(1) [data-testid="stMetric"] { border-left-color: #0d6efd; }
+        [data-testid="stHorizontalBlock"] > div:nth-of-type(2) [data-testid="stMetric"] { border-left-color: #28a745; }
+        [data-testid="stHorizontalBlock"] > div:nth-of-type(3) [data-testid="stMetric"] { border-left-color: #ffc107; }
 
         .stTextInput input, .stTextArea textarea, .stNumberInput input {
             color: #000 !important;
@@ -704,66 +688,40 @@ def load_css():
         }
         
         button[data-testid="stFormSubmitButton"] {
-            background-color: #0d6efd;
-            border: 1px solid #0d6efd;
-            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+            background-color: #0d6efd; border: 1px solid #0d6efd; box-shadow: 0 4px 8px rgba(0,0,0,0.1);
             transition: all 0.2s ease-in-out;
         }
         button[data-testid="stFormSubmitButton"]:hover {
-            background-color: #0b5ed7;
-            border-color: #0a58ca;
-            transform: translateY(-2px);
+            background-color: #0b5ed7; border-color: #0a58ca; transform: translateY(-2px);
             box-shadow: 0 6px 12px rgba(0,0,0,0.15);
         }
-
         div[data-testid="stButton"] > button {
-            background-color: #6c757d;
-            border: 1px solid #6c757d;
+            background-color: #6c757d; border: 1px solid #6c757d;
         }
         div[data-testid="stButton"] > button:hover {
-            background-color: #5a6268;
-            border-color: #545b62;
+            background-color: #5a6268; border-color: #545b62;
         }
-
         [data-testid="stSelectbox"] div[data-baseweb="select"] > div {
             background-color: #fff !important;
         }
-        .stDataFrame th {
-            background-color: #e9ecef;
-            font-weight: bold;
-        }
-        
-        [data-testid="stForm"] {
-            border: 1px solid #dee2e6;
-            border-radius: 0.5rem;
-            padding: 1.5rem;
-            background-color: #fafafa;
-        }
-        
-        .styled-hr {
-            border: none;
-            height: 2px;
-            background: linear-gradient(to right, #0d6efd, #f0f2f5);
-            margin: 2rem 0;
-        }
-
+        .stDataFrame th { background-color: #e9ecef; font-weight: bold; }
+        [data-testid="stForm"] { border: 1px solid #dee2e6; border-radius: 0.5rem; padding: 1.5rem; background-color: #fafafa; }
+        .styled-hr { border: none; height: 2px; background: linear-gradient(to right, #0d6efd, #f0f2f5); margin: 2rem 0; }
         .login-container { background: #ffffff; border-radius: 16px; padding: 2rem 3rem; margin: auto; max-width: 450px; box-shadow: 0 8px 32px rgba(0,0,0,0.1); }
         .login-title { text-align: center; font-weight: 800; font-size: 2.2rem; color: #1a1a1a !important; }
         .login-subtitle { text-align: center; color: #6c757d !important; margin-bottom: 2rem; }
         .main-content { background-color: #ffffff; padding: 2rem; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
-        .metric-card { background: #f8f9fa; border-radius: 12px; padding: 15px; border-left: 5px solid var(--primary-color, #007bff); margin-bottom: 1rem; }
-
+        
         @media (max-width: 640px) {
             .main-content, .login-container { padding: 1rem; }
             .login-title { font-size: 1.8rem; }
         }
     </style>
     """, unsafe_allow_html=True)
+
 def display_dashboard(username):
     st.header(f"📈 Dashboard for {username}")
-
     tab1, tab2 = st.tabs(["📊 Performance Overview", "📜 Full History"])
-
     with tab1:
         st.subheader("Key Metrics")
         total_quizzes, last_score, top_score = get_user_stats(username)
@@ -774,12 +732,9 @@ def display_dashboard(username):
             st.metric(label="🎯 Most Recent Score", value=last_score)
         with col3:
             st.metric(label="🏆 Best Ever Score", value=top_score)
-
         st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
-        
         st.subheader("Topic Performance")
         topic_perf_df = get_topic_performance(username)
-
         if not topic_perf_df.empty:
             col1, col2 = st.columns(2)
             with col1:
@@ -791,29 +746,22 @@ def display_dashboard(username):
                     worst_topic = topic_perf_df.index[-1]
                     worst_acc = topic_perf_df['Accuracy'].iloc[-1]
                     st.warning(f"🤔 **Area for Practice:** {worst_topic} ({worst_acc:.1f}%)")
-
             fig = px.bar(
-                topic_perf_df, 
-                y='Accuracy', 
-                title="Average Accuracy by Topic",
-                labels={'Accuracy': 'Accuracy (%)', 'Topic': 'Topic'},
-                text_auto='.2s'
+                topic_perf_df, y='Accuracy', title="Average Accuracy by Topic",
+                labels={'Accuracy': 'Accuracy (%)', 'Topic': 'Topic'}, text_auto='.2s'
             )
             fig.update_traces(textposition='outside')
             st.plotly_chart(fig, use_container_width=True)
         else:
             st.info("Complete some quizzes to see your topic performance analysis!")
-
     with tab2:
         st.subheader("Accuracy Over Time")
         history = get_user_quiz_history(username)
         if history:
             df_data = [{"Topic": row['topic'], "Score": f"{row['score']}/{row['questions_answered']}", "Accuracy (%)": (row['score'] / row['questions_answered'] * 100) if row['questions_answered'] > 0 else 0, "Date": datetime.strptime(row['timestamp'], "%Y-%m-%d %H:%M:%S").strftime("%Y-%m-%d %H:%M")} for row in history]
             df = pd.DataFrame(df_data)
-
             line_fig = px.line(df, x='Date', y='Accuracy (%)', color='Topic', markers=True, title="Quiz Performance Trend")
             st.plotly_chart(line_fig, use_container_width=True)
-            
             st.dataframe(df, use_container_width=True)
         else:
             st.info("Your quiz history is empty. Take a quiz to get started!")
@@ -821,26 +769,20 @@ def display_dashboard(username):
 def display_quiz_page(topic_options):
     st.header("🧠 Quiz Time!")
     QUIZ_LENGTH = 10
-
     if not st.session_state.quiz_active:
         st.subheader("Choose Your Challenge")
-
         topic_perf_df = get_topic_performance(st.session_state.username)
         if not topic_perf_df.empty and topic_perf_df['Accuracy'].iloc[-1] < 100:
             weakest_topic = topic_perf_df.index[-1]
             st.info(f"💡 **Practice Suggestion:** Your lowest accuracy is in **{weakest_topic}**. Why not give it a try?")
-
         selected_topic = st.selectbox("Select a topic to begin:", topic_options)
         st.session_state.quiz_topic = selected_topic 
-
         st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
-
         col1, col2 = st.columns(2)
         with col1:
             best_score, attempts = get_user_stats_for_topic(st.session_state.username, selected_topic)
             st.metric("Your Best Score on this Topic", best_score)
             st.metric("Quizzes Taken on this Topic", attempts)
-        
         with col2:
             st.write("") 
             st.write("")
@@ -857,11 +799,9 @@ def display_quiz_page(topic_options):
         if st.session_state.get('on_summary_page', False):
             display_quiz_summary()
             return
-
         if st.session_state.questions_answered >= QUIZ_LENGTH:
             st.session_state.on_summary_page = True
             st.rerun()
-
         col1, col2, col3 = st.columns(3)
         with col1:
             st.metric("Score", f"{st.session_state.quiz_score}/{st.session_state.questions_answered}")
@@ -869,23 +809,17 @@ def display_quiz_page(topic_options):
             st.metric("Question", f"{st.session_state.questions_answered + 1}/{QUIZ_LENGTH}")
         with col3:
             st.metric("🔥 Streak", st.session_state.current_streak)
-        
         st.progress(st.session_state.questions_answered / QUIZ_LENGTH, text="Round Progress")
         st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
-        
         if 'current_q_data' not in st.session_state:
             st.session_state.current_q_data = generate_question(st.session_state.quiz_topic)
-        
         q_data = st.session_state.current_q_data
         st.subheader(f"Topic: {st.session_state.quiz_topic}")
         st.markdown(q_data["question"], unsafe_allow_html=True)
-        
         with st.expander("🤔 Need a hint?"): 
             st.info(q_data["hint"])
-            
         with st.form(key=f"quiz_form_{st.session_state.questions_answered}"):
             user_choice = st.radio("Select your answer:", q_data["options"], index=None, key="user_answer_choice")
-            
             if st.form_submit_button("Submit Answer", type="primary"):
                 if user_choice is not None:
                     st.session_state.questions_answered += 1
@@ -898,14 +832,12 @@ def display_quiz_page(topic_options):
                         st.session_state.current_streak = 0
                         st.session_state.incorrect_questions.append(q_data)
                         st.error(f"Not quite. The correct answer was: **{q_data['answer']}**")
-                    
                     del st.session_state.current_q_data
                     del st.session_state.user_answer_choice
                     time.sleep(1.5)
                     st.rerun()
                 else:
                     st.warning("Please select an answer before submitting.")
-
         if st.button("Stop Round & Save Score"):
             st.session_state.on_summary_page = True
             st.rerun()
@@ -913,17 +845,13 @@ def display_quiz_page(topic_options):
 def display_quiz_summary():
     """Displays the quiz summary screen at the end of a round."""
     st.header("🎉 Round Complete! 🎉")
-    
     final_score = st.session_state.quiz_score
     total_questions = st.session_state.questions_answered
     accuracy = (final_score / total_questions * 100) if total_questions > 0 else 0
-
     if total_questions > 0 and 'result_saved' not in st.session_state:
         save_quiz_result(st.session_state.username, st.session_state.quiz_topic, final_score, total_questions)
         st.session_state.result_saved = True
-
     st.metric(label="Your Final Score", value=f"{final_score}/{total_questions}", delta=f"{accuracy:.1f}% Accuracy")
-
     if accuracy >= 90:
         st.success("🏆 Excellent work! You're a true MathFriend master!")
         confetti_animation()
@@ -931,7 +859,6 @@ def display_quiz_summary():
         st.info("👍 Great job! You've got a solid understanding of this topic.")
     else:
         st.warning("🙂 Good effort! A little more practice and you'll be an expert.")
-
     if st.session_state.incorrect_questions:
         with st.expander("🔍 Click here to review your incorrect answers"):
             for q in st.session_state.incorrect_questions:
@@ -939,9 +866,7 @@ def display_quiz_summary():
                 st.error(f"**Correct Answer:** {q['answer']}")
                 st.info(f"**Hint:** {q['hint']}")
                 st.write("---")
-
     st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
-
     col1, col2 = st.columns(2)
     with col1:
         if st.button("Play Again (Same Topic)", use_container_width=True, type="primary"):
@@ -963,7 +888,6 @@ def display_quiz_summary():
 
 def display_leaderboard(topic_options):
     st.header("🏆 Global Leaderboard")
-
     col1, col2 = st.columns([2, 3])
     with col1:
         leaderboard_topic = st.selectbox("Select a topic:", topic_options, label_visibility="collapsed")
@@ -975,10 +899,8 @@ def display_leaderboard(topic_options):
             horizontal=True,
             label_visibility="collapsed"
         )
-    
     time_filter_map = {"This Week": "week", "This Month": "month", "All Time": "all"}
     time_filter = time_filter_map[time_filter_option]
-
     col1, col2 = st.columns(2)
     with col1:
         user_rank = get_user_rank(st.session_state.username, leaderboard_topic, time_filter)
@@ -986,12 +908,9 @@ def display_leaderboard(topic_options):
     with col2:
         total_players = get_total_players(leaderboard_topic, time_filter)
         st.metric(label=f"Total Players ({time_filter_option})", value=total_players)
-    
     st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
-    
     st.subheader(f"Top 10 for {leaderboard_topic} ({time_filter_option})")
     top_scores = get_top_scores(leaderboard_topic, time_filter)
-    
     if top_scores:
         leaderboard_data = []
         for r, (u, s, t) in enumerate(top_scores, 1):
@@ -999,25 +918,18 @@ def display_leaderboard(topic_options):
             if r == 1: rank_display = "🥇"
             elif r == 2: rank_display = "🥈"
             elif r == 3: rank_display = "🥉"
-            
             username_display = u
             if u == st.session_state.username:
                 username_display = f"{u} (You)"
-
             leaderboard_data.append({
-                "Rank": rank_display,
-                "Username": username_display,
-                "Score": f"{s}/{t}",
+                "Rank": rank_display, "Username": username_display, "Score": f"{s}/{t}",
                 "Accuracy": (s/t)*100
             })
-        
         df = pd.DataFrame(leaderboard_data)
-        
         def highlight_user(row):
             if "(You)" in row.Username:
                 return ['background-color: #e6f7ff; font-weight: bold; color: #000000;'] * len(row)
             return [''] * len(row)
-            
         st.dataframe(
             df.style.apply(highlight_user, axis=1).format({'Accuracy': "{:.1f}%"}).hide(axis="index"), 
             use_container_width=True
@@ -1035,7 +947,6 @@ def display_learning_resources():
 def display_profile_page():
     st.header("👤 Your Profile")
     profile = get_user_profile(st.session_state.username) or {}
-    
     with st.form("profile_form"):
         st.subheader("Edit Profile")
         full_name = st.text_input("Full Name", value=profile.get('full_name', ''))
@@ -1045,9 +956,7 @@ def display_profile_page():
         if st.form_submit_button("Save Profile", type="primary"):
             if update_user_profile(st.session_state.username, full_name, school, age, bio):
                 st.success("Profile updated!"); st.rerun()
-
     st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
-
     with st.form("password_form"):
         st.subheader("Change Password")
         current_password = st.text_input("Current Password", type="password")
@@ -1156,5 +1065,3 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
-
-
