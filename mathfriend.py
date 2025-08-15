@@ -1,111 +1,4 @@
 import streamlit as st
-
-# ============================
-# UX HELPERS (Student‑first polish)
-# ============================
-def _ensure_session_keys():
-    import streamlit as st
-    defaults = {
-        "avatar_url": "https://ui-avatars.com/api/?name=MF&background=7c3aed&color=fff",
-        "streak_days": 0,
-        "xp_points": 0,
-        "weekly_goal": 50,
-        "answered_this_week": 0,
-        "first_name": st.session_state.get("username", "Student").split()[0] if st.session_state.get("username") else "Student",
-        "theme": st.session_state.get("theme", "dark"),
-    }
-    for k, v in defaults.items():
-        if k not in st.session_state:
-            st.session_state[k] = v
-
-def get_user_stats():
-    _ensure_session_keys()
-    import streamlit as st
-    return {
-        "streak": st.session_state.streak_days,
-        "xp": st.session_state.xp_points,
-        "weekly_goal": st.session_state.weekly_goal,
-        "answered": st.session_state.answered_this_week,
-    }
-
-def add_xp(points=1):
-    _ensure_session_keys()
-    import streamlit as st
-    st.session_state.xp_points = int(st.session_state.xp_points) + int(points)
-
-def increment_streak():
-    _ensure_session_keys()
-    import streamlit as st
-    st.session_state.streak_days = int(st.session_state.streak_days) + 1
-
-def set_theme(theme: str):
-    import streamlit as st
-    st.session_state.theme = theme
-
-def render_global_css():
-    import streamlit as st
-    st.markdown("""
-<style>
-:root{
-    --brand:#7c3aed; --brand-2:#22d3ee;
-    --bg:#0f172a; --card:#0b1220; --muted:#94a3b8; --text:#e2e8f0;
-    --good:#22c55e; --warn:#f59e0b; --bad:#ef4444; --border:rgba(255,255,255,.08);
-}
-.app-surface{background: radial-gradient(1200px 600px at 100% -10%, rgba(124,58,237,.25), transparent 70%), radial-gradient(900px 500px at -10% 0%, rgba(34,211,238,.25), transparent 60%), var(--bg); padding:16px; border-radius:16px; box-shadow:0 6px 24px rgba(0,0,0,.35);}
-.headerbar{display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:12px; background:rgba(255,255,255,.06); border:1px solid var(--border); border-radius:16px; padding:12px 14px;}
-.header-left{display:flex; gap:12px; align-items:center}
-.avatar{width:40px; height:40px; border-radius:50%; border:2px solid rgba(255,255,255,.2)}
-.headline{font-size:1.1rem; color:var(--text); font-weight:700}
-.sub{font-size:.9rem; color:var(--muted)}
-.pill{border-radius:999px; padding:4px 10px; font-size:.8rem; border:1px solid var(--border); color:var(--text)}
-.progress{height:10px; background:rgba(255,255,255,.08); border-radius:999px; overflow:hidden}
-.progress>div{height:100%; background:linear-gradient(90deg, var(--brand), var(--brand-2));}
-.card-grid{display:grid; grid-template-columns:repeat(12,1fr); gap:12px}
-@media(max-width:900px){ .card-grid{grid-template-columns:repeat(6,1fr)}}
-@media(max-width:640px){ .card-grid{grid-template-columns:repeat(2,1fr)}}
-.card{grid-column: span 4; background:rgba(255,255,255,.06); border:1px solid var(--border); border-radius:16px; padding:14px}
-.card.span-6{grid-column: span 6}
-.card.span-12{grid-column: span 12}
-.btn-primary{background:linear-gradient(135deg, var(--brand), var(--brand-2)); border:none; color:#fff !important; font-weight:700; border-radius:12px; padding:10px 14px;}
-</style>
-""", unsafe_allow_html=True)
-
-def render_header(title="Welcome"):
-    import streamlit as st, html
-    _ensure_session_keys()
-    name = st.session_state.get("first_name","Student")
-    avatar = st.session_state.get("avatar_url")
-    stats = get_user_stats()
-    weekly = int((stats["answered"]/max(1,stats["weekly_goal"])) * 100)
-    weekly = max(0, min(100, weekly))
-    html_block = """
-<div class="headerbar">
-  <div class="header-left">
-    <img class="avatar" src="{avatar}"/>
-    <div>
-      <div class="headline">{title}, {name}! 👋</div>
-      <div class="sub">🔥 {streak}-day streak • ⭐ {xp} XP</div>
-    </div>
-  </div>
-  <div>
-    <span class="pill">Weekly goal</span>
-    <div class="progress" style="width:220px; margin-top:6px"><div style="width:{weekly}%"></div></div>
-    <div class="sub">{answered}/{goal} answered</div>
-  </div>
-</div>
-""".format(
-        avatar=avatar, title=html.escape(title), name=html.escape(name),
-        streak=stats["streak"], xp=stats["xp"],
-        weekly=weekly, answered=stats["answered"], goal=stats["weekly_goal"]
-    )
-    st.markdown(html_block, unsafe_allow_html=True)
-
-def confetti(success=True):
-    import streamlit as st
-    try:
-        if success: st.balloons()
-    except Exception:
-        pass
 import sqlite3
 import time
 import random
@@ -762,10 +655,6 @@ def show_main_app():
         update_user_status(st.session_state.username, True)
         st.session_state.last_status_update = time.time()
     with st.sidebar:
-        st.sidebar.markdown('---')
-        st.sidebar.subheader('Appearance')
-        _theme = st.sidebar.selectbox('Theme', ['dark','light'], index=0 if st.session_state.get('theme','dark')=='dark' else 1)
-        set_theme(_theme)
         profile = get_user_profile(st.session_state.username)
         display_name = profile.get('full_name') if profile and profile.get('full_name') else st.session_state.username
         st.title(f"Welcome, {display_name}!")
@@ -856,4 +745,3 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
-
