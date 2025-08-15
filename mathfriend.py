@@ -23,14 +23,8 @@ st.set_page_config(
 def initialize_session_state():
     """Initializes all necessary session state variables."""
     defaults = {
-        "logged_in": False,
-        "page": "login",
-        "username": "",
-        "show_splash": True,
-        "quiz_active": False,
-        "quiz_topic": "Sets",
-        "quiz_score": 0,
-        "questions_answered": 0
+        "logged_in": False, "page": "login", "username": "", "show_splash": True,
+        "quiz_active": False, "quiz_topic": "Sets", "quiz_score": 0, "questions_answered": 0
     }
     for key, value in defaults.items():
         if key not in st.session_state:
@@ -248,6 +242,7 @@ def add_xp(username, points):
     try:
         conn = sqlite3.connect(DB_FILE, timeout=15)
         c = conn.cursor()
+        c.execute("INSERT OR IGNORE INTO user_profiles (username) VALUES (?)", (username,))
         c.execute("UPDATE user_profiles SET xp = xp + ? WHERE username = ?", (points, username))
         c.execute("SELECT xp, level FROM user_profiles WHERE username = ?", (username,))
         current_xp, current_level = c.fetchone()
@@ -808,10 +803,20 @@ def show_main_app():
     if time.time() - last_update > 60:
         update_user_status(st.session_state.username, True)
         st.session_state.last_status_update = time.time()
+        
     with st.sidebar:
         profile = get_user_profile(st.session_state.username)
         display_name = profile.get('full_name') if profile and profile.get('full_name') else st.session_state.username
-        st.title(f"Welcome,\n{display_name}!")
+        
+        current_hour = datetime.now().hour
+        if 5 <= current_hour < 12:
+            greeting = "Good morning"
+        elif 12 <= current_hour < 18:
+            greeting = "Good afternoon"
+        else:
+            greeting = "Good evening"
+        st.title(f"{greeting},\n{display_name}!")
+        
         if profile:
             level = profile.get('level', 1)
             xp = profile.get('xp', 0)
@@ -821,14 +826,17 @@ def show_main_app():
         if streak > 0:
             st.sidebar.markdown(f"**Daily Streak:** 🔥 {streak} Day{'s' if streak > 1 else ''}")
         st.write("---")
-        page_options = ["📊 Dashboard", "📝 Quiz", "🏆 Leaderboard", "👤 Profile", "📚 Learning Resources", "💬 Chat (Paused)"]
+        
+        page_options = ["📊 Dashboard", "📝 Quiz", "🏆 Leaderboard", "👤 Profile", "📚 Learning Resources"]
         selected_page = st.radio("Menu", page_options, label_visibility="collapsed")
         st.write("---")
         if st.button("Logout", type="primary", use_container_width=True):
             st.session_state.logged_in = False
             st.rerun()
+
     st.markdown('<div class="main-content">', unsafe_allow_html=True)
     topic_options = ["Sets", "Percentages", "Fractions", "Indices", "Surds", "Binary Operations", "Relations and Functions", "Sequence and Series", "Word Problems"]
+    
     if selected_page == "📊 Dashboard":
         display_dashboard(st.session_state.username)
     elif selected_page == "📝 Quiz":
@@ -839,9 +847,7 @@ def show_main_app():
         display_profile_page()
     elif selected_page == "📚 Learning Resources":
         display_learning_resources()
-    elif selected_page == "💬 Chat (Paused)":
-        st.header("💬 Community Chat")
-        st.info("The chat feature has been paused to focus on the core learning experience.")
+    
     st.markdown('</div>', unsafe_allow_html=True)
 
 def show_login_or_signup_page():
@@ -850,7 +856,7 @@ def show_login_or_signup_page():
     st.markdown('<div class="login-container">', unsafe_allow_html=True)
     if st.session_state.page == "login":
         st.markdown('<p class="login-title">🔐 MathFriend</p>', unsafe_allow_html=True)
-        st.markdown('<p class="login-subtitle">Welcome Back!</p>', unsafe_allow_html=True)
+        st.markdown('<p class="login-subtitle">Your personal math learning companion</p>', unsafe_allow_html=True)
         with st.form("login_form"):
             username = st.text_input("Username", key="login_user")
             password = st.text_input("Password", type="password", key="login_pass")
@@ -894,12 +900,17 @@ if st.session_state.show_splash:
         <style>
             @keyframes fadeIn { 0% { opacity: 0; transform: translateY(20px); } 100% { opacity: 1; transform: translateY(0); } }
             .splash-screen {
-                display: flex; justify-content: center; align-items: center;
-                height: 100vh; font-family: 'Poppins', sans-serif; font-size: 3rem; font-weight: 800;
-                color: #4361ee; animation: fadeIn 1.5s ease-in-out; background-color: #f0f2f5;
+                display: flex; flex-direction: column; justify-content: center; align-items: center;
+                height: 100vh; font-family: 'Poppins', sans-serif;
+                color: #4361ee; background-color: #f0f2f5;
+            }
+            .splash-title {
+                font-size: 3rem; font-weight: 800; animation: fadeIn 1.5s ease-in-out;
             }
         </style>
-        <div class="splash-screen">🧮 MathFriend</div>
+        <div class="splash-screen">
+            <p class="splash-title">🧮 MathFriend</p>
+        </div>
     """, unsafe_allow_html=True)
     time.sleep(2)
     st.session_state.show_splash = False
