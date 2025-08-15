@@ -780,7 +780,8 @@ def show_login_or_signup_page():
     load_css()
     st.markdown('<div class="login-container">', unsafe_allow_html=True)
     if st.session_state.page == "login":
-        st.markdown('<p class="login-title">🔐 MathFriend</p>', unsafe_allow_html=True)
+        # THIS TITLE IS UPDATED
+        st.markdown('<p class="login-title">🔐 MathFriend Login</p>', unsafe_allow_html=True)
         st.markdown('<p class="login-subtitle">Welcome Back!</p>', unsafe_allow_html=True)
         with st.form("login_form"):
             username = st.text_input("Username", key="login_user")
@@ -840,3 +841,4 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
