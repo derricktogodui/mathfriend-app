@@ -196,20 +196,27 @@ def get_top_scores(topic):
     finally:
         if conn: conn.close()
 
-def get_user_stats(username):
+def get_user_stats_for_topic(username, topic):
+    """Gets a user's best score and attempt count for a specific topic."""
     conn = None
     try:
         conn = sqlite3.connect(DB_FILE, timeout=15)
         c = conn.cursor()
-        c.execute("SELECT COUNT(*) FROM quiz_results WHERE username=?", (username,))
-        total_quizzes = c.fetchone()[0]
-        c.execute("SELECT score, questions_answered FROM quiz_results WHERE username=? ORDER BY timestamp DESC LIMIT 1", (username,))
-        last_result = c.fetchone()
-        last_score_str = f"{last_result[0]}/{last_result[1]}" if last_result and last_result[1] > 0 else "N/A"
-        c.execute("SELECT score, questions_answered FROM quiz_results WHERE username=? AND questions_answered > 0 ORDER BY (CAST(score AS REAL) / questions_answered) DESC, score DESC LIMIT 1", (username,))
-        top_result = c.fetchone()
-        top_score_str = f"{top_result[0]}/{top_result[1]}" if top_result and top_result[1] > 0 else "N/A"
-        return total_quizzes, last_score_str, top_score_str
+        # Get best score percentage
+        c.execute("""
+            SELECT MAX(CAST(score AS REAL) / questions_answered) * 100
+            FROM quiz_results 
+            WHERE username = ? AND topic = ? AND questions_answered > 0
+        """, (username, topic))
+        best_score_result = c.fetchone()
+        best_score = best_score_result[0] if best_score_result and best_score_result[0] is not None else 0
+
+        # Get number of attempts
+        c.execute("SELECT COUNT(*) FROM quiz_results WHERE username = ? AND topic = ?", (username, topic))
+        attempts_result = c.fetchone()
+        attempts = attempts_result[0] if attempts_result else 0
+        
+        return f"{best_score:.1f}%", attempts
     finally:
         if conn: conn.close()
         
@@ -844,18 +851,39 @@ def display_quiz_page(topic_options):
     QUIZ_LENGTH = 10
 
     if not st.session_state.quiz_active:
-        st.write(f"Select a topic and challenge yourself! Each round consists of {QUIZ_LENGTH} questions.")
-        st.session_state.quiz_topic = st.selectbox("Choose a topic:", topic_options)
+        st.subheader("Choose Your Challenge")
+
+        # --- NEW: Smart Topic Suggestion ---
+        topic_perf_df = get_topic_performance(st.session_state.username)
+        if not topic_perf_df.empty and topic_perf_df['Accuracy'].iloc[-1] < 100:
+            weakest_topic = topic_perf_df.index[-1]
+            st.info(f"💡 **Practice Suggestion:** Your lowest accuracy is in **{weakest_topic}**. Why not give it a try?")
+
+        selected_topic = st.selectbox("Select a topic to begin:", topic_options)
+        st.session_state.quiz_topic = selected_topic # Keep session state updated
+
+        st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
+
+        # --- NEW: Dynamic Display of User Stats for the Selected Topic ---
+        col1, col2 = st.columns(2)
+        with col1:
+            best_score, attempts = get_user_stats_for_topic(st.session_state.username, selected_topic)
+            st.metric("Your Best Score on this Topic", best_score)
+            st.metric("Quizzes Taken on this Topic", attempts)
         
-        if st.button("Start Quiz", type="primary", use_container_width=True):
-            st.session_state.quiz_active = True
-            st.session_state.on_summary_page = False # Ensure summary switch is off
-            st.session_state.quiz_score = 0
-            st.session_state.questions_answered = 0
-            st.session_state.current_streak = 0
-            st.session_state.incorrect_questions = []
-            if 'current_q_data' in st.session_state: del st.session_state['current_q_data']
-            st.rerun()
+        with col2:
+            st.write("") # Just for vertical alignment
+            st.write("")
+            if st.button("Start Quiz", type="primary", use_container_width=True, key="start_quiz_main"):
+                st.session_state.quiz_active = True
+                st.session_state.on_summary_page = False
+                st.session_state.quiz_score = 0
+                st.session_state.questions_answered = 0
+                st.session_state.current_streak = 0
+                st.session_state.incorrect_questions = []
+                if 'current_q_data' in st.session_state: del st.session_state['current_q_data']
+                st.rerun()
+
     else:
         # If the summary "switch" is on, show the summary and stop.
         if st.session_state.get('on_summary_page', False):
@@ -912,9 +940,8 @@ def display_quiz_page(topic_options):
                 else:
                     st.warning("Please select an answer before submitting.")
 
-        # Updated "Stop" button logic
         if st.button("Stop Round & Save Score"):
-            st.session_state.on_summary_page = True # Just flip the switch
+            st.session_state.on_summary_page = True
             st.rerun()
 def display_quiz_summary():
     """Displays the quiz summary screen at the end of a round."""
@@ -1164,6 +1191,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
