@@ -514,9 +514,14 @@ def load_css():
     """Loads the main CSS for the application for a consistent and responsive look."""
     st.markdown("""
     <style>
-        /* This is the new rule to fix the input labels */
+        /* Fixes the input labels */
         label {
             color: #4F4F4F !important;
+        }
+
+        /* This is the new rule for the 'Sign Up' button text */
+        div[data-testid="stButton"] > button {
+            color: white !important;
         }
 
         .stApp { 
@@ -548,7 +553,6 @@ def load_css():
         }
     </style>
     """, unsafe_allow_html=True)
-
 def display_dashboard(username):
     st.header(f"📈 Dashboard for {username}")
     total_quizzes, last_score, top_score = get_user_stats(username)
@@ -753,5 +757,6 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
