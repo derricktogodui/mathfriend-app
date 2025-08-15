@@ -4,18 +4,17 @@ import bcrypt
 import time
 import random
 import pandas as pd
-import plotly.express as px
 import re
 import hashlib
-import json
 import math
 import base64
+import os
 from datetime import datetime
-from streamlit.components.v1 import html, cache_resource
+from streamlit.components.v1 import html
 from streamlit_autorefresh import st_autorefresh
 from fractions import Fraction
 
-# Streamlit-specific configuration
+# --- App Configuration ---
 st.set_page_config(
     layout="wide",
     page_title="MathFriend",
@@ -24,101 +23,101 @@ st.set_page_config(
 )
 
 # --- Session State Initialization ---
-if "logged_in" not in st.session_state:
-    st.session_state.logged_in = False
-if "page" not in st.session_state:
-    st.session_state.page = "login"
-if "username" not in st.session_state:
-    st.session_state.username = ""
-if "show_splash" not in st.session_state:
-    st.session_state.show_splash = True
-if "dark_mode" not in st.session_state:
-    st.session_state.dark_mode = False
-if 'quiz_active' not in st.session_state:
-    st.session_state.quiz_active = False
-if 'quiz_topic' not in st.session_state:
-    st.session_state.quiz_topic = "Sets"
-if 'quiz_score' not in st.session_state:
-    st.session_state.quiz_score = 0
-if 'questions_answered' not in st.session_state:
-    st.session_state.questions_answered = 0
+def initialize_session_state():
+    """Initializes all necessary session state variables."""
+    defaults = {
+        "logged_in": False,
+        "page": "login",
+        "username": "",
+        "show_splash": True,
+        "quiz_active": False,
+        "quiz_topic": "Sets",
+        "quiz_score": 0,
+        "questions_answered": 0
+    }
+    for key, value in defaults.items():
+        if key not in st.session_state:
+            st.session_state[key] = value
+
+initialize_session_state()
 
 
-# --- Database Setup and Connection Logic ---
+# --- Database Setup ---
 DB_FILE = 'users.db'
 
-@cache_resource
-def create_tables_if_not_exist():
-    """
-    Ensures all necessary tables and columns exist in the database.
-    This function is cached and runs only once per server start.
-    """
+def create_and_verify_tables():
+    """Creates and verifies all necessary database tables."""
     conn = None
     try:
-        # Increased timeout for robustness under load
         conn = sqlite3.connect(DB_FILE, timeout=15)
         c = conn.cursor()
         
-        # Create users table
-        c.execute('''CREATE TABLE IF NOT EXISTS users
-                     (username TEXT PRIMARY KEY, password TEXT)''')
-                     
-        # Create quiz_results table
+        c.execute('''CREATE TABLE IF NOT EXISTS users (username TEXT PRIMARY KEY, password TEXT)''')
         c.execute('''CREATE TABLE IF NOT EXISTS quiz_results
-                     (id INTEGER PRIMARY KEY AUTOINCREMENT,
-                      username TEXT,
-                      topic TEXT,
-                      score INTEGER,
-                      questions_answered INTEGER,
-                      timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
-                      
-        # Create chat_messages table
+                     (id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT, topic TEXT, score INTEGER,
+                      questions_answered INTEGER, timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
         c.execute('''CREATE TABLE IF NOT EXISTS chat_messages
-                     (id INTEGER PRIMARY KEY AUTOINCREMENT,
-                      username TEXT,
-                      message TEXT,
-                      media TEXT,
+                     (id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT, message TEXT, media TEXT,
                       timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
-
-        # Create user profiles table
         c.execute('''CREATE TABLE IF NOT EXISTS user_profiles
-                     (username TEXT PRIMARY KEY,
-                      full_name TEXT,
-                      school TEXT,
-                      age INTEGER,
-                      bio TEXT)''')
-        
-        # Create online status table
+                     (username TEXT PRIMARY KEY, full_name TEXT, school TEXT, age INTEGER, bio TEXT)''')
         c.execute('''CREATE TABLE IF NOT EXISTS user_status
-                     (username TEXT PRIMARY KEY, 
-                      is_online BOOLEAN,
-                      last_seen TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
-        
-        # Create typing indicators table
+                     (username TEXT PRIMARY KEY, is_online BOOLEAN, last_seen TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
         c.execute('''CREATE TABLE IF NOT EXISTS typing_indicators
-                     (username TEXT PRIMARY KEY,
-                      is_typing BOOLEAN,
-                      timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
+                     (username TEXT PRIMARY KEY, is_typing BOOLEAN, timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
 
-        # Check for the 'media' column and add it if it's missing
         c.execute("PRAGMA table_info(chat_messages)")
         chat_columns = [column[1] for column in c.fetchall()]
         if 'media' not in chat_columns:
             c.execute("ALTER TABLE chat_messages ADD COLUMN media TEXT")
         
-        # Check for and add 'questions_answered' column in quiz_results if missing
         c.execute("PRAGMA table_info(quiz_results)")
         quiz_columns = [column[1] for column in c.fetchall()]
         if 'questions_answered' not in quiz_columns:
             c.execute("ALTER TABLE quiz_results ADD COLUMN questions_answered INTEGER DEFAULT 0")
 
         conn.commit()
-        print("Database initialized successfully.")
+        print("Database setup and verification complete.")
     except sqlite3.Error as e:
         st.error(f"Database setup error: {e}")
     finally:
         if conn:
             conn.close()
+
+def bootstrap_database():
+    """Checks for the DB file and creates it if it doesn't exist."""
+    if not os.path.exists(DB_FILE):
+        print("Database file not found, creating and initializing...")
+        create_and_verify_tables()
+    else:
+        print("Database file already exists.")
+
+bootstrap_database()
+
+
+# --- Core Backend Functions (Authentication, DB Queries, Question Gen) ---
+def hash_password(password):
+    """Hashes a password using SHA-256 for better performance."""
+    salt = "mathfriend_static_salt_for_performance"
+    salted_password = password + salt
+    return hashlib.sha256(salted_password.encode()).hexdigest()
+
+def check_password(hashed_password, user_password):
+    """Checks a password against its SHA-256 hash."""
+    return hashed_password == hash_password(user_password)
+
+def login_user(username, password):
+    conn = None
+    try:
+        conn = sqlite3.connect(DB_FILE, timeout=15)
+        c = conn.cursor()
+        c.execute("SELECT password FROM users WHERE username=?", (username,))
+        result = c.fetchone()
+        if result:
+            return check_password(result[0], password)
+        return False
+    finally:
+        if conn: conn.close()
 
 def signup_user(username, password):
     conn = None
@@ -133,8 +132,6 @@ def signup_user(username, password):
     finally:
         if conn: conn.close()
 
-
-# --- Profile Management Functions ---
 def get_user_profile(username):
     conn = None
     try:
@@ -172,8 +169,6 @@ def change_password(username, current_password, new_password):
     finally:
         if conn: conn.close()
 
-
-# --- Online Status Functions ---
 def update_user_status(username, is_online):
     conn = None
     try:
@@ -185,7 +180,58 @@ def update_user_status(username, is_online):
     finally:
         if conn: conn.close()
 
-# --- Question Generation Logic ---
+def save_quiz_result(username, topic, score, questions_answered):
+    conn = None
+    try:
+        conn = sqlite3.connect(DB_FILE, timeout=15)
+        c = conn.cursor()
+        c.execute("INSERT INTO quiz_results (username, topic, score, questions_answered) VALUES (?, ?, ?, ?)",
+                  (username, topic, score, questions_answered))
+        conn.commit()
+    finally:
+        if conn: conn.close()
+
+def get_top_scores(topic):
+    conn = None
+    try:
+        conn = sqlite3.connect(DB_FILE, timeout=15)
+        c = conn.cursor()
+        c.execute("""
+            SELECT username, score, questions_answered FROM quiz_results WHERE topic=? AND questions_answered > 0
+            ORDER BY (CAST(score AS REAL) / questions_answered) DESC, questions_answered DESC, timestamp ASC LIMIT 10
+        """, (topic,))
+        return c.fetchall()
+    finally:
+        if conn: conn.close()
+
+def get_user_stats(username):
+    conn = None
+    try:
+        conn = sqlite3.connect(DB_FILE, timeout=15)
+        c = conn.cursor()
+        c.execute("SELECT COUNT(*) FROM quiz_results WHERE username=?", (username,))
+        total_quizzes = c.fetchone()[0]
+        c.execute("SELECT score, questions_answered FROM quiz_results WHERE username=? ORDER BY timestamp DESC LIMIT 1", (username,))
+        last_result = c.fetchone()
+        last_score_str = f"{last_result[0]}/{last_result[1]}" if last_result and last_result[1] > 0 else "N/A"
+        c.execute("SELECT score, questions_answered FROM quiz_results WHERE username=? AND questions_answered > 0 ORDER BY (CAST(score AS REAL) / questions_answered) DESC, score DESC LIMIT 1", (username,))
+        top_result = c.fetchone()
+        top_score_str = f"{top_result[0]}/{top_result[1]}" if top_result and top_result[1] > 0 else "N/A"
+        return total_quizzes, last_score_str, top_score_str
+    finally:
+        if conn: conn.close()
+        
+@st.cache_data(ttl=60)
+def get_all_usernames():
+    conn = None
+    try:
+        conn = sqlite3.connect(DB_FILE, timeout=15)
+        c = conn.cursor()
+        c.execute("SELECT username FROM users")
+        return [row[0] for row in c.fetchall()]
+    finally:
+        if conn: conn.close()
+
 def _generate_sets_question():
     set_a = set(random.sample(range(1, 15), k=random.randint(3, 5)))
     set_b = set(random.sample(range(1, 15), k=random.randint(3, 5)))
@@ -205,7 +251,7 @@ def _generate_sets_question():
         options.add(str(set(random.sample(range(1, 20), k=random.randint(2,4)))))
     shuffled_options = list(options)
     random.shuffle(shuffled_options)
-    return {"question": question_text, "options": shuffled_options, "answer": correct_answer, "hint": "Review the definitions of set union, intersection, and difference."}
+    return {"question": question_text, "options": shuffled_options, "answer": correct_answer, "hint": "Review set operations."}
 
 def _generate_percentages_question():
     q_type = random.choice(['percent_of', 'what_percent', 'original_price'])
@@ -257,7 +303,7 @@ def _generate_fractions_question():
         op_symbol = random.choice(['+', '-'])
         expression_code = f"{_get_fraction_latex_code(f1)} {op_symbol} {_get_fraction_latex_code(f2)}"
         correct_answer_obj = f1 + f2 if op_symbol == '+' else f1 - f2
-        hint = "To add or subtract fractions, you must first find a common denominator."
+        hint = "To add or subtract fractions, find a common denominator."
     elif q_type == 'mul_div':
         op_symbol = random.choice(['\\times', '\\div'])
         expression_code = f"{_get_fraction_latex_code(f1)} {op_symbol} {_get_fraction_latex_code(f2)}"
@@ -267,13 +313,13 @@ def _generate_fractions_question():
             hint = "To divide by a fraction, invert the second fraction and multiply."
         else:
             correct_answer_obj = f1 * f2
-            hint = "To multiply fractions, multiply the numerators and the denominators together."
+            hint = "To multiply fractions, multiply the numerators and denominators."
     else: # simplify
         common_factor = random.randint(2, 5)
         unsimplified_f = Fraction(f1.numerator * common_factor, f1.denominator * common_factor)
         expression_code = f"{_get_fraction_latex_code(unsimplified_f)}"
         correct_answer_obj = f1
-        hint = "Find the greatest common divisor (GCD) of the numerator and denominator and divide both by it."
+        hint = "Divide the numerator and denominator by their greatest common divisor."
     if q_type == 'simplify':
         question_text = f"Simplify the fraction ${expression_code}$ to its lowest terms."
     else:
@@ -347,6 +393,108 @@ def _generate_word_problems_question():
     random.shuffle(shuffled_options)
     return {"question": question_text, "options": shuffled_options, "answer": correct_answer, "hint": hint}
 
+def _generate_indices_question():
+    q_type = random.choice(['multiply', 'divide', 'power', 'negative', 'fractional'])
+    base = random.randint(2, 6)
+    if q_type == 'multiply':
+        p1, p2 = random.randint(2, 5), random.randint(2, 5)
+        question_text = f"Simplify: ${base}^{p1} \\times {base}^{p2}$"
+        correct_answer = f"${base}^{p1+p2}$"
+        hint = "When multiplying powers with the same base, add the exponents: $x^a \\times x^b = x^{{a+b}}$."
+        options = {correct_answer, f"${base}^{p1*p2}$", f"${base*2}^{p1+p2}$"}
+    elif q_type == 'divide':
+        p1, p2 = random.randint(5, 9), random.randint(2, 4)
+        question_text = f"Simplify: ${base}^{p1} \\div {base}^{p2}$"
+        correct_answer = f"${base}^{p1-p2}$"
+        hint = "When dividing powers with the same base, subtract the exponents: $x^a \\div x^b = x^{{a-b}}$."
+        options = {correct_answer, f"${base}^{p1//p2}$", f"$1^{p1-p2}$"}
+    elif q_type == 'power':
+        p1, p2 = random.randint(2, 4), random.randint(2, 3)
+        question_text = f"Simplify: $({base}^{p1})^{p2}$"
+        correct_answer = f"${base}^{p1*p2}$"
+        hint = "When raising a power to another power, multiply the exponents: $(x^a)^b = x^{{ab}}$."
+        options = {correct_answer, f"${base}^{p1+p2}$", f"${base}^{p1**p2}$"}
+    elif q_type == 'negative':
+        p1 = random.randint(2, 4)
+        question_text = f"Express ${base}^{{-{p1}}}$ as a fraction."
+        correct_answer = f"$\\frac{{1}}{{{base**p1}}}$"
+        hint = f"A negative exponent means take the reciprocal: $x^{{-a}} = \\frac{{1}}{{x^a}}$."
+        options = {correct_answer, f"$-{base*p1}$", f"$\\frac{{1}}{{{base*p1}}}$"}
+    else: # fractional
+        roots = {8: 3, 27: 3, 4: 2, 9: 2, 16: 2, 64: 3, 81: 4}
+        num = random.choice(list(roots.keys()))
+        root = roots[num]
+        question_text = f"What is the value of ${num}^{{\\frac{{1}}{{{root}}}}}}$?"
+        correct_answer = str(int(round(num**(1/root))))
+        hint = f"The fractional exponent $\\frac{{1}}{{n}}$ is the same as the n-th root ($\sqrt[n]{{x}}$)."
+        options = {correct_answer, str(num/root), str(num*root)}
+    while len(options) < 4:
+        options.add(str(random.randint(1, 100)))
+    shuffled_options = list(options)
+    random.shuffle(shuffled_options)
+    return {"question": question_text, "options": shuffled_options, "answer": correct_answer, "hint": hint}
+
+def _generate_relations_functions_question():
+    q_type = random.choice(['domain', 'range', 'is_function', 'evaluate'])
+    if q_type == 'domain' or q_type == 'range':
+        domain_set = set(random.sample(range(1, 10), k=4))
+        range_set = set(random.sample(['a', 'b', 'c', 'd', 'e'], k=4))
+        relation = str(set(zip(domain_set, range_set))).replace("'", "")
+        question_text = f"Given the relation $R = {relation}$, what is its {'domain' if q_type == 'domain' else 'range'}?"
+        correct_answer = str(domain_set if q_type == 'domain' else range_set).replace("'", "")
+        hint = "The domain is the set of all first elements (x-values). The range is the set of all second elements (y-values)."
+        options = {correct_answer, str(domain_set.union(range_set)).replace("'", "")}
+    elif q_type == 'is_function':
+        func_relation = str({(1, 'a'), (2, 'b'), (3, 'c')}).replace("'", "")
+        not_func_relation = str({(1, 'a'), (1, 'b'), (2, 'c')}).replace("'", "")
+        question_text = "Which of the following relations represents a function?"
+        correct_answer = str(func_relation)
+        hint = "A relation is a function if every input (x-value) maps to exactly one output (y-value). No x-value can be repeated with a different y-value."
+        options = {correct_answer, not_func_relation}
+    else: # evaluate
+        a, b, x = random.randint(2, 5), random.randint(1, 10), random.randint(1, 5)
+        question_text = f"If $f(x) = {a}x + {b}$, what is the value of $f({x})$?"
+        correct_answer = str(a * x + b)
+        hint = "Substitute the value of x into the function definition and calculate the result."
+        options = {correct_answer, str(a + x + b), str(a * (x + b))}
+    while len(options) < 4:
+        options.add(str(set(random.sample(range(1,10), k=3))).replace("'", ""))
+    shuffled_options = list(options)
+    random.shuffle(shuffled_options)
+    return {"question": question_text, "options": shuffled_options, "answer": correct_answer, "hint": hint}
+
+def _generate_sequence_series_question():
+    q_type = random.choice(['ap_term', 'gp_term', 'ap_sum'])
+    a = random.randint(1, 5)
+    if q_type == 'ap_term':
+        d = random.randint(2, 5)
+        n = random.randint(5, 10)
+        sequence = ", ".join([str(a + i*d) for i in range(4)])
+        question_text = f"What is the {n}th term of the arithmetic sequence: {sequence}, ...?"
+        correct_answer = str(a + (n - 1) * d)
+        hint = f"The formula for the n-th term of an arithmetic progression is $a_n = a_1 + (n-1)d$."
+        options = {correct_answer, str(a + n*d), str(a*n + d)}
+    elif q_type == 'gp_term':
+        r = random.randint(2, 3)
+        n = random.randint(4, 6)
+        sequence = ", ".join([str(a * r**i) for i in range(3)])
+        question_text = f"What is the {n}th term of the geometric sequence: {sequence}, ...?"
+        correct_answer = str(a * r**(n-1))
+        hint = f"The formula for the n-th term of a geometric progression is $a_n = a_1 \\times r^{{n-1}}$."
+        options = {correct_answer, str((a*r)**(n-1)), str(a * r*n)}
+    else: # ap_sum
+        d = random.randint(2, 5)
+        n = random.randint(5, 10)
+        question_text = f"What is the sum of the first {n} terms of an arithmetic sequence with first term {a} and common difference {d}?"
+        correct_answer = str(int((n/2) * (2*a + (n-1)*d)))
+        hint = f"The formula for the sum of the first n terms of an AP is $S_n = \\frac{{n}}{{2}}(2a_1 + (n-1)d)$."
+        options = {correct_answer, str(n*(a + (n-1)*d)), str(int((n/2) * (a + (n-1)*d)))}
+    while len(options) < 4:
+        options.add(str(random.randint(50, 200)))
+    shuffled_options = list(options)
+    random.shuffle(shuffled_options)
+    return {"question": question_text, "options": shuffled_options, "answer": correct_answer, "hint": hint}
+
 def generate_question(topic):
     generators = {
         "Sets": _generate_sets_question,
@@ -355,6 +503,9 @@ def generate_question(topic):
         "Surds": _generate_surds_question,
         "Binary Operations": _generate_binary_ops_question,
         "Word Problems": _generate_word_problems_question,
+        "Indices": _generate_indices_question,
+        "Relations and Functions": _generate_relations_functions_question,
+        "Sequence and Series": _generate_sequence_series_question,
     }
     generator_func = generators.get(topic)
     if generator_func:
@@ -362,165 +513,110 @@ def generate_question(topic):
     else:
         return {"question": f"Questions for **{topic}** are coming soon!", "options": ["OK"], "answer": "OK", "hint": "This topic is under development."}
 
-# --- Database Query Functions ---
-def save_quiz_result(username, topic, score, questions_answered):
-    conn = None
-    try:
-        conn = sqlite3.connect(DB_FILE, timeout=15)
-        c = conn.cursor()
-        c.execute("INSERT INTO quiz_results (username, topic, score, questions_answered) VALUES (?, ?, ?, ?)",
-                  (username, topic, score, questions_answered))
-        conn.commit()
-    finally:
-        if conn: conn.close()
 
-def get_top_scores(topic):
-    conn = None
-    try:
-        conn = sqlite3.connect(DB_FILE, timeout=15)
-        c = conn.cursor()
-        c.execute("""
-            SELECT username, score, questions_answered FROM quiz_results WHERE topic=? AND questions_answered > 0
-            ORDER BY (CAST(score AS REAL) / questions_answered) DESC, questions_answered DESC, timestamp ASC LIMIT 10
-        """, (topic,))
-        return c.fetchall()
-    finally:
-        if conn: conn.close()
-
-def get_user_quiz_history(username):
-    conn = None
-    try:
-        conn = sqlite3.connect(DB_FILE, timeout=15)
-        conn.row_factory = sqlite3.Row
-        c = conn.cursor()
-        c.execute("SELECT topic, score, questions_answered, timestamp FROM quiz_results WHERE username=? ORDER BY timestamp DESC", (username,))
-        return c.fetchall()
-    finally:
-        if conn: conn.close()
-
-def get_user_stats(username):
-    conn = None
-    try:
-        conn = sqlite3.connect(DB_FILE, timeout=15)
-        c = conn.cursor()
-        c.execute("SELECT COUNT(*) FROM quiz_results WHERE username=?", (username,))
-        total_quizzes = c.fetchone()[0]
-        c.execute("SELECT score, questions_answered FROM quiz_results WHERE username=? ORDER BY timestamp DESC LIMIT 1", (username,))
-        last_result = c.fetchone()
-        last_score_str = f"{last_result[0]}/{last_result[1]}" if last_result and last_result[1] > 0 else "N/A"
-        c.execute("SELECT score, questions_answered FROM quiz_results WHERE username=? AND questions_answered > 0 ORDER BY (CAST(score AS REAL) / questions_answered) DESC, score DESC LIMIT 1", (username,))
-        top_result = c.fetchone()
-        top_score_str = f"{top_result[0]}/{top_result[1]}" if top_result and top_result[1] > 0 else "N/A"
-        return total_quizzes, last_score_str, top_score_str
-    finally:
-        if conn: conn.close()
-
-def add_chat_message(username, message, media=None):
-    conn = None
-    try:
-        conn = sqlite3.connect(DB_FILE, timeout=15)
-        c = conn.cursor()
-        c.execute("INSERT INTO chat_messages (username, message, media) VALUES (?, ?, ?)", (username, message, media))
-        conn.commit()
-    finally:
-        if conn: conn.close()
-
-def get_chat_messages(limit=25, offset=0):
-    conn = None
-    try:
-        conn = sqlite3.connect(DB_FILE, timeout=15)
-        conn.row_factory = sqlite3.Row
-        c = conn.cursor()
-        c.execute("""
-            SELECT id, username, message, media, timestamp FROM chat_messages 
-            ORDER BY timestamp DESC LIMIT ? OFFSET ?
-        """, (limit, offset))
-        results = c.fetchall()
-        return results[::-1]
-    finally:
-        if conn: conn.close()
-
-@st.cache_data(ttl=60)
-def get_all_usernames():
-    conn = None
-    try:
-        conn = sqlite3.connect(DB_FILE, timeout=15)
-        c = conn.cursor()
-        c.execute("SELECT username FROM users")
-        return [row[0] for row in c.fetchall()]
-    finally:
-        if conn: conn.close()
-
-# --- Helper & UI Functions ---
-def get_avatar_url(username):
-    hash_object = hashlib.md5(username.encode())
-    return f"https://www.gravatar.com/avatar/{hash_object.hexdigest()}?d=identicon"
-
-def format_message(message, mentioned_usernames, current_user):
-    if not message: return ""
-    emoji_map = {":smile:": "😊", ":laughing:": "😂", ":thumbsup:": "👍", ":heart:": "❤️"}
-    for shortcut, emoji in emoji_map.items():
-        message = message.replace(shortcut, emoji)
-    for user in mentioned_usernames:
-        if user == current_user:
-            message = re.sub(r'(?i)(@' + re.escape(user) + r')', r'<span class="mention-highlight">\1</span>', message)
-    return message
-
-def get_mathbot_response(message):
-    if not message.startswith("@MathBot"): return None
-    query = message.replace("@MathBot", "").strip().lower()
-    if "4+2" in query: return "The result is 6." # Simple hardcoded example
-    return "I can help with basic math. Try '@MathBot 4+2'."
-
+# --- UI Components and Page-Specific Display Functions ---
 def confetti_animation():
     html("""<script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.5.1/dist/confetti.browser.min.js"></script><script>confetti();</script>""")
 
-def metric_card(title, value, icon, color):
-    return f"""<div style="background: white; border-radius: 12px; padding: 15px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); border-left: 4px solid {color};"><div style="display: flex; align-items: center; margin-bottom: 8px;"><div style="font-size: 24px; margin-right: 10px;">{icon}</div><div style="font-size: 14px; color: #666;">{title}</div></div><div style="font-size: 28px; font-weight: bold; color: {color};">{value}</div></div>"""
+def load_css():
+    st.markdown("""
+    <style>
+        /* General App Styling */
+        .stApp {
+            background-color: #f0f2f5;
+        }
+        /* Main content area styling */
+        .main-content {
+            background-color: #ffffff;
+            padding: 2rem;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+        }
+        /* Fix for dataframe text color */
+        .stDataFrame td {
+            color: #31333F;
+        }
+        /* Mobile responsive adjustments */
+        @media (max-width: 640px) {
+            .main-content {
+                padding: 1rem;
+            }
+        }
+    </style>
+    """, unsafe_allow_html=True)
 
-def show_login_page():
-    st.markdown("<style>.main {display: flex; justify-content: center; align-items: center;}</style>", unsafe_allow_html=True)
+def display_dashboard(username):
+    st.header(f"📈 Dashboard for {username}")
     with st.container(border=True):
-        st.title("🔐 MathFriend Login")
-        with st.form("login_form"):
-            username = st.text_input("Username")
-            password = st.text_input("Password", type="password")
-            if st.form_submit_button("Login", type="primary", use_container_width=True):
-                if login_user(username, password):
-                    st.session_state.logged_in = True
-                    st.session_state.username = username
-                    st.success("Login successful!")
-                    time.sleep(1)
-                    st.rerun()
-                else:
-                    st.error("Invalid username or password")
-        if st.button("Don't have an account? Sign Up"):
-            st.session_state.page = "signup"
-            st.rerun()
+        total_quizzes, last_score, top_score = get_user_stats(username)
+        col1, col2, col3 = st.columns(3)
+        col1.metric("Total Quizzes Taken", total_quizzes)
+        col2.metric("Last Score", last_score)
+        col3.metric("Best Score (by Accuracy)", top_score)
 
-def show_signup_page():
-    st.markdown("<style>.main {display: flex; justify-content: center; align-items: center;}</style>", unsafe_allow_html=True)
+def display_quiz_page(topic_options):
+    st.header("🧠 Quiz Time!")
     with st.container(border=True):
-        st.title("Create a New Account")
-        with st.form("signup_form"):
-            username = st.text_input("Username")
-            password = st.text_input("Password", type="password")
-            confirm_password = st.text_input("Confirm Password", type="password")
-            if st.form_submit_button("Create Account", type="primary", use_container_width=True):
-                if password != confirm_password:
-                    st.error("Passwords do not match.")
-                elif signup_user(username, password):
-                    st.success("Account created! Please log in.")
-                    st.session_state.page = "login"
-                    time.sleep(1)
-                    st.rerun()
-                else:
-                    st.error("Username already exists.")
-        if st.button("Back to Login"):
-            st.session_state.page = "login"
-            st.rerun()
+        if not st.session_state.quiz_active:
+            st.write("Select a topic and challenge yourself!")
+            st.session_state.quiz_topic = st.selectbox("Choose a topic:", topic_options)
+            if st.button("Start Quiz", type="primary", use_container_width=True):
+                st.session_state.quiz_active = True
+                st.session_state.quiz_score = 0
+                st.session_state.questions_answered = 0
+                if 'current_q_data' in st.session_state: del st.session_state['current_q_data']
+                st.rerun()
+        else:
+            st.write(f"**Topic:** {st.session_state.quiz_topic} | **Score:** {st.session_state.quiz_score}/{st.session_state.questions_answered}")
+            if 'current_q_data' not in st.session_state:
+                st.session_state.current_q_data = generate_question(st.session_state.quiz_topic)
+            q_data = st.session_state.current_q_data
+            
+            st.markdown(q_data["question"], unsafe_allow_html=True)
+            with st.expander("🤔 Need a hint?"): st.info(q_data["hint"])
+            
+            with st.form(key=f"quiz_form_{st.session_state.questions_answered}"):
+                user_choice = st.radio("Select your answer:", q_data["options"], index=None, key="user_answer_choice")
+                if st.form_submit_button("Submit Answer", type="primary"):
+                    if user_choice is not None:
+                        st.session_state.questions_answered += 1
+                        if str(user_choice) == str(q_data["answer"]):
+                            st.session_state.quiz_score += 1
+                            st.success("Correct! Well done! 🎉")
+                            confetti_animation()
+                        else:
+                            st.error(f"Not quite. The correct answer was: **{q_data['answer']}**")
+                        del st.session_state.current_q_data
+                        del st.session_state.user_answer_choice
+                        time.sleep(1.5)
+                        st.rerun()
+                    else:
+                        st.warning("Please select an answer before submitting.")
+            
+            if st.button("Stop Quiz & Save Score"):
+                if st.session_state.questions_answered > 0:
+                    save_quiz_result(st.session_state.username, st.session_state.quiz_topic, st.session_state.quiz_score, st.session_state.questions_answered)
+                    st.info(f"Quiz stopped. Score of {st.session_state.quiz_score}/{st.session_state.questions_answered} saved.")
+                st.session_state.quiz_active = False
+                st.rerun()
 
-def show_profile_page():
+def display_leaderboard(topic_options):
+    st.header("🏆 Global Leaderboard")
+    with st.container(border=True):
+        leaderboard_topic = st.selectbox("Select a topic to view:", topic_options)
+        top_scores = get_top_scores(leaderboard_topic)
+        if top_scores:
+            leaderboard_data = [{"Rank": f"#{r}", "Username": u, "Score": f"{s}/{t}", "Accuracy": (s/t)*100} for r, (u,s,t) in enumerate(top_scores, 1)]
+            df = pd.DataFrame(leaderboard_data)
+            def highlight_user(row):
+                if row.Username == st.session_state.username:
+                    return ['background-color: #e6f7ff; font-weight: bold; color: #000000;'] * len(row)
+                return [''] * len(row)
+            st.dataframe(df.style.apply(highlight_user, axis=1).format({'Accuracy': "{:.1f}%"}).hide(axis="index"), use_container_width=True)
+        else:
+            st.info(f"No scores recorded for **{leaderboard_topic}** yet.")
+
+def display_profile_page():
     st.header("👤 Your Profile")
     with st.container(border=True):
         profile = get_user_profile(st.session_state.username) or {}
@@ -544,8 +640,11 @@ def show_profile_page():
                 elif change_password(st.session_state.username, current_password, new_password): st.success("Password changed successfully!")
                 else: st.error("Incorrect current password")
 
+# --- Main Application Flow ---
 def show_main_app():
-    # --- PERFORMANCE FIX: Limit status updates to once per minute ---
+    load_css()
+    
+    # Performance Fix: Limit status updates
     last_update = st.session_state.get("last_status_update", 0)
     if time.time() - last_update > 60:
         update_user_status(st.session_state.username, True)
@@ -555,114 +654,91 @@ def show_main_app():
         profile = get_user_profile(st.session_state.username)
         display_name = profile.get('full_name') if profile and profile.get('full_name') else st.session_state.username
         st.title(f"Welcome, {display_name}!")
-        selected_page = st.radio("Menu", ["📊 Dashboard", "📝 Quiz", "🏆 Leaderboard", "💬 Chat", "👤 Profile", "📚 Learning Resources"], label_visibility="hidden")
+        
+        page_options = ["📊 Dashboard", "📝 Quiz", "🏆 Leaderboard", "👤 Profile", "📚 Learning Resources", "💬 Chat (Paused)"]
+        selected_page = st.radio("Menu", page_options, label_visibility="collapsed")
+        
+        st.write("---")
         if st.button("Logout", type="primary", use_container_width=True):
-            update_user_status(st.session_state.username, False)
             st.session_state.logged_in = False
-            st.session_state.page = "login"
             st.rerun()
 
-    topic_options = ["Sets", "Percentages", "Fractions", "Surds", "Binary Operations", "Word Problems"]
+    st.markdown('<div class="main-content">', unsafe_allow_html=True)
     
+    topic_options = ["Sets", "Percentages", "Fractions", "Indices", "Surds", "Binary Operations", "Relations and Functions", "Sequence and Series", "Word Problems"]
+    
+    # Page Router
     if selected_page == "📊 Dashboard":
-        st.header("📈 Progress Dashboard")
-        with st.container(border=True):
-            total_quizzes, last_score, top_score = get_user_stats(st.session_state.username)
-            col1, col2, col3 = st.columns(3)
-            col1.metric("Total Quizzes Taken", total_quizzes)
-            col2.metric("Last Score", last_score)
-            col3.metric("Best Score (by Accuracy)", top_score)
-
+        display_dashboard(st.session_state.username)
     elif selected_page == "📝 Quiz":
-        st.header("🧠 Quiz Time!")
-        with st.container(border=True):
-            if not st.session_state.quiz_active:
-                st.write("Select a topic and challenge yourself!")
-                st.session_state.quiz_topic = st.selectbox("Choose a topic:", topic_options)
-                if st.button("Start Quiz", type="primary", use_container_width=True):
-                    st.session_state.quiz_active = True
-                    st.session_state.quiz_score = 0
-                    st.session_state.questions_answered = 0
-                    if 'current_q_data' in st.session_state: del st.session_state['current_q_data']
-                    st.rerun()
-            else:
-                st.write(f"**Topic:** {st.session_state.quiz_topic} | **Score:** {st.session_state.quiz_score}/{st.session_state.questions_answered}")
-                if 'current_q_data' not in st.session_state:
-                    st.session_state.current_q_data = generate_question(st.session_state.quiz_topic)
-                q_data = st.session_state.current_q_data
-                
-                st.markdown(q_data["question"], unsafe_allow_html=True)
-                with st.expander("🤔 Need a hint?"): st.info(q_data["hint"])
-                
-                with st.form(key=f"quiz_form_{st.session_state.questions_answered}"):
-                    user_choice = st.radio("Select your answer:", q_data["options"], index=None)
-                    if st.form_submit_button("Submit Answer", type="primary"):
-                        if user_choice is not None:
-                            st.session_state.questions_answered += 1
-                            if str(user_choice) == str(q_data["answer"]):
-                                st.session_state.quiz_score += 1
-                                st.success("Correct! Well done! 🎉")
-                                confetti_animation()
-                            else:
-                                st.error(f"Not quite. The correct answer was: **{q_data['answer']}**")
-                            del st.session_state.current_q_data
-                            time.sleep(1.5)
-                            st.rerun()
-                        else:
-                            st.warning("Please select an answer before submitting.")
-                
-                if st.button("Stop Quiz & Save Score"):
-                    if st.session_state.questions_answered > 0:
-                        save_quiz_result(st.session_state.username, st.session_state.quiz_topic, st.session_state.quiz_score, st.session_state.questions_answered)
-                        st.info(f"Quiz stopped. Score of {st.session_state.quiz_score}/{st.session_state.questions_answered} saved.")
-                    st.session_state.quiz_active = False
-                    st.rerun()
-
+        display_quiz_page(topic_options)
     elif selected_page == "🏆 Leaderboard":
-        st.header("🏆 Global Leaderboard")
-        with st.container(border=True):
-            leaderboard_topic = st.selectbox("Select a topic to view:", topic_options)
-            top_scores = get_top_scores(leaderboard_topic)
-            if top_scores:
-                leaderboard_data = [{"Rank": f"#{r}", "Username": u, "Score": f"{s}/{t}", "Accuracy": (s/t)*100} for r, (u,s,t) in enumerate(top_scores, 1)]
-                df = pd.DataFrame(leaderboard_data)
-                def highlight_user(row):
-                    if row.Username == st.session_state.username:
-                        return ['background-color: #e6f7ff; font-weight: bold; color: #000000;'] * len(row)
-                    return [''] * len(row)
-                st.dataframe(df.style.apply(highlight_user, axis=1).format({'Accuracy': "{:.1f}%"}).hide(axis="index"), use_container_width=True)
-            else:
-                st.info(f"No scores recorded for **{leaderboard_topic}** yet.")
-
-    elif selected_page == "💬 Chat":
+        display_leaderboard(topic_options)
+    elif selected_page == "👤 Profile":
+        display_profile_page()
+    elif selected_page == "💬 Chat (Paused)":
         st.header("💬 Community Chat")
-        if 'chat_offset' not in st.session_state: st.session_state.chat_offset = 0
-        
-        live_refresh = st.toggle("Enable Live Refresh", value=True, help="Automatically refresh chat every 5s. Turn off to improve performance.")
-        if live_refresh:
-            st_autorefresh(interval=5000, key="chat_refresh")
-
-        # ... (Your final, stable chat UI code with pagination would go here)
-        st.info("Chat functionality is under construction in this version.")
-
-
+        st.info("The chat feature is currently paused while we consider the next steps. Thank you for your patience!")
     elif selected_page == "📚 Learning Resources":
         st.header("📚 Learning Resources")
         st.info("Coming soon!")
+    
+    st.markdown('</div>', unsafe_allow_html=True)
 
-# --- Main App Logic ---
+def show_login_or_signup_page():
+    load_css()
+    if st.session_state.page == "login":
+        st.markdown("<style>.main {display: flex; justify-content: center; align-items: center;}</style>", unsafe_allow_html=True)
+        with st.container(border=True, height=400):
+            st.title("🔐 MathFriend Login")
+            with st.form("login_form"):
+                username = st.text_input("Username")
+                password = st.text_input("Password", type="password")
+                if st.form_submit_button("Login", type="primary", use_container_width=True):
+                    if login_user(username, password):
+                        st.session_state.logged_in = True
+                        st.session_state.username = username
+                        st.success("Login successful!")
+                        time.sleep(1)
+                        st.rerun()
+                    else:
+                        st.error("Invalid username or password")
+            if st.button("Don't have an account? Sign Up", use_container_width=True):
+                st.session_state.page = "signup"
+                st.rerun()
+    else: # Signup page
+        st.markdown("<style>.main {display: flex; justify-content: center; align-items: center;}</style>", unsafe_allow_html=True)
+        with st.container(border=True, height=450):
+            st.title("Create a New Account")
+            with st.form("signup_form"):
+                username = st.text_input("Username")
+                password = st.text_input("New Password", type="password")
+                confirm_password = st.text_input("Confirm Password", type="password")
+                if st.form_submit_button("Create Account", type="primary", use_container_width=True):
+                    if not username or not password:
+                        st.error("Username and password cannot be empty.")
+                    elif password != confirm_password:
+                        st.error("Passwords do not match.")
+                    elif signup_user(username, password):
+                        st.success("Account created! Please log in.")
+                        st.session_state.page = "login"
+                        time.sleep(2)
+                        st.rerun()
+                    else:
+                        st.error("Username already exists.")
+            if st.button("Back to Login", use_container_width=True):
+                st.session_state.page = "login"
+                st.rerun()
+
+# --- Initial Script Execution Logic ---
 if st.session_state.show_splash:
-    # A simple splash screen
     st.title("Welcome to MathFriend!")
-    st.write("Loading...")
-    time.sleep(1)
+    st.write("Loading application...")
+    time.sleep(1) # Minimal splash delay
     st.session_state.show_splash = False
     st.rerun()
 else:
     if st.session_state.logged_in:
         show_main_app()
     else:
-        if st.session_state.page == "login":
-            show_login_page()
-        else:
-            show_signup_page()
+        show_login_or_signup_page()
