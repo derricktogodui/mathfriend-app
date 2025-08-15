@@ -623,7 +623,7 @@ def load_css():
             align-items: center;
         }
 
-        /* --- THE DEFINITIVE CHROME & SAFARI FIX --- */
+        /* --- THE DEFINITIVE CHROME FIX --- */
         /* This forces a default dark color on all elements in the main content area. */
         div[data-testid="stAppViewContainer"] * {
             color: #31333F !important;
@@ -631,14 +631,25 @@ def load_css():
 
         /* --- FINAL, CROSS-BROWSER SIDEBAR FIX --- */
         /* This uses multiple, redundant rules to ensure all browsers correctly style the sidebar. */
+        
+        /* Rule 1: Set a baseline light color for all sidebar elements. */
         div[data-testid="stSidebarUserContent"] * {
             color: #FAFAFA !important;
         }
+
+        /* Rule 2: Explicitly target the Welcome title to be pure white. */
         div[data-testid="stSidebarUserContent"] h1 {
             color: #FFFFFF !important;
         }
+
+        /* Rule 3: Explicitly target the radio button labels (the menu). */
         div[data-testid="stSidebarUserContent"] [data-testid="stRadio"] label {
-            color: #E0E0E0 !important; /* Slightly off-white for menu items */
+            color: #E0E0E0 !important; /* A bright, slightly off-white for readability */
+        }
+        
+        /* Rule 4: Explicitly target the horizontal line in the sidebar */
+        div[data-testid="stSidebarUserContent"] hr {
+            border-color: #444955 !important;
         }
 
 
@@ -672,7 +683,7 @@ def load_css():
         [data-testid="stWarning"] * { color: #856404 !important; }
         [data-testid="stError"] * { color: #721c24 !important; }
         
-        /* --- GENERAL STYLING --- */
+        /* --- GENERAL STYLING (UNCHANGED FROM BEFORE) --- */
         .main-content h1, .main-content h2, .main-content h3 {
             border-left: 5px solid #0d6efd;
             padding-left: 15px;
@@ -1074,3 +1085,4 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
