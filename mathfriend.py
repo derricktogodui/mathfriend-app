@@ -622,36 +622,52 @@ def load_css():
         }
 
         /* --- THE DEFINITIVE CHROME FIX --- */
-        /* This rule now ONLY targets the main page area, not the sidebar. */
+        /* This rule targets the main page area, not the sidebar. */
         div[data-testid="stAppViewContainer"] * {
             color: #31333F !important;
         }
 
-        /* --- COLOR OVERRIDES --- */
+        /* --- SIDEBAR STYLING FIX --- */
+        /* This block takes explicit control of the sidebar's appearance. */
+        div[data-testid="stSidebar"] {
+            background-color: #0F1116 !important; /* Optional: Force a dark background */
+        }
+        
+        div[data-testid="stSidebar"] h1 {
+            color: #FFFFFF !important; /* Make title text pure white */
+        }
+        
+        /* Targets the radio button labels in the sidebar for the navigation menu */
+        div[data-testid="stSidebar"] [data-testid="stRadio"] label {
+            color: #E0E0E0 !important; /* A bright, slightly off-white for readability */
+        }
+        
+        /* Targets the horizontal line in the sidebar */
+        div[data-testid="stSidebar"] hr {
+            border-color: #444955 !important;
+        }
+
+
+        /* --- COLOR OVERRIDES for main content --- */
         /* We now selectively override the rule above for elements that NEED a different color. */
         
-        /* Buttons with dark backgrounds need white text */
         button[data-testid="stFormSubmitButton"] *,
         div[data-testid="stButton"] > button * {
             color: white !important;
         }
 
-        /* Links should be blue */
         a, a * {
             color: #0068c9 !important;
         }
         
-        /* Headers can be a slightly darker black for emphasis */
         h1, h2, h3, h4, h5, h6 {
             color: #1a1a1a !important; 
         }
 
-        /* The main value in a metric card can be darker */
         [data-testid="stMetricValue"] {
             color: #1a1a1a !important;
         }
 
-        /* Make the text in colored alert boxes contrast appropriately */
         [data-testid="stSuccess"] * { color: #155724 !important; }
         [data-testid="stInfo"] * { color: #0c5460 !important; }
         [data-testid="stWarning"] * { color: #856404 !important; }
@@ -1140,4 +1156,5 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
