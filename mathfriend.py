@@ -32,7 +32,9 @@ def initialize_session_state():
         "quiz_active": False,
         "quiz_topic": "Sets",
         "quiz_score": 0,
-        "questions_answered": 0
+        "questions_answered": 0,
+        "current_streak": 0,          # NEW: For answer streaks
+        "incorrect_questions": []     # NEW: To store mistakes for review
     }
     for key, value in defaults.items():
         if key not in st.session_state:
@@ -846,27 +848,31 @@ def display_quiz_page(topic_options):
         
         if st.button("Start Quiz", type="primary", use_container_width=True):
             st.session_state.quiz_active = True
+            # Reset all quiz stats for a new round
             st.session_state.quiz_score = 0
             st.session_state.questions_answered = 0
+            st.session_state.current_streak = 0
+            st.session_state.incorrect_questions = []
             if 'current_q_data' in st.session_state: del st.session_state['current_q_data']
             st.rerun()
     else:
         # Check if the quiz round is over
         if st.session_state.questions_answered >= QUIZ_LENGTH:
             display_quiz_summary()
-            return # Stop executing the rest of the quiz page
+            return
 
-        # --- NEW: Display progress and score using metrics ---
-        col1, col2 = st.columns(2)
+        # --- UPDATED: Display progress, score, AND streak ---
+        col1, col2, col3 = st.columns(3)
         with col1:
             st.metric("Score", f"{st.session_state.quiz_score}/{st.session_state.questions_answered}")
         with col2:
             st.metric("Question", f"{st.session_state.questions_answered + 1}/{QUIZ_LENGTH}")
+        with col3:
+            st.metric("🔥 Streak", st.session_state.current_streak)
         
         st.progress(st.session_state.questions_answered / QUIZ_LENGTH, text=f"Round Progress")
         st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
         
-        # Generate a new question if one doesn't exist
         if 'current_q_data' not in st.session_state:
             st.session_state.current_q_data = generate_question(st.session_state.quiz_topic)
         
@@ -885,9 +891,12 @@ def display_quiz_page(topic_options):
                     st.session_state.questions_answered += 1
                     if str(user_choice) == str(q_data["answer"]):
                         st.session_state.quiz_score += 1
+                        st.session_state.current_streak += 1 # Increment streak
                         st.success("Correct! Well done! 🎉")
                         confetti_animation()
                     else:
+                        st.session_state.current_streak = 0 # Reset streak
+                        st.session_state.incorrect_questions.append(q_data) # Record mistake
                         st.error(f"Not quite. The correct answer was: **{q_data['answer']}**")
                     
                     del st.session_state.current_q_data
@@ -898,7 +907,7 @@ def display_quiz_page(topic_options):
                     st.warning("Please select an answer before submitting.")
 
         if st.button("Stop Round & Save Score"):
-            display_quiz_summary() # Go to summary page even if stopped early
+            display_quiz_summary()
             st.rerun()
 def display_quiz_summary():
     """Displays the quiz summary screen at the end of a round."""
@@ -908,14 +917,12 @@ def display_quiz_summary():
     total_questions = st.session_state.questions_answered
     accuracy = (final_score / total_questions * 100) if total_questions > 0 else 0
 
-    # Save the result automatically
-    if total_questions > 0:
+    if total_questions > 0 and 'result_saved' not in st.session_state:
         save_quiz_result(st.session_state.username, st.session_state.quiz_topic, final_score, total_questions)
+        st.session_state.result_saved = True # Ensure we only save once per summary view
 
-    # Display final score in a metric card
     st.metric(label="Your Final Score", value=f"{final_score}/{total_questions}", delta=f"{accuracy:.1f}% Accuracy")
 
-    # Display a motivational message based on performance
     if accuracy >= 90:
         st.success("🏆 Excellent work! You're a true MathFriend master!")
         confetti_animation()
@@ -924,21 +931,33 @@ def display_quiz_summary():
     else:
         st.warning("🙂 Good effort! A little more practice and you'll be an expert.")
 
+    # --- NEW: Section to review incorrect answers ---
+    if st.session_state.incorrect_questions:
+        with st.expander("🔍 Click here to review your incorrect answers"):
+            for q in st.session_state.incorrect_questions:
+                st.markdown(f"**Question:** {q['question']}")
+                st.error(f"**Correct Answer:** {q['answer']}")
+                st.info(f"**Hint:** {q['hint']}")
+                st.write("---")
+
     st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
 
-    # Provide options to continue
     col1, col2 = st.columns(2)
     with col1:
         if st.button("Play Again (Same Topic)", use_container_width=True, type="primary"):
+            st.session_state.quiz_active = True # Explicitly set to active
             st.session_state.quiz_score = 0
             st.session_state.questions_answered = 0
+            st.session_state.current_streak = 0
+            st.session_state.incorrect_questions = []
             if 'current_q_data' in st.session_state: del st.session_state['current_q_data']
+            if 'result_saved' in st.session_state: del st.session_state['result_saved']
             st.rerun()
     with col2:
         if st.button("Choose New Topic", use_container_width=True):
             st.session_state.quiz_active = False
+            if 'result_saved' in st.session_state: del st.session_state['result_saved']
             st.rerun()
-
 def display_leaderboard(topic_options):
     st.header("🏆 Global Leaderboard")
 
@@ -1137,6 +1156,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
