@@ -241,20 +241,26 @@ def get_topic_performance(username):
     
     return performance.sort_values(by="Accuracy", ascending=False)
 
-def get_user_rank(username, topic):
-    """Gets the rank of a specific user for a specific topic."""
+def get_user_rank(username, topic, time_filter="all"):
+    """Gets the rank of a specific user for a specific topic and time filter."""
     conn = None
     try:
         conn = sqlite3.connect(DB_FILE, timeout=15)
         c = conn.cursor()
-        # Using a window function to rank users
-        query = """
+        
+        time_clause = ""
+        if time_filter == "week":
+            time_clause = "AND timestamp >= date('now', '-7 days')"
+        elif time_filter == "month":
+            time_clause = "AND timestamp >= date('now', '-30 days')"
+
+        query = f"""
             WITH RankedScores AS (
                 SELECT
                     username,
                     RANK() OVER (ORDER BY (CAST(score AS REAL) / questions_answered) DESC, questions_answered DESC, timestamp ASC) as rank
                 FROM quiz_results
-                WHERE topic = ? AND questions_answered > 0
+                WHERE topic = ? AND questions_answered > 0 {time_clause}
             )
             SELECT rank FROM RankedScores WHERE username = ?;
         """
@@ -264,15 +270,45 @@ def get_user_rank(username, topic):
     finally:
         if conn: conn.close()
 
-def get_total_players(topic):
-    """Gets the total number of unique players for a topic."""
+def get_total_players(topic, time_filter="all"):
+    """Gets the total number of unique players for a topic and time filter."""
     conn = None
     try:
         conn = sqlite3.connect(DB_FILE, timeout=15)
         c = conn.cursor()
-        c.execute("SELECT COUNT(DISTINCT username) FROM quiz_results WHERE topic = ? AND questions_answered > 0", (topic,))
+        
+        time_clause = ""
+        if time_filter == "week":
+            time_clause = "AND timestamp >= date('now', '-7 days')"
+        elif time_filter == "month":
+            time_clause = "AND timestamp >= date('now', '-30 days')"
+            
+        query = f"SELECT COUNT(DISTINCT username) FROM quiz_results WHERE topic = ? AND questions_answered > 0 {time_clause}"
+        c.execute(query, (topic,))
         result = c.fetchone()
         return result[0] if result else 0
+    finally:
+        if conn: conn.close()
+
+def get_top_scores(topic, time_filter="all"):
+    conn = None
+    try:
+        conn = sqlite3.connect(DB_FILE, timeout=15)
+        c = conn.cursor()
+        
+        time_clause = ""
+        if time_filter == "week":
+            time_clause = "AND timestamp >= date('now', '-7 days')"
+        elif time_filter == "month":
+            time_clause = "AND timestamp >= date('now', '-30 days')"
+            
+        query = f"""
+            SELECT username, score, questions_answered FROM quiz_results 
+            WHERE topic=? AND questions_answered > 0 {time_clause}
+            ORDER BY (CAST(score AS REAL) / questions_answered) DESC, questions_answered DESC, timestamp ASC LIMIT 10
+        """
+        c.execute(query, (topic,))
+        return c.fetchall()
     finally:
         if conn: conn.close()
 
@@ -844,24 +880,39 @@ def display_quiz_page(topic_options):
 
 def display_leaderboard(topic_options):
     st.header("🏆 Global Leaderboard")
-    leaderboard_topic = st.selectbox("Select a topic to view:", topic_options)
 
-    # --- NEW: Display the current user's rank ---
+    # --- NEW: Add filter controls for topic and time ---
+    col1, col2 = st.columns([2, 3])
+    with col1:
+        leaderboard_topic = st.selectbox("Select a topic:", topic_options, label_visibility="collapsed")
+    with col2:
+        time_filter_option = st.radio(
+            "Filter by time:",
+            ["This Week", "This Month", "All Time"],
+            index=2,
+            horizontal=True,
+            label_visibility="collapsed"
+        )
+    
+    # Map the radio button option to the value our functions expect
+    time_filter_map = {"This Week": "week", "This Month": "month", "All Time": "all"}
+    time_filter = time_filter_map[time_filter_option]
+
+    # Display the current user's rank using the new filters
     col1, col2 = st.columns(2)
     with col1:
-        user_rank = get_user_rank(st.session_state.username, leaderboard_topic)
-        st.metric(label="Your Rank", value=f"#{user_rank}")
+        user_rank = get_user_rank(st.session_state.username, leaderboard_topic, time_filter)
+        st.metric(label=f"Your Rank ({time_filter_option})", value=f"#{user_rank}")
     with col2:
-        total_players = get_total_players(leaderboard_topic)
-        st.metric(label="Total Players on this Leaderboard", value=total_players)
+        total_players = get_total_players(leaderboard_topic, time_filter)
+        st.metric(label=f"Total Players ({time_filter_option})", value=total_players)
     
     st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
     
-    st.subheader(f"Top 10 for {leaderboard_topic}")
-    top_scores = get_top_scores(leaderboard_topic)
+    st.subheader(f"Top 10 for {leaderboard_topic} ({time_filter_option})")
+    top_scores = get_top_scores(leaderboard_topic, time_filter)
     
     if top_scores:
-        # --- NEW: Process data to add medals and '(You)' label ---
         leaderboard_data = []
         for r, (u, s, t) in enumerate(top_scores, 1):
             rank_display = str(r)
@@ -892,7 +943,7 @@ def display_leaderboard(topic_options):
             use_container_width=True
         )
     else:
-        st.info(f"No scores recorded for **{leaderboard_topic}** yet. Be the first!")
+        st.info(f"No scores recorded for **{leaderboard_topic}** in this time period. Be the first!")
 def display_learning_resources():
     st.header("📚 Learning Resources")
     st.subheader("🧮 Sets and Operations on Sets")
@@ -1025,6 +1076,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
