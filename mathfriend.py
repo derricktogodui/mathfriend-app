@@ -622,9 +622,8 @@ def load_css():
         }
 
         /* --- THE DEFINITIVE CHROME FIX --- */
-        /* This is a powerful, foundational rule to ensure all text is visible by default. */
-        div[data-testid="stAppViewContainer"] *,
-        div[data-testid="stSidebar"] * {
+        /* This rule now ONLY targets the main page area, not the sidebar. */
+        div[data-testid="stAppViewContainer"] * {
             color: #31333F !important;
         }
 
@@ -744,7 +743,6 @@ def load_css():
         }
     </style>
     """, unsafe_allow_html=True)
-
 def display_dashboard(username):
     st.header(f"📈 Dashboard for {username}")
 
@@ -1142,3 +1140,4 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
