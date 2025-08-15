@@ -35,7 +35,7 @@ def initialize_session_state():
         "questions_answered": 0,
         "current_streak": 0,
         "incorrect_questions": [],
-        "on_summary_page": False      # NEW: The "switch" to show the summary page
+        "on_summary_page": False
     }
     for key, value in defaults.items():
         if key not in st.session_state:
@@ -183,19 +183,6 @@ def save_quiz_result(username, topic, score, questions_answered):
     finally:
         if conn: conn.close()
 
-def get_top_scores(topic):
-    conn = None
-    try:
-        conn = sqlite3.connect(DB_FILE, timeout=15)
-        c = conn.cursor()
-        c.execute("""
-            SELECT username, score, questions_answered FROM quiz_results WHERE topic=? AND questions_answered > 0
-            ORDER BY (CAST(score AS REAL) / questions_answered) DESC, questions_answered DESC, timestamp ASC LIMIT 10
-        """, (topic,))
-        return c.fetchall()
-    finally:
-        if conn: conn.close()
-
 def get_user_stats(username):
     conn = None
     try:
@@ -212,6 +199,7 @@ def get_user_stats(username):
         return total_quizzes, last_score_str, top_score_str
     finally:
         if conn: conn.close()
+
 def get_user_quiz_history(username):
     conn = None
     try:
@@ -232,15 +220,10 @@ def get_topic_performance(username):
     history = get_user_quiz_history(username)
     if not history:
         return pd.DataFrame()
-
     df_data = [{"Topic": row['topic'], "Score": row['score'], "Total": row['questions_answered']} for row in history]
     df = pd.DataFrame(df_data)
-    
-    # Group by topic and calculate aggregate scores and totals
     performance = df.groupby('Topic').sum()
-    # Calculate accuracy, avoiding division by zero
     performance['Accuracy'] = (performance['Score'] / performance['Total'] * 100).fillna(0)
-    
     return performance.sort_values(by="Accuracy", ascending=False)
 
 def get_user_rank(username, topic, time_filter="all"):
@@ -249,13 +232,11 @@ def get_user_rank(username, topic, time_filter="all"):
     try:
         conn = sqlite3.connect(DB_FILE, timeout=15)
         c = conn.cursor()
-        
         time_clause = ""
         if time_filter == "week":
             time_clause = "AND timestamp >= date('now', '-7 days')"
         elif time_filter == "month":
             time_clause = "AND timestamp >= date('now', '-30 days')"
-
         query = f"""
             WITH RankedScores AS (
                 SELECT
@@ -278,13 +259,11 @@ def get_total_players(topic, time_filter="all"):
     try:
         conn = sqlite3.connect(DB_FILE, timeout=15)
         c = conn.cursor()
-        
         time_clause = ""
         if time_filter == "week":
             time_clause = "AND timestamp >= date('now', '-7 days')"
         elif time_filter == "month":
             time_clause = "AND timestamp >= date('now', '-30 days')"
-            
         query = f"SELECT COUNT(DISTINCT username) FROM quiz_results WHERE topic = ? AND questions_answered > 0 {time_clause}"
         c.execute(query, (topic,))
         result = c.fetchone()
@@ -298,7 +277,6 @@ def get_user_stats_for_topic(username, topic):
     try:
         conn = sqlite3.connect(DB_FILE, timeout=15)
         c = conn.cursor()
-        # Get best score percentage
         c.execute("""
             SELECT MAX(CAST(score AS REAL) / questions_answered) * 100
             FROM quiz_results 
@@ -306,12 +284,9 @@ def get_user_stats_for_topic(username, topic):
         """, (username, topic))
         best_score_result = c.fetchone()
         best_score = best_score_result[0] if best_score_result and best_score_result[0] is not None else 0
-
-        # Get number of attempts
         c.execute("SELECT COUNT(*) FROM quiz_results WHERE username = ? AND topic = ?", (username, topic))
         attempts_result = c.fetchone()
         attempts = attempts_result[0] if attempts_result else 0
-        
         return f"{best_score:.1f}%", attempts
     finally:
         if conn: conn.close()
@@ -321,13 +296,11 @@ def get_top_scores(topic, time_filter="all"):
     try:
         conn = sqlite3.connect(DB_FILE, timeout=15)
         c = conn.cursor()
-        
         time_clause = ""
         if time_filter == "week":
             time_clause = "AND timestamp >= date('now', '-7 days')"
         elif time_filter == "month":
             time_clause = "AND timestamp >= date('now', '-30 days')"
-            
         query = f"""
             SELECT username, score, questions_answered FROM quiz_results 
             WHERE topic=? AND questions_answered > 0 {time_clause}
@@ -671,11 +644,8 @@ def load_css():
             padding: 20px;
             border-radius: 10px;
             box-shadow: 0 4px 8px rgba(0,0,0,0.1);
-            /* Giving the border a default color */
             border-left: 5px solid #CCCCCC; 
         }
-
-        /* --- NEW: Add unique colors to each metric card --- */
         [data-testid="stHorizontalBlock"] > div:nth-of-type(1) [data-testid="stMetric"] {
             border-left-color: #0d6efd; /* Blue */
         }
@@ -690,7 +660,13 @@ def load_css():
             color: #000 !important;
             background-color: #fff !important;
         }
-        label {
+        
+        /* THE DEFINITIVE FIX: Replace the general 'label' rule with specific ones */
+        [data-testid="stTextInput"] label,
+        [data-testid="stTextArea"] label,
+        [data-testid="stNumberInput"] label,
+        [data-testid="stSelectbox"] label,
+        .st-emotion-cache-1y4p8pa { /* This targets the st.radio label text specifically */
             color: #4F4F4F !important;
         }
         
@@ -717,9 +693,12 @@ def load_css():
             background-color: #5a6268;
             border-color: #545b62;
         }
+        
+        /* This rule remains to color the radio button *options*, not the main label */
         [data-testid="stRadio"] label {
             color: #31333F !important;
         }
+
         [data-testid="stSelectbox"] div[data-baseweb="select"] > div {
             background-color: #fff !important;
             color: #31333F !important;
@@ -796,6 +775,7 @@ def load_css():
         }
     </style>
     """, unsafe_allow_html=True)
+
 def display_dashboard(username):
     st.header(f"📈 Dashboard for {username}")
 
@@ -806,13 +786,10 @@ def display_dashboard(username):
         total_quizzes, last_score, top_score = get_user_stats(username)
         col1, col2, col3 = st.columns(3)
         with col1:
-            # ADDED EMOJI
             st.metric(label="📝 Total Quizzes Taken", value=total_quizzes)
         with col2:
-            # ADDED EMOJI
             st.metric(label="🎯 Most Recent Score", value=last_score)
         with col3:
-            # ADDED EMOJI
             st.metric(label="🏆 Best Ever Score", value=top_score)
 
         st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
@@ -821,7 +798,6 @@ def display_dashboard(username):
         topic_perf_df = get_topic_performance(username)
 
         if not topic_perf_df.empty:
-            # Display best and worst topics
             col1, col2 = st.columns(2)
             with col1:
                 best_topic = topic_perf_df.index[0]
@@ -833,7 +809,6 @@ def display_dashboard(username):
                     worst_acc = topic_perf_df['Accuracy'].iloc[-1]
                     st.warning(f"🤔 **Area for Practice:** {worst_topic} ({worst_acc:.1f}%)")
 
-            # Display bar chart
             fig = px.bar(
                 topic_perf_df, 
                 y='Accuracy', 
@@ -853,11 +828,9 @@ def display_dashboard(username):
             df_data = [{"Topic": row['topic'], "Score": f"{row['score']}/{row['questions_answered']}", "Accuracy (%)": (row['score'] / row['questions_answered'] * 100) if row['questions_answered'] > 0 else 0, "Date": datetime.strptime(row['timestamp'], "%Y-%m-%d %H:%M:%S").strftime("%Y-%m-%d %H:%M")} for row in history]
             df = pd.DataFrame(df_data)
 
-            # The line chart from before
             line_fig = px.line(df, x='Date', y='Accuracy (%)', color='Topic', markers=True, title="Quiz Performance Trend")
             st.plotly_chart(line_fig, use_container_width=True)
             
-            # Display the full history in a table
             st.dataframe(df, use_container_width=True)
         else:
             st.info("Your quiz history is empty. Take a quiz to get started!")
@@ -869,18 +842,16 @@ def display_quiz_page(topic_options):
     if not st.session_state.quiz_active:
         st.subheader("Choose Your Challenge")
 
-        # --- NEW: Smart Topic Suggestion ---
         topic_perf_df = get_topic_performance(st.session_state.username)
         if not topic_perf_df.empty and topic_perf_df['Accuracy'].iloc[-1] < 100:
             weakest_topic = topic_perf_df.index[-1]
             st.info(f"💡 **Practice Suggestion:** Your lowest accuracy is in **{weakest_topic}**. Why not give it a try?")
 
         selected_topic = st.selectbox("Select a topic to begin:", topic_options)
-        st.session_state.quiz_topic = selected_topic # Keep session state updated
+        st.session_state.quiz_topic = selected_topic 
 
         st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
 
-        # --- NEW: Dynamic Display of User Stats for the Selected Topic ---
         col1, col2 = st.columns(2)
         with col1:
             best_score, attempts = get_user_stats_for_topic(st.session_state.username, selected_topic)
@@ -888,7 +859,7 @@ def display_quiz_page(topic_options):
             st.metric("Quizzes Taken on this Topic", attempts)
         
         with col2:
-            st.write("") # Just for vertical alignment
+            st.write("") 
             st.write("")
             if st.button("Start Quiz", type="primary", use_container_width=True, key="start_quiz_main"):
                 st.session_state.quiz_active = True
@@ -899,19 +870,15 @@ def display_quiz_page(topic_options):
                 st.session_state.incorrect_questions = []
                 if 'current_q_data' in st.session_state: del st.session_state['current_q_data']
                 st.rerun()
-
     else:
-        # If the summary "switch" is on, show the summary and stop.
         if st.session_state.get('on_summary_page', False):
             display_quiz_summary()
             return
 
-        # If the round is finished, flip the switch and rerun to show the summary.
         if st.session_state.questions_answered >= QUIZ_LENGTH:
             st.session_state.on_summary_page = True
             st.rerun()
 
-        # Display progress, score, and streak
         col1, col2, col3 = st.columns(3)
         with col1:
             st.metric("Score", f"{st.session_state.quiz_score}/{st.session_state.questions_answered}")
@@ -959,6 +926,7 @@ def display_quiz_page(topic_options):
         if st.button("Stop Round & Save Score"):
             st.session_state.on_summary_page = True
             st.rerun()
+
 def display_quiz_summary():
     """Displays the quiz summary screen at the end of a round."""
     st.header("🎉 Round Complete! 🎉")
@@ -994,7 +962,7 @@ def display_quiz_summary():
     col1, col2 = st.columns(2)
     with col1:
         if st.button("Play Again (Same Topic)", use_container_width=True, type="primary"):
-            st.session_state.on_summary_page = False # Turn off the switch
+            st.session_state.on_summary_page = False 
             st.session_state.quiz_active = True
             st.session_state.quiz_score = 0
             st.session_state.questions_answered = 0
@@ -1005,14 +973,14 @@ def display_quiz_summary():
             st.rerun()
     with col2:
         if st.button("Choose New Topic", use_container_width=True):
-            st.session_state.on_summary_page = False # Turn off the switch
+            st.session_state.on_summary_page = False 
             st.session_state.quiz_active = False
             if 'result_saved' in st.session_state: del st.session_state['result_saved']
             st.rerun()
+
 def display_leaderboard(topic_options):
     st.header("🏆 Global Leaderboard")
 
-    # --- NEW: Add filter controls for topic and time ---
     col1, col2 = st.columns([2, 3])
     with col1:
         leaderboard_topic = st.selectbox("Select a topic:", topic_options, label_visibility="collapsed")
@@ -1025,11 +993,9 @@ def display_leaderboard(topic_options):
             label_visibility="collapsed"
         )
     
-    # Map the radio button option to the value our functions expect
     time_filter_map = {"This Week": "week", "This Month": "month", "All Time": "all"}
     time_filter = time_filter_map[time_filter_option]
 
-    # Display the current user's rank using the new filters
     col1, col2 = st.columns(2)
     with col1:
         user_rank = get_user_rank(st.session_state.username, leaderboard_topic, time_filter)
@@ -1075,6 +1041,7 @@ def display_leaderboard(topic_options):
         )
     else:
         st.info(f"No scores recorded for **{leaderboard_topic}** in this time period. Be the first!")
+
 def display_learning_resources():
     st.header("📚 Learning Resources")
     st.subheader("🧮 Sets and Operations on Sets")
@@ -1096,7 +1063,6 @@ def display_profile_page():
             if update_user_profile(st.session_state.username, full_name, school, age, bio):
                 st.success("Profile updated!"); st.rerun()
 
-    # ADD THIS SEPARATOR
     st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
 
     with st.form("password_form"):
@@ -1108,7 +1074,7 @@ def display_profile_page():
             if new_password != confirm_new_password: st.error("New passwords don't match!")
             elif change_password(st.session_state.username, current_password, new_password): st.success("Password changed successfully!")
             else: st.error("Incorrect current password")
-# --- Main Application Flow ---
+
 def show_main_app():
     load_css()
     last_update = st.session_state.get("last_status_update", 0)
@@ -1147,7 +1113,7 @@ def show_login_or_signup_page():
     load_css()
     st.markdown('<div class="login-container">', unsafe_allow_html=True)
     if st.session_state.page == "login":
-        st.markdown('<p class="login-title">🔐 MathFriend</p>', unsafe_allow_html=True)
+        st.markdown('<p class="login-title">🔐 MathFriend Login</p>', unsafe_allow_html=True)
         st.markdown('<p class="login-subtitle">Welcome Back!</p>', unsafe_allow_html=True)
         with st.form("login_form"):
             username = st.text_input("Username", key="login_user")
@@ -1207,15 +1173,3 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
-
-
-
-
-
-
-
-
-
-
-
-
