@@ -527,29 +527,31 @@ def load_css():
         /* --- BASE STYLES --- */
         .stApp {
             background-color: #f0f2f5;
-            color: #31333F; /* Default dark text for the whole app */
+            color: #31333F; 
         }
+        
+        /* THIS NEW RULE CENTERS THE LOGIN PAGE VERTICALLY */
+        [data-testid="stAppViewContainer"] > .main {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
         h1, h2, h3, h4, h5, h6 {
-            color: #1a1a1a; /* Darker text for headers */
+            color: #1a1a1a; 
         }
         a {
-            color: #0068c9; /* Standard link blue */
+            color: #0068c9;
         }
 
         /* --- STREAMLIT COMPONENT OVERRIDES --- */
-
-        /* Input widgets (text, number, etc.) */
         .stTextInput input, .stTextArea textarea, .stNumberInput input {
             color: #000 !important;
             background-color: #fff !important;
         }
-
-        /* All labels for widgets */
         label {
             color: #4F4F4F !important;
         }
-
-        /* Secondary buttons (e.g., 'Sign Up', 'Stop Quiz') */
         div[data-testid="stButton"] > button {
             background-color: #6c757d;
             color: white !important;
@@ -559,35 +561,25 @@ def load_css():
             background-color: #5a6268;
             border-color: #545b62;
         }
-
-        /* Radio button choices */
         [data-testid="stRadio"] label {
             color: #31333F !important;
         }
-
-        /* Selectbox (dropdowns) */
         [data-testid="stSelectbox"] div[data-baseweb="select"] > div {
             background-color: #fff !important;
             color: #31333F !important;
         }
-        
-        /* Dataframes / Tables */
-        .stDataFrame th { /* Table headers */
+        .stDataFrame th {
             background-color: #e9ecef;
             color: #31333F;
             font-weight: bold;
         }
-        .stDataFrame td { /* Table cells */
+        .stDataFrame td {
             color: #31333F;
         }
-
-        /* Alert boxes (info, success, etc.) */
         [data-testid="stSuccess"] { color: #155724 !important; }
         [data-testid="stInfo"] { color: #0c5460 !important; }
         [data-testid="stWarning"] { color: #856404 !important; }
         [data-testid="stError"] { color: #721c24 !important; }
-        
-        /* Expander (for hints) */
         [data-testid="stExpander"] summary {
             color: #31333F !important;
         }
@@ -841,4 +833,5 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
