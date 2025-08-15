@@ -613,7 +613,6 @@ def load_css():
         /* --- BASE STYLES --- */
         .stApp {
             background-color: #f0f2f5;
-            color: #31333F; 
         }
         
         [data-testid="stAppViewContainer"] > .main {
@@ -622,21 +621,49 @@ def load_css():
             align-items: center;
         }
 
-        h1, h2, h3, h4, h5, h6 {
-            color: #1a1a1a; 
+        /* --- THE DEFINITIVE CHROME FIX --- */
+        /* This is a powerful, foundational rule to ensure all text is visible by default. */
+        div[data-testid="stAppViewContainer"] *,
+        div[data-testid="stSidebar"] * {
+            color: #31333F !important;
+        }
+
+        /* --- COLOR OVERRIDES --- */
+        /* We now selectively override the rule above for elements that NEED a different color. */
+        
+        /* Buttons with dark backgrounds need white text */
+        button[data-testid="stFormSubmitButton"] *,
+        div[data-testid="stButton"] > button * {
+            color: white !important;
+        }
+
+        /* Links should be blue */
+        a, a * {
+            color: #0068c9 !important;
         }
         
+        /* Headers can be a slightly darker black for emphasis */
+        h1, h2, h3, h4, h5, h6 {
+            color: #1a1a1a !important; 
+        }
+
+        /* The main value in a metric card can be darker */
+        [data-testid="stMetricValue"] {
+            color: #1a1a1a !important;
+        }
+
+        /* Make the text in colored alert boxes contrast appropriately */
+        [data-testid="stSuccess"] * { color: #155724 !important; }
+        [data-testid="stInfo"] * { color: #0c5460 !important; }
+        [data-testid="stWarning"] * { color: #856404 !important; }
+        [data-testid="stError"] * { color: #721c24 !important; }
+        
+        /* --- STYLING (UNCHANGED) --- */
         .main-content h1, .main-content h2, .main-content h3 {
             border-left: 5px solid #0d6efd;
             padding-left: 15px;
             border-radius: 3px;
         }
-
-        a {
-            color: #0068c9;
-        }
-
-        /* --- STREAMLIT COMPONENT OVERRIDES --- */
 
         [data-testid="stMetric"] {
             background-color: #FFFFFF;
@@ -647,13 +674,13 @@ def load_css():
             border-left: 5px solid #CCCCCC; 
         }
         [data-testid="stHorizontalBlock"] > div:nth-of-type(1) [data-testid="stMetric"] {
-            border-left-color: #0d6efd; /* Blue */
+            border-left-color: #0d6efd;
         }
         [data-testid="stHorizontalBlock"] > div:nth-of-type(2) [data-testid="stMetric"] {
-            border-left-color: #28a745; /* Green */
+            border-left-color: #28a745;
         }
         [data-testid="stHorizontalBlock"] > div:nth-of-type(3) [data-testid="stMetric"] {
-            border-left-color: #ffc107; /* Yellow */
+            border-left-color: #ffc107;
         }
 
         .stTextInput input, .stTextArea textarea, .stNumberInput input {
@@ -661,18 +688,8 @@ def load_css():
             background-color: #fff !important;
         }
         
-        /* THE DEFINITIVE FIX: Replace the general 'label' rule with specific ones */
-        [data-testid="stTextInput"] label,
-        [data-testid="stTextArea"] label,
-        [data-testid="stNumberInput"] label,
-        [data-testid="stSelectbox"] label,
-        .st-emotion-cache-1y4p8pa { /* This targets the st.radio label text specifically */
-            color: #4F4F4F !important;
-        }
-        
         button[data-testid="stFormSubmitButton"] {
             background-color: #0d6efd;
-            color: white;
             border: 1px solid #0d6efd;
             box-shadow: 0 4px 8px rgba(0,0,0,0.1);
             transition: all 0.2s ease-in-out;
@@ -686,37 +703,19 @@ def load_css():
 
         div[data-testid="stButton"] > button {
             background-color: #6c757d;
-            color: white !important;
             border: 1px solid #6c757d;
         }
         div[data-testid="stButton"] > button:hover {
             background-color: #5a6268;
             border-color: #545b62;
         }
-        
-        /* This rule remains to color the radio button *options*, not the main label */
-        [data-testid="stRadio"] label {
-            color: #31333F !important;
-        }
 
         [data-testid="stSelectbox"] div[data-baseweb="select"] > div {
             background-color: #fff !important;
-            color: #31333F !important;
         }
         .stDataFrame th {
             background-color: #e9ecef;
-            color: #31333F;
             font-weight: bold;
-        }
-        .stDataFrame td {
-            color: #31333F;
-        }
-        [data-testid="stSuccess"] { color: #155724 !important; }
-        [data-testid="stInfo"] { color: #0c5460 !important; }
-        [data-testid="stWarning"] { color: #856404 !important; }
-        [data-testid="stError"] { color: #721c24 !important; }
-        [data-testid="stExpander"] summary {
-            color: #31333F !important;
         }
         
         [data-testid="stForm"] {
@@ -733,42 +732,12 @@ def load_css():
             margin: 2rem 0;
         }
 
-        /* --- CUSTOM LAYOUT CLASSES --- */
-        .login-container {
-            background: #ffffff; 
-            border-radius: 16px; 
-            padding: 2rem 3rem; 
-            margin: auto;
-            max-width: 450px; 
-            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
-            color: #31333F;
-        }
-        .login-title { 
-            text-align: center; 
-            font-weight: 800; 
-            font-size: 2.2rem; 
-            color: #1a1a1a; 
-        }
-        .login-subtitle { 
-            text-align: center; 
-            color: #6c757d; 
-            margin-bottom: 2rem; 
-        }
-        .main-content {
-            background-color: #ffffff; 
-            padding: 2rem; 
-            border-radius: 12px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.08);
-        }
-        .metric-card {
-            background: #f8f9fa; 
-            border-radius: 12px; 
-            padding: 15px;
-            border-left: 5px solid var(--primary-color, #007bff); 
-            margin-bottom: 1rem;
-        }
+        .login-container { background: #ffffff; border-radius: 16px; padding: 2rem 3rem; margin: auto; max-width: 450px; box-shadow: 0 8px 32px rgba(0,0,0,0.1); }
+        .login-title { text-align: center; font-weight: 800; font-size: 2.2rem; color: #1a1a1a !important; }
+        .login-subtitle { text-align: center; color: #6c757d !important; margin-bottom: 2rem; }
+        .main-content { background-color: #ffffff; padding: 2rem; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
+        .metric-card { background: #f8f9fa; border-radius: 12px; padding: 15px; border-left: 5px solid var(--primary-color, #007bff); margin-bottom: 1rem; }
 
-        /* --- RESPONSIVE DESIGN --- */
         @media (max-width: 640px) {
             .main-content, .login-container { padding: 1rem; }
             .login-title { font-size: 1.8rem; }
