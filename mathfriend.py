@@ -829,3 +829,4 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
