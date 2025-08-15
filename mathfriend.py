@@ -671,11 +671,8 @@ def load_css():
             padding: 20px;
             border-radius: 10px;
             box-shadow: 0 4px 8px rgba(0,0,0,0.1);
-            /* Giving the border a default color */
             border-left: 5px solid #CCCCCC; 
         }
-
-        /* --- NEW: Add unique colors to each metric card --- */
         [data-testid="stHorizontalBlock"] > div:nth-of-type(1) [data-testid="stMetric"] {
             border-left-color: #0d6efd; /* Blue */
         }
@@ -690,7 +687,17 @@ def load_css():
             color: #000 !important;
             background-color: #fff !important;
         }
+        
+        /* --- THIS RULE IS REPLACED ---
         label {
+            color: #4F4F4F !important;
+        }
+        --- END REPLACEMENT --- */
+
+        /* --- NEW, MORE SPECIFIC RULE FOR INPUT LABELS --- */
+        [data-testid="stTextInput"] label,
+        [data-testid="stTextArea"] label,
+        [data-testid="stNumberInput"] label {
             color: #4F4F4F !important;
         }
         
@@ -754,40 +761,12 @@ def load_css():
             margin: 2rem 0;
         }
 
-        /* --- CUSTOM LAYOUT CLASSES --- */
-        .login-container {
-            background: #ffffff; 
-            border-radius: 16px; 
-            padding: 2rem 3rem; 
-            margin: auto;
-            max-width: 450px; 
-            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
-            color: #31333F;
-        }
-        .login-title { 
-            text-align: center; 
-            font-weight: 800; 
-            font-size: 2.2rem; 
-            color: #1a1a1a; 
-        }
-        .login-subtitle { 
-            text-align: center; 
-            color: #6c757d; 
-            margin-bottom: 2rem; 
-        }
-        .main-content {
-            background-color: #ffffff; 
-            padding: 2rem; 
-            border-radius: 12px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.08);
-        }
-        .metric-card {
-            background: #f8f9fa; 
-            border-radius: 12px; 
-            padding: 15px;
-            border-left: 5px solid var(--primary-color, #007bff); 
-            margin-bottom: 1rem;
-        }
+        /* --- CUSTOM LAYOUT CLASSES (omitted for brevity but are unchanged) --- */
+        .login-container { background: #ffffff; border-radius: 16px; padding: 2rem 3rem; margin: auto; max-width: 450px; box-shadow: 0 8px 32px rgba(0,0,0,0.1); color: #31333F; }
+        .login-title { text-align: center; font-weight: 800; font-size: 2.2rem; color: #1a1a1a; }
+        .login-subtitle { text-align: center; color: #6c757d; margin-bottom: 2rem; }
+        .main-content { background-color: #ffffff; padding: 2rem; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
+        .metric-card { background: #f8f9fa; border-radius: 12px; padding: 15px; border-left: 5px solid var(--primary-color, #007bff); margin-bottom: 1rem; }
 
         /* --- RESPONSIVE DESIGN --- */
         @media (max-width: 640px) {
@@ -1207,6 +1186,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
