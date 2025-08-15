@@ -311,6 +311,8 @@ def get_top_scores(topic, time_filter="all"):
     finally:
         if conn: conn.close()
 
+# --- All Question Generation Functions (_generate_..._question) go here ---
+# (Omitted for brevity, they are unchanged)
 def _generate_sets_question():
     set_a = set(random.sample(range(1, 15), k=random.randint(3, 5)))
     set_b = set(random.sample(range(1, 15), k=random.randint(3, 5)))
@@ -627,11 +629,18 @@ def load_css():
             color: #31333F !important;
         }
 
-        /* --- SIDEBAR FIX --- */
-        /* This explicitly forces all elements in the sidebar to have light text. */
+        /* --- FINAL, CROSS-BROWSER SIDEBAR FIX --- */
+        /* This uses multiple, redundant rules to ensure all browsers correctly style the sidebar. */
         div[data-testid="stSidebarUserContent"] * {
             color: #FAFAFA !important;
         }
+        div[data-testid="stSidebarUserContent"] h1 {
+            color: #FFFFFF !important;
+        }
+        div[data-testid="stSidebarUserContent"] [data-testid="stRadio"] label {
+            color: #E0E0E0 !important; /* Slightly off-white for menu items */
+        }
+
 
         /* --- COLOR OVERRIDES --- */
         /* After setting defaults, we selectively override colors for specific elements. */
@@ -647,7 +656,7 @@ def load_css():
             color: #0068c9 !important;
         }
         
-        /* Headers can be a slightly darker black for emphasis */
+        /* Headers in the main content can be a slightly darker black for emphasis */
         .main-content h1, .main-content h2, .main-content h3, .main-content h4, .main-content h5, .main-content h6 {
             color: #1a1a1a !important; 
         }
