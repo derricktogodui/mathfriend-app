@@ -514,17 +514,22 @@ def load_css():
     """Loads the main CSS for the application for a consistent and responsive look."""
     st.markdown("""
     <style>
+        /* This is the new rule to fix the input labels */
+        label {
+            color: #4F4F4F !important;
+        }
+
         .stApp { 
             background-color: #f0f2f5; 
-            color: #31333F; /* <--- ADD THIS LINE */
+            color: #31333F;
+        }
+        .login-container {
+            background: #ffffff;
+            color: #31333F;
         }
         .stTextInput input, .stTextArea textarea, .stNumberInput input {
             color: #000 !important;
             background-color: #fff !important;
-        }
-        .login-container {
-            background: #ffffff; border-radius: 16px; padding: 2rem 3rem; margin: auto;
-            max-width: 450px; box-shadow: 0 8px 32px rgba(0,0,0,0.1);
         }
         .login-title { text-align: center; font-weight: 800; font-size: 2.2rem; color: #1a1a1a; }
         .login-subtitle { text-align: center; color: #6c757d; margin-bottom: 2rem; }
@@ -748,4 +753,5 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
