@@ -568,13 +568,25 @@ def load_css():
 
         /* --- STREAMLIT COMPONENT OVERRIDES --- */
 
-        /* --- NEW: Style the st.metric containers to look like cards --- */
         [data-testid="stMetric"] {
             background-color: #FFFFFF;
             border: 1px solid #CCCCCC;
             padding: 20px;
             border-radius: 10px;
             box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+            /* Giving the border a default color */
+            border-left: 5px solid #CCCCCC; 
+        }
+
+        /* --- NEW: Add unique colors to each metric card --- */
+        [data-testid="stHorizontalBlock"] > div:nth-of-type(1) [data-testid="stMetric"] {
+            border-left-color: #0d6efd; /* Blue */
+        }
+        [data-testid="stHorizontalBlock"] > div:nth-of-type(2) [data-testid="stMetric"] {
+            border-left-color: #28a745; /* Green */
+        }
+        [data-testid="stHorizontalBlock"] > div:nth-of-type(3) [data-testid="stMetric"] {
+            border-left-color: #ffc107; /* Yellow */
         }
 
         .stTextInput input, .stTextArea textarea, .stNumberInput input {
@@ -687,7 +699,6 @@ def load_css():
         }
     </style>
     """, unsafe_allow_html=True)
-
 def display_dashboard(username):
     st.header(f"📈 Dashboard for {username}")
 
@@ -698,11 +709,14 @@ def display_dashboard(username):
         total_quizzes, last_score, top_score = get_user_stats(username)
         col1, col2, col3 = st.columns(3)
         with col1:
-            st.metric(label="Total Quizzes Taken", value=total_quizzes)
+            # ADDED EMOJI
+            st.metric(label="📝 Total Quizzes Taken", value=total_quizzes)
         with col2:
-            st.metric(label="Most Recent Score", value=last_score)
+            # ADDED EMOJI
+            st.metric(label="🎯 Most Recent Score", value=last_score)
         with col3:
-            st.metric(label="Best Ever Score", value=top_score)
+            # ADDED EMOJI
+            st.metric(label="🏆 Best Ever Score", value=top_score)
 
         st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
         
@@ -940,6 +954,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
