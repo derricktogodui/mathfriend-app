@@ -292,6 +292,30 @@ def get_total_players(topic, time_filter="all"):
     finally:
         if conn: conn.close()
 
+def get_user_stats_for_topic(username, topic):
+    """Gets a user's best score and attempt count for a specific topic."""
+    conn = None
+    try:
+        conn = sqlite3.connect(DB_FILE, timeout=15)
+        c = conn.cursor()
+        # Get best score percentage
+        c.execute("""
+            SELECT MAX(CAST(score AS REAL) / questions_answered) * 100
+            FROM quiz_results 
+            WHERE username = ? AND topic = ? AND questions_answered > 0
+        """, (username, topic))
+        best_score_result = c.fetchone()
+        best_score = best_score_result[0] if best_score_result and best_score_result[0] is not None else 0
+
+        # Get number of attempts
+        c.execute("SELECT COUNT(*) FROM quiz_results WHERE username = ? AND topic = ?", (username, topic))
+        attempts_result = c.fetchone()
+        attempts = attempts_result[0] if attempts_result else 0
+        
+        return f"{best_score:.1f}%", attempts
+    finally:
+        if conn: conn.close()
+
 def get_top_scores(topic, time_filter="all"):
     conn = None
     try:
@@ -1183,6 +1207,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
