@@ -491,14 +491,10 @@ def _generate_sequence_series_question():
 
 def generate_question(topic):
     generators = {
-        "Sets": _generate_sets_question,
-        "Percentages": _generate_percentages_question,
-        "Fractions": _generate_fractions_question,
-        "Surds": _generate_surds_question,
-        "Binary Operations": _generate_binary_ops_question,
-        "Word Problems": _generate_word_problems_question,
-        "Indices": _generate_indices_question,
-        "Relations and Functions": _generate_relations_functions_question,
+        "Sets": _generate_sets_question, "Percentages": _generate_percentages_question,
+        "Fractions": _generate_fractions_question, "Surds": _generate_surds_question,
+        "Binary Operations": _generate_binary_ops_question, "Word Problems": _generate_word_problems_question,
+        "Indices": _generate_indices_question, "Relations and Functions": _generate_relations_functions_question,
         "Sequence and Series": _generate_sequence_series_question,
     }
     generator_func = generators.get(topic)
@@ -511,32 +507,49 @@ def confetti_animation():
     html("""<script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.5.1/dist/confetti.browser.min.js"></script><script>confetti();</script>""")
 
 def load_css():
-    """Loads the main CSS for the application for a consistent and responsive look."""
     st.markdown("""
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
     <style>
-        .stApp { background-color: #f0f2f5; }
+        :root {
+            --font-main: 'Poppins', sans-serif; --primary-color: #4361ee; --secondary-color: #7209b7;
+            --background-color: #f0f2f5; --card-background-color: #ffffff; --text-color: #0d1117;
+            --subtle-text-color: #6c757d;
+        }
+        html, body, [class*="st-"], .st-emotion-cache-16txtl3 { font-family: var(--font-main) !important; }
+        .stApp { background-color: var(--background-color); }
         .stTextInput input, .stTextArea textarea, .stNumberInput input {
-            color: #000 !important;
-            background-color: #fff !important;
+            color: var(--text-color) !important; background-color: #fff !important;
+            border: 1px solid #ced4da; border-radius: 8px;
         }
         .login-container {
-            background: #ffffff; border-radius: 16px; padding: 2rem 3rem; margin: auto;
+            background: var(--card-background-color); border-radius: 16px; padding: 2rem 3rem; margin: auto;
             max-width: 450px; box-shadow: 0 8px 32px rgba(0,0,0,0.1);
         }
-        .login-title { text-align: center; font-weight: 800; font-size: 2.2rem; color: #1a1a1a; }
-        .login-subtitle { text-align: center; color: #6c757d; margin-bottom: 2rem; }
+        .login-title { text-align: center; font-weight: 800; font-size: 2.2rem; color: var(--text-color); }
+        .login-subtitle { text-align: center; color: var(--subtle-text-color); margin-bottom: 2rem; }
         .main-content {
-            background-color: #ffffff; padding: 2rem; border-radius: 12px;
+            background-color: var(--card-background-color); padding: 2rem; border-radius: 12px;
             box-shadow: 0 4px 12px rgba(0,0,0,0.08);
         }
         .metric-card {
-            background: #f8f9fa; border-radius: 12px; padding: 15px;
-            border-left: 5px solid var(--primary-color, #007bff); margin-bottom: 1rem;
+            background: #f8f9fa; border-radius: 12px; padding: 1.2rem;
+            border-left: 5px solid var(--primary-color); margin-bottom: 1rem;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.04);
         }
-        .stDataFrame td { color: #31333F; }
+        .metric-card h4 {
+            font-size: 1rem; font-weight: 600; color: var(--subtle-text-color); margin: 0 0 0.5rem 0;
+        }
+        .metric-card h2 {
+            font-size: 2.2rem; font-weight: 700; color: var(--primary-color); margin: 0;
+        }
+        .stDataFrame td { color: var(--text-color); }
+        .st-emotion-cache-16txtl3 { background-color: var(--card-background-color); }
         @media (max-width: 640px) {
             .main-content, .login-container { padding: 1rem; }
             .login-title { font-size: 1.8rem; }
+            .metric-card h2 { font-size: 1.8rem; }
         }
     </style>
     """, unsafe_allow_html=True)
@@ -546,17 +559,18 @@ def display_dashboard(username):
     total_quizzes, last_score, top_score = get_user_stats(username)
     col1, col2, col3 = st.columns(3)
     with col1:
-        st.markdown(f'<div class="metric-card" style="--primary-color: #007bff;"><h4>Total Quizzes</h4><h2>{total_quizzes}</h2></div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="metric-card" style="--primary-color: #4361ee;"><h4>Total Quizzes</h4><h2>{total_quizzes}</h2></div>', unsafe_allow_html=True)
     with col2:
-        st.markdown(f'<div class="metric-card" style="--primary-color: #28a745;"><h4>Last Score</h4><h2>{last_score}</h2></div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="metric-card" style="--primary-color: #4cc9f0;"><h4>Last Score</h4><h2>{last_score}</h2></div>', unsafe_allow_html=True)
     with col3:
-        st.markdown(f'<div class="metric-card" style="--primary-color: #ffc107;"><h4>Top Score</h4><h2>{top_score}</h2></div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="metric-card" style="--primary-color: #f72585;"><h4>Top Score</h4><h2>{top_score}</h2></div>', unsafe_allow_html=True)
     history = get_user_quiz_history(username)
     if history:
         df_data = [{"Topic": row['topic'], "Accuracy": (row['score'] / row['questions_answered'] * 100) if row['questions_answered'] > 0 else 0, "Date": datetime.strptime(row['timestamp'], "%Y-%m-%d %H:%M:%S").date()} for row in history]
         df = pd.DataFrame(df_data)
         st.subheader("Accuracy Over Time")
         fig = px.line(df, x='Date', y='Accuracy', color='Topic', markers=True, title="Quiz Performance Trend")
+        fig.update_layout(font_family="Poppins")
         st.plotly_chart(fig, use_container_width=True)
     else:
         st.info("Take some quizzes to see your progress charts!")
@@ -567,9 +581,7 @@ def display_quiz_page(topic_options):
         st.write("Select a topic and challenge yourself!")
         st.session_state.quiz_topic = st.selectbox("Choose a topic:", topic_options)
         if st.button("Start Quiz", type="primary", use_container_width=True):
-            st.session_state.quiz_active = True
-            st.session_state.quiz_score = 0
-            st.session_state.questions_answered = 0
+            st.session_state.quiz_active = True; st.session_state.quiz_score = 0; st.session_state.questions_answered = 0
             if 'current_q_data' in st.session_state: del st.session_state['current_q_data']
             st.rerun()
     else:
@@ -586,14 +598,11 @@ def display_quiz_page(topic_options):
                     st.session_state.questions_answered += 1
                     if str(user_choice) == str(q_data["answer"]):
                         st.session_state.quiz_score += 1
-                        st.success("Correct! Well done! 🎉")
-                        confetti_animation()
+                        st.success("Correct! Well done! 🎉"); confetti_animation()
                     else:
                         st.error(f"Not quite. The correct answer was: **{q_data['answer']}**")
-                    del st.session_state.current_q_data
-                    del st.session_state.user_answer_choice
-                    time.sleep(1.5)
-                    st.rerun()
+                    del st.session_state.current_q_data; del st.session_state.user_answer_choice
+                    time.sleep(1.5); st.rerun()
                 else:
                     st.warning("Please select an answer before submitting.")
         if st.button("Stop Quiz & Save Score"):
@@ -647,7 +656,6 @@ def display_profile_page():
             elif change_password(st.session_state.username, current_password, new_password): st.success("Password changed successfully!")
             else: st.error("Incorrect current password")
 
-# --- Main Application Flow ---
 def show_main_app():
     load_css()
     last_update = st.session_state.get("last_status_update", 0)
@@ -657,7 +665,7 @@ def show_main_app():
     with st.sidebar:
         profile = get_user_profile(st.session_state.username)
         display_name = profile.get('full_name') if profile and profile.get('full_name') else st.session_state.username
-        st.title(f"Welcome, {display_name}!")
+        st.title(f"Welcome,\n{display_name}!")
         page_options = ["📊 Dashboard", "📝 Quiz", "🏆 Leaderboard", "👤 Profile", "📚 Learning Resources", "💬 Chat (Paused)"]
         selected_page = st.radio("Menu", page_options, label_visibility="collapsed")
         st.write("---")
@@ -683,6 +691,7 @@ def show_main_app():
 
 def show_login_or_signup_page():
     load_css()
+    st.markdown('<div style="display: flex; align-items: center; justify-content: center; height: 100vh;">', unsafe_allow_html=True)
     st.markdown('<div class="login-container">', unsafe_allow_html=True)
     if st.session_state.page == "login":
         st.markdown('<p class="login-title">🔐 MathFriend</p>', unsafe_allow_html=True)
@@ -721,18 +730,18 @@ def show_login_or_signup_page():
         if st.button("Back to Login", use_container_width=True):
             st.session_state.page = "login"
             st.rerun()
-    st.markdown('</div>', unsafe_allow_html=True)
+    st.markdown('</div></div>', unsafe_allow_html=True)
 
 # --- Initial Script Execution Logic ---
 if st.session_state.show_splash:
     load_css()
     st.markdown("""
         <style>
-            @keyframes fadeIn { 0% { opacity: 0; } 100% { opacity: 1; } }
+            @keyframes fadeIn { 0% { opacity: 0; transform: translateY(20px); } 100% { opacity: 1; transform: translateY(0); } }
             .splash-screen {
                 display: flex; justify-content: center; align-items: center;
-                height: 100vh; font-size: 3rem; font-weight: 800; color: #0d6efd;
-                animation: fadeIn 1.5s ease-in-out;
+                height: 100vh; font-family: 'Poppins', sans-serif; font-size: 3rem; font-weight: 800;
+                color: #4361ee; animation: fadeIn 1.5s ease-in-out;
             }
         </style>
         <div class="splash-screen">🧮 MathFriend</div>
