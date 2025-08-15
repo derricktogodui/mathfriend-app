@@ -514,7 +514,10 @@ def load_css():
     """Loads the main CSS for the application for a consistent and responsive look."""
     st.markdown("""
     <style>
-        .stApp { background-color: #f0f2f5; }
+        .stApp { 
+            background-color: #f0f2f5; 
+            color: #31333F; /* <--- ADD THIS LINE */
+        }
         .stTextInput input, .stTextArea textarea, .stNumberInput input {
             color: #000 !important;
             background-color: #fff !important;
@@ -745,3 +748,4 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
