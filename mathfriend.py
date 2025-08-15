@@ -514,59 +514,117 @@ def load_css():
     """Loads the main CSS for the application for a consistent and responsive look."""
     st.markdown("""
     <style>
-        /* Fixes the input labels */
-        label {
-            color: #4F4F4F !important;
+        /* --- BASE STYLES --- */
+        .stApp {
+            background-color: #f0f2f5;
+            color: #31333F; /* Default dark text for the whole app */
+        }
+        h1, h2, h3, h4, h5, h6 {
+            color: #1a1a1a; /* Darker text for headers */
+        }
+        a {
+            color: #0068c9; /* Standard link blue */
         }
 
-        /* Fixes secondary button text */
-        div[data-testid="stButton"] > button {
-            color: white !important;
-        }
+        /* --- STREAMLIT COMPONENT OVERRIDES --- */
 
-        /* --- NEW RULES START HERE --- */
-
-        /* Fixes text color for radio button options in quizzes */
-        [data-testid="stRadio"] label {
-            color: #31333F !important;
-        }
-
-        /* Fixes text color for hint/info boxes */
-        [data-testid="stInfo"] {
-            color: #0c5460 !important;
-        }
-
-        /* --- NEW RULES END HERE --- */
-
-        .stApp { 
-            background-color: #f0f2f5; 
-            color: #31333F;
-        }
-        .login-container {
-            background: #ffffff;
-            color: #31333F;
-        }
+        /* Input widgets (text, number, etc.) */
         .stTextInput input, .stTextArea textarea, .stNumberInput input {
             color: #000 !important;
             background-color: #fff !important;
         }
-        .login-title { text-align: center; font-weight: 800; font-size: 2.2rem; color: #1a1a1a; }
-        .login-subtitle { text-align: center; color: #6c757d; margin-bottom: 2rem; }
+
+        /* All labels for widgets */
+        label {
+            color: #4F4F4F !important;
+        }
+
+        /* Secondary buttons (e.g., 'Sign Up', 'Stop Quiz') */
+        div[data-testid="stButton"] > button {
+            background-color: #6c757d;
+            color: white !important;
+            border: 1px solid #6c757d;
+        }
+        div[data-testid="stButton"] > button:hover {
+            background-color: #5a6268;
+            border-color: #545b62;
+        }
+
+        /* Radio button choices */
+        [data-testid="stRadio"] label {
+            color: #31333F !important;
+        }
+
+        /* Selectbox (dropdowns) */
+        [data-testid="stSelectbox"] div[data-baseweb="select"] > div {
+            background-color: #fff !important;
+            color: #31333F !important;
+        }
+        
+        /* Dataframes / Tables */
+        .stDataFrame th { /* Table headers */
+            background-color: #e9ecef;
+            color: #31333F;
+            font-weight: bold;
+        }
+        .stDataFrame td { /* Table cells */
+            color: #31333F;
+        }
+
+        /* Alert boxes (info, success, etc.) */
+        [data-testid="stSuccess"] { color: #155724 !important; }
+        [data-testid="stInfo"] { color: #0c5460 !important; }
+        [data-testid="stWarning"] { color: #856404 !important; }
+        [data-testid="stError"] { color: #721c24 !important; }
+        
+        /* Expander (for hints) */
+        [data-testid="stExpander"] summary {
+            color: #31333F !important;
+        }
+
+        /* --- CUSTOM LAYOUT CLASSES --- */
+        .login-container {
+            background: #ffffff; 
+            border-radius: 16px; 
+            padding: 2rem 3rem; 
+            margin: auto;
+            max-width: 450px; 
+            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+            color: #31333F;
+        }
+        .login-title { 
+            text-align: center; 
+            font-weight: 800; 
+            font-size: 2.2rem; 
+            color: #1a1a1a; 
+        }
+        .login-subtitle { 
+            text-align: center; 
+            color: #6c757d; 
+            margin-bottom: 2rem; 
+        }
         .main-content {
-            background-color: #ffffff; padding: 2rem; border-radius: 12px;
+            background-color: #ffffff; 
+            padding: 2rem; 
+            border-radius: 12px;
             box-shadow: 0 4px 12px rgba(0,0,0,0.08);
         }
         .metric-card {
-            background: #f8f9fa; border-radius: 12px; padding: 15px;
-            border-left: 5px solid var(--primary-color, #007bff); margin-bottom: 1rem;
+            background: #f8f9fa; 
+            border-radius: 12px; 
+            padding: 15px;
+            border-left: 5px solid var(--primary-color, #007bff); 
+            margin-bottom: 1rem;
         }
-        .stDataFrame td { color: #31333F; }
+
+        /* --- RESPONSIVE DESIGN --- */
         @media (max-width: 640px) {
             .main-content, .login-container { padding: 1rem; }
             .login-title { font-size: 1.8rem; }
         }
     </style>
     """, unsafe_allow_html=True)
+
 def display_dashboard(username):
     st.header(f"📈 Dashboard for {username}")
     total_quizzes, last_score, top_score = get_user_stats(username)
@@ -771,7 +829,3 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
-
-
-
-
