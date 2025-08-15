@@ -421,15 +421,23 @@ def _generate_indices_question():
         hint = f"A negative exponent means take the reciprocal: $x^{{-a}} = \\frac{{1}}{{x^a}}$."
         options = {correct_answer, f"$-{base*p1}$", f"$\\frac{{1}}{{{base*p1}}}$"}
     else: # fractional
+        # --- THIS BLOCK IS THE FIX ---
         roots = {8: 3, 27: 3, 4: 2, 9: 2, 16: 2, 64: 3, 81: 4}
         num = random.choice(list(roots.keys()))
         root = roots[num]
-        question_text = f"What is the value of ${num}^{{\\frac{{1}}{{{root}}}}}}$?"
+        
+        # Build the complex exponent part separately for clarity
+        exponent_latex = f"\\frac{{1}}{{{root}}}"
+        # Then, insert it into a simpler f-string
+        question_text = f"What is the value of ${num}^{{{exponent_latex}}}$?"
+
         correct_answer = str(int(round(num**(1/root))))
         hint = f"The fractional exponent $\\frac{{1}}{{n}}$ is the same as the n-th root ($\sqrt[n]{{x}}$)."
         options = {correct_answer, str(num/root), str(num*root)}
+        
     while len(options) < 4:
         options.add(str(random.randint(1, 100)))
+        
     shuffled_options = list(options)
     random.shuffle(shuffled_options)
     return {"question": question_text, "options": shuffled_options, "answer": correct_answer, "hint": hint}
@@ -742,3 +750,4 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
