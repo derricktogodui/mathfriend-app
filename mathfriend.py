@@ -527,29 +527,54 @@ def load_css():
         /* --- BASE STYLES --- */
         .stApp {
             background-color: #f0f2f5;
-            color: #31333F; /* Default dark text for the whole app */
+            color: #31333F; 
         }
+        
+        [data-testid="stAppViewContainer"] > .main {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
         h1, h2, h3, h4, h5, h6 {
-            color: #1a1a1a; /* Darker text for headers */
+            color: #1a1a1a; 
         }
+        
+        /* --- NEW: Add accent bars to headers in the main content --- */
+        .main-content h1, .main-content h2, .main-content h3 {
+            border-left: 5px solid #0d6efd;
+            padding-left: 15px;
+            border-radius: 3px;
+        }
+
         a {
-            color: #0068c9; /* Standard link blue */
+            color: #0068c9;
         }
 
         /* --- STREAMLIT COMPONENT OVERRIDES --- */
-
-        /* Input widgets (text, number, etc.) */
         .stTextInput input, .stTextArea textarea, .stNumberInput input {
             color: #000 !important;
             background-color: #fff !important;
         }
-
-        /* All labels for widgets */
         label {
             color: #4F4F4F !important;
         }
+        
+        /* --- NEW: Style the primary buttons (form submit) --- */
+        button[data-testid="stFormSubmitButton"] {
+            background-color: #0d6efd;
+            color: white;
+            border: 1px solid #0d6efd;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+            transition: all 0.2s ease-in-out;
+        }
+        button[data-testid="stFormSubmitButton"]:hover {
+            background-color: #0b5ed7;
+            border-color: #0a58ca;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 12px rgba(0,0,0,0.15);
+        }
 
-        /* Secondary buttons (e.g., 'Sign Up', 'Stop Quiz') */
         div[data-testid="stButton"] > button {
             background-color: #6c757d;
             color: white !important;
@@ -559,37 +584,43 @@ def load_css():
             background-color: #5a6268;
             border-color: #545b62;
         }
-
-        /* Radio button choices */
         [data-testid="stRadio"] label {
             color: #31333F !important;
         }
-
-        /* Selectbox (dropdowns) */
         [data-testid="stSelectbox"] div[data-baseweb="select"] > div {
             background-color: #fff !important;
             color: #31333F !important;
         }
-        
-        /* Dataframes / Tables */
-        .stDataFrame th { /* Table headers */
+        .stDataFrame th {
             background-color: #e9ecef;
             color: #31333F;
             font-weight: bold;
         }
-        .stDataFrame td { /* Table cells */
+        .stDataFrame td {
             color: #31333F;
         }
-
-        /* Alert boxes (info, success, etc.) */
         [data-testid="stSuccess"] { color: #155724 !important; }
         [data-testid="stInfo"] { color: #0c5460 !important; }
         [data-testid="stWarning"] { color: #856404 !important; }
         [data-testid="stError"] { color: #721c24 !important; }
-        
-        /* Expander (for hints) */
         [data-testid="stExpander"] summary {
             color: #31333F !important;
+        }
+        
+        /* --- NEW: Style for forms --- */
+        [data-testid="stForm"] {
+            border: 1px solid #dee2e6;
+            border-radius: 0.5rem;
+            padding: 1.5rem;
+            background-color: #fafafa;
+        }
+        
+        /* --- NEW: A styled horizontal rule for separation --- */
+        .styled-hr {
+            border: none;
+            height: 2px;
+            background: linear-gradient(to right, #0d6efd, #f0f2f5);
+            margin: 2rem 0;
         }
 
         /* --- CUSTOM LAYOUT CLASSES --- */
@@ -722,6 +753,7 @@ def display_learning_resources():
 def display_profile_page():
     st.header("👤 Your Profile")
     profile = get_user_profile(st.session_state.username) or {}
+    
     with st.form("profile_form"):
         st.subheader("Edit Profile")
         full_name = st.text_input("Full Name", value=profile.get('full_name', ''))
@@ -731,6 +763,10 @@ def display_profile_page():
         if st.form_submit_button("Save Profile", type="primary"):
             if update_user_profile(st.session_state.username, full_name, school, age, bio):
                 st.success("Profile updated!"); st.rerun()
+
+    # ADD THIS SEPARATOR
+    st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
+
     with st.form("password_form"):
         st.subheader("Change Password")
         current_password = st.text_input("Current Password", type="password")
@@ -740,7 +776,6 @@ def display_profile_page():
             if new_password != confirm_new_password: st.error("New passwords don't match!")
             elif change_password(st.session_state.username, current_password, new_password): st.success("Password changed successfully!")
             else: st.error("Incorrect current password")
-
 # --- Main Application Flow ---
 def show_main_app():
     load_css()
@@ -840,3 +875,4 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
