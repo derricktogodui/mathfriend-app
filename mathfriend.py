@@ -556,7 +556,6 @@ def load_css():
             color: #1a1a1a; 
         }
         
-        /* --- NEW: Add accent bars to headers in the main content --- */
         .main-content h1, .main-content h2, .main-content h3 {
             border-left: 5px solid #0d6efd;
             padding-left: 15px;
@@ -568,6 +567,16 @@ def load_css():
         }
 
         /* --- STREAMLIT COMPONENT OVERRIDES --- */
+
+        /* --- NEW: Style the st.metric containers to look like cards --- */
+        [data-testid="stMetric"] {
+            background-color: #FFFFFF;
+            border: 1px solid #CCCCCC;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+
         .stTextInput input, .stTextArea textarea, .stNumberInput input {
             color: #000 !important;
             background-color: #fff !important;
@@ -576,7 +585,6 @@ def load_css():
             color: #4F4F4F !important;
         }
         
-        /* --- NEW: Style the primary buttons (form submit) --- */
         button[data-testid="stFormSubmitButton"] {
             background-color: #0d6efd;
             color: white;
@@ -623,7 +631,6 @@ def load_css():
             color: #31333F !important;
         }
         
-        /* --- NEW: Style for forms --- */
         [data-testid="stForm"] {
             border: 1px solid #dee2e6;
             border-radius: 0.5rem;
@@ -631,7 +638,6 @@ def load_css():
             background-color: #fafafa;
         }
         
-        /* --- NEW: A styled horizontal rule for separation --- */
         .styled-hr {
             border: none;
             height: 2px;
@@ -934,5 +940,6 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
