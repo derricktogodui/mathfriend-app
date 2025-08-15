@@ -241,6 +241,41 @@ def get_topic_performance(username):
     
     return performance.sort_values(by="Accuracy", ascending=False)
 
+def get_user_rank(username, topic):
+    """Gets the rank of a specific user for a specific topic."""
+    conn = None
+    try:
+        conn = sqlite3.connect(DB_FILE, timeout=15)
+        c = conn.cursor()
+        # Using a window function to rank users
+        query = """
+            WITH RankedScores AS (
+                SELECT
+                    username,
+                    RANK() OVER (ORDER BY (CAST(score AS REAL) / questions_answered) DESC, questions_answered DESC, timestamp ASC) as rank
+                FROM quiz_results
+                WHERE topic = ? AND questions_answered > 0
+            )
+            SELECT rank FROM RankedScores WHERE username = ?;
+        """
+        c.execute(query, (topic, username))
+        result = c.fetchone()
+        return result[0] if result else "N/A"
+    finally:
+        if conn: conn.close()
+
+def get_total_players(topic):
+    """Gets the total number of unique players for a topic."""
+    conn = None
+    try:
+        conn = sqlite3.connect(DB_FILE, timeout=15)
+        c = conn.cursor()
+        c.execute("SELECT COUNT(DISTINCT username) FROM quiz_results WHERE topic = ? AND questions_answered > 0", (topic,))
+        result = c.fetchone()
+        return result[0] if result else 0
+    finally:
+        if conn: conn.close()
+
 def _generate_sets_question():
     set_a = set(random.sample(range(1, 15), k=random.randint(3, 5)))
     set_b = set(random.sample(range(1, 15), k=random.randint(3, 5)))
@@ -810,18 +845,54 @@ def display_quiz_page(topic_options):
 def display_leaderboard(topic_options):
     st.header("🏆 Global Leaderboard")
     leaderboard_topic = st.selectbox("Select a topic to view:", topic_options)
+
+    # --- NEW: Display the current user's rank ---
+    col1, col2 = st.columns(2)
+    with col1:
+        user_rank = get_user_rank(st.session_state.username, leaderboard_topic)
+        st.metric(label="Your Rank", value=f"#{user_rank}")
+    with col2:
+        total_players = get_total_players(leaderboard_topic)
+        st.metric(label="Total Players on this Leaderboard", value=total_players)
+    
+    st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
+    
+    st.subheader(f"Top 10 for {leaderboard_topic}")
     top_scores = get_top_scores(leaderboard_topic)
+    
     if top_scores:
-        leaderboard_data = [{"Rank": f"#{r}", "Username": u, "Score": f"{s}/{t}", "Accuracy": (s/t)*100} for r, (u,s,t) in enumerate(top_scores, 1)]
+        # --- NEW: Process data to add medals and '(You)' label ---
+        leaderboard_data = []
+        for r, (u, s, t) in enumerate(top_scores, 1):
+            rank_display = str(r)
+            if r == 1: rank_display = "🥇"
+            elif r == 2: rank_display = "🥈"
+            elif r == 3: rank_display = "🥉"
+            
+            username_display = u
+            if u == st.session_state.username:
+                username_display = f"{u} (You)"
+
+            leaderboard_data.append({
+                "Rank": rank_display,
+                "Username": username_display,
+                "Score": f"{s}/{t}",
+                "Accuracy": (s/t)*100
+            })
+        
         df = pd.DataFrame(leaderboard_data)
+        
         def highlight_user(row):
-            if row.Username == st.session_state.username:
+            if "(You)" in row.Username:
                 return ['background-color: #e6f7ff; font-weight: bold; color: #000000;'] * len(row)
             return [''] * len(row)
-        st.dataframe(df.style.apply(highlight_user, axis=1).format({'Accuracy': "{:.1f}%"}).hide(axis="index"), use_container_width=True)
+            
+        st.dataframe(
+            df.style.apply(highlight_user, axis=1).format({'Accuracy': "{:.1f}%"}).hide(axis="index"), 
+            use_container_width=True
+        )
     else:
-        st.info(f"No scores recorded for **{leaderboard_topic}** yet.")
-        
+        st.info(f"No scores recorded for **{leaderboard_topic}** yet. Be the first!")
 def display_learning_resources():
     st.header("📚 Learning Resources")
     st.subheader("🧮 Sets and Operations on Sets")
@@ -954,6 +1025,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
