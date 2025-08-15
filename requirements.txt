@@ -1,7 +1,5 @@
-streamlit
-streamlit-autorefresh
-pyperclip
-bcrypt
-plotly
-stx
-extra-streamlit-components
+streamlit==1.32.0
+bcrypt==4.1.2
+pandas==2.1.4
+plotly==5.18.0
+sqlite3==3.41.2
