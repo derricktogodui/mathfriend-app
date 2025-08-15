@@ -225,6 +225,22 @@ def get_user_quiz_history(username):
     finally:
         if conn: conn.close()
 
+def get_topic_performance(username):
+    """Calculates average accuracy per topic for a given user."""
+    history = get_user_quiz_history(username)
+    if not history:
+        return pd.DataFrame()
+
+    df_data = [{"Topic": row['topic'], "Score": row['score'], "Total": row['questions_answered']} for row in history]
+    df = pd.DataFrame(df_data)
+    
+    # Group by topic and calculate aggregate scores and totals
+    performance = df.groupby('Topic').sum()
+    # Calculate accuracy, avoiding division by zero
+    performance['Accuracy'] = (performance['Score'] / performance['Total'] * 100).fillna(0)
+    
+    return performance.sort_values(by="Accuracy", ascending=False)
+
 def _generate_sets_question():
     set_a = set(random.sample(range(1, 15), k=random.randint(3, 5)))
     set_b = set(random.sample(range(1, 15), k=random.randint(3, 5)))
@@ -668,23 +684,66 @@ def load_css():
 
 def display_dashboard(username):
     st.header(f"📈 Dashboard for {username}")
-    total_quizzes, last_score, top_score = get_user_stats(username)
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        st.markdown(f'<div class="metric-card" style="--primary-color: #007bff;"><h4>Total Quizzes</h4><h2>{total_quizzes}</h2></div>', unsafe_allow_html=True)
-    with col2:
-        st.markdown(f'<div class="metric-card" style="--primary-color: #28a745;"><h4>Last Score</h4><h2>{last_score}</h2></div>', unsafe_allow_html=True)
-    with col3:
-        st.markdown(f'<div class="metric-card" style="--primary-color: #ffc107;"><h4>Top Score</h4><h2>{top_score}</h2></div>', unsafe_allow_html=True)
-    history = get_user_quiz_history(username)
-    if history:
-        df_data = [{"Topic": row['topic'], "Accuracy": (row['score'] / row['questions_answered'] * 100) if row['questions_answered'] > 0 else 0, "Date": datetime.strptime(row['timestamp'], "%Y-%m-%d %H:%M:%S").date()} for row in history]
-        df = pd.DataFrame(df_data)
+
+    tab1, tab2 = st.tabs(["📊 Performance Overview", "📜 Full History"])
+
+    with tab1:
+        st.subheader("Key Metrics")
+        total_quizzes, last_score, top_score = get_user_stats(username)
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.metric(label="Total Quizzes Taken", value=total_quizzes)
+        with col2:
+            st.metric(label="Most Recent Score", value=last_score)
+        with col3:
+            st.metric(label="Best Ever Score", value=top_score)
+
+        st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
+        
+        st.subheader("Topic Performance")
+        topic_perf_df = get_topic_performance(username)
+
+        if not topic_perf_df.empty:
+            # Display best and worst topics
+            col1, col2 = st.columns(2)
+            with col1:
+                best_topic = topic_perf_df.index[0]
+                best_acc = topic_perf_df['Accuracy'].iloc[0]
+                st.success(f"💪 **Strongest Topic:** {best_topic} ({best_acc:.1f}%)")
+            with col2:
+                if len(topic_perf_df) > 1:
+                    worst_topic = topic_perf_df.index[-1]
+                    worst_acc = topic_perf_df['Accuracy'].iloc[-1]
+                    st.warning(f"🤔 **Area for Practice:** {worst_topic} ({worst_acc:.1f}%)")
+
+            # Display bar chart
+            fig = px.bar(
+                topic_perf_df, 
+                y='Accuracy', 
+                title="Average Accuracy by Topic",
+                labels={'Accuracy': 'Accuracy (%)', 'Topic': 'Topic'},
+                text_auto='.2s'
+            )
+            fig.update_traces(textposition='outside')
+            st.plotly_chart(fig, use_container_width=True)
+        else:
+            st.info("Complete some quizzes to see your topic performance analysis!")
+
+    with tab2:
         st.subheader("Accuracy Over Time")
-        fig = px.line(df, x='Date', y='Accuracy', color='Topic', markers=True, title="Quiz Performance Trend")
-        st.plotly_chart(fig, use_container_width=True)
-    else:
-        st.info("Take some quizzes to see your progress charts!")
+        history = get_user_quiz_history(username)
+        if history:
+            df_data = [{"Topic": row['topic'], "Score": f"{row['score']}/{row['questions_answered']}", "Accuracy (%)": (row['score'] / row['questions_answered'] * 100) if row['questions_answered'] > 0 else 0, "Date": datetime.strptime(row['timestamp'], "%Y-%m-%d %H:%M:%S").strftime("%Y-%m-%d %H:%M")} for row in history]
+            df = pd.DataFrame(df_data)
+
+            # The line chart from before
+            line_fig = px.line(df, x='Date', y='Accuracy (%)', color='Topic', markers=True, title="Quiz Performance Trend")
+            st.plotly_chart(line_fig, use_container_width=True)
+            
+            # Display the full history in a table
+            st.dataframe(df, use_container_width=True)
+        else:
+            st.info("Your quiz history is empty. Take a quiz to get started!")
 
 def display_quiz_page(topic_options):
     st.header("🧠 Quiz Time!")
@@ -875,4 +934,5 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
