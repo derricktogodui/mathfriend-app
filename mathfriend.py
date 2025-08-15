@@ -4,12 +4,11 @@ import bcrypt
 import time
 import random
 import pandas as pd
-import plotly.express as px
 import re
 import hashlib
-import json
 import math
 import base64
+import os
 from datetime import datetime
 from streamlit.components.v1 import html
 from streamlit_autorefresh import st_autorefresh
@@ -32,8 +31,6 @@ if "username" not in st.session_state:
     st.session_state.username = ""
 if "show_splash" not in st.session_state:
     st.session_state.show_splash = True
-if "dark_mode" not in st.session_state:
-    st.session_state.dark_mode = False
 if 'quiz_active' not in st.session_state:
     st.session_state.quiz_active = False
 if 'quiz_topic' not in st.session_state:
@@ -47,9 +44,9 @@ if 'questions_answered' not in st.session_state:
 # --- Database Setup and Connection Logic ---
 DB_FILE = 'users.db'
 
-def create_tables_if_not_exist():
+def create_and_verify_tables():
     """
-    Ensures all necessary tables and columns exist in the database.
+    Creates all necessary tables and verifies their schemas.
     """
     conn = None
     try:
@@ -81,17 +78,26 @@ def create_tables_if_not_exist():
             c.execute("ALTER TABLE quiz_results ADD COLUMN questions_answered INTEGER DEFAULT 0")
 
         conn.commit()
-        print("Database initialized successfully.")
+        print("Database setup and verification complete.")
     except sqlite3.Error as e:
         st.error(f"Database setup error: {e}")
     finally:
         if conn:
             conn.close()
 
-# Run the database setup only once per session
-if 'db_initialized' not in st.session_state:
-    create_tables_if_not_exist()
-    st.session_state.db_initialized = True
+def bootstrap_database():
+    """
+    Checks if the database file exists. If not, creates and initializes it.
+    This ensures the setup runs only once on a fresh deployment.
+    """
+    if not os.path.exists(DB_FILE):
+        print("Database file not found, creating and initializing...")
+        create_and_verify_tables()
+    else:
+        print("Database file already exists.")
+
+# Run the bootstrap function once at the start of the script
+bootstrap_database()
 
 
 # --- User Authentication Functions --- 
@@ -262,7 +268,7 @@ def _generate_fractions_question():
         else:
             correct_answer_obj = f1 * f2
             hint = "To multiply fractions, multiply the numerators and denominators."
-    else:
+    else: # simplify
         common_factor = random.randint(2, 5)
         unsimplified_f = Fraction(f1.numerator * common_factor, f1.denominator * common_factor)
         expression_code = f"{_get_fraction_latex_code(unsimplified_f)}"
@@ -390,14 +396,14 @@ def _generate_relations_functions_question():
         relation = str(set(zip(domain_set, range_set))).replace("'", "")
         question_text = f"Given the relation $R = {relation}$, what is its {'domain' if q_type == 'domain' else 'range'}?"
         correct_answer = str(domain_set if q_type == 'domain' else range_set).replace("'", "")
-        hint = "The domain is the set of all first elements (x-values) in the ordered pairs. The range is the set of all second elements (y-values)."
+        hint = "The domain is the set of all first elements (x-values). The range is the set of all second elements (y-values)."
         options = {correct_answer, str(domain_set.union(range_set)).replace("'", "")}
     elif q_type == 'is_function':
         func_relation = str({(1, 'a'), (2, 'b'), (3, 'c')}).replace("'", "")
         not_func_relation = str({(1, 'a'), (1, 'b'), (2, 'c')}).replace("'", "")
         question_text = "Which of the following relations represents a function?"
         correct_answer = str(func_relation)
-        hint = "A relation is a function if every input (x-value) maps to exactly one output (y-value). No x-value can be repeated with a different y-value."
+        hint = "A relation is a function if every input (x-value) maps to exactly one output (y-value)."
         options = {correct_answer, not_func_relation}
     else: # evaluate
         a, b, x = random.randint(2, 5), random.randint(1, 10), random.randint(1, 5)
@@ -572,9 +578,6 @@ def get_mathbot_response(message):
 
 def confetti_animation():
     html("""<script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.5.1/dist/confetti.browser.min.js"></script><script>confetti();</script>""")
-
-def metric_card(title, value, icon, color):
-    return f"""<div style="background: white; border-radius: 12px; padding: 15px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); border-left: 4px solid {color};"><div style="display: flex; align-items: center; margin-bottom: 8px;"><div style="font-size: 24px; margin-right: 10px;">{icon}</div><div style="font-size: 14px; color: #666;">{title}</div></div><div style="font-size: 28px; font-weight: bold; color: {color};">{value}</div></div>"""
 
 def show_login_page():
     st.markdown("<style>.main {display: flex; justify-content: center; align-items: center;}</style>", unsafe_allow_html=True)
