@@ -30,8 +30,6 @@ if "page" not in st.session_state:
     st.session_state.page = "login"
 if "username" not in st.session_state:
     st.session_state.username = ""
-if "show_splash" not in st.session_state:
-    st.session_state.show_splash = True
 if "dark_mode" not in st.session_state:
     st.session_state.dark_mode = False
 if 'quiz_active' not in st.session_state:
@@ -651,7 +649,7 @@ def show_main_app():
         st.info("Coming soon!")
 
 # --- Main App Logic ---
-# Direct start without splash screen (removed splash for speed)
+# Direct start (splash removed)
 st.markdown("<h1 style='text-align:center;'>Welcome to MathFriend!</h1>", unsafe_allow_html=True)
 
 if st.session_state.logged_in:
