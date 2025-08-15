@@ -838,9 +838,12 @@ def display_dashboard(username):
 
 def display_quiz_page(topic_options):
     st.header("🧠 Quiz Time!")
+    QUIZ_LENGTH = 10 # Define the length of a quiz round
+
     if not st.session_state.quiz_active:
-        st.write("Select a topic and challenge yourself!")
+        st.write(f"Select a topic and challenge yourself! Each round consists of {QUIZ_LENGTH} questions.")
         st.session_state.quiz_topic = st.selectbox("Choose a topic:", topic_options)
+        
         if st.button("Start Quiz", type="primary", use_container_width=True):
             st.session_state.quiz_active = True
             st.session_state.quiz_score = 0
@@ -848,14 +851,35 @@ def display_quiz_page(topic_options):
             if 'current_q_data' in st.session_state: del st.session_state['current_q_data']
             st.rerun()
     else:
-        st.write(f"**Topic:** {st.session_state.quiz_topic} | **Score:** {st.session_state.quiz_score}/{st.session_state.questions_answered}")
+        # Check if the quiz round is over
+        if st.session_state.questions_answered >= QUIZ_LENGTH:
+            display_quiz_summary()
+            return # Stop executing the rest of the quiz page
+
+        # --- NEW: Display progress and score using metrics ---
+        col1, col2 = st.columns(2)
+        with col1:
+            st.metric("Score", f"{st.session_state.quiz_score}/{st.session_state.questions_answered}")
+        with col2:
+            st.metric("Question", f"{st.session_state.questions_answered + 1}/{QUIZ_LENGTH}")
+        
+        st.progress(st.session_state.questions_answered / QUIZ_LENGTH, text=f"Round Progress")
+        st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
+        
+        # Generate a new question if one doesn't exist
         if 'current_q_data' not in st.session_state:
             st.session_state.current_q_data = generate_question(st.session_state.quiz_topic)
+        
         q_data = st.session_state.current_q_data
+        st.subheader(f"Topic: {st.session_state.quiz_topic}")
         st.markdown(q_data["question"], unsafe_allow_html=True)
-        with st.expander("🤔 Need a hint?"): st.info(q_data["hint"])
+        
+        with st.expander("🤔 Need a hint?"): 
+            st.info(q_data["hint"])
+            
         with st.form(key=f"quiz_form_{st.session_state.questions_answered}"):
             user_choice = st.radio("Select your answer:", q_data["options"], index=None, key="user_answer_choice")
+            
             if st.form_submit_button("Submit Answer", type="primary"):
                 if user_choice is not None:
                     st.session_state.questions_answered += 1
@@ -865,16 +889,53 @@ def display_quiz_page(topic_options):
                         confetti_animation()
                     else:
                         st.error(f"Not quite. The correct answer was: **{q_data['answer']}**")
+                    
                     del st.session_state.current_q_data
                     del st.session_state.user_answer_choice
                     time.sleep(1.5)
                     st.rerun()
                 else:
                     st.warning("Please select an answer before submitting.")
-        if st.button("Stop Quiz & Save Score"):
-            if st.session_state.questions_answered > 0:
-                save_quiz_result(st.session_state.username, st.session_state.quiz_topic, st.session_state.quiz_score, st.session_state.questions_answered)
-                st.info(f"Quiz stopped. Score of {st.session_state.quiz_score}/{st.session_state.questions_answered} saved.")
+
+        if st.button("Stop Round & Save Score"):
+            display_quiz_summary() # Go to summary page even if stopped early
+            st.rerun()
+def display_quiz_summary():
+    """Displays the quiz summary screen at the end of a round."""
+    st.header("🎉 Round Complete! 🎉")
+    
+    final_score = st.session_state.quiz_score
+    total_questions = st.session_state.questions_answered
+    accuracy = (final_score / total_questions * 100) if total_questions > 0 else 0
+
+    # Save the result automatically
+    if total_questions > 0:
+        save_quiz_result(st.session_state.username, st.session_state.quiz_topic, final_score, total_questions)
+
+    # Display final score in a metric card
+    st.metric(label="Your Final Score", value=f"{final_score}/{total_questions}", delta=f"{accuracy:.1f}% Accuracy")
+
+    # Display a motivational message based on performance
+    if accuracy >= 90:
+        st.success("🏆 Excellent work! You're a true MathFriend master!")
+        confetti_animation()
+    elif accuracy >= 70:
+        st.info("👍 Great job! You've got a solid understanding of this topic.")
+    else:
+        st.warning("🙂 Good effort! A little more practice and you'll be an expert.")
+
+    st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
+
+    # Provide options to continue
+    col1, col2 = st.columns(2)
+    with col1:
+        if st.button("Play Again (Same Topic)", use_container_width=True, type="primary"):
+            st.session_state.quiz_score = 0
+            st.session_state.questions_answered = 0
+            if 'current_q_data' in st.session_state: del st.session_state['current_q_data']
+            st.rerun()
+    with col2:
+        if st.button("Choose New Topic", use_container_width=True):
             st.session_state.quiz_active = False
             st.rerun()
 
@@ -1076,6 +1137,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
