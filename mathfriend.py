@@ -510,6 +510,16 @@ def generate_question(topic):
 def confetti_animation():
     html("""<script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.5.1/dist/confetti.browser.min.js"></script><script>confetti();</script>""")
 
+def get_time_based_greeting():
+    """Returns a greeting based on the current time of day."""
+    current_hour = datetime.now().hour
+    if 5 <= current_hour < 12:
+        return "Good morning"
+    elif 12 <= current_hour < 18:
+        return "Good afternoon"
+    else:
+        return "Good evening"
+
 def load_css():
     """Loads the main CSS for the application for a consistent and responsive look."""
     st.markdown("""
@@ -739,9 +749,10 @@ def show_main_app():
         update_user_status(st.session_state.username, True)
         st.session_state.last_status_update = time.time()
     with st.sidebar:
+        greeting = get_time_based_greeting()
         profile = get_user_profile(st.session_state.username)
         display_name = profile.get('full_name') if profile and profile.get('full_name') else st.session_state.username
-        st.title(f"Welcome, {display_name}!")
+        st.title(f"{greeting}, {display_name}!")
         page_options = ["📊 Dashboard", "📝 Quiz", "🏆 Leaderboard", "👤 Profile", "📚 Learning Resources", "💬 Chat (Paused)"]
         selected_page = st.radio("Menu", page_options, label_visibility="collapsed")
         st.write("---")
@@ -829,4 +840,3 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
-
