@@ -762,10 +762,10 @@ def show_main_app():
         update_user_status(st.session_state.username, True)
         st.session_state.last_status_update = time.time()
     with st.sidebar:
-st.sidebar.markdown('---')
-st.sidebar.subheader('Appearance')
-_theme = st.sidebar.selectbox('Theme', ['dark','light'], index=0 if st.session_state.get('theme','dark')=='dark' else 1)
-set_theme(_theme)
+        st.sidebar.markdown('---')
+        st.sidebar.subheader('Appearance')
+        _theme = st.sidebar.selectbox('Theme', ['dark','light'], index=0 if st.session_state.get('theme','dark')=='dark' else 1)
+        set_theme(_theme)
         profile = get_user_profile(st.session_state.username)
         display_name = profile.get('full_name') if profile and profile.get('full_name') else st.session_state.username
         st.title(f"Welcome, {display_name}!")
@@ -856,3 +856,4 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
