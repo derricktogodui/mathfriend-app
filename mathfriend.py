@@ -651,26 +651,13 @@ def show_main_app():
         st.info("Coming soon!")
 
 # --- Main App Logic ---
-if "show_splash" not in st.session_state:
-    st.session_state.show_splash = True
+# Direct start without splash screen (removed splash for speed)
+st.markdown("<h1 style='text-align:center;'>Welcome to MathFriend!</h1>", unsafe_allow_html=True)
 
-if st.session_state.show_splash:
-    st.markdown("<h1 style='text-align:center;'>Welcome to MathFriend!</h1>", unsafe_allow_html=True)
-    st.markdown("<p style='text-align:center;'>Loading...</p>", unsafe_allow_html=True)
-    st.session_state.show_splash = False
+if st.session_state.logged_in:
+    show_main_app()
 else:
-    if st.session_state.logged_in:
-        show_main_app()
+    if st.session_state.page == "login":
+        show_login_page()
     else:
-        if st.session_state.page == "login":
-            show_login_page()
-        else:
-            show_signup_page()
-else:
-    if st.session_state.logged_in:
-        show_main_app()
-    else:
-        if st.session_state.page == "login":
-            show_login_page()
-        else:
-            show_signup_page()
+        show_signup_page()
