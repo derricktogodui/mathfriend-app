@@ -598,7 +598,7 @@ def _generate_shapes_question():
         l, w = random.randint(5, 20), random.randint(5, 20)
         question_text = f"What is the area of a rectangle with length ${l}$ cm and width ${w}$ cm?"
         correct_answer = str(l * w)
-        hint = "The area of a rectangle is length times width ($A = l \\times w$)."
+        hint = r"The area of a rectangle is length times width ($A = l \times w$)."
         options = {correct_answer, str(2*l + 2*w), str(l+w)}
     elif q_type == 'perimeter_triangle':
         s1, s2, s3 = random.randint(5, 20), random.randint(5, 20), random.randint(5, 20)
@@ -611,14 +611,14 @@ def _generate_shapes_question():
         volume = round(math.pi * (r**2) * h)
         question_text = f"What is the volume of a cylinder with a radius of ${r}$ cm and a height of ${h}$ cm? (Use $\pi \approx 3.14$ and round to the nearest whole number)."
         correct_answer = str(volume)
-        hint = "The volume of a cylinder is $V = \pi r^2 h$."
+        hint = r"The volume of a cylinder is $V = \pi r^2 h$."
         options = {correct_answer, str(round(2 * math.pi * r * h)), str(round(math.pi * r**2))}
     elif q_type == 'area_circle_reverse':
         r = random.randint(5,12)
         area = round((22/7) * r**2)
-        # --- THIS LINE IS CORRECTED ---
-        # Made into a raw string (r"...") to fix the \a and \f characters and fixed the cm^2 rendering
-        question_text = r"The area of a circle is approximately $" + str(area) + r"$ cm^2$. What is its radius? (Use $\pi \approx \frac{22}{7}$)"
+        # --- THIS LINE IS THE DEFINITIVE FIX ---
+        # It is now a single, raw f-string for robust formatting.
+        question_text = rf"The area of a circle is approximately ${area}\ cm^2$. What is its radius? (Use $\pi \approx \frac{{22}}{{7}}$)"
         correct_answer = str(r)
         hint = r"The area of a circle is $A = \pi r^2$. Rearrange the formula to solve for the radius, $r$."
         options = {correct_answer, str(round(area/2)), str(r*2)}
@@ -627,7 +627,7 @@ def _generate_shapes_question():
         surface_area = 2*(l*w + l*h + w*h)
         question_text = f"A closed rectangular box has a length of ${l}$ cm, a width of ${w}$ cm, and a height of ${h}$ cm. What is its total surface area?"
         correct_answer = str(surface_area)
-        hint = "The total surface area of a rectangular prism is $2(lw + lh + wh)$."
+        hint = r"The total surface area of a rectangular prism is $2(lw + lh + wh)$."
         options = {correct_answer, str(l*w*h), str(l+w+h)}
     while len(options) < 4:
         options.add(str(random.randint(50, 500)))
@@ -1067,4 +1067,5 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
