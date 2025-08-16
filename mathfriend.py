@@ -718,13 +718,13 @@ def _generate_algebra_basics_question():
     shuffled_options = list(options)
     random.shuffle(shuffled_options)
     return {"question": question_text, "options": [str(o) for o in shuffled_options], "answer": correct_answer, "hint": hint}
-
 def _generate_linear_algebra_question():
     q_type = random.choice(['add', 'determinant', 'multiply'])
     mat_a = np.random.randint(-5, 10, size=(2, 2))
     mat_b = np.random.randint(-5, 10, size=(2, 2))
     def mat_to_latex(m):
         return f"\\begin{{pmatrix}} {m[0,0]} & {m[0,1]} \\\\ {m[1,0]} & {m[1,1]} \\end{{pmatrix}}"
+
     if q_type == 'add':
         question_text = f"Calculate the sum of the matrices $A = {mat_to_latex(mat_a)}$ and $B = {mat_to_latex(mat_b)}$."
         correct_mat = mat_a + mat_b
@@ -742,8 +742,14 @@ def _generate_linear_algebra_question():
         correct_answer = f"${mat_to_latex(correct_mat)}$"
         hint = "Matrix multiplication involves taking the dot product of rows from the first matrix and columns from the second matrix."
         options = {correct_answer, f"${mat_to_latex(mat_a + mat_b)}$", f"${mat_to_latex(np.transpose(correct_mat))}$"}
+
     while len(options) < 4:
-        options.add(f"${mat_to_latex(np.random.randint(-5, 10, size=(2,2)))}$")
+        # Add a fallback for the determinant case, which doesn't produce LaTeX options
+        if q_type == 'determinant':
+            options.add(str(random.randint(-20, 20)))
+        else:
+            options.add(f"${mat_to_latex(np.random.randint(-5, 10, size=(2,2)))}$")
+            
     shuffled_options = list(options)
     random.shuffle(shuffled_options)
     return {"question": question_text, "options": [str(o) for o in shuffled_options], "answer": str(correct_answer), "hint": hint}
@@ -1140,4 +1146,5 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
