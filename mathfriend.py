@@ -783,19 +783,21 @@ def display_blackboard_page():
     for msg in messages:
         user_id = msg["user"].get("id", "Unknown")
         user_name = msg["user"].get("name", user_id)
-        is_current_user = (user_id == st.session_state.username)
 
-        # Use st.chat_message to create the chat bubble. 
-        # The 'is_user' parameter aligns the message to the right for the current user.
-        with st.chat_message(name=user_name, is_user=is_current_user):
-            # Display the main message text
-            st.markdown(msg["text"])
-
-            # Get and format the timestamp for display
-            timestamp = msg.get("created_at")
-            if timestamp:
-                # Use st.caption for small, secondary text
-                st.caption(timestamp.strftime("%b %d, %I:%M %p"))
+        # --- THIS LOGIC IS NOW CORRECTED ---
+        # We check if the message is from the current user to decide on alignment.
+        if user_id == st.session_state.username:
+            # For the current user, we use the special name "user" to align the message to the right.
+            with st.chat_message(name="user"):
+                st.markdown(msg["text"])
+                if timestamp := msg.get("created_at"):
+                    st.caption(timestamp.strftime("%b %d, %I:%M %p"))
+        else:
+            # For all other users, we use their actual name, which aligns them to the left.
+            with st.chat_message(name=user_name):
+                st.markdown(msg["text"])
+                if timestamp := msg.get("created_at"):
+                    st.caption(timestamp.strftime("%b %d, %I:%M %p"))
 
     # The input box for new messages
     if prompt := st.chat_input("Post your question or comment..."):
@@ -1084,6 +1086,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
