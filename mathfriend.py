@@ -771,20 +771,21 @@ def display_blackboard_page():
     st.header("칠판 Blackboard")
     st.write("A space for students to discuss theory questions and concepts.")
 
-    # --- THIS LINE IS CORRECTED ---
-    # Added 'channel_id=' to explicitly name the argument
+    # Define the main channel for the blackboard
     channel = chat_client.channel("messaging", channel_id="mathfriend-blackboard", data={"name": "MathFriend Blackboard"})
 
-    # The watch() command creates the channel if it doesn't exist and connects to it
-    state = channel.watch() 
-    messages = state.messages
+    # --- THIS SECTION IS CORRECTED ---
+    # We use channel.query() to fetch existing messages instead of channel.watch()
+    # This fetches the state of the channel including the last 50 messages.
+    state = channel.query(watch=False, state=True, messages={"limit": 50})
+    messages = state['messages']
 
     # Display message history using st.chat_message
-    for msg in messages:
-        # Use get() method for safety in case name is not set
-        user_name = msg.user.get("name", msg.user.get("id", "Unknown"))
+    # We iterate in reverse to show the newest messages at the bottom.
+    for msg in reversed(messages):
+        user_name = msg["user"].get("name", msg["user"].get("id", "Unknown"))
         with st.chat_message(name=user_name):
-            st.markdown(msg.text)
+            st.markdown(msg["text"])
 
     # Input for new messages at the bottom of the screen
     if prompt := st.chat_input("Post your question or comment..."):
@@ -1078,5 +1079,6 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
