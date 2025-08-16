@@ -783,21 +783,26 @@ def display_blackboard_page():
     for msg in messages:
         user_id = msg["user"].get("id", "Unknown")
         user_name = msg["user"].get("name", user_id)
+        is_current_user = (user_id == st.session_state.username)
 
-        # --- THIS LOGIC IS NOW CORRECTED ---
-        # We check if the message is from the current user to decide on alignment.
-        if user_id == st.session_state.username:
-            # For the current user, we use the special name "user" to align the message to the right.
-            with st.chat_message(name="user"):
-                st.markdown(msg["text"])
-                if timestamp := msg.get("created_at"):
-                    st.caption(timestamp.strftime("%b %d, %I:%M %p"))
-        else:
-            # For all other users, we use their actual name, which aligns them to the left.
-            with st.chat_message(name=user_name):
-                st.markdown(msg["text"])
-                if timestamp := msg.get("created_at"):
-                    st.caption(timestamp.strftime("%b %d, %I:%M %p"))
+        with st.chat_message(name=user_name, is_user=is_current_user):
+            st.markdown(msg["text"])
+
+            # --- THIS SECTION IS CORRECTED ---
+            timestamp_str = msg.get("created_at")
+            if timestamp_str:
+                # First, convert the string to a datetime object
+                # The format from Stream includes microseconds and a 'Z' for UTC
+                # We need to handle this to parse it correctly.
+                if isinstance(timestamp_str, str):
+                    if timestamp_str.endswith('Z'):
+                        timestamp_str = timestamp_str[:-1] + '+00:00'
+                    timestamp_dt = datetime.fromisoformat(timestamp_str)
+                else: # If it's already a datetime object, use it directly
+                    timestamp_dt = timestamp_str
+                
+                # Now we can format our datetime object
+                st.caption(timestamp_dt.strftime("%b %d, %I:%M %p"))
 
     # The input box for new messages
     if prompt := st.chat_input("Post your question or comment..."):
@@ -1086,6 +1091,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
