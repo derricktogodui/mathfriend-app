@@ -690,39 +690,35 @@ def load_css():
     st.markdown("""
     <style>
         /* --- BASE STYLES --- */
-        .stApp { background-color: #f0f2f5; }
-        [data-testid="stAppViewContainer"] > .main { display: flex; flex-direction: column; align-items: center; }
+        .stApp {
+            background-color: #f0f2f5;
+        }
         
+        /* --- FIX 1: TABLET SCROLLING --- */
+        /* This ensures that the main container can scroll vertically if the content is too tall. */
+        [data-testid="stAppViewContainer"] > .main {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            overflow: auto; /* Allow scrolling */
+        }
+
         /* --- THE DEFINITIVE CHROME & SAFARI FIX --- */
-        div[data-testid="stAppViewContainer"] * { color: #31333F !important; }
-        
-        /* --- FINAL, CROSS-BROWSER SIDEBAR FIX --- */
-        div[data-testid="stSidebarUserContent"] * { color: #FAFAFA !important; }
-        div[data-testid="stSidebarUserContent"] h1 { color: #FFFFFF !important; }
-        div[data-testid="stSidebarUserContent"] [data-testid="stRadio"] label { color: #E0E0E0 !important; }
-        div[data-testid="stSidebarUserContent"] hr { border-color: #444955 !important; }
-
-        /* --- NEW: iMessage Style Chat Bubbles --- */
-        /* General styling for all chat message containers */
-        [data-testid="stChatMessage"] {
-            padding: 1rem;
-            border-radius: 20px;
-            margin-bottom: 10px;
+        div[data-testid="stAppViewContainer"] * {
+            color: #31333F !important;
         }
 
-        /* Bubble container for messages FROM OTHERS (grey) */
-        [data-testid="stChatMessage"]:has(div[data-testid="stChatMessageAssistantAvatar"]) {
-            background-color: #E5E5EA;
+        /* --- FIX 2: FINAL, CROSS-BROWSER SIDEBAR TEXT --- */
+        /* These redundant, highly specific rules ensure the sidebar text is bright on all devices. */
+        div[data-testid="stSidebarUserContent"] * {
+            color: #FAFAFA !important;
         }
-
-        /* Bubble container for messages FROM YOU (blue) */
-        [data-testid="stChatMessage"]:has(div[data-testid="stChatMessageUserAvatar"]) {
-            background-color: #007AFF;
+        div[data-testid="stSidebarUserContent"] h1,
+        div[data-testid="stSidebarUserContent"] p {
+            color: #FFFFFF !important;
         }
-        
-        /* Text color for messages FROM YOU (must be white) */
-        [data-testid="stChatMessage"]:has(div[data-testid="stChatMessageUserAvatar"]) * {
-            color: white !important;
+        div[data-testid="stSidebarUserContent"] [data-testid="stRadio"] label {
+            color: #E0E0E0 !important;
         }
         
         /* --- COLOR OVERRIDES --- */
@@ -754,11 +750,7 @@ def load_css():
         .login-title { text-align: center; font-weight: 800; font-size: 2.2rem; color: #1a1a1a !important; }
         .login-subtitle { text-align: center; color: #6c757d !important; margin-bottom: 2rem; }
         .main-content { background-color: #ffffff; padding: 2rem; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
-        
-        @media (max-width: 640px) {
-            .main-content, .login-container { padding: 1rem; }
-            .login-title { font-size: 1.8rem; }
-        }
+        @media (max-width: 640px) { .main-content, .login-container { padding: 1rem; } .login-title { font-size: 1.8rem; } }
     </style>
     """, unsafe_allow_html=True)
 def display_dashboard(username):
@@ -1107,6 +1099,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
