@@ -709,10 +709,15 @@ def _generate_algebra_basics_question():
         p, l, w = random.randint(30, 60), random.randint(10, 20), random.randint(5, 10)
         while p != 2*(l+w): p, l, w = random.randint(30, 60), random.randint(10, 20), random.randint(5, 10)
         var_to_make_subject = random.choice(['l', 'w'])
-        question_text = f"Given the formula for the perimeter of a rectangle, $P = 2(l+w)$. First, make '${var_to_make_subject}' the subject of the formula. Then, find its value if $P={p}$ and ${'w' if var_to_make_subject == 'l' else 'l'}={w if var_to_make_subject == 'l' else l}$."
+        
+        # --- THIS LINE IS CORRECTED ---
+        # Removed the problematic single quotes and dollar signs around the first variable
+        question_text = f"Given the formula for the perimeter of a rectangle, $P = 2(l+w)$. First, make {var_to_make_subject} the subject of the formula. Then, find its value if $P={p}$ and ${'w' if var_to_make_subject == 'l' else 'l'}={w if var_to_make_subject == 'l' else l}$."
+        
         correct_answer = str(l if var_to_make_subject == 'l' else w)
         hint = "First, rearrange the formula to solve for the requested variable. Then, substitute the given values to find the numerical answer."
         options = {correct_answer, str(p/2), str(p-w if var_to_make_subject == 'l' else p-l)}
+        
     while len(options) < 4:
         options.add(str(random.randint(1, 100)))
     shuffled_options = list(options)
@@ -1146,6 +1151,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
