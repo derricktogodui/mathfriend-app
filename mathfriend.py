@@ -970,20 +970,6 @@ def display_profile_page():
             else: st.error("Incorrect current password")
 
 def show_main_app():
-    # --- TEMPORARY DEBUGGING CODE ---
-    st.subheader("Debug Info (You can remove this later)")
-    try:
-        key = st.secrets.get("STREAM_API_KEY", "Key Not Found in Secrets")
-        secret = st.secrets.get("STREAM_API_SECRET", "Secret Not Found in Secrets")
-        st.write(f"API Key successfully read: {isinstance(key, str)}")
-        st.write(f"First 5 characters of Key: {key[:5]}")
-        st.write(f"API Secret successfully read: {isinstance(secret, str)}")
-        st.write(f"First 5 characters of Secret: {secret[:5]}")
-    except Exception as e:
-        st.error(f"Error reading secrets: {e}")
-    st.markdown("---")
-    # --- END OF DEBUGGING CODE ---
-
     load_css()
     last_update = st.session_state.get("last_status_update", 0)
     if time.time() - last_update > 60:
@@ -1091,6 +1077,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
