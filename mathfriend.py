@@ -985,10 +985,6 @@ def show_main_app():
     # --- END OF DEBUGGING CODE ---
 
     load_css()
-    # ... the rest of your function continues here
-
-def show_main_app():
-    load_css()
     last_update = st.session_state.get("last_status_update", 0)
     if time.time() - last_update > 60:
         update_user_status(st.session_state.username, True)
@@ -999,7 +995,6 @@ def show_main_app():
         display_name = profile.get('full_name') if profile and profile.get('full_name') else st.session_state.username
         st.title(f"{greeting}, {display_name}!")
         
-        # CORRECTED MENU OPTIONS
         page_options = [
             "📊 Dashboard", "📝 Quiz", "🏆 Leaderboard", "칠판 Blackboard", 
             "👤 Profile", "📚 Learning Resources"
@@ -1023,7 +1018,6 @@ def show_main_app():
         display_quiz_page(topic_options)
     elif selected_page == "🏆 Leaderboard":
         display_leaderboard(topic_options)
-    # CORRECTED ROUTING LOGIC
     elif selected_page == "칠판 Blackboard":
         display_blackboard_page()
     elif selected_page == "👤 Profile":
@@ -1097,6 +1091,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
