@@ -696,14 +696,14 @@ def _generate_algebra_basics_question():
         var_to_make_subject = random.choice(['u', 'a', 't'])
         question_text = f"Make '{var_to_make_subject}' the subject of the formula $v = u + at$."
         if var_to_make_subject == 'u':
-            correct_answer = "$u = v - at$"
-            options = {correct_answer, "$u = v + at$", "$u = \\frac{v}{at}$"}
+            correct_answer = r"$u = v - at$"
+            options = {correct_answer, r"$u = v + at$", r"$u = \frac{v}{at}$"}
         elif var_to_make_subject == 'a':
-            correct_answer = "$a = \\frac{v-u}{t}$"
-            options = {correct_answer, "$a = v - u - t$", "$a = \\frac{v+u}{t}$"}
+            correct_answer = r"$a = \frac{v-u}{t}$"
+            options = {correct_answer, r"$a = v - u - t$", r"$a = \frac{v+u}{t}$"}
         else: # t
-            correct_answer = "$t = \\frac{v-u}{a}$"
-            options = {correct_answer, "$t = v - u - a$", "$t = \\frac{v-u}{-a}$"}
+            correct_answer = r"$t = \frac{v-u}{a}$"
+            options = {correct_answer, r"$t = v - u - a$", r"$t = \frac{v-u}{-a}$"}
         hint = "Use inverse operations to isolate the desired variable on one side of the equation."
     elif q_type == 'combined':
         p, l, w = random.randint(30, 60), random.randint(10, 20), random.randint(5, 10)
@@ -1146,5 +1146,6 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
