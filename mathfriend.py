@@ -767,6 +767,33 @@ def display_dashboard(username):
         else:
             st.info("Your quiz history is empty. Take a quiz to get started!")
 
+def display_blackboard_page():
+    st.header("칠판 Blackboard")
+    st.write("A space for students to discuss theory questions and concepts.")
+
+    # Define the main channel for the blackboard
+    channel = chat_client.channel("messaging", "mathfriend-blackboard", name="MathFriend Blackboard")
+
+    # The watch() command creates the channel if it doesn't exist and connects to it
+    state = channel.watch() 
+    messages = state.messages
+
+    # Display message history using st.chat_message
+    for msg in messages:
+        # Use get() method for safety in case name is not set
+        user_name = msg.user.get("name", msg.user.get("id", "Unknown"))
+        with st.chat_message(name=user_name):
+            st.markdown(msg.text)
+
+    # Input for new messages at the bottom of the screen
+    if prompt := st.chat_input("Post your question or comment..."):
+        # Send a new message to the channel
+        channel.send_message({
+            "text": prompt,
+        }, user_id=st.session_state.username)
+        # Rerun to display the new message immediately
+        st.rerun()
+
 def display_quiz_page(topic_options):
     st.header("🧠 Quiz Time!")
     QUIZ_LENGTH = 10
@@ -951,9 +978,11 @@ def show_main_app():
         profile = get_user_profile(st.session_state.username)
         display_name = profile.get('full_name') if profile and profile.get('full_name') else st.session_state.username
         st.title(f"{greeting}, {display_name}!")
+        
+        # CORRECTED MENU OPTIONS
         page_options = [
-            "📊 Dashboard", "📝 Quiz", "🏆 Leaderboard", "👤 Profile", 
-            "📚 Learning Resources"
+            "📊 Dashboard", "📝 Quiz", "🏆 Leaderboard", "칠판 Blackboard", 
+            "👤 Profile", "📚 Learning Resources"
         ]
         selected_page = st.radio("Menu", page_options, label_visibility="collapsed")
         st.write("---")
@@ -967,16 +996,21 @@ def show_main_app():
         "Binary Operations", "Relations and Functions", "Sequence and Series", 
         "Word Problems", "Shapes (Geometry)", "Algebra Basics", "Linear Algebra"
     ]
+    
     if selected_page == "📊 Dashboard":
         display_dashboard(st.session_state.username)
     elif selected_page == "📝 Quiz":
         display_quiz_page(topic_options)
     elif selected_page == "🏆 Leaderboard":
         display_leaderboard(topic_options)
+    # CORRECTED ROUTING LOGIC
+    elif selected_page == "칠판 Blackboard":
+        display_blackboard_page()
     elif selected_page == "👤 Profile":
         display_profile_page()
     elif selected_page == "📚 Learning Resources":
         display_learning_resources()
+        
     st.markdown('</div>', unsafe_allow_html=True)
 
 def show_login_or_signup_page():
@@ -1043,3 +1077,4 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
