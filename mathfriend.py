@@ -771,8 +771,9 @@ def display_blackboard_page():
     st.header("칠판 Blackboard")
     st.write("A space for students to discuss theory questions and concepts.")
 
-    # Define the main channel for the blackboard
-    channel = chat_client.channel("messaging", "mathfriend-blackboard", name="MathFriend Blackboard")
+    # --- THIS LINE IS CORRECTED ---
+    # Added 'channel_id=' to explicitly name the argument
+    channel = chat_client.channel("messaging", channel_id="mathfriend-blackboard", data={"name": "MathFriend Blackboard"})
 
     # The watch() command creates the channel if it doesn't exist and connects to it
     state = channel.watch() 
@@ -1077,4 +1078,5 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
