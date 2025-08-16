@@ -1,5 +1,4 @@
 import streamlit as st
-import sqlite3
 import time
 import random
 import pandas as pd
@@ -12,6 +11,8 @@ import os
 from datetime import datetime
 from streamlit.components.v1 import html
 from fractions import Fraction
+import sqlalchemy
+from sqlalchemy import create_engine, text
 
 # --- App Configuration ---
 st.set_page_config(
@@ -35,7 +36,7 @@ def initialize_session_state():
         "questions_answered": 0,
         "current_streak": 0,
         "incorrect_questions": [],
-        "on_summary_page": False      # NEW: The "switch" to show the summary page
+        "on_summary_page": False
     }
     for key, value in defaults.items():
         if key not in st.session_state:
@@ -44,52 +45,40 @@ def initialize_session_state():
 initialize_session_state()
 
 
-# --- Database Setup ---
-DB_FILE = 'users.db'
+# --- Database Connection ---
+# Uses st.singleton to create a single connection pool that is reused across sessions.
+@st.singleton
+def get_db_engine():
+    """Creates a SQLAlchemy engine with a connection pool."""
+    db_url = st.secrets["DATABASE_URL"]
+    return create_engine(db_url)
+
+engine = get_db_engine()
 
 def create_and_verify_tables():
-    """Creates and verifies all necessary database tables."""
-    conn = None
+    """Creates and verifies all necessary database tables in PostgreSQL."""
     try:
-        conn = sqlite3.connect(DB_FILE, timeout=15)
-        c = conn.cursor()
-        
-        c.execute('''CREATE TABLE IF NOT EXISTS users (username TEXT PRIMARY KEY, password TEXT)''')
-        c.execute('''CREATE TABLE IF NOT EXISTS quiz_results
-                     (id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT, topic TEXT, score INTEGER,
-                      questions_answered INTEGER, timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
-        c.execute('''CREATE TABLE IF NOT EXISTS user_profiles
-                     (username TEXT PRIMARY KEY, full_name TEXT, school TEXT, age INTEGER, bio TEXT)''')
-        c.execute('''CREATE TABLE IF NOT EXISTS user_status
-                     (username TEXT PRIMARY KEY, is_online BOOLEAN, last_seen TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
-
-        c.execute("PRAGMA table_info(quiz_results)")
-        quiz_columns = [column[1] for column in c.fetchall()]
-        if 'questions_answered' not in quiz_columns:
-            c.execute("ALTER TABLE quiz_results ADD COLUMN questions_answered INTEGER DEFAULT 0")
-
-        conn.commit()
-        print("Database setup and verification complete.")
-    except sqlite3.Error as e:
+        with engine.connect() as conn:
+            conn.execute(text('''CREATE TABLE IF NOT EXISTS users (username TEXT PRIMARY KEY, password TEXT)'''))
+            conn.execute(text('''CREATE TABLE IF NOT EXISTS quiz_results
+                         (id SERIAL PRIMARY KEY, username TEXT, topic TEXT, score INTEGER,
+                          questions_answered INTEGER, timestamp TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP)'''))
+            conn.execute(text('''CREATE TABLE IF NOT EXISTS user_profiles
+                         (username TEXT PRIMARY KEY, full_name TEXT, school TEXT, age INTEGER, bio TEXT)'''))
+            conn.execute(text('''CREATE TABLE IF NOT EXISTS user_status
+                         (username TEXT PRIMARY KEY, is_online BOOLEAN, last_seen TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP)'''))
+            conn.commit()
+        print("Database tables created or verified successfully.")
+    except Exception as e:
         st.error(f"Database setup error: {e}")
-    finally:
-        if conn:
-            conn.close()
 
-def bootstrap_database():
-    """Checks for the DB file and creates it if it doesn't exist."""
-    if not os.path.exists(DB_FILE):
-        print("Database file not found, creating and initializing...")
-        create_and_verify_tables()
-    else:
-        print("Database file already exists.")
-
-bootstrap_database()
+# Create tables at the start of the script
+create_and_verify_tables()
 
 
-# --- Core Backend Functions ---
+# --- Core Backend Functions (Now using PostgreSQL) ---
 def hash_password(password):
-    """Hashes a password using SHA-256 for better performance."""
+    """Hashes a password using SHA-256."""
     salt = "mathfriend_static_salt_for_performance"
     salted_password = password + salt
     return hashlib.sha256(salted_password.encode()).hexdigest()
@@ -99,244 +88,165 @@ def check_password(hashed_password, user_password):
     return hashed_password == hash_password(user_password)
 
 def login_user(username, password):
-    conn = None
-    try:
-        conn = sqlite3.connect(DB_FILE, timeout=15)
-        c = conn.cursor()
-        c.execute("SELECT password FROM users WHERE username=?", (username,))
-        result = c.fetchone()
-        if result:
-            return check_password(result[0], password)
+    with engine.connect() as conn:
+        result = conn.execute(text("SELECT password FROM users WHERE username = :username"), {"username": username})
+        record = result.first()
+        if record:
+            return check_password(record[0], password)
         return False
-    finally:
-        if conn: conn.close()
 
 def signup_user(username, password):
-    conn = None
     try:
-        conn = sqlite3.connect(DB_FILE, timeout=15)
-        c = conn.cursor()
-        c.execute("INSERT INTO users (username, password) VALUES (?, ?)", (username, hash_password(password)))
-        conn.commit()
+        with engine.connect() as conn:
+            conn.execute(text("INSERT INTO users (username, password) VALUES (:username, :password)"), 
+                         {"username": username, "password": hash_password(password)})
+            conn.commit()
         return True
-    except sqlite3.IntegrityError:
-        return False
-    finally:
-        if conn: conn.close()
+    except sqlalchemy.exc.IntegrityError:
+        return False # Username already exists
 
 def get_user_profile(username):
-    conn = None
-    try:
-        conn = sqlite3.connect(DB_FILE, timeout=15)
-        conn.row_factory = sqlite3.Row
-        c = conn.cursor()
-        c.execute("SELECT * FROM user_profiles WHERE username=?", (username,))
-        profile = c.fetchone()
+    with engine.connect() as conn:
+        result = conn.execute(text("SELECT * FROM user_profiles WHERE username = :username"), {"username": username})
+        profile = result.mappings().first()
         return dict(profile) if profile else None
-    finally:
-        if conn: conn.close()
 
 def update_user_profile(username, full_name, school, age, bio):
-    conn = None
-    try:
-        conn = sqlite3.connect(DB_FILE, timeout=15)
-        c = conn.cursor()
-        c.execute('''INSERT OR REPLACE INTO user_profiles (username, full_name, school, age, bio) 
-                     VALUES (?, ?, ?, ?, ?)''', (username, full_name, school, age, bio))
+    with engine.connect() as conn:
+        # Using an UPSERT statement for PostgreSQL
+        query = text("""
+            INSERT INTO user_profiles (username, full_name, school, age, bio) 
+            VALUES (:username, :full_name, :school, :age, :bio)
+            ON CONFLICT (username) DO UPDATE SET
+                full_name = EXCLUDED.full_name,
+                school = EXCLUDED.school,
+                age = EXCLUDED.age,
+                bio = EXCLUDED.bio;
+        """)
+        conn.execute(query, {"username": username, "full_name": full_name, "school": school, "age": age, "bio": bio})
         conn.commit()
-        return True
-    finally:
-        if conn: conn.close()
+    return True
 
 def change_password(username, current_password, new_password):
     if not login_user(username, current_password):
         return False
-    conn = None
-    try:
-        conn = sqlite3.connect(DB_FILE, timeout=15)
-        c = conn.cursor()
-        c.execute("UPDATE users SET password=? WHERE username=?", (hash_password(new_password), username))
+    with engine.connect() as conn:
+        conn.execute(text("UPDATE users SET password = :password WHERE username = :username"),
+                     {"password": hash_password(new_password), "username": username})
         conn.commit()
-        return True
-    finally:
-        if conn: conn.close()
+    return True
 
 def update_user_status(username, is_online):
-    conn = None
-    try:
-        conn = sqlite3.connect(DB_FILE, timeout=15)
-        c = conn.cursor()
-        c.execute('''INSERT OR REPLACE INTO user_status (username, is_online, last_seen) 
-                     VALUES (?, ?, CURRENT_TIMESTAMP)''', (username, is_online))
+    with engine.connect() as conn:
+        query = text("""
+            INSERT INTO user_status (username, is_online, last_seen) 
+            VALUES (:username, :is_online, CURRENT_TIMESTAMP)
+            ON CONFLICT (username) DO UPDATE SET
+                is_online = EXCLUDED.is_online,
+                last_seen = CURRENT_TIMESTAMP;
+        """)
+        conn.execute(query, {"username": username, "is_online": is_online})
         conn.commit()
-    finally:
-        if conn: conn.close()
 
 def save_quiz_result(username, topic, score, questions_answered):
-    conn = None
-    try:
-        conn = sqlite3.connect(DB_FILE, timeout=15)
-        c = conn.cursor()
-        c.execute("INSERT INTO quiz_results (username, topic, score, questions_answered) VALUES (?, ?, ?, ?)",
-                  (username, topic, score, questions_answered))
+    with engine.connect() as conn:
+        conn.execute(text("INSERT INTO quiz_results (username, topic, score, questions_answered) VALUES (:username, :topic, :score, :questions_answered)"),
+                     {"username": username, "topic": topic, "score": score, "questions_answered": questions_answered})
         conn.commit()
-    finally:
-        if conn: conn.close()
 
-def get_top_scores(topic):
-    conn = None
-    try:
-        conn = sqlite3.connect(DB_FILE, timeout=15)
-        c = conn.cursor()
-        c.execute("""
-            SELECT username, score, questions_answered FROM quiz_results WHERE topic=? AND questions_answered > 0
+def get_top_scores(topic, time_filter="all"):
+    with engine.connect() as conn:
+        time_clause = ""
+        if time_filter == "week":
+            time_clause = "AND timestamp >= NOW() - INTERVAL '7 days'"
+        elif time_filter == "month":
+            time_clause = "AND timestamp >= NOW() - INTERVAL '30 days'"
+            
+        query = text(f"""
+            SELECT username, score, questions_answered FROM quiz_results 
+            WHERE topic=:topic AND questions_answered > 0 {time_clause}
             ORDER BY (CAST(score AS REAL) / questions_answered) DESC, questions_answered DESC, timestamp ASC LIMIT 10
-        """, (topic,))
-        return c.fetchall()
-    finally:
-        if conn: conn.close()
+        """)
+        result = conn.execute(query, {"topic": topic})
+        return result.fetchall()
 
 def get_user_stats(username):
-    conn = None
-    try:
-        conn = sqlite3.connect(DB_FILE, timeout=15)
-        c = conn.cursor()
-        c.execute("SELECT COUNT(*) FROM quiz_results WHERE username=?", (username,))
-        total_quizzes = c.fetchone()[0]
-        c.execute("SELECT score, questions_answered FROM quiz_results WHERE username=? ORDER BY timestamp DESC LIMIT 1", (username,))
-        last_result = c.fetchone()
+    with engine.connect() as conn:
+        total_quizzes = conn.execute(text("SELECT COUNT(*) FROM quiz_results WHERE username = :username"), {"username": username}).scalar_one()
+        
+        last_result = conn.execute(text("SELECT score, questions_answered FROM quiz_results WHERE username = :username ORDER BY timestamp DESC LIMIT 1"), {"username": username}).first()
         last_score_str = f"{last_result[0]}/{last_result[1]}" if last_result and last_result[1] > 0 else "N/A"
-        c.execute("SELECT score, questions_answered FROM quiz_results WHERE username=? AND questions_answered > 0 ORDER BY (CAST(score AS REAL) / questions_answered) DESC, score DESC LIMIT 1", (username,))
-        top_result = c.fetchone()
+
+        top_result = conn.execute(text("SELECT score, questions_answered FROM quiz_results WHERE username = :username AND questions_answered > 0 ORDER BY (CAST(score AS REAL) / questions_answered) DESC, score DESC LIMIT 1"), {"username": username}).first()
         top_score_str = f"{top_result[0]}/{top_result[1]}" if top_result and top_result[1] > 0 else "N/A"
+        
         return total_quizzes, last_score_str, top_score_str
-    finally:
-        if conn: conn.close()
+
 def get_user_quiz_history(username):
-    conn = None
     try:
-        conn = sqlite3.connect(DB_FILE, timeout=15)
-        conn.row_factory = sqlite3.Row
-        c = conn.cursor()
-        c.execute("SELECT topic, score, questions_answered, timestamp FROM quiz_results WHERE username=? ORDER BY timestamp DESC", (username,))
-        results = c.fetchall()
-        return results
-    except sqlite3.Error as e:
+        with engine.connect() as conn:
+            result = conn.execute(text("SELECT topic, score, questions_answered, timestamp FROM quiz_results WHERE username = :username ORDER BY timestamp DESC"), {"username": username})
+            return result.mappings().fetchall()
+    except Exception as e:
         st.error(f"Error fetching quiz history: {e}")
         return []
-    finally:
-        if conn: conn.close()
 
 def get_topic_performance(username):
-    """Calculates average accuracy per topic for a given user."""
     history = get_user_quiz_history(username)
     if not history:
         return pd.DataFrame()
-
     df_data = [{"Topic": row['topic'], "Score": row['score'], "Total": row['questions_answered']} for row in history]
     df = pd.DataFrame(df_data)
-    
-    # Group by topic and calculate aggregate scores and totals
     performance = df.groupby('Topic').sum()
-    # Calculate accuracy, avoiding division by zero
     performance['Accuracy'] = (performance['Score'] / performance['Total'] * 100).fillna(0)
-    
     return performance.sort_values(by="Accuracy", ascending=False)
 
 def get_user_rank(username, topic, time_filter="all"):
-    """Gets the rank of a specific user for a specific topic and time filter."""
-    conn = None
-    try:
-        conn = sqlite3.connect(DB_FILE, timeout=15)
-        c = conn.cursor()
-        
+    with engine.connect() as conn:
         time_clause = ""
         if time_filter == "week":
-            time_clause = "AND timestamp >= date('now', '-7 days')"
+            time_clause = "AND timestamp >= NOW() - INTERVAL '7 days'"
         elif time_filter == "month":
-            time_clause = "AND timestamp >= date('now', '-30 days')"
-
-        query = f"""
+            time_clause = "AND timestamp >= NOW() - INTERVAL '30 days'"
+        query = text(f"""
             WITH RankedScores AS (
                 SELECT
                     username,
                     RANK() OVER (ORDER BY (CAST(score AS REAL) / questions_answered) DESC, questions_answered DESC, timestamp ASC) as rank
                 FROM quiz_results
-                WHERE topic = ? AND questions_answered > 0 {time_clause}
+                WHERE topic = :topic AND questions_answered > 0 {time_clause}
             )
-            SELECT rank FROM RankedScores WHERE username = ?;
-        """
-        c.execute(query, (topic, username))
-        result = c.fetchone()
-        return result[0] if result else "N/A"
-    finally:
-        if conn: conn.close()
+            SELECT rank FROM RankedScores WHERE username = :username;
+        """)
+        result = conn.execute(query, {"topic": topic, "username": username}).scalar_one_or_none()
+        return result if result else "N/A"
 
 def get_total_players(topic, time_filter="all"):
-    """Gets the total number of unique players for a topic and time filter."""
-    conn = None
-    try:
-        conn = sqlite3.connect(DB_FILE, timeout=15)
-        c = conn.cursor()
-        
+    with engine.connect() as conn:
         time_clause = ""
         if time_filter == "week":
-            time_clause = "AND timestamp >= date('now', '-7 days')"
+            time_clause = "AND timestamp >= NOW() - INTERVAL '7 days'"
         elif time_filter == "month":
-            time_clause = "AND timestamp >= date('now', '-30 days')"
-            
-        query = f"SELECT COUNT(DISTINCT username) FROM quiz_results WHERE topic = ? AND questions_answered > 0 {time_clause}"
-        c.execute(query, (topic,))
-        result = c.fetchone()
-        return result[0] if result else 0
-    finally:
-        if conn: conn.close()
+            time_clause = "AND timestamp >= NOW() - INTERVAL '30 days'"
+        query = text(f"SELECT COUNT(DISTINCT username) FROM quiz_results WHERE topic = :topic AND questions_answered > 0 {time_clause}")
+        result = conn.execute(query, {"topic": topic}).scalar_one()
+        return result if result else 0
 
 def get_user_stats_for_topic(username, topic):
-    """Gets a user's best score and attempt count for a specific topic."""
-    conn = None
-    try:
-        conn = sqlite3.connect(DB_FILE, timeout=15)
-        c = conn.cursor()
-        # Get best score percentage
-        c.execute("""
+    with engine.connect() as conn:
+        query_best = text("""
             SELECT MAX(CAST(score AS REAL) / questions_answered) * 100
             FROM quiz_results 
-            WHERE username = ? AND topic = ? AND questions_answered > 0
-        """, (username, topic))
-        best_score_result = c.fetchone()
-        best_score = best_score_result[0] if best_score_result and best_score_result[0] is not None else 0
-
-        # Get number of attempts
-        c.execute("SELECT COUNT(*) FROM quiz_results WHERE username = ? AND topic = ?", (username, topic))
-        attempts_result = c.fetchone()
-        attempts = attempts_result[0] if attempts_result else 0
+            WHERE username = :username AND topic = :topic AND questions_answered > 0
+        """)
+        best_score = conn.execute(query_best, {"username": username, "topic": topic}).scalar_one_or_none() or 0
+        
+        query_attempts = text("SELECT COUNT(*) FROM quiz_results WHERE username = :username AND topic = :topic")
+        attempts = conn.execute(query_attempts, {"username": username, "topic": topic}).scalar_one()
         
         return f"{best_score:.1f}%", attempts
-    finally:
-        if conn: conn.close()
 
-def get_top_scores(topic, time_filter="all"):
-    conn = None
-    try:
-        conn = sqlite3.connect(DB_FILE, timeout=15)
-        c = conn.cursor()
-        
-        time_clause = ""
-        if time_filter == "week":
-            time_clause = "AND timestamp >= date('now', '-7 days')"
-        elif time_filter == "month":
-            time_clause = "AND timestamp >= date('now', '-30 days')"
-            
-        query = f"""
-            SELECT username, score, questions_answered FROM quiz_results 
-            WHERE topic=? AND questions_answered > 0 {time_clause}
-            ORDER BY (CAST(score AS REAL) / questions_answered) DESC, questions_answered DESC, timestamp ASC LIMIT 10
-        """
-        c.execute(query, (topic,))
-        return c.fetchall()
-    finally:
-        if conn: conn.close()
+# --- All other functions (Question Generators, CSS, Page Displays) are unchanged ---
 
 def _generate_sets_question():
     set_a = set(random.sample(range(1, 15), k=random.randint(3, 5)))
@@ -640,7 +550,6 @@ def load_css():
         /* --- BASE STYLES --- */
         .stApp {
             background-color: #f0f2f5;
-            color: #31333F; 
         }
         
         [data-testid="stAppViewContainer"] > .main {
@@ -649,21 +558,45 @@ def load_css():
             align-items: center;
         }
 
-        h1, h2, h3, h4, h5, h6 {
-            color: #1a1a1a; 
+        /* --- THE DEFINITIVE CHROME FIX --- */
+        div[data-testid="stAppViewContainer"] * {
+            color: #31333F !important;
+        }
+
+        /* --- SIDEBAR FIX --- */
+        div[data-testid="stSidebarUserContent"] * {
+            color: #FAFAFA !important;
+        }
+
+        /* --- COLOR OVERRIDES --- */
+        button[data-testid="stFormSubmitButton"] *,
+        div[data-testid="stButton"] > button * {
+            color: white !important;
+        }
+
+        a, a * {
+            color: #0068c9 !important;
         }
         
+        .main-content h1, .main-content h2, .main-content h3, .main-content h4, .main-content h5, .main-content h6 {
+            color: #1a1a1a !important; 
+        }
+
+        [data-testid="stMetricValue"] {
+            color: #1a1a1a !important;
+        }
+
+        [data-testid="stSuccess"] * { color: #155724 !important; }
+        [data-testid="stInfo"] * { color: #0c5460 !important; }
+        [data-testid="stWarning"] * { color: #856404 !important; }
+        [data-testid="stError"] * { color: #721c24 !important; }
+        
+        /* --- GENERAL STYLING --- */
         .main-content h1, .main-content h2, .main-content h3 {
             border-left: 5px solid #0d6efd;
             padding-left: 15px;
             border-radius: 3px;
         }
-
-        a {
-            color: #0068c9;
-        }
-
-        /* --- STREAMLIT COMPONENT OVERRIDES --- */
 
         [data-testid="stMetric"] {
             background-color: #FFFFFF;
@@ -671,157 +604,66 @@ def load_css():
             padding: 20px;
             border-radius: 10px;
             box-shadow: 0 4px 8px rgba(0,0,0,0.1);
-            /* Giving the border a default color */
             border-left: 5px solid #CCCCCC; 
         }
-
-        /* --- NEW: Add unique colors to each metric card --- */
-        [data-testid="stHorizontalBlock"] > div:nth-of-type(1) [data-testid="stMetric"] {
-            border-left-color: #0d6efd; /* Blue */
-        }
-        [data-testid="stHorizontalBlock"] > div:nth-of-type(2) [data-testid="stMetric"] {
-            border-left-color: #28a745; /* Green */
-        }
-        [data-testid="stHorizontalBlock"] > div:nth-of-type(3) [data-testid="stMetric"] {
-            border-left-color: #ffc107; /* Yellow */
-        }
+        [data-testid="stHorizontalBlock"] > div:nth-of-type(1) [data-testid="stMetric"] { border-left-color: #0d6efd; }
+        [data-testid="stHorizontalBlock"] > div:nth-of-type(2) [data-testid="stMetric"] { border-left-color: #28a745; }
+        [data-testid="stHorizontalBlock"] > div:nth-of-type(3) [data-testid="stMetric"] { border-left-color: #ffc107; }
 
         .stTextInput input, .stTextArea textarea, .stNumberInput input {
             color: #000 !important;
             background-color: #fff !important;
         }
-        label {
-            color: #4F4F4F !important;
-        }
         
         button[data-testid="stFormSubmitButton"] {
-            background-color: #0d6efd;
-            color: white;
-            border: 1px solid #0d6efd;
-            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+            background-color: #0d6efd; border: 1px solid #0d6efd; box-shadow: 0 4px 8px rgba(0,0,0,0.1);
             transition: all 0.2s ease-in-out;
         }
         button[data-testid="stFormSubmitButton"]:hover {
-            background-color: #0b5ed7;
-            border-color: #0a58ca;
-            transform: translateY(-2px);
+            background-color: #0b5ed7; border-color: #0a58ca; transform: translateY(-2px);
             box-shadow: 0 6px 12px rgba(0,0,0,0.15);
         }
-
         div[data-testid="stButton"] > button {
-            background-color: #6c757d;
-            color: white !important;
-            border: 1px solid #6c757d;
+            background-color: #6c757d; border: 1px solid #6c757d;
         }
         div[data-testid="stButton"] > button:hover {
-            background-color: #5a6268;
-            border-color: #545b62;
-        }
-        [data-testid="stRadio"] label {
-            color: #31333F !important;
+            background-color: #5a6268; border-color: #545b62;
         }
         [data-testid="stSelectbox"] div[data-baseweb="select"] > div {
             background-color: #fff !important;
-            color: #31333F !important;
         }
-        .stDataFrame th {
-            background-color: #e9ecef;
-            color: #31333F;
-            font-weight: bold;
-        }
-        .stDataFrame td {
-            color: #31333F;
-        }
-        [data-testid="stSuccess"] { color: #155724 !important; }
-        [data-testid="stInfo"] { color: #0c5460 !important; }
-        [data-testid="stWarning"] { color: #856404 !important; }
-        [data-testid="stError"] { color: #721c24 !important; }
-        [data-testid="stExpander"] summary {
-            color: #31333F !important;
-        }
+        .stDataFrame th { background-color: #e9ecef; font-weight: bold; }
+        [data-testid="stForm"] { border: 1px solid #dee2e6; border-radius: 0.5rem; padding: 1.5rem; background-color: #fafafa; }
+        .styled-hr { border: none; height: 2px; background: linear-gradient(to right, #0d6efd, #f0f2f5); margin: 2rem 0; }
+        .login-container { background: #ffffff; border-radius: 16px; padding: 2rem 3rem; margin: auto; max-width: 450px; box-shadow: 0 8px 32px rgba(0,0,0,0.1); }
+        .login-title { text-align: center; font-weight: 800; font-size: 2.2rem; color: #1a1a1a !important; }
+        .login-subtitle { text-align: center; color: #6c757d !important; margin-bottom: 2rem; }
+        .main-content { background-color: #ffffff; padding: 2rem; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
         
-        [data-testid="stForm"] {
-            border: 1px solid #dee2e6;
-            border-radius: 0.5rem;
-            padding: 1.5rem;
-            background-color: #fafafa;
-        }
-        
-        .styled-hr {
-            border: none;
-            height: 2px;
-            background: linear-gradient(to right, #0d6efd, #f0f2f5);
-            margin: 2rem 0;
-        }
-
-        /* --- CUSTOM LAYOUT CLASSES --- */
-        .login-container {
-            background: #ffffff; 
-            border-radius: 16px; 
-            padding: 2rem 3rem; 
-            margin: auto;
-            max-width: 450px; 
-            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
-            color: #31333F;
-        }
-        .login-title { 
-            text-align: center; 
-            font-weight: 800; 
-            font-size: 2.2rem; 
-            color: #1a1a1a; 
-        }
-        .login-subtitle { 
-            text-align: center; 
-            color: #6c757d; 
-            margin-bottom: 2rem; 
-        }
-        .main-content {
-            background-color: #ffffff; 
-            padding: 2rem; 
-            border-radius: 12px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.08);
-        }
-        .metric-card {
-            background: #f8f9fa; 
-            border-radius: 12px; 
-            padding: 15px;
-            border-left: 5px solid var(--primary-color, #007bff); 
-            margin-bottom: 1rem;
-        }
-
-        /* --- RESPONSIVE DESIGN --- */
         @media (max-width: 640px) {
             .main-content, .login-container { padding: 1rem; }
             .login-title { font-size: 1.8rem; }
         }
     </style>
     """, unsafe_allow_html=True)
+
 def display_dashboard(username):
     st.header(f"📈 Dashboard for {username}")
-
     tab1, tab2 = st.tabs(["📊 Performance Overview", "📜 Full History"])
-
     with tab1:
         st.subheader("Key Metrics")
         total_quizzes, last_score, top_score = get_user_stats(username)
         col1, col2, col3 = st.columns(3)
         with col1:
-            # ADDED EMOJI
             st.metric(label="📝 Total Quizzes Taken", value=total_quizzes)
         with col2:
-            # ADDED EMOJI
             st.metric(label="🎯 Most Recent Score", value=last_score)
         with col3:
-            # ADDED EMOJI
             st.metric(label="🏆 Best Ever Score", value=top_score)
-
         st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
-        
         st.subheader("Topic Performance")
         topic_perf_df = get_topic_performance(username)
-
         if not topic_perf_df.empty:
-            # Display best and worst topics
             col1, col2 = st.columns(2)
             with col1:
                 best_topic = topic_perf_df.index[0]
@@ -832,32 +674,22 @@ def display_dashboard(username):
                     worst_topic = topic_perf_df.index[-1]
                     worst_acc = topic_perf_df['Accuracy'].iloc[-1]
                     st.warning(f"🤔 **Area for Practice:** {worst_topic} ({worst_acc:.1f}%)")
-
-            # Display bar chart
             fig = px.bar(
-                topic_perf_df, 
-                y='Accuracy', 
-                title="Average Accuracy by Topic",
-                labels={'Accuracy': 'Accuracy (%)', 'Topic': 'Topic'},
-                text_auto='.2s'
+                topic_perf_df, y='Accuracy', title="Average Accuracy by Topic",
+                labels={'Accuracy': 'Accuracy (%)', 'Topic': 'Topic'}, text_auto='.2s'
             )
             fig.update_traces(textposition='outside')
             st.plotly_chart(fig, use_container_width=True)
         else:
             st.info("Complete some quizzes to see your topic performance analysis!")
-
     with tab2:
         st.subheader("Accuracy Over Time")
         history = get_user_quiz_history(username)
         if history:
             df_data = [{"Topic": row['topic'], "Score": f"{row['score']}/{row['questions_answered']}", "Accuracy (%)": (row['score'] / row['questions_answered'] * 100) if row['questions_answered'] > 0 else 0, "Date": datetime.strptime(row['timestamp'], "%Y-%m-%d %H:%M:%S").strftime("%Y-%m-%d %H:%M")} for row in history]
             df = pd.DataFrame(df_data)
-
-            # The line chart from before
             line_fig = px.line(df, x='Date', y='Accuracy (%)', color='Topic', markers=True, title="Quiz Performance Trend")
             st.plotly_chart(line_fig, use_container_width=True)
-            
-            # Display the full history in a table
             st.dataframe(df, use_container_width=True)
         else:
             st.info("Your quiz history is empty. Take a quiz to get started!")
@@ -865,30 +697,22 @@ def display_dashboard(username):
 def display_quiz_page(topic_options):
     st.header("🧠 Quiz Time!")
     QUIZ_LENGTH = 10
-
     if not st.session_state.quiz_active:
         st.subheader("Choose Your Challenge")
-
-        # --- NEW: Smart Topic Suggestion ---
         topic_perf_df = get_topic_performance(st.session_state.username)
         if not topic_perf_df.empty and topic_perf_df['Accuracy'].iloc[-1] < 100:
             weakest_topic = topic_perf_df.index[-1]
             st.info(f"💡 **Practice Suggestion:** Your lowest accuracy is in **{weakest_topic}**. Why not give it a try?")
-
         selected_topic = st.selectbox("Select a topic to begin:", topic_options)
-        st.session_state.quiz_topic = selected_topic # Keep session state updated
-
+        st.session_state.quiz_topic = selected_topic 
         st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
-
-        # --- NEW: Dynamic Display of User Stats for the Selected Topic ---
         col1, col2 = st.columns(2)
         with col1:
             best_score, attempts = get_user_stats_for_topic(st.session_state.username, selected_topic)
             st.metric("Your Best Score on this Topic", best_score)
             st.metric("Quizzes Taken on this Topic", attempts)
-        
         with col2:
-            st.write("") # Just for vertical alignment
+            st.write("") 
             st.write("")
             if st.button("Start Quiz", type="primary", use_container_width=True, key="start_quiz_main"):
                 st.session_state.quiz_active = True
@@ -899,19 +723,13 @@ def display_quiz_page(topic_options):
                 st.session_state.incorrect_questions = []
                 if 'current_q_data' in st.session_state: del st.session_state['current_q_data']
                 st.rerun()
-
     else:
-        # If the summary "switch" is on, show the summary and stop.
         if st.session_state.get('on_summary_page', False):
             display_quiz_summary()
             return
-
-        # If the round is finished, flip the switch and rerun to show the summary.
         if st.session_state.questions_answered >= QUIZ_LENGTH:
             st.session_state.on_summary_page = True
             st.rerun()
-
-        # Display progress, score, and streak
         col1, col2, col3 = st.columns(3)
         with col1:
             st.metric("Score", f"{st.session_state.quiz_score}/{st.session_state.questions_answered}")
@@ -919,23 +737,17 @@ def display_quiz_page(topic_options):
             st.metric("Question", f"{st.session_state.questions_answered + 1}/{QUIZ_LENGTH}")
         with col3:
             st.metric("🔥 Streak", st.session_state.current_streak)
-        
         st.progress(st.session_state.questions_answered / QUIZ_LENGTH, text="Round Progress")
         st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
-        
         if 'current_q_data' not in st.session_state:
             st.session_state.current_q_data = generate_question(st.session_state.quiz_topic)
-        
         q_data = st.session_state.current_q_data
         st.subheader(f"Topic: {st.session_state.quiz_topic}")
         st.markdown(q_data["question"], unsafe_allow_html=True)
-        
         with st.expander("🤔 Need a hint?"): 
             st.info(q_data["hint"])
-            
         with st.form(key=f"quiz_form_{st.session_state.questions_answered}"):
             user_choice = st.radio("Select your answer:", q_data["options"], index=None, key="user_answer_choice")
-            
             if st.form_submit_button("Submit Answer", type="primary"):
                 if user_choice is not None:
                     st.session_state.questions_answered += 1
@@ -948,31 +760,26 @@ def display_quiz_page(topic_options):
                         st.session_state.current_streak = 0
                         st.session_state.incorrect_questions.append(q_data)
                         st.error(f"Not quite. The correct answer was: **{q_data['answer']}**")
-                    
                     del st.session_state.current_q_data
                     del st.session_state.user_answer_choice
                     time.sleep(1.5)
                     st.rerun()
                 else:
                     st.warning("Please select an answer before submitting.")
-
         if st.button("Stop Round & Save Score"):
             st.session_state.on_summary_page = True
             st.rerun()
+
 def display_quiz_summary():
     """Displays the quiz summary screen at the end of a round."""
     st.header("🎉 Round Complete! 🎉")
-    
     final_score = st.session_state.quiz_score
     total_questions = st.session_state.questions_answered
     accuracy = (final_score / total_questions * 100) if total_questions > 0 else 0
-
     if total_questions > 0 and 'result_saved' not in st.session_state:
         save_quiz_result(st.session_state.username, st.session_state.quiz_topic, final_score, total_questions)
         st.session_state.result_saved = True
-
     st.metric(label="Your Final Score", value=f"{final_score}/{total_questions}", delta=f"{accuracy:.1f}% Accuracy")
-
     if accuracy >= 90:
         st.success("🏆 Excellent work! You're a true MathFriend master!")
         confetti_animation()
@@ -980,7 +787,6 @@ def display_quiz_summary():
         st.info("👍 Great job! You've got a solid understanding of this topic.")
     else:
         st.warning("🙂 Good effort! A little more practice and you'll be an expert.")
-
     if st.session_state.incorrect_questions:
         with st.expander("🔍 Click here to review your incorrect answers"):
             for q in st.session_state.incorrect_questions:
@@ -988,13 +794,11 @@ def display_quiz_summary():
                 st.error(f"**Correct Answer:** {q['answer']}")
                 st.info(f"**Hint:** {q['hint']}")
                 st.write("---")
-
     st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
-
     col1, col2 = st.columns(2)
     with col1:
         if st.button("Play Again (Same Topic)", use_container_width=True, type="primary"):
-            st.session_state.on_summary_page = False # Turn off the switch
+            st.session_state.on_summary_page = False 
             st.session_state.quiz_active = True
             st.session_state.quiz_score = 0
             st.session_state.questions_answered = 0
@@ -1005,14 +809,13 @@ def display_quiz_summary():
             st.rerun()
     with col2:
         if st.button("Choose New Topic", use_container_width=True):
-            st.session_state.on_summary_page = False # Turn off the switch
+            st.session_state.on_summary_page = False 
             st.session_state.quiz_active = False
             if 'result_saved' in st.session_state: del st.session_state['result_saved']
             st.rerun()
+
 def display_leaderboard(topic_options):
     st.header("🏆 Global Leaderboard")
-
-    # --- NEW: Add filter controls for topic and time ---
     col1, col2 = st.columns([2, 3])
     with col1:
         leaderboard_topic = st.selectbox("Select a topic:", topic_options, label_visibility="collapsed")
@@ -1024,12 +827,8 @@ def display_leaderboard(topic_options):
             horizontal=True,
             label_visibility="collapsed"
         )
-    
-    # Map the radio button option to the value our functions expect
     time_filter_map = {"This Week": "week", "This Month": "month", "All Time": "all"}
     time_filter = time_filter_map[time_filter_option]
-
-    # Display the current user's rank using the new filters
     col1, col2 = st.columns(2)
     with col1:
         user_rank = get_user_rank(st.session_state.username, leaderboard_topic, time_filter)
@@ -1037,12 +836,9 @@ def display_leaderboard(topic_options):
     with col2:
         total_players = get_total_players(leaderboard_topic, time_filter)
         st.metric(label=f"Total Players ({time_filter_option})", value=total_players)
-    
     st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
-    
     st.subheader(f"Top 10 for {leaderboard_topic} ({time_filter_option})")
     top_scores = get_top_scores(leaderboard_topic, time_filter)
-    
     if top_scores:
         leaderboard_data = []
         for r, (u, s, t) in enumerate(top_scores, 1):
@@ -1050,31 +846,25 @@ def display_leaderboard(topic_options):
             if r == 1: rank_display = "🥇"
             elif r == 2: rank_display = "🥈"
             elif r == 3: rank_display = "🥉"
-            
             username_display = u
             if u == st.session_state.username:
                 username_display = f"{u} (You)"
-
             leaderboard_data.append({
-                "Rank": rank_display,
-                "Username": username_display,
-                "Score": f"{s}/{t}",
+                "Rank": rank_display, "Username": username_display, "Score": f"{s}/{t}",
                 "Accuracy": (s/t)*100
             })
-        
         df = pd.DataFrame(leaderboard_data)
-        
         def highlight_user(row):
             if "(You)" in row.Username:
                 return ['background-color: #e6f7ff; font-weight: bold; color: #000000;'] * len(row)
             return [''] * len(row)
-            
         st.dataframe(
             df.style.apply(highlight_user, axis=1).format({'Accuracy': "{:.1f}%"}).hide(axis="index"), 
             use_container_width=True
         )
     else:
         st.info(f"No scores recorded for **{leaderboard_topic}** in this time period. Be the first!")
+
 def display_learning_resources():
     st.header("📚 Learning Resources")
     st.subheader("🧮 Sets and Operations on Sets")
@@ -1085,7 +875,6 @@ def display_learning_resources():
 def display_profile_page():
     st.header("👤 Your Profile")
     profile = get_user_profile(st.session_state.username) or {}
-    
     with st.form("profile_form"):
         st.subheader("Edit Profile")
         full_name = st.text_input("Full Name", value=profile.get('full_name', ''))
@@ -1095,10 +884,7 @@ def display_profile_page():
         if st.form_submit_button("Save Profile", type="primary"):
             if update_user_profile(st.session_state.username, full_name, school, age, bio):
                 st.success("Profile updated!"); st.rerun()
-
-    # ADD THIS SEPARATOR
     st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
-
     with st.form("password_form"):
         st.subheader("Change Password")
         current_password = st.text_input("Current Password", type="password")
@@ -1108,7 +894,7 @@ def display_profile_page():
             if new_password != confirm_new_password: st.error("New passwords don't match!")
             elif change_password(st.session_state.username, current_password, new_password): st.success("Password changed successfully!")
             else: st.error("Incorrect current password")
-# --- Main Application Flow ---
+
 def show_main_app():
     load_css()
     last_update = st.session_state.get("last_status_update", 0)
@@ -1147,7 +933,7 @@ def show_login_or_signup_page():
     load_css()
     st.markdown('<div class="login-container">', unsafe_allow_html=True)
     if st.session_state.page == "login":
-        st.markdown('<p class="login-title">🔐 MathFriend</p>', unsafe_allow_html=True)
+        st.markdown('<p class="login-title">🔐 MathFriend Login</p>', unsafe_allow_html=True)
         st.markdown('<p class="login-subtitle">Welcome Back!</p>', unsafe_allow_html=True)
         with st.form("login_form"):
             username = st.text_input("Username", key="login_user")
@@ -1207,15 +993,3 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
-
-
-
-
-
-
-
-
-
-
-
-
