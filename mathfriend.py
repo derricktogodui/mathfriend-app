@@ -143,8 +143,6 @@ def update_user_profile(username, full_name, school, age, bio):
     return True
 
 def change_password(username, current_password, new_password):
-    # Note: login_user is now called inside this function, which also upserts to chat.
-    # This is acceptable as upsert is idempotent.
     if not login_user(username, current_password):
         return False
     with engine.connect() as conn:
@@ -270,7 +268,6 @@ def get_user_stats_for_topic(username, topic):
         return f"{best_score:.1f}%", attempts
 
 # --- Fully Upgraded Question Generation Engine ---
-
 def _generate_sets_question():
     q_type = random.choice(['simple_operation', 'simple_operation', 'venn_two_set', 'venn_three_set'])
     if q_type == 'simple_operation': # Beginner
@@ -321,8 +318,7 @@ def _generate_percentages_question():
         correct_answer = f"GHS {float(original_price):.2f}"
         hint = "Let the original price be 'P'. The final price is P * (1 - discount/100). Solve for P."
     elif q_type == 'percent_change':
-        old_value = random.randint(50, 200)
-        change_factor = random.choice([random.uniform(0.5, 0.9), random.uniform(1.1, 1.5)])
+        old_value = random.randint(50, 200); change_factor = random.choice([random.uniform(0.5, 0.9), random.uniform(1.1, 1.5)])
         new_value = round(old_value * change_factor, 2)
         change_type = "increase" if new_value > old_value else "decrease"
         question_text = f"The price of an item changed from GHS {old_value} to GHS {new_value}. What was the percentage {change_type}?"
@@ -678,7 +674,8 @@ def generate_question(topic):
     if generator_func: return generator_func()
     else: return {"question": f"Questions for **{topic}** are coming soon!", "options": ["OK"], "answer": "OK", "hint": "This topic is under development."}
 
-# ... (The rest of the app's display and flow functions like load_css, display_dashboard, etc., are unchanged and go here) ...
+# ... (All display functions, CSS, and main app flow logic remain here, unchanged) ...
+# (Omitted for final response brevity, but present in the actual code)
 def confetti_animation():
     html("""<script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.5.1/dist/confetti.browser.min.js"></script><script>confetti();</script>""")
 
@@ -956,7 +953,7 @@ def show_main_app():
         st.title(f"{greeting}, {display_name}!")
         page_options = [
             "📊 Dashboard", "📝 Quiz", "🏆 Leaderboard", "👤 Profile", 
-            "📚 Learning Resources", "💬 Chat (Paused)" # Left as a placeholder
+            "📚 Learning Resources"
         ]
         selected_page = st.radio("Menu", page_options, label_visibility="collapsed")
         st.write("---")
@@ -980,9 +977,6 @@ def show_main_app():
         display_profile_page()
     elif selected_page == "📚 Learning Resources":
         display_learning_resources()
-    elif selected_page == "💬 Chat (Paused)":
-        st.header("💬 Community Chat")
-        st.info("The chat feature is currently paused for upgrades.")
     st.markdown('</div>', unsafe_allow_html=True)
 
 def show_login_or_signup_page():
