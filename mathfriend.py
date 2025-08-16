@@ -708,23 +708,65 @@ def get_time_based_greeting():
     else: return "Good evening"
 
 def load_css():
+    """Loads the main CSS for the application for a consistent and responsive look."""
     st.markdown("""
     <style>
-        .stApp { background-color: #f0f2f5; }
-        [data-testid="stAppViewContainer"] > .main { display: flex; justify-content: center; align-items: center; }
-        div[data-testid="stAppViewContainer"] * { color: #31333F !important; }
-        div[data-testid="stSidebarUserContent"] * { color: #FAFAFA !important; }
-        div[data-testid="stSidebarUserContent"] h1 { color: #FFFFFF !important; }
-        div[data-testid="stSidebarUserContent"] [data-testid="stRadio"] label { color: #E0E0E0 !important; }
-        div[data-testid="stSidebarUserContent"] hr { border-color: #444955 !important; }
-        button[data-testid="stFormSubmitButton"] *, div[data-testid="stButton"] > button * { color: white !important; }
-        a, a * { color: #0068c9 !important; }
-        .main-content h1, .main-content h2, .main-content h3, .main-content h4, .main-content h5, .main-content h6 { color: #1a1a1a !important; }
-        [data-testid="stMetricValue"] { color: #1a1a1a !important; }
+        /* --- BASE STYLES --- */
+        .stApp {
+            background-color: #f0f2f5;
+        }
+        
+        /* --- THIS RULE IS MODIFIED TO FIX SCROLLING --- */
+        [data-testid="stAppViewContainer"] > .main {
+            display: flex;
+            justify-content: center;
+            align-items: flex-start; /* Changed from 'center' to 'flex-start' */
+        }
+
+        /* --- THE DEFINITIVE CHROME & SAFARI FIX --- */
+        div[data-testid="stAppViewContainer"] * {
+            color: #31333F !important;
+        }
+
+        /* --- FINAL, CROSS-BROWSER SIDEBAR FIX --- */
+        div[data-testid="stSidebarUserContent"] * {
+            color: #FAFAFA !important;
+        }
+        div[data-testid="stSidebarUserContent"] h1 {
+            color: #FFFFFF !important;
+        }
+        div[data-testid="stSidebarUserContent"] [data-testid="stRadio"] label {
+            color: #E0E0E0 !important;
+        }
+        div[data-testid="stSidebarUserContent"] hr {
+            border-color: #444955 !important;
+        }
+
+
+        /* --- COLOR OVERRIDES --- */
+        button[data-testid="stFormSubmitButton"] *,
+        div[data-testid="stButton"] > button * {
+            color: white !important;
+        }
+
+        a, a * {
+            color: #0068c9 !important;
+        }
+        
+        .main-content h1, .main-content h2, .main-content h3, .main-content h4, .main-content h5, .main-content h6 {
+            color: #1a1a1a !important; 
+        }
+
+        [data-testid="stMetricValue"] {
+            color: #1a1a1a !important;
+        }
+
         [data-testid="stSuccess"] * { color: #155724 !important; }
         [data-testid="stInfo"] * { color: #0c5460 !important; }
         [data-testid="stWarning"] * { color: #856404 !important; }
         [data-testid="stError"] * { color: #721c24 !important; }
+        
+        /* --- GENERAL STYLING (UNCHANGED) --- */
         .main-content h1, .main-content h2, .main-content h3 { border-left: 5px solid #0d6efd; padding-left: 15px; border-radius: 3px; }
         [data-testid="stMetric"] { background-color: #FFFFFF; border: 1px solid #CCCCCC; padding: 20px; border-radius: 10px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); border-left: 5px solid #CCCCCC; }
         [data-testid="stHorizontalBlock"] > div:nth-of-type(1) [data-testid="stMetric"] { border-left-color: #0d6efd; }
@@ -746,7 +788,6 @@ def load_css():
         @media (max-width: 640px) { .main-content, .login-container { padding: 1rem; } .login-title { font-size: 1.8rem; } }
     </style>
     """, unsafe_allow_html=True)
-
 def display_dashboard(username):
     st.header(f"📈 Dashboard for {username}")
     tab1, tab2 = st.tabs(["📊 Performance Overview", "📜 Full History"])
@@ -1068,6 +1109,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
