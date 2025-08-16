@@ -609,15 +609,15 @@ def _generate_shapes_question():
     elif q_type == 'volume_cylinder':
         r, h = random.randint(3, 10), random.randint(5, 15)
         volume = round(math.pi * (r**2) * h)
-        question_text = f"What is the volume of a cylinder with a radius of ${r}$ cm and a height of ${h}$ cm? (Use $\pi \approx 3.14$ and round to the nearest whole number)."
+        # --- THIS LINE IS CORRECTED ---
+        question_text = rf"What is the volume of a cylinder with a radius of ${r}$ cm and a height of ${h}$ cm? (Use $\pi \approx 3.14$ and round to the nearest whole number)."
         correct_answer = str(volume)
         hint = r"The volume of a cylinder is $V = \pi r^2 h$."
         options = {correct_answer, str(round(2 * math.pi * r * h)), str(round(math.pi * r**2))}
     elif q_type == 'area_circle_reverse':
         r = random.randint(5,12)
         area = round((22/7) * r**2)
-        # --- THIS LINE IS THE DEFINITIVE FIX ---
-        # It is now a single, raw f-string for robust formatting.
+        # This line was previously corrected and remains correct
         question_text = rf"The area of a circle is approximately ${area}\ cm^2$. What is its radius? (Use $\pi \approx \frac{{22}}{{7}}$)"
         correct_answer = str(r)
         hint = r"The area of a circle is $A = \pi r^2$. Rearrange the formula to solve for the radius, $r$."
@@ -629,6 +629,7 @@ def _generate_shapes_question():
         correct_answer = str(surface_area)
         hint = r"The total surface area of a rectangular prism is $2(lw + lh + wh)$."
         options = {correct_answer, str(l*w*h), str(l+w+h)}
+        
     while len(options) < 4:
         options.add(str(random.randint(50, 500)))
     return {"question": question_text, "options": [str(o) for o in list(options)], "answer": correct_answer, "hint": hint}
@@ -1067,5 +1068,6 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
