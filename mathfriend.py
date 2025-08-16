@@ -771,44 +771,30 @@ def display_blackboard_page():
     st.header("칠판 Blackboard")
     st.write("A space for students to discuss theory questions and concepts.")
 
-    # Define and connect to the main channel
+    # Define the main channel for the blackboard
     channel = chat_client.channel("messaging", channel_id="mathfriend-blackboard", data={"name": "MathFriend Blackboard"})
+
+    # The .create() command ensures the channel exists and adds the current user as a member.
     channel.create(st.session_state.username)
     
-    # Query the last 50 messages from the channel
+    # The .query() method fetches the current state of the channel, including messages.
     state = channel.query(watch=False, state=True, messages={"limit": 50})
     messages = state['messages']
 
-    # Display message history
+    # --- THIS LINE IS CORRECTED ---
+    # Removed the "reversed()" function to display messages in the correct order.
     for msg in messages:
-        user_id = msg["user"].get("id", "Unknown")
-        user_name = msg["user"].get("name", user_id)
-        is_current_user = (user_id == st.session_state.username)
-
-        with st.chat_message(name=user_name, is_user=is_current_user):
+        user_name = msg["user"].get("name", msg["user"].get("id", "Unknown"))
+        with st.chat_message(name=user_name):
             st.markdown(msg["text"])
 
-            # --- THIS SECTION IS CORRECTED ---
-            timestamp_str = msg.get("created_at")
-            if timestamp_str:
-                # First, convert the string to a datetime object
-                # The format from Stream includes microseconds and a 'Z' for UTC
-                # We need to handle this to parse it correctly.
-                if isinstance(timestamp_str, str):
-                    if timestamp_str.endswith('Z'):
-                        timestamp_str = timestamp_str[:-1] + '+00:00'
-                    timestamp_dt = datetime.fromisoformat(timestamp_str)
-                else: # If it's already a datetime object, use it directly
-                    timestamp_dt = timestamp_str
-                
-                # Now we can format our datetime object
-                st.caption(timestamp_dt.strftime("%b %d, %I:%M %p"))
-
-    # The input box for new messages
+    # Input for new messages at the bottom of the screen
     if prompt := st.chat_input("Post your question or comment..."):
+        # Send a new message to the channel
         channel.send_message({
             "text": prompt,
         }, user_id=st.session_state.username)
+        # Rerun to display the new message immediately
         st.rerun()
 def display_quiz_page(topic_options):
     st.header("🧠 Quiz Time!")
@@ -1091,6 +1077,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
