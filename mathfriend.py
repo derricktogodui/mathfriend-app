@@ -1,4 +1,5 @@
 import streamlit as st
+import sqlite3
 import time
 import random
 import pandas as pd
@@ -11,6 +12,7 @@ import os
 from datetime import datetime
 from streamlit.components.v1 import html
 from fractions import Fraction
+import numpy as np # Added for Linear Algebra
 import sqlalchemy
 from sqlalchemy import create_engine, text
 
@@ -46,7 +48,6 @@ initialize_session_state()
 
 
 # --- Database Connection ---
-# Uses st.singleton to create a single connection pool that is reused across sessions.
 @st.cache_resource
 def get_db_engine():
     """Creates a SQLAlchemy engine with a connection pool."""
@@ -72,19 +73,16 @@ def create_and_verify_tables():
     except Exception as e:
         st.error(f"Database setup error: {e}")
 
-# Create tables at the start of the script
 create_and_verify_tables()
 
 
-# --- Core Backend Functions (Now using PostgreSQL) ---
+# --- Core Backend Functions (PostgreSQL) ---
 def hash_password(password):
-    """Hashes a password using SHA-256."""
     salt = "mathfriend_static_salt_for_performance"
     salted_password = password + salt
     return hashlib.sha256(salted_password.encode()).hexdigest()
 
 def check_password(hashed_password, user_password):
-    """Checks a password against its SHA-256 hash."""
     return hashed_password == hash_password(user_password)
 
 def login_user(username, password):
@@ -103,7 +101,7 @@ def signup_user(username, password):
             conn.commit()
         return True
     except sqlalchemy.exc.IntegrityError:
-        return False # Username already exists
+        return False
 
 def get_user_profile(username):
     with engine.connect() as conn:
@@ -113,15 +111,12 @@ def get_user_profile(username):
 
 def update_user_profile(username, full_name, school, age, bio):
     with engine.connect() as conn:
-        # Using an UPSERT statement for PostgreSQL
         query = text("""
             INSERT INTO user_profiles (username, full_name, school, age, bio) 
             VALUES (:username, :full_name, :school, :age, :bio)
             ON CONFLICT (username) DO UPDATE SET
-                full_name = EXCLUDED.full_name,
-                school = EXCLUDED.school,
-                age = EXCLUDED.age,
-                bio = EXCLUDED.bio;
+                full_name = EXCLUDED.full_name, school = EXCLUDED.school,
+                age = EXCLUDED.age, bio = EXCLUDED.bio;
         """)
         conn.execute(query, {"username": username, "full_name": full_name, "school": school, "age": age, "bio": bio})
         conn.commit()
@@ -142,8 +137,7 @@ def update_user_status(username, is_online):
             INSERT INTO user_status (username, is_online, last_seen) 
             VALUES (:username, :is_online, CURRENT_TIMESTAMP)
             ON CONFLICT (username) DO UPDATE SET
-                is_online = EXCLUDED.is_online,
-                last_seen = CURRENT_TIMESTAMP;
+                is_online = EXCLUDED.is_online, last_seen = CURRENT_TIMESTAMP;
         """)
         conn.execute(query, {"username": username, "is_online": is_online})
         conn.commit()
@@ -157,11 +151,8 @@ def save_quiz_result(username, topic, score, questions_answered):
 def get_top_scores(topic, time_filter="all"):
     with engine.connect() as conn:
         time_clause = ""
-        if time_filter == "week":
-            time_clause = "AND timestamp >= NOW() - INTERVAL '7 days'"
-        elif time_filter == "month":
-            time_clause = "AND timestamp >= NOW() - INTERVAL '30 days'"
-            
+        if time_filter == "week": time_clause = "AND timestamp >= NOW() - INTERVAL '7 days'"
+        elif time_filter == "month": time_clause = "AND timestamp >= NOW() - INTERVAL '30 days'"
         query = text(f"""
             SELECT username, score, questions_answered FROM quiz_results 
             WHERE topic=:topic AND questions_answered > 0 {time_clause}
@@ -173,13 +164,10 @@ def get_top_scores(topic, time_filter="all"):
 def get_user_stats(username):
     with engine.connect() as conn:
         total_quizzes = conn.execute(text("SELECT COUNT(*) FROM quiz_results WHERE username = :username"), {"username": username}).scalar_one()
-        
         last_result = conn.execute(text("SELECT score, questions_answered FROM quiz_results WHERE username = :username ORDER BY timestamp DESC LIMIT 1"), {"username": username}).first()
         last_score_str = f"{last_result[0]}/{last_result[1]}" if last_result and last_result[1] > 0 else "N/A"
-
         top_result = conn.execute(text("SELECT score, questions_answered FROM quiz_results WHERE username = :username AND questions_answered > 0 ORDER BY (CAST(score AS REAL) / questions_answered) DESC, score DESC LIMIT 1"), {"username": username}).first()
         top_score_str = f"{top_result[0]}/{top_result[1]}" if top_result and top_result[1] > 0 else "N/A"
-        
         return total_quizzes, last_score_str, top_score_str
 
 def get_user_quiz_history(username):
@@ -193,10 +181,8 @@ def get_user_quiz_history(username):
 
 def get_topic_performance(username):
     history = get_user_quiz_history(username)
-    if not history:
-        return pd.DataFrame()
-    df_data = [{"Topic": row['topic'], "Score": row['score'], "Total": row['questions_answered']} for row in history]
-    df = pd.DataFrame(df_data)
+    if not history: return pd.DataFrame()
+    df = pd.DataFrame([{"Topic": r['topic'], "Score": r['score'], "Total": r['questions_answered']} for r in history])
     performance = df.groupby('Topic').sum()
     performance['Accuracy'] = (performance['Score'] / performance['Total'] * 100).fillna(0)
     return performance.sort_values(by="Accuracy", ascending=False)
@@ -204,19 +190,13 @@ def get_topic_performance(username):
 def get_user_rank(username, topic, time_filter="all"):
     with engine.connect() as conn:
         time_clause = ""
-        if time_filter == "week":
-            time_clause = "AND timestamp >= NOW() - INTERVAL '7 days'"
-        elif time_filter == "month":
-            time_clause = "AND timestamp >= NOW() - INTERVAL '30 days'"
+        if time_filter == "week": time_clause = "AND timestamp >= NOW() - INTERVAL '7 days'"
+        elif time_filter == "month": time_clause = "AND timestamp >= NOW() - INTERVAL '30 days'"
         query = text(f"""
             WITH RankedScores AS (
-                SELECT
-                    username,
-                    RANK() OVER (ORDER BY (CAST(score AS REAL) / questions_answered) DESC, questions_answered DESC, timestamp ASC) as rank
-                FROM quiz_results
-                WHERE topic = :topic AND questions_answered > 0 {time_clause}
-            )
-            SELECT rank FROM RankedScores WHERE username = :username;
+                SELECT username, RANK() OVER (ORDER BY (CAST(score AS REAL) / questions_answered) DESC, questions_answered DESC, timestamp ASC) as rank
+                FROM quiz_results WHERE topic = :topic AND questions_answered > 0 {time_clause}
+            ) SELECT rank FROM RankedScores WHERE username = :username;
         """)
         result = conn.execute(query, {"topic": topic, "username": username}).scalar_one_or_none()
         return result if result else "N/A"
@@ -224,10 +204,8 @@ def get_user_rank(username, topic, time_filter="all"):
 def get_total_players(topic, time_filter="all"):
     with engine.connect() as conn:
         time_clause = ""
-        if time_filter == "week":
-            time_clause = "AND timestamp >= NOW() - INTERVAL '7 days'"
-        elif time_filter == "month":
-            time_clause = "AND timestamp >= NOW() - INTERVAL '30 days'"
+        if time_filter == "week": time_clause = "AND timestamp >= NOW() - INTERVAL '7 days'"
+        elif time_filter == "month": time_clause = "AND timestamp >= NOW() - INTERVAL '30 days'"
         query = text(f"SELECT COUNT(DISTINCT username) FROM quiz_results WHERE topic = :topic AND questions_answered > 0 {time_clause}")
         result = conn.execute(query, {"topic": topic}).scalar_one()
         return result if result else 0
@@ -235,18 +213,15 @@ def get_total_players(topic, time_filter="all"):
 def get_user_stats_for_topic(username, topic):
     with engine.connect() as conn:
         query_best = text("""
-            SELECT MAX(CAST(score AS REAL) / questions_answered) * 100
-            FROM quiz_results 
+            SELECT MAX(CAST(score AS REAL) / questions_answered) * 100 FROM quiz_results 
             WHERE username = :username AND topic = :topic AND questions_answered > 0
         """)
         best_score = conn.execute(query_best, {"username": username, "topic": topic}).scalar_one_or_none() or 0
-        
         query_attempts = text("SELECT COUNT(*) FROM quiz_results WHERE username = :username AND topic = :topic")
         attempts = conn.execute(query_attempts, {"username": username, "topic": topic}).scalar_one()
-        
         return f"{best_score:.1f}%", attempts
 
-# --- All other functions (Question Generators, CSS, Page Displays) are unchanged ---
+# --- All Question Generation Functions ---
 
 def _generate_sets_question():
     set_a = set(random.sample(range(1, 15), k=random.randint(3, 5)))
@@ -270,7 +245,7 @@ def _generate_sets_question():
     return {"question": question_text, "options": shuffled_options, "answer": correct_answer, "hint": "Review set operations."}
 
 def _generate_percentages_question():
-    q_type = random.choice(['percent_of', 'what_percent', 'original_price'])
+    q_type = random.choice(['percent_of', 'what_percent', 'original_price', 'percent_change'])
     if q_type == 'percent_of':
         percent = random.randint(1, 40) * 5
         number = random.randint(1, 50) * 10
@@ -283,42 +258,55 @@ def _generate_percentages_question():
         question_text = f"What percent of {whole} is {part}?"
         correct_answer = f"{(part / whole) * 100:.2f}%"
         hint = "To find what percent a part is of a whole, divide the part by the whole and multiply by 100."
-    else:
+    elif q_type == 'original_price':
         original_price = random.randint(20, 200)
         discount_percent = random.randint(1, 8) * 5
         final_price = original_price * (1 - discount_percent/100)
         question_text = f"An item is sold for ${final_price:.2f} after a {discount_percent}% discount. What was the original price?"
         correct_answer = f"${original_price:.2f}"
         hint = "Let the original price be 'P'. The final price is P * (1 - discount/100). Solve for P."
+    elif q_type == 'percent_change':
+        old_value = random.randint(50, 200)
+        change_factor = random.choice([random.uniform(0.5, 0.9), random.uniform(1.1, 1.5)])
+        new_value = round(old_value * change_factor, 2)
+        change_type = "increase" if new_value > old_value else "decrease"
+        question_text = f"The price of an item changed from ${old_value} to ${new_value}. What was the percentage {change_type}?"
+        percent_change = ((new_value - old_value) / old_value) * 100
+        correct_answer = f"{abs(percent_change):.2f}%"
+        hint = "The formula for percent change is ((New Value - Old Value) / Old Value) * 100."
     options = [correct_answer]
     while len(options) < 4:
-        noise = random.uniform(0.75, 1.25)
-        wrong_answer_val = float(re.sub(r'[^\d.]', '', correct_answer)) * noise
-        prefix = "$" if correct_answer.startswith("$") else ""
-        suffix = "%" if correct_answer.endswith("%") else ""
-        new_option = f"{prefix}{wrong_answer_val:.2f}{suffix}"
-        if new_option not in options: options.append(new_option)
+        try:
+            correct_val = float(re.sub(r'[^\d.-]', '', correct_answer))
+            noise = random.uniform(0.5, 1.5)
+            wrong_answer_val = correct_val * noise
+            if wrong_answer_val == correct_val: continue
+            prefix = "$" if correct_answer.startswith("$") else ""
+            suffix = "%" if correct_answer.endswith("%") else ""
+            new_option = f"{prefix}{abs(wrong_answer_val):.2f}{suffix}"
+            if new_option not in options: options.append(new_option)
+        except (ValueError, IndexError):
+             options.append(f"{random.randint(1,100):.2f}%")
     random.shuffle(options)
     return {"question": question_text, "options": list(set(options)), "answer": correct_answer, "hint": hint}
 
 def _get_fraction_latex_code(f: Fraction):
-    if f.denominator == 1:
-        return str(f.numerator)
+    if f.denominator == 1: return str(f.numerator)
     return f"\\frac{{{f.numerator}}}{{{f.denominator}}}"
 
 def _format_fraction_text(f: Fraction):
-    if f.denominator == 1:
-        return str(f.numerator)
+    if f.denominator == 1: return str(f.numerator)
     return f"{f.numerator}/{f.denominator}"
 
 def _generate_fractions_question():
-    q_type = random.choice(['add_sub', 'mul_div', 'simplify'])
+    q_type = random.choice(['add_sub', 'mul_div', 'simplify', 'mixed_numbers'])
     f1 = Fraction(random.randint(1, 10), random.randint(2, 10))
     f2 = Fraction(random.randint(1, 10), random.randint(2, 10))
     if q_type == 'add_sub':
         op_symbol = random.choice(['+', '-'])
         expression_code = f"{_get_fraction_latex_code(f1)} {op_symbol} {_get_fraction_latex_code(f2)}"
         correct_answer_obj = f1 + f2 if op_symbol == '+' else f1 - f2
+        question_text = f"Calculate: ${expression_code}$"
         hint = "To add or subtract fractions, find a common denominator."
     elif q_type == 'mul_div':
         op_symbol = random.choice(['\\times', '\\div'])
@@ -330,16 +318,23 @@ def _generate_fractions_question():
         else:
             correct_answer_obj = f1 * f2
             hint = "To multiply fractions, multiply the numerators and denominators."
-    else: # simplify
+        question_text = f"Calculate: ${expression_code}$"
+    elif q_type == 'simplify':
         common_factor = random.randint(2, 5)
         unsimplified_f = Fraction(f1.numerator * common_factor, f1.denominator * common_factor)
         expression_code = f"{_get_fraction_latex_code(unsimplified_f)}"
         correct_answer_obj = f1
-        hint = "Divide the numerator and denominator by their greatest common divisor."
-    if q_type == 'simplify':
         question_text = f"Simplify the fraction ${expression_code}$ to its lowest terms."
-    else:
-        question_text = f"Calculate: ${expression_code}$"
+        hint = "Divide the numerator and denominator by their greatest common divisor."
+    elif q_type == 'mixed_numbers':
+        w1 = random.randint(1, 5)
+        w2 = random.randint(1, 5)
+        mixed_f1 = w1 + f1
+        mixed_f2 = w2 + f2
+        correct_answer_obj = mixed_f1 + mixed_f2
+        question_text = f"Calculate: ${w1}\\frac{{{f1.numerator}}}{{{f1.denominator}}} + {w2}\\frac{{{f2.numerator}}}{{{f2.denominator}}}$"
+        hint = "First, convert the mixed numbers to improper fractions. Then, find a common denominator to add them."
+        
     correct_answer = _format_fraction_text(correct_answer_obj)
     options = {correct_answer}
     while len(options) < 4:
@@ -394,57 +389,76 @@ def _generate_binary_ops_question():
     return {"question": question_text, "options": shuffled_options, "answer": correct_answer, "hint": hint}
 
 def _generate_word_problems_question():
-    x = random.randint(2, 10)
-    k = random.randint(2, 5)
-    op_word, op_func = random.choice([("tripled", lambda n: 3*n), ("doubled", lambda n: 2*n)])
-    adjust_word, adjust_func = random.choice([("added to", lambda n, v: n + v), ("subtracted from", lambda n, v: n - v)])
-    result = adjust_func(op_func(x), k)
-    question_text = f"When a number is {op_word} and {k} is {adjust_word} the result, the answer is {result}. What is the number?"
-    correct_answer = str(x)
-    hint = "Let the unknown number be 'x'. Translate the sentence into a mathematical equation and solve for x."
-    options = {correct_answer, str(result-k), str(x+k), str(result)}
+    q_type = random.choice(['simple_equation', 'age_problem'])
+    if q_type == 'simple_equation':
+        x = random.randint(2, 10); k = random.randint(2, 5)
+        op_word, op_func = random.choice([("tripled", lambda n: 3*n), ("doubled", lambda n: 2*n)])
+        adjust_word, adjust_func = random.choice([("added to", lambda n, v: n + v), ("subtracted from", lambda n, v: n - v)])
+        result = adjust_func(op_func(x), k)
+        question_text = f"When a number is {op_word} and {k} is {adjust_word} the result, the answer is {result}. What is the number?"
+        correct_answer = str(x)
+        hint = "Let the unknown number be 'x'. Translate the sentence into a mathematical equation and solve for x."
+        options = {correct_answer, str(result-k), str(x+k), str(result)}
+    elif q_type == 'age_problem':
+        person_b_age = random.randint(7, 15); multiplier = random.randint(2, 4)
+        person_a_age = person_b_age * multiplier
+        future_years = random.randint(3, 10)
+        person_b_future = person_b_age + future_years
+        person_a_future = person_a_age + future_years
+        combined_future_age = person_a_future + person_b_future
+        person_a_name, person_b_name = random.choice([("Kwame", "Ama"), ("John", "Mary"), ("Ali", "Aisha")])
+        question_text = f"{person_a_name} is currently {multiplier} times as old as {person_b_name}. In {future_years} years, the sum of their ages will be {combined_future_age}. How old is {person_b_name} now?"
+        correct_answer = str(person_b_age)
+        hint = f"Let {person_b_name}'s current age be 'x'. Then {person_a_name}'s age is '{multiplier}x'. In {future_years} years, their ages will be (x + {future_years}) and ({multiplier}x + {future_years}). Set the sum of these equal to {combined_future_age} and solve for x."
+        options = {correct_answer, str(person_a_age), str(person_b_future), str(person_a_future)}
     while len(options) < 4:
-        options.add(str(random.randint(1, 20)))
+        options.add(str(random.randint(1, 50)))
     shuffled_options = list(options)
     random.shuffle(shuffled_options)
-    return {"question": question_text, "options": shuffled_options, "answer": correct_answer, "hint": hint}
+    return {"question": question_text, "options": list(set(shuffled_options)), "answer": correct_answer, "hint": hint}
 
 def _generate_indices_question():
-    q_type = random.choice(['multiply', 'divide', 'power', 'negative', 'fractional'])
+    q_type = random.choice(['multiply', 'divide', 'power', 'negative', 'fractional', 'combined'])
     base = random.randint(2, 6)
-    if q_type == 'multiply':
-        p1, p2 = random.randint(2, 5), random.randint(2, 5)
-        question_text = f"Simplify: ${base}^{p1} \\times {base}^{p2}$"
-        correct_answer = f"${base}^{p1+p2}$"
-        hint = "When multiplying powers with the same base, add the exponents: $x^a \\times x^b = x^{{a+b}}$."
-        options = {correct_answer, f"${base}^{p1*p2}$", f"${base*2}^{p1+p2}$"}
-    elif q_type == 'divide':
-        p1, p2 = random.randint(5, 9), random.randint(2, 4)
-        question_text = f"Simplify: ${base}^{p1} \\div {base}^{p2}$"
-        correct_answer = f"${base}^{p1-p2}$"
-        hint = "When dividing powers with the same base, subtract the exponents: $x^a \\div x^b = x^{{a-b}}$."
-        options = {correct_answer, f"${base}^{p1//p2}$", f"$1^{p1-p2}$"}
-    elif q_type == 'power':
-        p1, p2 = random.randint(2, 4), random.randint(2, 3)
-        question_text = f"Simplify: $({base}^{p1})^{p2}$"
-        correct_answer = f"${base}^{p1*p2}$"
-        hint = "When raising a power to another power, multiply the exponents: $(x^a)^b = x^{{ab}}$."
-        options = {correct_answer, f"${base}^{p1+p2}$", f"${base}^{p1**p2}$"}
-    elif q_type == 'negative':
-        p1 = random.randint(2, 4)
-        question_text = f"Express ${base}^{{-{p1}}}$ as a fraction."
-        correct_answer = f"$\\frac{{1}}{{{base**p1}}}$"
-        hint = f"A negative exponent means take the reciprocal: $x^{{-a}} = \\frac{{1}}{{x^a}}$."
-        options = {correct_answer, f"$-{base*p1}$", f"$\\frac{{1}}{{{base*p1}}}$"}
-    else: # fractional
-        roots = {8: 3, 27: 3, 4: 2, 9: 2, 16: 2, 64: 3, 81: 4}
-        num = random.choice(list(roots.keys()))
-        root = roots[num]
-        exponent_latex = f"\\frac{{1}}{{{root}}}"
-        question_text = f"What is the value of ${num}^{{{exponent_latex}}}$?"
-        correct_answer = str(int(round(num**(1/root))))
-        hint = f"The fractional exponent $\\frac{{1}}{{n}}$ is the same as the n-th root ($\sqrt[n]{{x}}$)."
-        options = {correct_answer, str(num/root), str(num*root)}
+    if q_type in ['multiply', 'divide', 'power', 'negative', 'fractional']:
+        if q_type == 'multiply':
+            p1, p2 = random.randint(2, 5), random.randint(2, 5)
+            question_text = f"Simplify: ${base}^{p1} \\times {base}^{p2}$"
+            correct_answer = f"${base}^{p1+p2}$"
+            hint = "When multiplying powers with the same base, add the exponents: $x^a \\times x^b = x^{{a+b}}$."
+            options = {correct_answer, f"${base}^{p1*p2}$", f"${base*2}^{p1+p2}$"}
+        elif q_type == 'divide':
+            p1, p2 = random.randint(5, 9), random.randint(2, 4)
+            question_text = f"Simplify: ${base}^{p1} \\div {base}^{p2}$"
+            correct_answer = f"${base}^{p1-p2}$"
+            hint = "When dividing powers with the same base, subtract the exponents: $x^a \\div x^b = x^{{a-b}}$."
+            options = {correct_answer, f"${base}^{p1//p2}$", f"$1^{p1-p2}$"}
+        elif q_type == 'power':
+            p1, p2 = random.randint(2, 4), random.randint(2, 3)
+            question_text = f"Simplify: $({base}^{p1})^{p2}$"
+            correct_answer = f"${base}^{p1*p2}$"
+            hint = "When raising a power to another power, multiply the exponents: $(x^a)^b = x^{{ab}}$."
+            options = {correct_answer, f"${base}^{p1+p2}$", f"${base}^{p1**p2}$"}
+        elif q_type == 'negative':
+            p1 = random.randint(2, 4)
+            question_text = f"Express ${base}^{{-{p1}}}$ as a fraction."
+            correct_answer = f"$\\frac{{1}}{{{base**p1}}}$"
+            hint = f"A negative exponent means take the reciprocal: $x^{{-a}} = \\frac{{1}}{{x^a}}$."
+            options = {correct_answer, f"$-{base*p1}$", f"$\\frac{{1}}{{{base*p1}}}$"}
+        else: # fractional
+            roots = {8: 3, 27: 3, 4: 2, 9: 2, 16: 2, 64: 3, 81: 4}
+            num = random.choice(list(roots.keys())); root = roots[num]
+            exponent_latex = f"\\frac{{1}}{{{root}}}"
+            question_text = f"What is the value of ${num}^{{{exponent_latex}}}$?"
+            correct_answer = str(int(round(num**(1/root))))
+            hint = f"The fractional exponent $\\frac{{1}}{{n}}$ is the same as the n-th root ($\sqrt[n]{{x}}$)."
+            options = {correct_answer, str(num/root), str(num*root)}
+    elif q_type == 'combined':
+        p1, p2, p3 = random.randint(2, 5), random.randint(2, 5), random.randint(2, 5)
+        question_text = f"Simplify: $\\frac{{{base}^{p1} \\times {base}^{p2}}}{{{base}^{p3}}}$"
+        correct_answer = f"${base}^{p1+p2-p3}$"
+        hint = "First, simplify the numerator by adding the exponents. Then, simplify the fraction by subtracting the exponents."
+        options = {correct_answer, f"${base}^{p1*p2-p3}$", f"${base}^{p1+p2+p3}$"}
     while len(options) < 4:
         options.add(str(random.randint(1, 100)))
     shuffled_options = list(options)
@@ -484,24 +498,21 @@ def _generate_sequence_series_question():
     q_type = random.choice(['ap_term', 'gp_term', 'ap_sum'])
     a = random.randint(1, 5)
     if q_type == 'ap_term':
-        d = random.randint(2, 5)
-        n = random.randint(5, 10)
+        d = random.randint(2, 5); n = random.randint(5, 10)
         sequence = ", ".join([str(a + i*d) for i in range(4)])
         question_text = f"What is the {n}th term of the arithmetic sequence: {sequence}, ...?"
         correct_answer = str(a + (n - 1) * d)
         hint = f"The formula for the n-th term of an arithmetic progression is $a_n = a_1 + (n-1)d$."
         options = {correct_answer, str(a + n*d), str(a*n + d)}
     elif q_type == 'gp_term':
-        r = random.randint(2, 3)
-        n = random.randint(4, 6)
+        r = random.randint(2, 3); n = random.randint(4, 6)
         sequence = ", ".join([str(a * r**i) for i in range(3)])
         question_text = f"What is the {n}th term of the geometric sequence: {sequence}, ...?"
         correct_answer = str(a * r**(n-1))
         hint = f"The formula for the n-th term of a geometric progression is $a_n = a_1 \\times r^{{n-1}}$."
         options = {correct_answer, str((a*r)**(n-1)), str(a * r*n)}
     else: # ap_sum
-        d = random.randint(2, 5)
-        n = random.randint(5, 10)
+        d = random.randint(2, 5); n = random.randint(5, 10)
         question_text = f"What is the sum of the first {n} terms of an arithmetic sequence with first term {a} and common difference {d}?"
         correct_answer = str(int((n/2) * (2*a + (n-1)*d)))
         hint = f"The formula for the sum of the first n terms of an AP is $S_n = \\frac{{n}}{{2}}(2a_1 + (n-1)d)$."
@@ -512,17 +523,122 @@ def _generate_sequence_series_question():
     random.shuffle(shuffled_options)
     return {"question": question_text, "options": shuffled_options, "answer": correct_answer, "hint": hint}
 
+def _generate_shapes_question():
+    q_type = random.choice(['area_rectangle', 'perimeter_triangle', 'volume_cylinder', 'area_circle_reverse'])
+    if q_type == 'area_rectangle':
+        l, w = random.randint(5, 20), random.randint(5, 20)
+        question_text = f"What is the area of a rectangle with length ${l}$ cm and width ${w}$ cm?"
+        correct_answer = str(l * w)
+        hint = "The area of a rectangle is length times width ($A = l \\times w$)."
+        options = {correct_answer, str(2*l + 2*w), str(l+w)}
+    elif q_type == 'perimeter_triangle':
+        s1, s2, s3 = random.randint(5, 20), random.randint(5, 20), random.randint(5, 20)
+        question_text = f"A triangle has sides of length ${s1}$ cm, ${s2}$ cm, and ${s3}$ cm. What is its perimeter?"
+        correct_answer = str(s1 + s2 + s3)
+        hint = "The perimeter of a shape is the sum of the lengths of all its sides."
+        options = {correct_answer, str(s1*s2), str(max(s1,s2,s3))}
+    elif q_type == 'volume_cylinder':
+        r, h = random.randint(3, 10), random.randint(5, 15)
+        volume = round(math.pi * (r**2) * h)
+        question_text = f"What is the volume of a cylinder with a radius of ${r}$ cm and a height of ${h}$ cm? (Use $\pi \approx 3.14$ and round to the nearest whole number)."
+        correct_answer = str(volume)
+        hint = "The volume of a cylinder is $\pi \\times r^2 \\times h$."
+        options = {correct_answer, str(round(2 * math.pi * r * h)), str(round(math.pi * r**2))}
+    elif q_type == 'area_circle_reverse':
+        r = random.randint(5,12)
+        area = round((22/7) * r**2)
+        question_text = f"The area of a circle is approximately ${area}$ cm$^2$. What is its radius? (Use $\pi \approx \\frac{{22}}{{7}}$)"
+        correct_answer = str(r)
+        hint = "The area of a circle is $A = \pi r^2$. Rearrange the formula to solve for the radius, $r$."
+        options = {correct_answer, str(area/2), str(r*2)}
+    while len(options) < 4:
+        options.add(str(random.randint(50, 500)))
+    shuffled_options = list(options)
+    random.shuffle(shuffled_options)
+    return {"question": question_text, "options": [str(o) for o in shuffled_options], "answer": correct_answer, "hint": hint}
+
+def _generate_algebra_basics_question():
+    q_type = random.choice(['substitution', 'change_subject', 'combined'])
+    if q_type == 'substitution':
+        x, y = random.randint(2, 6), random.randint(2, 6)
+        a, b = random.randint(2, 5), random.randint(2, 5)
+        question_text = f"If $x={x}$ and $y={y}$, what is the value of ${a}x + {b}y$?"
+        correct_answer = str(a*x + b*y)
+        hint = "Substitute the given values for x and y into the expression and evaluate."
+        options = {correct_answer, str(a+x+b+y), str((a+b)*(x+y))}
+    elif q_type == 'change_subject':
+        # v = u + at
+        var_to_make_subject = random.choice(['u', 'a', 't'])
+        question_text = f"Make '{var_to_make_subject}' the subject of the formula $v = u + at$."
+        if var_to_make_subject == 'u':
+            correct_answer = "$u = v - at$"
+            options = {correct_answer, "$u = v + at$", "$u = \\frac{{v}}{{at}}$"}
+        elif var_to_make_subject == 'a':
+            correct_answer = "$a = \\frac{{v-u}}{{t}}$"
+            options = {correct_answer, "$a = v - u - t$", "$a = \\frac{{v+u}}{{t}}$"}
+        else: # t
+            correct_answer = "$t = \\frac{{v-u}}{{a}}$"
+            options = {correct_answer, "$t = v - u - a$", "$t = \\frac{{v-u}}{{-a}}$"}
+        hint = "Use inverse operations to isolate the desired variable on one side of the equation."
+    elif q_type == 'combined':
+        p, l, w = random.randint(30, 60), random.randint(10, 20), random.randint(5, 10)
+        while p != 2*(l+w): p, l, w = random.randint(30, 60), random.randint(10, 20), random.randint(5, 10)
+        var_to_make_subject = random.choice(['l', 'w'])
+        question_text = f"Given the formula for the perimeter of a rectangle, $P = 2(l+w)$. First, make '${var_to_make_subject}' the subject of the formula. Then, find its value if $P={p}$ and ${'w' if var_to_make_subject == 'l' else 'l'}={w if var_to_make_subject == 'l' else l}$."
+        correct_answer = str(l if var_to_make_subject == 'l' else w)
+        hint = "First, rearrange the formula to solve for the requested variable. Then, substitute the given values to find the numerical answer."
+        options = {correct_answer, str(p/2), str(p-w if var_to_make_subject == 'l' else p-l)}
+    while len(options) < 4:
+        options.add(str(random.randint(1, 100)))
+    shuffled_options = list(options)
+    random.shuffle(shuffled_options)
+    return {"question": question_text, "options": [str(o) for o in shuffled_options], "answer": correct_answer, "hint": hint}
+
+def _generate_linear_algebra_question():
+    q_type = random.choice(['add', 'determinant', 'multiply'])
+    mat_a = np.random.randint(-5, 10, size=(2, 2))
+    mat_b = np.random.randint(-5, 10, size=(2, 2))
+    def mat_to_latex(m):
+        return f"\\begin{{pmatrix}} {m[0,0]} & {m[0,1]} \\\\ {m[1,0]} & {m[1,1]} \\end{{pmatrix}}"
+
+    if q_type == 'add':
+        question_text = f"Calculate the sum of the matrices $A = {mat_to_latex(mat_a)}$ and $B = {mat_to_latex(mat_b)}$."
+        correct_mat = mat_a + mat_b
+        correct_answer = mat_to_latex(correct_mat)
+        hint = "To add two matrices, add their corresponding elements."
+        options = {correct_answer, mat_to_latex(mat_a - mat_b), mat_to_latex(mat_a * 2)}
+    elif q_type == 'determinant':
+        question_text = f"Find the determinant of the matrix $A = {mat_to_latex(mat_a)}$."
+        correct_answer = str(int(np.linalg.det(mat_a)))
+        hint = "The determinant of a 2x2 matrix $\\begin{pmatrix} a & b \\\\ c & d \\end{pmatrix}$ is $ad - bc$."
+        options = {correct_answer, str(mat_a[0,0]+mat_a[1,1]), str(mat_a[0,1]+mat_a[1,0])}
+    elif q_type == 'multiply':
+        question_text = f"Calculate the product of the matrices $A = {mat_to_latex(mat_a)}$ and $B = {mat_to_latex(mat_b)}$."
+        correct_mat = np.dot(mat_a, mat_b)
+        correct_answer = mat_to_latex(correct_mat)
+        hint = "Matrix multiplication involves taking the dot product of rows from the first matrix and columns from the second matrix."
+        options = {correct_answer, mat_to_latex(mat_a + mat_b), mat_to_latex(mat_b.dot(mat_a))}
+
+    while len(options) < 4:
+        options.add(mat_to_latex(np.random.randint(-5, 10, size=(2,2))))
+    shuffled_options = list(options)
+    random.shuffle(shuffled_options)
+    return {"question": question_text, "options": [str(o) for o in shuffled_options], "answer": str(correct_answer), "hint": hint}
+
 def generate_question(topic):
     generators = {
         "Sets": _generate_sets_question,
         "Percentages": _generate_percentages_question,
         "Fractions": _generate_fractions_question,
+        "Indices": _generate_indices_question,
         "Surds": _generate_surds_question,
         "Binary Operations": _generate_binary_ops_question,
-        "Word Problems": _generate_word_problems_question,
-        "Indices": _generate_indices_question,
         "Relations and Functions": _generate_relations_functions_question,
         "Sequence and Series": _generate_sequence_series_question,
+        "Word Problems": _generate_word_problems_question,
+        "Shapes (Geometry)": _generate_shapes_question,
+        "Algebra Basics": _generate_algebra_basics_question,
+        "Linear Algebra": _generate_linear_algebra_question,
     }
     generator_func = generators.get(topic)
     if generator_func:
@@ -534,104 +650,48 @@ def confetti_animation():
     html("""<script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.5.1/dist/confetti.browser.min.js"></script><script>confetti();</script>""")
 
 def get_time_based_greeting():
-    """Returns a greeting based on the current time of day."""
     current_hour = datetime.now().hour
-    if 5 <= current_hour < 12:
-        return "Good morning"
-    elif 12 <= current_hour < 18:
-        return "Good afternoon"
-    else:
-        return "Good evening"
+    if 5 <= current_hour < 12: return "Good morning"
+    elif 12 <= current_hour < 18: return "Good afternoon"
+    else: return "Good evening"
 
 def load_css():
     """Loads the main CSS for the application for a consistent and responsive look."""
     st.markdown("""
     <style>
         /* --- BASE STYLES --- */
-        .stApp {
-            background-color: #f0f2f5;
-        }
-        
-        [data-testid="stAppViewContainer"] > .main {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-        }
-
-        /* --- THE DEFINITIVE CHROME FIX --- */
-        div[data-testid="stAppViewContainer"] * {
-            color: #31333F !important;
-        }
-
-        /* --- SIDEBAR FIX --- */
-        div[data-testid="stSidebarUserContent"] * {
-            color: #FAFAFA !important;
-        }
+        .stApp { background-color: #f0f2f5; }
+        [data-testid="stAppViewContainer"] > .main { display: flex; justify-content: center; align-items: center; }
+        /* --- THE DEFINITIVE CHROME & SAFARI FIX --- */
+        div[data-testid="stAppViewContainer"] * { color: #31333F !important; }
+        /* --- FINAL, CROSS-BROWSER SIDEBAR FIX --- */
+        div[data-testid="stSidebarUserContent"] * { color: #FAFAFA !important; }
+        div[data-testid="stSidebarUserContent"] h1 { color: #FFFFFF !important; }
+        div[data-testid="stSidebarUserContent"] [data-testid="stRadio"] label { color: #E0E0E0 !important; }
+        div[data-testid="stSidebarUserContent"] hr { border-color: #444955 !important; }
 
         /* --- COLOR OVERRIDES --- */
-        button[data-testid="stFormSubmitButton"] *,
-        div[data-testid="stButton"] > button * {
-            color: white !important;
-        }
-
-        a, a * {
-            color: #0068c9 !important;
-        }
-        
-        .main-content h1, .main-content h2, .main-content h3, .main-content h4, .main-content h5, .main-content h6 {
-            color: #1a1a1a !important; 
-        }
-
-        [data-testid="stMetricValue"] {
-            color: #1a1a1a !important;
-        }
-
+        button[data-testid="stFormSubmitButton"] *, div[data-testid="stButton"] > button * { color: white !important; }
+        a, a * { color: #0068c9 !important; }
+        .main-content h1, .main-content h2, .main-content h3, .main-content h4, .main-content h5, .main-content h6 { color: #1a1a1a !important; }
+        [data-testid="stMetricValue"] { color: #1a1a1a !important; }
         [data-testid="stSuccess"] * { color: #155724 !important; }
         [data-testid="stInfo"] * { color: #0c5460 !important; }
         [data-testid="stWarning"] * { color: #856404 !important; }
         [data-testid="stError"] * { color: #721c24 !important; }
         
         /* --- GENERAL STYLING --- */
-        .main-content h1, .main-content h2, .main-content h3 {
-            border-left: 5px solid #0d6efd;
-            padding-left: 15px;
-            border-radius: 3px;
-        }
-
-        [data-testid="stMetric"] {
-            background-color: #FFFFFF;
-            border: 1px solid #CCCCCC;
-            padding: 20px;
-            border-radius: 10px;
-            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
-            border-left: 5px solid #CCCCCC; 
-        }
+        .main-content h1, .main-content h2, .main-content h3 { border-left: 5px solid #0d6efd; padding-left: 15px; border-radius: 3px; }
+        [data-testid="stMetric"] { background-color: #FFFFFF; border: 1px solid #CCCCCC; padding: 20px; border-radius: 10px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); border-left: 5px solid #CCCCCC; }
         [data-testid="stHorizontalBlock"] > div:nth-of-type(1) [data-testid="stMetric"] { border-left-color: #0d6efd; }
         [data-testid="stHorizontalBlock"] > div:nth-of-type(2) [data-testid="stMetric"] { border-left-color: #28a745; }
         [data-testid="stHorizontalBlock"] > div:nth-of-type(3) [data-testid="stMetric"] { border-left-color: #ffc107; }
-
-        .stTextInput input, .stTextArea textarea, .stNumberInput input {
-            color: #000 !important;
-            background-color: #fff !important;
-        }
-        
-        button[data-testid="stFormSubmitButton"] {
-            background-color: #0d6efd; border: 1px solid #0d6efd; box-shadow: 0 4px 8px rgba(0,0,0,0.1);
-            transition: all 0.2s ease-in-out;
-        }
-        button[data-testid="stFormSubmitButton"]:hover {
-            background-color: #0b5ed7; border-color: #0a58ca; transform: translateY(-2px);
-            box-shadow: 0 6px 12px rgba(0,0,0,0.15);
-        }
-        div[data-testid="stButton"] > button {
-            background-color: #6c757d; border: 1px solid #6c757d;
-        }
-        div[data-testid="stButton"] > button:hover {
-            background-color: #5a6268; border-color: #545b62;
-        }
-        [data-testid="stSelectbox"] div[data-baseweb="select"] > div {
-            background-color: #fff !important;
-        }
+        .stTextInput input, .stTextArea textarea, .stNumberInput input { color: #000 !important; background-color: #fff !important; }
+        button[data-testid="stFormSubmitButton"] { background-color: #0d6efd; border: 1px solid #0d6efd; box-shadow: 0 4px 8px rgba(0,0,0,0.1); transition: all 0.2s ease-in-out; }
+        button[data-testid="stFormSubmitButton"]:hover { background-color: #0b5ed7; border-color: #0a58ca; transform: translateY(-2px); box-shadow: 0 6px 12px rgba(0,0,0,0.15); }
+        div[data-testid="stButton"] > button { background-color: #6c757d; border: 1px solid #6c757d; }
+        div[data-testid="stButton"] > button:hover { background-color: #5a6268; border-color: #545b62; }
+        [data-testid="stSelectbox"] div[data-baseweb="select"] > div { background-color: #fff !important; }
         .stDataFrame th { background-color: #e9ecef; font-weight: bold; }
         [data-testid="stForm"] { border: 1px solid #dee2e6; border-radius: 0.5rem; padding: 1.5rem; background-color: #fafafa; }
         .styled-hr { border: none; height: 2px; background: linear-gradient(to right, #0d6efd, #f0f2f5); margin: 2rem 0; }
@@ -649,62 +709,42 @@ def load_css():
 
 def display_dashboard(username):
     st.header(f"📈 Dashboard for {username}")
-
     tab1, tab2 = st.tabs(["📊 Performance Overview", "📜 Full History"])
-
     with tab1:
         st.subheader("Key Metrics")
         total_quizzes, last_score, top_score = get_user_stats(username)
         col1, col2, col3 = st.columns(3)
-        with col1:
-            st.metric(label="📝 Total Quizzes Taken", value=total_quizzes)
-        with col2:
-            st.metric(label="🎯 Most Recent Score", value=last_score)
-        with col3:
-            st.metric(label="🏆 Best Ever Score", value=top_score)
-
+        with col1: st.metric(label="📝 Total Quizzes Taken", value=total_quizzes)
+        with col2: st.metric(label="🎯 Most Recent Score", value=last_score)
+        with col3: st.metric(label="🏆 Best Ever Score", value=top_score)
         st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
-        
         st.subheader("Topic Performance")
         topic_perf_df = get_topic_performance(username)
-
         if not topic_perf_df.empty:
             col1, col2 = st.columns(2)
             with col1:
-                best_topic = topic_perf_df.index[0]
-                best_acc = topic_perf_df['Accuracy'].iloc[0]
+                best_topic = topic_perf_df.index[0]; best_acc = topic_perf_df['Accuracy'].iloc[0]
                 st.success(f"💪 **Strongest Topic:** {best_topic} ({best_acc:.1f}%)")
             with col2:
                 if len(topic_perf_df) > 1:
-                    worst_topic = topic_perf_df.index[-1]
-                    worst_acc = topic_perf_df['Accuracy'].iloc[-1]
+                    worst_topic = topic_perf_df.index[-1]; worst_acc = topic_perf_df['Accuracy'].iloc[-1]
                     st.warning(f"🤔 **Area for Practice:** {worst_topic} ({worst_acc:.1f}%)")
-
             fig = px.bar(
-                topic_perf_df, 
-                y='Accuracy', 
-                title="Average Accuracy by Topic",
-                labels={'Accuracy': 'Accuracy (%)', 'Topic': 'Topic'},
-                text_auto='.2s'
+                topic_perf_df, y='Accuracy', title="Average Accuracy by Topic",
+                labels={'Accuracy': 'Accuracy (%)', 'Topic': 'Topic'}, text_auto='.2s'
             )
             fig.update_traces(textposition='outside')
             st.plotly_chart(fig, use_container_width=True)
         else:
             st.info("Complete some quizzes to see your topic performance analysis!")
-
     with tab2:
         st.subheader("Accuracy Over Time")
         history = get_user_quiz_history(username)
         if history:
-            # THIS IS THE LINE THAT HAS BEEN FIXED
-            df_data = [{"Topic": row['topic'], "Score": f"{row['score']}/{row['questions_answered']}", "Accuracy (%)": (row['score'] / row['questions_answered'] * 100) if row['questions_answered'] is not None and row['score'] is not None and row['questions_answered'] > 0 else 0, "Date": datetime.strptime(row['timestamp'].strftime("%Y-%m-%d %H:%M:%S"), "%Y-%m-%d %H:%M:%S").strftime("%Y-%m-%d %H:%M")} for row in history]
+            df_data = [{"Topic": r['topic'], "Score": f"{r['score']}/{r['questions_answered']}", "Accuracy (%)": (r['score'] / r['questions_answered'] * 100) if r['questions_answered'] is not None and r['score'] is not None and r['questions_answered'] > 0 else 0, "Date": r['timestamp'].strftime("%Y-%m-%d %H:%M")} for r in history]
             df = pd.DataFrame(df_data)
-
-            # The line chart from before
             line_fig = px.line(df, x='Date', y='Accuracy (%)', color='Topic', markers=True, title="Quiz Performance Trend")
             st.plotly_chart(line_fig, use_container_width=True)
-            
-            # Display the full history in a table
             st.dataframe(df, use_container_width=True)
         else:
             st.info("Your quiz history is empty. Take a quiz to get started!")
@@ -730,28 +770,20 @@ def display_quiz_page(topic_options):
             st.write("") 
             st.write("")
             if st.button("Start Quiz", type="primary", use_container_width=True, key="start_quiz_main"):
-                st.session_state.quiz_active = True
-                st.session_state.on_summary_page = False
-                st.session_state.quiz_score = 0
-                st.session_state.questions_answered = 0
-                st.session_state.current_streak = 0
-                st.session_state.incorrect_questions = []
+                st.session_state.quiz_active = True; st.session_state.on_summary_page = False
+                st.session_state.quiz_score = 0; st.session_state.questions_answered = 0
+                st.session_state.current_streak = 0; st.session_state.incorrect_questions = []
                 if 'current_q_data' in st.session_state: del st.session_state['current_q_data']
                 st.rerun()
     else:
         if st.session_state.get('on_summary_page', False):
-            display_quiz_summary()
-            return
+            display_quiz_summary(); return
         if st.session_state.questions_answered >= QUIZ_LENGTH:
-            st.session_state.on_summary_page = True
-            st.rerun()
+            st.session_state.on_summary_page = True; st.rerun()
         col1, col2, col3 = st.columns(3)
-        with col1:
-            st.metric("Score", f"{st.session_state.quiz_score}/{st.session_state.questions_answered}")
-        with col2:
-            st.metric("Question", f"{st.session_state.questions_answered + 1}/{QUIZ_LENGTH}")
-        with col3:
-            st.metric("🔥 Streak", st.session_state.current_streak)
+        with col1: st.metric("Score", f"{st.session_state.quiz_score}/{st.session_state.questions_answered}")
+        with col2: st.metric("Question", f"{st.session_state.questions_answered + 1}/{QUIZ_LENGTH}")
+        with col3: st.metric("🔥 Streak", st.session_state.current_streak)
         st.progress(st.session_state.questions_answered / QUIZ_LENGTH, text="Round Progress")
         st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
         if 'current_q_data' not in st.session_state:
@@ -759,34 +791,26 @@ def display_quiz_page(topic_options):
         q_data = st.session_state.current_q_data
         st.subheader(f"Topic: {st.session_state.quiz_topic}")
         st.markdown(q_data["question"], unsafe_allow_html=True)
-        with st.expander("🤔 Need a hint?"): 
-            st.info(q_data["hint"])
+        with st.expander("🤔 Need a hint?"): st.info(q_data["hint"])
         with st.form(key=f"quiz_form_{st.session_state.questions_answered}"):
             user_choice = st.radio("Select your answer:", q_data["options"], index=None, key="user_answer_choice")
             if st.form_submit_button("Submit Answer", type="primary"):
                 if user_choice is not None:
                     st.session_state.questions_answered += 1
                     if str(user_choice) == str(q_data["answer"]):
-                        st.session_state.quiz_score += 1
-                        st.session_state.current_streak += 1
-                        st.success("Correct! Well done! 🎉")
-                        confetti_animation()
+                        st.session_state.quiz_score += 1; st.session_state.current_streak += 1
+                        st.success("Correct! Well done! 🎉"); confetti_animation()
                     else:
-                        st.session_state.current_streak = 0
-                        st.session_state.incorrect_questions.append(q_data)
+                        st.session_state.current_streak = 0; st.session_state.incorrect_questions.append(q_data)
                         st.error(f"Not quite. The correct answer was: **{q_data['answer']}**")
-                    del st.session_state.current_q_data
-                    del st.session_state.user_answer_choice
-                    time.sleep(1.5)
-                    st.rerun()
+                    del st.session_state.current_q_data; del st.session_state.user_answer_choice
+                    time.sleep(1.5); st.rerun()
                 else:
                     st.warning("Please select an answer before submitting.")
         if st.button("Stop Round & Save Score"):
-            st.session_state.on_summary_page = True
-            st.rerun()
+            st.session_state.on_summary_page = True; st.rerun()
 
 def display_quiz_summary():
-    """Displays the quiz summary screen at the end of a round."""
     st.header("🎉 Round Complete! 🎉")
     final_score = st.session_state.quiz_score
     total_questions = st.session_state.questions_answered
@@ -796,8 +820,7 @@ def display_quiz_summary():
         st.session_state.result_saved = True
     st.metric(label="Your Final Score", value=f"{final_score}/{total_questions}", delta=f"{accuracy:.1f}% Accuracy")
     if accuracy >= 90:
-        st.success("🏆 Excellent work! You're a true MathFriend master!")
-        confetti_animation()
+        st.success("🏆 Excellent work! You're a true MathFriend master!"); confetti_animation()
     elif accuracy >= 70:
         st.info("👍 Great job! You've got a solid understanding of this topic.")
     else:
@@ -807,25 +830,20 @@ def display_quiz_summary():
             for q in st.session_state.incorrect_questions:
                 st.markdown(f"**Question:** {q['question']}")
                 st.error(f"**Correct Answer:** {q['answer']}")
-                st.info(f"**Hint:** {q['hint']}")
-                st.write("---")
+                st.info(f"**Hint:** {q['hint']}"); st.write("---")
     st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
     col1, col2 = st.columns(2)
     with col1:
         if st.button("Play Again (Same Topic)", use_container_width=True, type="primary"):
-            st.session_state.on_summary_page = False 
-            st.session_state.quiz_active = True
-            st.session_state.quiz_score = 0
-            st.session_state.questions_answered = 0
-            st.session_state.current_streak = 0
-            st.session_state.incorrect_questions = []
+            st.session_state.on_summary_page = False; st.session_state.quiz_active = True
+            st.session_state.quiz_score = 0; st.session_state.questions_answered = 0
+            st.session_state.current_streak = 0; st.session_state.incorrect_questions = []
             if 'current_q_data' in st.session_state: del st.session_state['current_q_data']
             if 'result_saved' in st.session_state: del st.session_state['result_saved']
             st.rerun()
     with col2:
         if st.button("Choose New Topic", use_container_width=True):
-            st.session_state.on_summary_page = False 
-            st.session_state.quiz_active = False
+            st.session_state.on_summary_page = False; st.session_state.quiz_active = False
             if 'result_saved' in st.session_state: del st.session_state['result_saved']
             st.rerun()
 
@@ -835,13 +853,7 @@ def display_leaderboard(topic_options):
     with col1:
         leaderboard_topic = st.selectbox("Select a topic:", topic_options, label_visibility="collapsed")
     with col2:
-        time_filter_option = st.radio(
-            "Filter by time:",
-            ["This Week", "This Month", "All Time"],
-            index=2,
-            horizontal=True,
-            label_visibility="collapsed"
-        )
+        time_filter_option = st.radio("Filter by time:",["This Week", "This Month", "All Time"],index=2,horizontal=True,label_visibility="collapsed")
     time_filter_map = {"This Week": "week", "This Month": "month", "All Time": "all"}
     time_filter = time_filter_map[time_filter_option]
     col1, col2 = st.columns(2)
@@ -866,7 +878,7 @@ def display_leaderboard(topic_options):
                 username_display = f"{u} (You)"
             leaderboard_data.append({
                 "Rank": rank_display, "Username": username_display, "Score": f"{s}/{t}",
-                "Accuracy": (s/t)*100
+                "Accuracy": (s/t)*100 if t > 0 else 0
             })
         df = pd.DataFrame(leaderboard_data)
         def highlight_user(row):
@@ -921,14 +933,23 @@ def show_main_app():
         profile = get_user_profile(st.session_state.username)
         display_name = profile.get('full_name') if profile and profile.get('full_name') else st.session_state.username
         st.title(f"{greeting}, {display_name}!")
-        page_options = ["📊 Dashboard", "📝 Quiz", "🏆 Leaderboard", "👤 Profile", "📚 Learning Resources", "💬 Chat (Paused)"]
+        page_options = [
+            "📊 Dashboard", "📝 Quiz", "🏆 Leaderboard", "👤 Profile", 
+            "📚 Learning Resources", "💬 Chat (Paused)"
+        ]
         selected_page = st.radio("Menu", page_options, label_visibility="collapsed")
         st.write("---")
         if st.button("Logout", type="primary", use_container_width=True):
             st.session_state.logged_in = False
             st.rerun()
+            
     st.markdown('<div class="main-content">', unsafe_allow_html=True)
-    topic_options = ["Sets", "Percentages", "Fractions", "Indices", "Surds", "Binary Operations", "Relations and Functions", "Sequence and Series", "Word Problems"]
+    # --- ADD NEW TOPICS TO THE LIST ---
+    topic_options = [
+        "Sets", "Percentages", "Fractions", "Indices", "Surds", 
+        "Binary Operations", "Relations and Functions", "Sequence and Series", 
+        "Word Problems", "Shapes (Geometry)", "Algebra Basics", "Linear Algebra"
+    ]
     if selected_page == "📊 Dashboard":
         display_dashboard(st.session_state.username)
     elif selected_page == "📝 Quiz":
@@ -1008,5 +1029,3 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
-
-
