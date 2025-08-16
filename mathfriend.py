@@ -768,30 +768,22 @@ def display_dashboard(username):
             st.info("Your quiz history is empty. Take a quiz to get started!")
 
 def display_blackboard_page():
-    st.header("칠판 Blackboard")
-    st.write("A space for students to discuss theory questions and concepts.")
-
-    # Define the main channel for the blackboard
-    channel = chat_client.channel("messaging", channel_id="mathfriend-blackboard", data={"name": "MathFriend Blackboard"})
-
-    # The .query() method fetches the current state of the channel, including messages.
-    state = channel.query(watch=False, state=True, messages={"limit": 50})
-    messages = state['messages']
-
-    # Display message history in reverse to show newest messages at the bottom
-    for msg in reversed(messages):
-        user_name = msg["user"].get("name", msg["user"].get("id", "Unknown"))
-        with st.chat_message(name=user_name):
-            st.markdown(msg["text"])
-
-    # Input for new messages at the bottom of the screen
-    if prompt := st.chat_input("Post your question or comment..."):
-        # Send a new message to the channel
-        channel.send_message({
-            "text": prompt,
-        }, user_id=st.session_state.username)
-        # Rerun to display the new message immediately
-        st.rerun()
+    st.header("Final API Connection Test")
+    st.info("This test attempts the simplest possible authenticated connection to the Stream server.")
+    
+    try:
+        # This is a basic API call to get your app's configuration.
+        # It should always work if your API Key and Secret are correct and active.
+        app_settings = chat_client.get_app_settings()
+        
+        st.success("SUCCESS! The connection to the Stream server is working.")
+        st.write("This means your API Key and Secret are correct and your Streamlit Secrets are set up properly.")
+        st.info("The problem may be a specific channel permission issue. Please contact Stream support.")
+        
+    except Exception as e:
+        st.error("CONNECTION FAILED. The Stream server is rejecting your API Key and Secret.")
+        st.write("This confirms the issue is with the credentials or the 'Production/Development' mode setting on your Stream dashboard.")
+        st.exception(e)
 def display_quiz_page(topic_options):
     st.header("🧠 Quiz Time!")
     QUIZ_LENGTH = 10
@@ -1073,6 +1065,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
