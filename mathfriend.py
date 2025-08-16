@@ -686,15 +686,46 @@ def get_time_based_greeting():
     else: return "Good evening"
 
 def load_css():
+    """Loads the main CSS for the application for a consistent and responsive look."""
     st.markdown("""
     <style>
+        /* --- BASE STYLES --- */
         .stApp { background-color: #f0f2f5; }
-        [data-testid="stAppViewContainer"] > .main { display: flex; justify-content: center; align-items: center; }
+        [data-testid="stAppViewContainer"] > .main { display: flex; flex-direction: column; align-items: center; }
+        
+        /* --- THE DEFINITIVE CHROME & SAFARI FIX --- */
         div[data-testid="stAppViewContainer"] * { color: #31333F !important; }
+        
+        /* --- FINAL, CROSS-BROWSER SIDEBAR FIX --- */
         div[data-testid="stSidebarUserContent"] * { color: #FAFAFA !important; }
         div[data-testid="stSidebarUserContent"] h1 { color: #FFFFFF !important; }
         div[data-testid="stSidebarUserContent"] [data-testid="stRadio"] label { color: #E0E0E0 !important; }
         div[data-testid="stSidebarUserContent"] hr { border-color: #444955 !important; }
+
+        /* --- NEW: iMessage Style Chat Bubbles --- */
+        /* General styling for all chat message containers */
+        [data-testid="stChatMessage"] {
+            padding: 1rem;
+            border-radius: 20px;
+            margin-bottom: 10px;
+        }
+
+        /* Bubble container for messages FROM OTHERS (grey) */
+        [data-testid="stChatMessage"]:has(div[data-testid="stChatMessageAssistantAvatar"]) {
+            background-color: #E5E5EA;
+        }
+
+        /* Bubble container for messages FROM YOU (blue) */
+        [data-testid="stChatMessage"]:has(div[data-testid="stChatMessageUserAvatar"]) {
+            background-color: #007AFF;
+        }
+        
+        /* Text color for messages FROM YOU (must be white) */
+        [data-testid="stChatMessage"]:has(div[data-testid="stChatMessageUserAvatar"]) * {
+            color: white !important;
+        }
+        
+        /* --- COLOR OVERRIDES --- */
         button[data-testid="stFormSubmitButton"] *, div[data-testid="stButton"] > button * { color: white !important; }
         a, a * { color: #0068c9 !important; }
         .main-content h1, .main-content h2, .main-content h3, .main-content h4, .main-content h5, .main-content h6 { color: #1a1a1a !important; }
@@ -703,6 +734,8 @@ def load_css():
         [data-testid="stInfo"] * { color: #0c5460 !important; }
         [data-testid="stWarning"] * { color: #856404 !important; }
         [data-testid="stError"] * { color: #721c24 !important; }
+        
+        /* --- GENERAL STYLING --- */
         .main-content h1, .main-content h2, .main-content h3 { border-left: 5px solid #0d6efd; padding-left: 15px; border-radius: 3px; }
         [data-testid="stMetric"] { background-color: #FFFFFF; border: 1px solid #CCCCCC; padding: 20px; border-radius: 10px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); border-left: 5px solid #CCCCCC; }
         [data-testid="stHorizontalBlock"] > div:nth-of-type(1) [data-testid="stMetric"] { border-left-color: #0d6efd; }
@@ -721,10 +754,13 @@ def load_css():
         .login-title { text-align: center; font-weight: 800; font-size: 2.2rem; color: #1a1a1a !important; }
         .login-subtitle { text-align: center; color: #6c757d !important; margin-bottom: 2rem; }
         .main-content { background-color: #ffffff; padding: 2rem; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
-        @media (max-width: 640px) { .main-content, .login-container { padding: 1rem; } .login-title { font-size: 1.8rem; } }
+        
+        @media (max-width: 640px) {
+            .main-content, .login-container { padding: 1rem; }
+            .login-title { font-size: 1.8rem; }
+        }
     </style>
     """, unsafe_allow_html=True)
-
 def display_dashboard(username):
     st.header(f"📈 Dashboard for {username}")
     tab1, tab2 = st.tabs(["📊 Performance Overview", "📜 Full History"])
@@ -771,30 +807,24 @@ def display_blackboard_page():
     st.header("칠판 Blackboard")
     st.write("A space for students to discuss theory questions and concepts.")
 
-    # Define the main channel for the blackboard
     channel = chat_client.channel("messaging", channel_id="mathfriend-blackboard", data={"name": "MathFriend Blackboard"})
-
-    # The .create() command ensures the channel exists and adds the current user as a member.
     channel.create(st.session_state.username)
     
-    # The .query() method fetches the current state of the channel, including messages.
     state = channel.query(watch=False, state=True, messages={"limit": 50})
     messages = state['messages']
 
-    # --- THIS LINE IS CORRECTED ---
-    # Removed the "reversed()" function to display messages in the correct order.
+    # Display message history
     for msg in messages:
-        user_name = msg["user"].get("name", msg["user"].get("id", "Unknown"))
-        with st.chat_message(name=user_name):
+        # Determine if the message is from the current logged-in user
+        is_current_user = (msg["user"].get("id") == st.session_state.username)
+        
+        # Use the special names "user" and "assistant" to control alignment and default icons
+        with st.chat_message(name="user" if is_current_user else "assistant"):
             st.markdown(msg["text"])
 
-    # Input for new messages at the bottom of the screen
+    # Input for new messages
     if prompt := st.chat_input("Post your question or comment..."):
-        # Send a new message to the channel
-        channel.send_message({
-            "text": prompt,
-        }, user_id=st.session_state.username)
-        # Rerun to display the new message immediately
+        channel.send_message({"text": prompt}, user_id=st.session_state.username)
         st.rerun()
 def display_quiz_page(topic_options):
     st.header("🧠 Quiz Time!")
@@ -1077,6 +1107,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
