@@ -1,5 +1,5 @@
 streamlit
 pandas
-streamlit-autorefresh
-bcrypt
-plotly
+plotly-express
+SQLAlchemy
+psycopg2-binary
