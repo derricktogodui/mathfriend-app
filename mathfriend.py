@@ -1,5 +1,4 @@
 import streamlit as st
-import sqlite3
 import time
 import random
 import pandas as pd
@@ -12,7 +11,7 @@ import os
 from datetime import datetime
 from streamlit.components.v1 import html
 from fractions import Fraction
-import numpy as np # Added for Linear Algebra
+import numpy as np
 import sqlalchemy
 from sqlalchemy import create_engine, text
 
@@ -221,28 +220,63 @@ def get_user_stats_for_topic(username, topic):
         attempts = conn.execute(query_attempts, {"username": username, "topic": topic}).scalar_one()
         return f"{best_score:.1f}%", attempts
 
+def get_top_scores(topic, time_filter="all"):
+    with engine.connect() as conn:
+        time_clause = ""
+        if time_filter == "week": time_clause = "AND timestamp >= NOW() - INTERVAL '7 days'"
+        elif time_filter == "month": time_clause = "AND timestamp >= NOW() - INTERVAL '30 days'"
+        query = text(f"""
+            SELECT username, score, questions_answered FROM quiz_results 
+            WHERE topic=:topic AND questions_answered > 0 {time_clause}
+            ORDER BY (CAST(score AS REAL) / questions_answered) DESC, questions_answered DESC, timestamp ASC LIMIT 10
+        """)
+        result = conn.execute(query, {"topic": topic})
+        return result.fetchall()
+
 # --- All Question Generation Functions ---
 
 def _generate_sets_question():
-    set_a = set(random.sample(range(1, 15), k=random.randint(3, 5)))
-    set_b = set(random.sample(range(1, 15), k=random.randint(3, 5)))
-    operation = random.choice(['union', 'intersection', 'difference'])
-    question_text = f"Given Set $A = {set_a}$ and Set $B = {set_b}$"
-    if operation == 'union':
-        question_text += ", what is $A \cup B$?"
-        correct_answer = str(set_a.union(set_b))
-    elif operation == 'intersection':
-        question_text += ", what is $A \cap B$?"
-        correct_answer = str(set_a.intersection(set_b))
-    else:
-        question_text += ", what is $A - B$?"
-        correct_answer = str(set_a.difference(set_b))
-    options = {correct_answer, str(set_a), str(set_b), str(set_a.symmetric_difference(set_b))}
-    while len(options) < 4:
-        options.add(str(set(random.sample(range(1, 20), k=random.randint(2,4)))))
+    q_type = random.choice(['simple_operation', 'three_set_venn'])
+    
+    if q_type == 'simple_operation':
+        set_a = set(random.sample(range(1, 15), k=random.randint(3, 5)))
+        set_b = set(random.sample(range(1, 15), k=random.randint(3, 5)))
+        operation = random.choice(['union', 'intersection', 'difference'])
+        question_text = f"Given Set $A = {set_a}$ and Set $B = {set_b}$"
+        if operation == 'union':
+            question_text += ", what is $A \cup B$?"
+            correct_answer = str(set_a.union(set_b))
+        elif operation == 'intersection':
+            question_text += ", what is $A \cap B$?"
+            correct_answer = str(set_a.intersection(set_b))
+        else:
+            question_text += ", what is $A - B$?"
+            correct_answer = str(set_a.difference(set_b))
+        options = {correct_answer, str(set_a), str(set_b), str(set_a.symmetric_difference(set_b))}
+        while len(options) < 4:
+            options.add(str(set(random.sample(range(1, 20), k=random.randint(2,4)))))
+        hint = "Review the basic set operations: union ($\cup$), intersection ($\cap$), and difference ($-$)."
+
+    elif q_type == 'three_set_venn':
+        u = set(range(1, 25))
+        set_a = set(random.sample(u, k=random.randint(5, 8)))
+        set_b = set(random.sample(u, k=random.randint(5, 8)))
+        set_c = set(random.sample(u, k=random.randint(5, 8)))
+        
+        question_text = f"Given $A = {set_a}$, $B = {set_b}$, and $C = {set_c}$, find the number of elements in $(A \cup B) \cap C$."
+        correct_answer = str(len((set_a.union(set_b)).intersection(set_c)))
+        
+        options = {
+            correct_answer,
+            str(len(set_a.union(set_b.intersection(set_c)))),
+            str(len(set_a.intersection(set_b.intersection(set_c)))),
+            str(len(set_a.union(set_b).union(set_c)))
+        }
+        hint = "First, find the union of sets A and B. Then, find the intersection of that result with set C. Finally, count the elements."
+    
     shuffled_options = list(options)
     random.shuffle(shuffled_options)
-    return {"question": question_text, "options": shuffled_options, "answer": correct_answer, "hint": "Review set operations."}
+    return {"question": question_text, "options": shuffled_options, "answer": correct_answer, "hint": hint}
 
 def _generate_percentages_question():
     q_type = random.choice(['percent_of', 'what_percent', 'original_price', 'percent_change'])
@@ -327,27 +361,28 @@ def _generate_fractions_question():
         question_text = f"Simplify the fraction ${expression_code}$ to its lowest terms."
         hint = "Divide the numerator and denominator by their greatest common divisor."
     elif q_type == 'mixed_numbers':
-        w1 = random.randint(1, 5)
-        w2 = random.randint(1, 5)
+        w1, f1 = 1 + f1.numerator // f1.denominator, f1 % 1
+        w2, f2 = 1 + f2.numerator // f2.denominator, f2 % 1
+        if f1 == 0: f1 = Fraction(1, random.randint(2,5))
+        if f2 == 0: f2 = Fraction(1, random.randint(2,5))
         mixed_f1 = w1 + f1
         mixed_f2 = w2 + f2
         correct_answer_obj = mixed_f1 + mixed_f2
         question_text = f"Calculate: ${w1}\\frac{{{f1.numerator}}}{{{f1.denominator}}} + {w2}\\frac{{{f2.numerator}}}{{{f2.denominator}}}$"
         hint = "First, convert the mixed numbers to improper fractions. Then, find a common denominator to add them."
-        
     correct_answer = _format_fraction_text(correct_answer_obj)
     options = {correct_answer}
     while len(options) < 4:
-        distractor_f = random.choice([f1 + 1, f2, f1*f2, f1/f2 if f2 !=0 else f1])
+        distractor_f = random.choice([f1 + 1, f2, f1*f2, f1/f2 if f2 !=0 else f1, correct_answer_obj + Fraction(1,2)])
         options.add(_format_fraction_text(distractor_f))
     shuffled_options = list(options)
     random.shuffle(shuffled_options)
     return {"question": question_text, "options": shuffled_options, "answer": correct_answer, "hint": hint}
 
 def _generate_surds_question():
-    q_type = random.choice(['simplify', 'operate'])
+    q_type = random.choice(['simplify', 'operate', 'rationalize'])
     if q_type == 'simplify':
-        p = random.choice([4, 9, 16, 25])
+        p = random.choice([4, 9, 16, 25, 36])
         n = random.choice([2, 3, 5, 6, 7])
         num_inside = p * n
         coeff_out = int(math.sqrt(p))
@@ -355,7 +390,7 @@ def _generate_surds_question():
         correct_answer = f"${coeff_out}\sqrt{{{n}}}$"
         hint = f"Look for the largest perfect square that divides {num_inside}."
         options = {correct_answer, f"${n}\sqrt{{{coeff_out}}}$", f"$\sqrt{{{num_inside}}}$"}
-    else:
+    elif q_type == 'operate':
         base_surd = random.choice([2, 3, 5])
         c1, c2 = random.randint(1, 5), random.randint(1, 5)
         op = random.choice(['+', '-'])
@@ -364,6 +399,18 @@ def _generate_surds_question():
         correct_answer = f"${result_coeff}\sqrt{{{base_surd}}}$"
         hint = "You can only add or subtract 'like' surds (surds with the same number under the root)."
         options = {correct_answer, f"${c1+c2}\sqrt{{{base_surd*2}}}$", f"${c1*c2}\sqrt{{{base_surd}}}$"}
+    elif q_type == 'rationalize':
+        a = random.randint(2, 9)
+        b = random.randint(2, 9)
+        c = random.choice([2,3,5,6,7])
+        while b*b == c: b = random.randint(2,9) # Ensure b-sqrt(c) isn't an integer
+        question_text = f"Rationalize the denominator of $\\frac{{{a}}}{{{b} - \sqrt{{{c}}}}}$"
+        # Correct answer is a*(b+sqrt(c)) / (b^2 - c)
+        numerator = f"{a*b} + {a}\sqrt{{{c}}}"
+        denominator = b**2 - c
+        correct_answer = f"$\\frac{{{numerator}}}{{{denominator}}}$"
+        hint = "Multiply the numerator and the denominator by the conjugate of the denominator, which is $(b + \sqrt{c})$."
+        options = {correct_answer, f"$\\frac{{{a}}}{{{b - c}}}$", f"$\\frac{{{a*b} - {a}\sqrt{{{c}}}}}{{{denominator}}}$"}
     while len(options) < 4:
         options.add(f"${random.randint(1,10)}\sqrt{{{random.randint(2,7)}}}$")
     shuffled_options = list(options)
@@ -371,17 +418,25 @@ def _generate_surds_question():
     return {"question": question_text, "options": shuffled_options, "answer": correct_answer, "hint": hint}
 
 def _generate_binary_ops_question():
+    q_type = random.choice(['simple', 'multi_step'])
     a, b = random.randint(1, 10), random.randint(1, 10)
     op_def, op_func = random.choice([
         ("a \\oplus b = 2a + b", lambda x, y: 2*x + y),
         ("a \\oplus b = a^2 - b", lambda x, y: x**2 - y),
         ("a \\oplus b = ab + a", lambda x, y: x*y + x),
-        ("a \\oplus b = (a+b)^2", lambda x, y: (x+y)**2)
     ])
-    question_text = f"Given the binary operation ${op_def}$, what is the value of ${a} \\oplus {b}$?"
-    correct_answer = str(op_func(a, b))
-    hint = "Substitute the values of 'a' and 'b' into the given definition for the operation."
-    options = {correct_answer, str(op_func(b, a)), str(a+b), str(a*b)}
+    if q_type == 'simple':
+        question_text = f"Given the binary operation ${op_def}$, what is the value of ${a} \\oplus {b}$?"
+        correct_answer = str(op_func(a, b))
+        hint = "Substitute the values of 'a' and 'b' into the given definition for the operation."
+        options = {correct_answer, str(op_func(b, a)), str(a+b)}
+    elif q_type == 'multi_step':
+        c = random.randint(1, 5)
+        question_text = f"Given the binary operation ${op_def}$, what is the value of $({a} \\oplus {b}) \\oplus {c}$?"
+        step1 = op_func(a,b)
+        correct_answer = str(op_func(step1, c))
+        hint = f"First, calculate the value inside the parentheses, $({a} \\oplus {b})$. Then, use that result as the first number in the second operation."
+        options = {correct_answer, str(op_func(a, op_func(b,c))), str(step1 + c)}
     while len(options) < 4:
         options.add(str(random.randint(1, 100)))
     shuffled_options = list(options)
@@ -398,7 +453,7 @@ def _generate_word_problems_question():
         question_text = f"When a number is {op_word} and {k} is {adjust_word} the result, the answer is {result}. What is the number?"
         correct_answer = str(x)
         hint = "Let the unknown number be 'x'. Translate the sentence into a mathematical equation and solve for x."
-        options = {correct_answer, str(result-k), str(x+k), str(result)}
+        options = {correct_answer, str(result-k), str(x+k)}
     elif q_type == 'age_problem':
         person_b_age = random.randint(7, 15); multiplier = random.randint(2, 4)
         person_a_age = person_b_age * multiplier
@@ -410,7 +465,7 @@ def _generate_word_problems_question():
         question_text = f"{person_a_name} is currently {multiplier} times as old as {person_b_name}. In {future_years} years, the sum of their ages will be {combined_future_age}. How old is {person_b_name} now?"
         correct_answer = str(person_b_age)
         hint = f"Let {person_b_name}'s current age be 'x'. Then {person_a_name}'s age is '{multiplier}x'. In {future_years} years, their ages will be (x + {future_years}) and ({multiplier}x + {future_years}). Set the sum of these equal to {combined_future_age} and solve for x."
-        options = {correct_answer, str(person_a_age), str(person_b_future), str(person_a_future)}
+        options = {correct_answer, str(person_a_age), str(person_b_future)}
     while len(options) < 4:
         options.add(str(random.randint(1, 50)))
     shuffled_options = list(options)
@@ -466,13 +521,14 @@ def _generate_indices_question():
     return {"question": question_text, "options": shuffled_options, "answer": correct_answer, "hint": hint}
 
 def _generate_relations_functions_question():
-    q_type = random.choice(['domain', 'range', 'is_function', 'evaluate'])
-    if q_type == 'domain' or q_type == 'range':
+    q_type = random.choice(['domain_range', 'is_function', 'evaluate', 'composite'])
+    if q_type == 'domain_range':
+        sub_type = random.choice(['domain', 'range'])
         domain_set = set(random.sample(range(1, 10), k=4))
         range_set = set(random.sample(['a', 'b', 'c', 'd', 'e'], k=4))
         relation = str(set(zip(domain_set, range_set))).replace("'", "")
-        question_text = f"Given the relation $R = {relation}$, what is its {'domain' if q_type == 'domain' else 'range'}?"
-        correct_answer = str(domain_set if q_type == 'domain' else range_set).replace("'", "")
+        question_text = f"Given the relation $R = {relation}$, what is its {sub_type}?"
+        correct_answer = str(domain_set if sub_type == 'domain' else range_set).replace("'", "")
         hint = "The domain is the set of all first elements (x-values). The range is the set of all second elements (y-values)."
         options = {correct_answer, str(domain_set.union(range_set)).replace("'", "")}
     elif q_type == 'is_function':
@@ -482,12 +538,22 @@ def _generate_relations_functions_question():
         correct_answer = str(func_relation)
         hint = "A relation is a function if every input (x-value) maps to exactly one output (y-value). No x-value can be repeated with a different y-value."
         options = {correct_answer, not_func_relation}
-    else: # evaluate
+    elif q_type == 'evaluate':
         a, b, x = random.randint(2, 5), random.randint(1, 10), random.randint(1, 5)
         question_text = f"If $f(x) = {a}x + {b}$, what is the value of $f({x})$?"
         correct_answer = str(a * x + b)
         hint = "Substitute the value of x into the function definition and calculate the result."
         options = {correct_answer, str(a + x + b), str(a * (x + b))}
+    elif q_type == 'composite':
+        a, b = random.randint(2, 5), random.randint(0, 5)
+        c, d = random.randint(2, 5), random.randint(0, 5)
+        x_val = random.randint(1,5)
+        question_text = f"Given $f(x) = {a}x + {b}$ and $g(x) = {c}x - {d}$, find the value of $f(g({x_val}))$."
+        g_of_x = c*x_val - d
+        correct_answer = str(a*g_of_x + b)
+        hint = f"First, calculate the inner function, $g({x_val})$. Then, use that result as the input for the outer function, $f(x)$."
+        options = {correct_answer, str(c*(a*x_val + b) - d), str(g_of_x)}
+
     while len(options) < 4:
         options.add(str(set(random.sample(range(1,10), k=3))).replace("'", ""))
     shuffled_options = list(options)
@@ -495,7 +561,7 @@ def _generate_relations_functions_question():
     return {"question": question_text, "options": shuffled_options, "answer": correct_answer, "hint": hint}
 
 def _generate_sequence_series_question():
-    q_type = random.choice(['ap_term', 'gp_term', 'ap_sum'])
+    q_type = random.choice(['ap_term', 'gp_term', 'ap_sum', 'gp_sum_infinity'])
     a = random.randint(1, 5)
     if q_type == 'ap_term':
         d = random.randint(2, 5); n = random.randint(5, 10)
@@ -511,12 +577,23 @@ def _generate_sequence_series_question():
         correct_answer = str(a * r**(n-1))
         hint = f"The formula for the n-th term of a geometric progression is $a_n = a_1 \\times r^{{n-1}}$."
         options = {correct_answer, str((a*r)**(n-1)), str(a * r*n)}
-    else: # ap_sum
+    elif q_type == 'ap_sum':
         d = random.randint(2, 5); n = random.randint(5, 10)
         question_text = f"What is the sum of the first {n} terms of an arithmetic sequence with first term {a} and common difference {d}?"
         correct_answer = str(int((n/2) * (2*a + (n-1)*d)))
         hint = f"The formula for the sum of the first n terms of an AP is $S_n = \\frac{{n}}{{2}}(2a_1 + (n-1)d)$."
         options = {correct_answer, str(n*(a + (n-1)*d)), str(int((n/2) * (a + (n-1)*d)))}
+    elif q_type == 'gp_sum_infinity':
+        r_num = random.randint(1, 4)
+        r_den = random.randint(r_num + 1, 9)
+        r = Fraction(r_num, r_den)
+        question_text = f"Find the sum to infinity of a geometric progression with first term ${a}$ and common ratio $\\frac{{{r.numerator}}}{{{r.denominator}}}$."
+        # S_inf = a / (1-r)
+        correct_answer_obj = a / (1 - r)
+        correct_answer = _format_fraction_text(correct_answer_obj)
+        hint = "The sum to infinity of a GP is $S_\\infty = \\frac{{a}}{{1-r}}$, provided $|r| < 1$."
+        options = {correct_answer, _format_fraction_text(a / (1+r)), _format_fraction_text(a*r)}
+
     while len(options) < 4:
         options.add(str(random.randint(50, 200)))
     shuffled_options = list(options)
@@ -524,7 +601,7 @@ def _generate_sequence_series_question():
     return {"question": question_text, "options": shuffled_options, "answer": correct_answer, "hint": hint}
 
 def _generate_shapes_question():
-    q_type = random.choice(['area_rectangle', 'perimeter_triangle', 'volume_cylinder', 'area_circle_reverse'])
+    q_type = random.choice(['area_rectangle', 'perimeter_triangle', 'volume_cylinder', 'area_circle_reverse', 'complex_surface_area'])
     if q_type == 'area_rectangle':
         l, w = random.randint(5, 20), random.randint(5, 20)
         question_text = f"What is the area of a rectangle with length ${l}$ cm and width ${w}$ cm?"
@@ -542,7 +619,7 @@ def _generate_shapes_question():
         volume = round(math.pi * (r**2) * h)
         question_text = f"What is the volume of a cylinder with a radius of ${r}$ cm and a height of ${h}$ cm? (Use $\pi \approx 3.14$ and round to the nearest whole number)."
         correct_answer = str(volume)
-        hint = "The volume of a cylinder is $\pi \\times r^2 \\times h$."
+        hint = "The volume of a cylinder is $V = \pi r^2 h$."
         options = {correct_answer, str(round(2 * math.pi * r * h)), str(round(math.pi * r**2))}
     elif q_type == 'area_circle_reverse':
         r = random.randint(5,12)
@@ -551,6 +628,13 @@ def _generate_shapes_question():
         correct_answer = str(r)
         hint = "The area of a circle is $A = \pi r^2$. Rearrange the formula to solve for the radius, $r$."
         options = {correct_answer, str(area/2), str(r*2)}
+    elif q_type == 'complex_surface_area':
+        l, w, h = random.randint(5,12), random.randint(5,12), random.randint(5,12)
+        surface_area = 2*(l*w + l*h + w*h)
+        question_text = f"A closed rectangular box has a length of ${l}$ cm, a width of ${w}$ cm, and a height of ${h}$ cm. What is its total surface area?"
+        correct_answer = str(surface_area)
+        hint = "The total surface area of a rectangular prism is $2(lw + lh + wh)$."
+        options = {correct_answer, str(l*w*h), str(l+w+h)}
     while len(options) < 4:
         options.add(str(random.randint(50, 500)))
     shuffled_options = list(options)
@@ -567,18 +651,17 @@ def _generate_algebra_basics_question():
         hint = "Substitute the given values for x and y into the expression and evaluate."
         options = {correct_answer, str(a+x+b+y), str((a+b)*(x+y))}
     elif q_type == 'change_subject':
-        # v = u + at
         var_to_make_subject = random.choice(['u', 'a', 't'])
         question_text = f"Make '{var_to_make_subject}' the subject of the formula $v = u + at$."
         if var_to_make_subject == 'u':
             correct_answer = "$u = v - at$"
-            options = {correct_answer, "$u = v + at$", "$u = \\frac{{v}}{{at}}$"}
+            options = {correct_answer, "$u = v + at$", "$u = \\frac{v}{at}$"}
         elif var_to_make_subject == 'a':
-            correct_answer = "$a = \\frac{{v-u}}{{t}}$"
-            options = {correct_answer, "$a = v - u - t$", "$a = \\frac{{v+u}}{{t}}$"}
+            correct_answer = "$a = \\frac{v-u}{t}$"
+            options = {correct_answer, "$a = v - u - t$", "$a = \\frac{v+u}{t}$"}
         else: # t
-            correct_answer = "$t = \\frac{{v-u}}{{a}}$"
-            options = {correct_answer, "$t = v - u - a$", "$t = \\frac{{v-u}}{{-a}}$"}
+            correct_answer = "$t = \\frac{v-u}{a}$"
+            options = {correct_answer, "$t = v - u - a$", "$t = \\frac{v-u}{-a}$"}
         hint = "Use inverse operations to isolate the desired variable on one side of the equation."
     elif q_type == 'combined':
         p, l, w = random.randint(30, 60), random.randint(10, 20), random.randint(5, 10)
@@ -600,13 +683,12 @@ def _generate_linear_algebra_question():
     mat_b = np.random.randint(-5, 10, size=(2, 2))
     def mat_to_latex(m):
         return f"\\begin{{pmatrix}} {m[0,0]} & {m[0,1]} \\\\ {m[1,0]} & {m[1,1]} \\end{{pmatrix}}"
-
     if q_type == 'add':
         question_text = f"Calculate the sum of the matrices $A = {mat_to_latex(mat_a)}$ and $B = {mat_to_latex(mat_b)}$."
         correct_mat = mat_a + mat_b
-        correct_answer = mat_to_latex(correct_mat)
+        correct_answer = f"${mat_to_latex(correct_mat)}$"
         hint = "To add two matrices, add their corresponding elements."
-        options = {correct_answer, mat_to_latex(mat_a - mat_b), mat_to_latex(mat_a * 2)}
+        options = {correct_answer, f"${mat_to_latex(mat_a - mat_b)}$", f"${mat_to_latex(mat_a * 2)}$"}
     elif q_type == 'determinant':
         question_text = f"Find the determinant of the matrix $A = {mat_to_latex(mat_a)}$."
         correct_answer = str(int(np.linalg.det(mat_a)))
@@ -615,12 +697,11 @@ def _generate_linear_algebra_question():
     elif q_type == 'multiply':
         question_text = f"Calculate the product of the matrices $A = {mat_to_latex(mat_a)}$ and $B = {mat_to_latex(mat_b)}$."
         correct_mat = np.dot(mat_a, mat_b)
-        correct_answer = mat_to_latex(correct_mat)
+        correct_answer = f"${mat_to_latex(correct_mat)}$"
         hint = "Matrix multiplication involves taking the dot product of rows from the first matrix and columns from the second matrix."
-        options = {correct_answer, mat_to_latex(mat_a + mat_b), mat_to_latex(mat_b.dot(mat_a))}
-
+        options = {correct_answer, f"${mat_to_latex(mat_a + mat_b)}$", f"${mat_to_latex(np.transpose(correct_mat))}$"}
     while len(options) < 4:
-        options.add(mat_to_latex(np.random.randint(-5, 10, size=(2,2))))
+        options.add(f"${mat_to_latex(np.random.randint(-5, 10, size=(2,2)))}$")
     shuffled_options = list(options)
     random.shuffle(shuffled_options)
     return {"question": question_text, "options": [str(o) for o in shuffled_options], "answer": str(correct_answer), "hint": hint}
@@ -659,18 +740,13 @@ def load_css():
     """Loads the main CSS for the application for a consistent and responsive look."""
     st.markdown("""
     <style>
-        /* --- BASE STYLES --- */
         .stApp { background-color: #f0f2f5; }
         [data-testid="stAppViewContainer"] > .main { display: flex; justify-content: center; align-items: center; }
-        /* --- THE DEFINITIVE CHROME & SAFARI FIX --- */
         div[data-testid="stAppViewContainer"] * { color: #31333F !important; }
-        /* --- FINAL, CROSS-BROWSER SIDEBAR FIX --- */
         div[data-testid="stSidebarUserContent"] * { color: #FAFAFA !important; }
         div[data-testid="stSidebarUserContent"] h1 { color: #FFFFFF !important; }
         div[data-testid="stSidebarUserContent"] [data-testid="stRadio"] label { color: #E0E0E0 !important; }
         div[data-testid="stSidebarUserContent"] hr { border-color: #444955 !important; }
-
-        /* --- COLOR OVERRIDES --- */
         button[data-testid="stFormSubmitButton"] *, div[data-testid="stButton"] > button * { color: white !important; }
         a, a * { color: #0068c9 !important; }
         .main-content h1, .main-content h2, .main-content h3, .main-content h4, .main-content h5, .main-content h6 { color: #1a1a1a !important; }
@@ -679,8 +755,6 @@ def load_css():
         [data-testid="stInfo"] * { color: #0c5460 !important; }
         [data-testid="stWarning"] * { color: #856404 !important; }
         [data-testid="stError"] * { color: #721c24 !important; }
-        
-        /* --- GENERAL STYLING --- */
         .main-content h1, .main-content h2, .main-content h3 { border-left: 5px solid #0d6efd; padding-left: 15px; border-radius: 3px; }
         [data-testid="stMetric"] { background-color: #FFFFFF; border: 1px solid #CCCCCC; padding: 20px; border-radius: 10px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); border-left: 5px solid #CCCCCC; }
         [data-testid="stHorizontalBlock"] > div:nth-of-type(1) [data-testid="stMetric"] { border-left-color: #0d6efd; }
@@ -699,11 +773,7 @@ def load_css():
         .login-title { text-align: center; font-weight: 800; font-size: 2.2rem; color: #1a1a1a !important; }
         .login-subtitle { text-align: center; color: #6c757d !important; margin-bottom: 2rem; }
         .main-content { background-color: #ffffff; padding: 2rem; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
-        
-        @media (max-width: 640px) {
-            .main-content, .login-container { padding: 1rem; }
-            .login-title { font-size: 1.8rem; }
-        }
+        @media (max-width: 640px) { .main-content, .login-container { padding: 1rem; } .login-title { font-size: 1.8rem; } }
     </style>
     """, unsafe_allow_html=True)
 
@@ -944,7 +1014,6 @@ def show_main_app():
             st.rerun()
             
     st.markdown('<div class="main-content">', unsafe_allow_html=True)
-    # --- ADD NEW TOPICS TO THE LIST ---
     topic_options = [
         "Sets", "Percentages", "Fractions", "Indices", "Surds", 
         "Binary Operations", "Relations and Functions", "Sequence and Series", 
