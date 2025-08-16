@@ -413,7 +413,7 @@ def _generate_surds_question(): # Already Upgraded
         options.add(f"${random.randint(1,10)}\sqrt{{{random.randint(2,7)}}}$")
     return {"question": question_text, "options": list(options), "answer": correct_answer, "hint": hint}
 
-def _generate_binary_ops_question(): # Already Upgraded
+def _generate_binary_ops_question():
     q_type = random.choice(['simple', 'multi_step', 'find_inverse'])
     a, b = random.randint(2, 9), random.randint(2, 9)
     op_def, op_func = random.choice([
@@ -421,20 +421,26 @@ def _generate_binary_ops_question(): # Already Upgraded
         (r"x \oplus y = xy - x", lambda x, y: x*y - x),
         (r"m \nabla n = m^2 - n", lambda x, y: x**2 - y),
     ])
+    
+    # Extract the math symbol from the definition string
+    op_symbol = op_def.split(' ')[1]
+
     if q_type == 'simple':
-        question_text = f"A binary operation is defined by ${op_def}$. Evaluate ${a}$ and ${b}$."
-        correct_answer = str(op_func(a, b)); hint = "Substitute the values into the given definition."
+        question_text = f"A binary operation is defined by ${op_def}$. Evaluate ${a} {op_symbol} {b}$."
+        correct_answer = str(op_func(a, b))
+        hint = "Substitute the values into the given definition."
         options = {correct_answer, str(op_func(b, a)), str(a+b)}
     elif q_type == 'multi_step':
         c = random.randint(2, 5)
-        question_text = f"Given the binary operation ${op_def}$, what is the value of $({a} \text{{ operation }} {b}) \text{{ operation }} {c}$?"
-        step1 = op_func(a,b); correct_answer = str(op_func(step1, c))
-        hint = f"First, calculate the value inside the parentheses. Then, use that result as the first number in the second operation."
+        # Use the extracted symbol in the question
+        question_text = f"Given the binary operation ${op_def}$, what is the value of $({a} {op_symbol} {b}) {op_symbol} {c}$?"
+        step1 = op_func(a,b)
+        correct_answer = str(op_func(step1, c))
+        hint = f"First, calculate the value inside the parentheses, $({a} {op_symbol} {b})$. Then, use that result as the first number in the second operation."
         options = {correct_answer, str(op_func(a, op_func(b,c))), str(step1 + c)}
     elif q_type == 'find_inverse':
         op_def, op_func, identity, element = (r"a \ast b = a+b-2", lambda x,y: x+y-2, 2, random.randint(3,8))
         question_text = f"The identity element for the binary operation ${op_def}$ is ${identity}$. Find the inverse of the element ${element}$."
-        # a * a_inv = e => element + inv - 2 = 2 => inv = 4 - element
         correct_answer = str(4 - element)
         hint = "Let the inverse of 'a' be 'a⁻¹'. Solve the equation 'a * a⁻¹ = e' for a⁻¹."
         options = {correct_answer, str(-element), str(identity-element)}
@@ -586,34 +592,46 @@ def _generate_sequence_series_question(): # Already Upgraded
     while len(options) < 4: options.add(str(random.randint(50, 500)))
     return {"question": question_text, "options": list(options), "answer": correct_answer, "hint": hint}
 
-def _generate_shapes_question(): # Already Upgraded
+def _generate_shapes_question():
     q_type = random.choice(['area_rectangle', 'perimeter_triangle', 'volume_cylinder', 'area_circle_reverse', 'complex_surface_area'])
     if q_type == 'area_rectangle':
         l, w = random.randint(5, 20), random.randint(5, 20)
-        question_text = f"What is the area of a rectangle with length ${l}$ cm and width ${w}$ cm?"; correct_answer = str(l * w)
-        hint = "The area of a rectangle is length times width ($A = l \\times w$)."; options = {correct_answer, str(2*l + 2*w), str(l+w)}
+        question_text = f"What is the area of a rectangle with length ${l}$ cm and width ${w}$ cm?"
+        correct_answer = str(l * w)
+        hint = "The area of a rectangle is length times width ($A = l \\times w$)."
+        options = {correct_answer, str(2*l + 2*w), str(l+w)}
     elif q_type == 'perimeter_triangle':
         s1, s2, s3 = random.randint(5, 20), random.randint(5, 20), random.randint(5, 20)
-        question_text = f"A triangle has sides of length ${s1}$ cm, ${s2}$ cm, and ${s3}$ cm. What is its perimeter?"; correct_answer = str(s1 + s2 + s3)
-        hint = "The perimeter of a shape is the sum of the lengths of all its sides."; options = {correct_answer, str(s1*s2), str(max(s1,s2,s3))}
+        question_text = f"A triangle has sides of length ${s1}$ cm, ${s2}$ cm, and ${s3}$ cm. What is its perimeter?"
+        correct_answer = str(s1 + s2 + s3)
+        hint = "The perimeter of a shape is the sum of the lengths of all its sides."
+        options = {correct_answer, str(s1*s2), str(max(s1,s2,s3))}
     elif q_type == 'volume_cylinder':
         r, h = random.randint(3, 10), random.randint(5, 15)
         volume = round(math.pi * (r**2) * h)
-        question_text = f"What is the volume of a cylinder with a radius of ${r}$ cm and a height of ${h}$ cm? (Use $\pi \approx 3.14$ and round to the nearest whole number)."; correct_answer = str(volume)
-        hint = "The volume of a cylinder is $V = \pi r^2 h$."; options = {correct_answer, str(round(2 * math.pi * r * h)), str(round(math.pi * r**2))}
+        question_text = f"What is the volume of a cylinder with a radius of ${r}$ cm and a height of ${h}$ cm? (Use $\pi \approx 3.14$ and round to the nearest whole number)."
+        correct_answer = str(volume)
+        hint = "The volume of a cylinder is $V = \pi r^2 h$."
+        options = {correct_answer, str(round(2 * math.pi * r * h)), str(round(math.pi * r**2))}
     elif q_type == 'area_circle_reverse':
-        r = random.randint(5,12); area = round((22/7) * r**2)
-        question_text = f"The area of a circle is approximately ${area}$ cm$^2$. What is its radius? (Use $\pi \approx \\frac{{22}}{{7}}$)"; correct_answer = str(r)
+        r = random.randint(5,12)
+        area = round((22/7) * r**2)
+        # --- THIS LINE IS CORRECTED ---
+        # Made into a raw string (r"...") to fix the \a and \f characters and fixed the cm^2 rendering
+        question_text = r"The area of a circle is approximately $" + str(area) + r"$ cm^2$. What is its radius? (Use $\pi \approx \frac{22}{7}$)"
+        correct_answer = str(r)
         hint = r"The area of a circle is $A = \pi r^2$. Rearrange the formula to solve for the radius, $r$."
         options = {correct_answer, str(round(area/2)), str(r*2)}
     elif q_type == 'complex_surface_area':
         l, w, h = random.randint(5,12), random.randint(5,12), random.randint(5,12)
         surface_area = 2*(l*w + l*h + w*h)
-        question_text = f"A closed rectangular box has a length of ${l}$ cm, a width of ${w}$ cm, and a height of ${h}$ cm. What is its total surface area?"; correct_answer = str(surface_area)
-        hint = "The total surface area of a rectangular prism is $2(lw + lh + wh)$."; options = {correct_answer, str(l*w*h), str(l+w+h)}
-    while len(options) < 4: options.add(str(random.randint(50, 500)))
+        question_text = f"A closed rectangular box has a length of ${l}$ cm, a width of ${w}$ cm, and a height of ${h}$ cm. What is its total surface area?"
+        correct_answer = str(surface_area)
+        hint = "The total surface area of a rectangular prism is $2(lw + lh + wh)$."
+        options = {correct_answer, str(l*w*h), str(l+w+h)}
+    while len(options) < 4:
+        options.add(str(random.randint(50, 500)))
     return {"question": question_text, "options": [str(o) for o in list(options)], "answer": correct_answer, "hint": hint}
-
 def _generate_algebra_basics_question(): # Already Upgraded
     q_type = random.choice(['substitution', 'change_subject', 'combined'])
     if q_type == 'substitution':
@@ -1049,3 +1067,4 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
