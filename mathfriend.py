@@ -47,7 +47,7 @@ initialize_session_state()
 
 # --- Database Connection ---
 # Uses st.singleton to create a single connection pool that is reused across sessions.
-@st.singleton
+@st.cache_resource
 def get_db_engine():
     """Creates a SQLAlchemy engine with a connection pool."""
     db_url = st.secrets["DATABASE_URL"]
@@ -993,3 +993,4 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
