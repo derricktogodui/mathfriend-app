@@ -769,33 +769,28 @@ def display_dashboard(username):
 
 def display_blackboard_page():
     st.header("칠판 Blackboard")
-    st.write("A space for students to discuss theory questions and concepts.")
+    st.warning("Running in Offline Test Mode. Chat connection is temporarily disabled.", icon="⚠️")
+    st.write("This is a test to confirm the page itself is working. The error is with the connection to the chat service.")
 
-    # Define the main channel for the blackboard
-    channel = chat_client.channel("messaging", channel_id="mathfriend-blackboard", data={"name": "MathFriend Blackboard"})
+    # --- All Stream API calls are commented out for this test ---
+    # channel = chat_client.channel("messaging", channel_id="mathfriend-blackboard", data={"name": "MathFriend Blackboard"})
+    # state = channel.query(watch=False, state=True, messages={"limit": 50})
+    # messages = state['messages']
 
-    # --- THIS SECTION IS CORRECTED ---
-    # We use channel.query() to fetch existing messages instead of channel.watch()
-    # This fetches the state of the channel including the last 50 messages.
-    state = channel.query(watch=False, state=True, messages={"limit": 50})
-    messages = state['messages']
+    # Create some fake messages to display for the test
+    dummy_messages = [
+        {"user": {"name": "Teacher"}, "text": "This is a test message. If you can see this, the page is working."},
+        {"user": {"name": "Student A"}, "text": "I can see it!"}
+    ]
 
-    # Display message history using st.chat_message
-    # We iterate in reverse to show the newest messages at the bottom.
-    for msg in reversed(messages):
-        user_name = msg["user"].get("name", msg["user"].get("id", "Unknown"))
+    # Display the dummy messages
+    for msg in dummy_messages:
+        user_name = msg["user"].get("name", "Unknown")
         with st.chat_message(name=user_name):
             st.markdown(msg["text"])
 
-    # Input for new messages at the bottom of the screen
-    if prompt := st.chat_input("Post your question or comment..."):
-        # Send a new message to the channel
-        channel.send_message({
-            "text": prompt,
-        }, user_id=st.session_state.username)
-        # Rerun to display the new message immediately
-        st.rerun()
-
+    # Disable the input box for the test
+    st.chat_input("Chat is in offline test mode.", disabled=True)
 def display_quiz_page(topic_options):
     st.header("🧠 Quiz Time!")
     QUIZ_LENGTH = 10
@@ -1077,6 +1072,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
