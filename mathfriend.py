@@ -187,25 +187,50 @@ def get_topic_performance(username):
     return performance.sort_values(by="Accuracy", ascending=False)
 
 def get_user_rank(username, topic, time_filter="all"):
+    """Gets the rank of a specific user for a specific topic based on their best score."""
     with engine.connect() as conn:
         time_clause = ""
         if time_filter == "week": time_clause = "AND timestamp >= NOW() - INTERVAL '7 days'"
         elif time_filter == "month": time_clause = "AND timestamp >= NOW() - INTERVAL '30 days'"
+        
         query = text(f"""
-            WITH RankedScores AS (
-                SELECT username, RANK() OVER (ORDER BY (CAST(score AS REAL) / questions_answered) DESC, questions_answered DESC, timestamp ASC) as rank
-                FROM quiz_results WHERE topic = :topic AND questions_answered > 0 {time_clause}
-            ) SELECT rank FROM RankedScores WHERE username = :username;
+            WITH UserBestScores AS (
+                SELECT
+                    username,
+                    score,
+                    questions_answered,
+                    timestamp,
+                    ROW_NUMBER() OVER(
+                        PARTITION BY username 
+                        ORDER BY (CAST(score AS REAL) / questions_answered) DESC, questions_answered DESC, timestamp ASC
+                    ) as rn
+                FROM quiz_results
+                WHERE topic = :topic AND questions_answered > 0 {time_clause}
+            ),
+            RankedScores AS (
+                SELECT
+                    username,
+                    RANK() OVER (ORDER BY (CAST(score AS REAL) / questions_answered) DESC, questions_answered DESC, timestamp ASC) as rank
+                FROM UserBestScores
+                WHERE rn = 1
+            )
+            SELECT rank FROM RankedScores WHERE username = :username;
         """)
         result = conn.execute(query, {"topic": topic, "username": username}).scalar_one_or_none()
         return result if result else "N/A"
 
 def get_total_players(topic, time_filter="all"):
+    """Gets the total number of unique players who have a best score for a topic."""
     with engine.connect() as conn:
         time_clause = ""
         if time_filter == "week": time_clause = "AND timestamp >= NOW() - INTERVAL '7 days'"
         elif time_filter == "month": time_clause = "AND timestamp >= NOW() - INTERVAL '30 days'"
-        query = text(f"SELECT COUNT(DISTINCT username) FROM quiz_results WHERE topic = :topic AND questions_answered > 0 {time_clause}")
+        
+        query = text(f"""
+            SELECT COUNT(DISTINCT username) 
+            FROM quiz_results 
+            WHERE topic = :topic AND questions_answered > 0 {time_clause}
+        """)
         result = conn.execute(query, {"topic": topic}).scalar_one()
         return result if result else 0
 
@@ -221,14 +246,31 @@ def get_user_stats_for_topic(username, topic):
         return f"{best_score:.1f}%", attempts
 
 def get_top_scores(topic, time_filter="all"):
+    """Gets the top 10 scores for a topic, considering only each user's best attempt."""
     with engine.connect() as conn:
         time_clause = ""
         if time_filter == "week": time_clause = "AND timestamp >= NOW() - INTERVAL '7 days'"
         elif time_filter == "month": time_clause = "AND timestamp >= NOW() - INTERVAL '30 days'"
+        
         query = text(f"""
-            SELECT username, score, questions_answered FROM quiz_results 
-            WHERE topic=:topic AND questions_answered > 0 {time_clause}
-            ORDER BY (CAST(score AS REAL) / questions_answered) DESC, questions_answered DESC, timestamp ASC LIMIT 10
+            WITH UserBestScores AS (
+                SELECT
+                    username,
+                    score,
+                    questions_answered,
+                    timestamp,
+                    ROW_NUMBER() OVER(
+                        PARTITION BY username 
+                        ORDER BY (CAST(score AS REAL) / questions_answered) DESC, questions_answered DESC, timestamp ASC
+                    ) as rn
+                FROM quiz_results
+                WHERE topic = :topic AND questions_answered > 0 {time_clause}
+            )
+            SELECT username, score, questions_answered 
+            FROM UserBestScores
+            WHERE rn = 1
+            ORDER BY (CAST(score AS REAL) / questions_answered) DESC, questions_answered DESC, timestamp ASC 
+            LIMIT 10;
         """)
         result = conn.execute(query, {"topic": topic})
         return result.fetchall()
@@ -1098,3 +1140,4 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
