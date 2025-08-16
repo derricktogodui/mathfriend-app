@@ -771,31 +771,37 @@ def display_blackboard_page():
     st.header("칠판 Blackboard")
     st.write("A space for students to discuss theory questions and concepts.")
 
-    # Get the channel object for the blackboard
+    # Define and connect to the main channel
     channel = chat_client.channel("messaging", channel_id="mathfriend-blackboard", data={"name": "MathFriend Blackboard"})
-
-    # --- THIS IS THE CRITICAL FIX ---
-    # The .create() command ensures the channel exists and adds the current user as a member.
-    # It is idempotent, meaning it's safe to call every time; if the channel exists, it does nothing.
     channel.create(st.session_state.username)
     
-    # Now that we know the channel exists and we are a member, we can query it.
+    # Query the last 50 messages from the channel
     state = channel.query(watch=False, state=True, messages={"limit": 50})
     messages = state['messages']
 
-    # Display message history in reverse to show newest messages at the bottom
-    for msg in reversed(messages):
-        user_name = msg["user"].get("name", msg["user"].get("id", "Unknown"))
-        with st.chat_message(name=user_name):
+    # Display message history
+    for msg in messages:
+        user_id = msg["user"].get("id", "Unknown")
+        user_name = msg["user"].get("name", user_id)
+        is_current_user = (user_id == st.session_state.username)
+
+        # Use st.chat_message to create the chat bubble. 
+        # The 'is_user' parameter aligns the message to the right for the current user.
+        with st.chat_message(name=user_name, is_user=is_current_user):
+            # Display the main message text
             st.markdown(msg["text"])
 
-    # Input for new messages at the bottom of the screen
+            # Get and format the timestamp for display
+            timestamp = msg.get("created_at")
+            if timestamp:
+                # Use st.caption for small, secondary text
+                st.caption(timestamp.strftime("%b %d, %I:%M %p"))
+
+    # The input box for new messages
     if prompt := st.chat_input("Post your question or comment..."):
-        # Send a new message to the channel
         channel.send_message({
             "text": prompt,
         }, user_id=st.session_state.username)
-        # Rerun to display the new message immediately
         st.rerun()
 def display_quiz_page(topic_options):
     st.header("🧠 Quiz Time!")
@@ -1078,6 +1084,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
