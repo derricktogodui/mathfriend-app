@@ -939,6 +939,264 @@ def _generate_linear_algebra_question():
 
     return {"question": question, "options": _finalize_options(options), "answer": answer, "hint": hint, "explanation": explanation}
 
+def _generate_logarithms_question():
+    """Generates a multi-subtopic question for Logarithms."""
+    # Subtopics: Conversion, Laws, Solving Equations, Change of Base
+    q_type = random.choice(['conversion', 'laws', 'solve_simple', 'solve_combine'])
+    question, answer, hint, explanation = "", "", "", ""
+    options = set()
+
+    if q_type == 'conversion':
+        base = random.randint(2, 5)
+        exponent = random.randint(2, 4)
+        result = base ** exponent
+        
+        form_a, form_b = f"${base}^{{{exponent}}} = {result}$", f"$\\log_{{{base}}}({result}) = {exponent}$"
+        
+        if random.choice([True, False]):
+            question = f"Express the equation {form_a} in logarithmic form."
+            answer = form_b
+            options = {answer, f"$\\log_{{{exponent}}}({result}) = {base}$", f"$\\log_{{{base}}}({exponent}) = {result}$"}
+        else:
+            question = f"Express the equation {form_b} in exponential form."
+            answer = form_a
+            options = {answer, f"${exponent}^{{{base}}} = {result}$", f"${result}^{{{exponent}}} = {base}$"}
+
+        hint = "Remember the relationship: $\log_b(N) = x$ is the same as $b^x = N$."
+        explanation = f"The base of the logarithm (${base}$) becomes the base of the power. The result of the logarithm (${exponent}$) becomes the exponent. So, {form_b} is equivalent to {form_a}."
+
+    elif q_type == 'laws':
+        val1, val2 = random.randint(2, 10), random.randint(2, 10)
+        op, sym, res, rule_name = random.choice([
+            ('add', '+', f"\\log({val1*val2})", "Product Rule"),
+            ('subtract', '-', f"\\log(\\frac{{{val1}}}{{{val2}}})", "Quotient Rule")
+        ])
+        question = f"Simplify the expression: $\\log({val1}) {sym} \\log({val2})$"
+        answer = f"${res}$"
+        hint = f"Recall the {rule_name} for logarithms: $\log(A) + \log(B) = \log(AB)$ and $\log(A) - \log(B) = \log(A/B)$."
+        explanation = f"Using the {rule_name}, $\\log({val1}) {sym} \\log({val2})$ simplifies to ${res}$."
+        options = {answer, f"$\\log({val1+val2})$", f"$\\frac{{\\log({val1})}}{{\\log({val2})}}$"}
+
+    elif q_type == 'solve_simple':
+        base = random.randint(2, 4)
+        result = random.randint(2, 4)
+        x_val = base ** result
+        question = f"Solve for x: $\\log_{{{base}}}(x) = {result}$"
+        answer = str(x_val)
+        hint = "Convert the logarithmic equation to its equivalent exponential form."
+        explanation = f"1. The equation is $\\log_{{{base}}}(x) = {result}$.\n\n2. In exponential form, this is $x = {base}^{{{result}}}$.\n\n3. Therefore, $x = {x_val}$."
+        options = {answer, str(base*result), str(result**base)}
+
+    elif q_type == 'solve_combine':
+        x_val = random.randint(3, 6)
+        # We need log(x) + log(x-2) = log(x*(x-2)) = log(15) => x^2 - 2x - 15 = 0 => (x-5)(x+3)=0. x=5
+        a, b = x_val, random.randint(1, x_val-1) # x, x-b
+        result = a * (a-b)
+        question = f"Solve for x: $\\log(x) + \\log(x - {b}) = \\log({result})$"
+        answer = str(x_val)
+        hint = "First, use the product rule to combine the logarithms on the left side."
+        explanation = (f"1. Combine the logs on the left: $\\log(x(x-{b})) = \\log({result})$.\n\n"
+                       f"2. Since the logs are equal, their arguments are equal: $x^2 - {b}x = {result}$.\n\n"
+                       f"3. Rearrange into a quadratic equation: $x^2 - {b}x - {result} = 0$.\n\n"
+                       f"4. Factor the quadratic: $(x - {x_val})(x + {x_val-b}) = 0$.\n\n"
+                       f"5. The possible solutions are $x={x_val}$ and $x={-(x_val-b)}$. Since the logarithm of a negative number is undefined, the only valid solution is $x={x_val}$.")
+        options = {answer, str(-(x_val-b)), str(result+b)}
+        
+    return {"question": question, "options": _finalize_options(options), "answer": answer, "hint": hint, "explanation": explanation}
+
+def _generate_probability_question():
+    """Generates a multi-subtopic question for Probability."""
+    q_type = random.choice(['simple', 'combined', 'conditional'])
+    
+    if q_type == 'simple':
+        red = random.randint(3, 8)
+        blue = random.randint(3, 8)
+        total = red + blue
+        chosen_color = "red" if random.random() > 0.5 else "blue"
+        num_chosen = red if chosen_color == "red" else blue
+        
+        question = f"A bag contains {red} red balls and {blue} blue balls. If one ball is picked at random, what is the probability that it is {chosen_color}?"
+        answer_frac = Fraction(num_chosen, total)
+        answer = _format_fraction_text(answer_frac)
+        hint = "Probability = (Number of favorable outcomes) / (Total number of possible outcomes)."
+        explanation = f"There are {num_chosen} {chosen_color} balls and a total of {total} balls. So, P({chosen_color}) = ${_get_fraction_latex_code(answer_frac)}$."
+        options = {answer, _format_fraction_text(Fraction(red if chosen_color=='blue' else blue, total))}
+
+    elif q_type == 'combined':
+        # Probability of A or B (mutually exclusive)
+        die_faces = {1, 2, 3, 4, 5, 6}
+        evens = {2, 4, 6}
+        greater_than_4 = {5, 6}
+        union = evens.union(greater_than_4)
+        
+        question = "A fair six-sided die is rolled. What is the probability of rolling an even number or a number greater than 4?"
+        answer_frac = Fraction(len(union), 6)
+        answer = _format_fraction_text(answer_frac)
+        hint = "Find the set of outcomes for each event and take their union. Be careful not to double-count."
+        explanation = f"Event A (even) = {evens}. Event B (>4) = {greater_than_4}.\nThe combined event A or B is {union}, which has {len(union)} outcomes.\nTotal outcomes = 6.\nProbability = ${_get_fraction_latex_code(answer_frac)}$."
+        options = {answer, _format_fraction_text(Fraction(len(evens)+len(greater_than_4), 6))}
+
+    elif q_type == 'conditional':
+        black = random.randint(3, 6)
+        white = random.randint(3, 6)
+        total = black + white
+        question = f"A box in a shop in Kumasi contains {black} black pens and {white} white pens. Two pens are drawn one after the other **without replacement**. What is the probability that both are white?"
+        prob_frac = Fraction(white, total) * Fraction(white - 1, total - 1)
+        answer = _format_fraction_text(prob_frac)
+        hint = "Calculate the probability of the first event, then the probability of the second event given the first has occurred, and multiply them."
+        explanation = f"P(1st is white) = $\\frac{{{white}}}{{{total}}}$.\nAfter drawing one white pen, there are {white-1} white pens and {total-1} total pens left.\nP(2nd is white) = $\\frac{{{white-1}}}{{{total-1}}}$.\nTotal Probability = $\\frac{{{white}}}{{{total}}} \\times \\frac{{{white-1}}}{{{total-1}}} = {_get_fraction_latex_code(prob_frac)}$."
+        options = {answer, _format_fraction_text(Fraction(white,total) * Fraction(white, total))}
+
+    return {"question": question, "options": _finalize_options(options, "fraction"), "answer": answer, "hint": hint, "explanation": explanation}
+
+def _generate_binomial_theorem_question():
+    """Generates a question for the Binomial Theorem."""
+    q_type = random.choice(['find_coefficient', 'find_term'])
+    n = random.randint(4, 7)
+    a, b = random.randint(1, 3), random.randint(1, 3)
+    
+    if q_type == 'find_coefficient':
+        k = random.randint(2, n-1)
+        question = f"Find the coefficient of the $x^{{{k}}}$ term in the expansion of $({a}x + {b})^{{{n}}}$."
+        # Term is C(n,k) * (ax)^k * b^(n-k). Coefficient is C(n,k) * a^k * b^(n-k)
+        coefficient = math.comb(n, k) * (a**k) * (b**(n-k))
+        answer = str(coefficient)
+        hint = f"Use the binomial theorem term formula: $\\binom{{n}}{{k}} a^{{n-k}} b^k$. Here, your 'a' is {a}x and 'b' is {b}, and you need the term where the power of x is {k}."
+        explanation = f"The term with $x^{k}$ is given by $\\binom{{{n}}}{{{k}}}({a}x)^{{{k}}}({b})^{{{n-k}}}$.\nThe coefficient is $\\binom{{{n}}}{{{k}}} \\times {a}^{k} \\times {b}^{{{n-k}}} = {math.comb(n,k)} \\times {a**k} \\times {b**(n-k)} = {answer}$."
+        options = {answer, str(math.comb(n,k) * (a**k)), str(math.comb(n,k))}
+
+    elif q_type == 'find_term':
+        r = random.randint(2, n-1) # find the r-th term
+        # r-th term uses k = r-1
+        k = r - 1
+        term_coeff = math.comb(n, k) * (a**k) * (b**(n-k))
+        term_power = k
+        question = f"Find the {r}th term in the expansion of $({a}x + {b})^{{{n}}}$."
+        answer = f"${term_coeff}x^{{{term_power}}}$"
+        hint = f"The r-th term is given by the formula $\\binom{{n}}{{r-1}} a^{{n-(r-1)}} b^{{r-1}}$. Be careful with the variables."
+        explanation = f"For the {r}th term, we use $k = {r}-1 = {k}$.\nThe term is $\\binom{{{n}}}{{{k}}}({a}x)^{{{k}}}({b})^{{{n-k}}} = {math.comb(n,k)} \\times {a**k}x^{k} \\times {b**(n-k)} = {answer}$."
+        options = {answer, f"${math.comb(n,r)}x^{{{r}}}$"}
+
+    return {"question": question, "options": _finalize_options(options), "answer": answer, "hint": hint, "explanation": explanation}
+
+def _generate_polynomial_functions_question():
+    """Generates a question for Polynomial Functions."""
+    q_type = random.choice(['remainder_theorem', 'factor_theorem'])
+    
+    if q_type == 'remainder_theorem':
+        a, b, c, d = [random.randint(-5, 5) for _ in range(4)]
+        divisor_root = random.randint(-3, 3)
+        question = f"Find the remainder when the polynomial $P(x) = {a}x^3 + {b}x^2 + {c}x + {d}$ is divided by $(x - {divisor_root})$."
+        # Remainder is P(divisor_root)
+        remainder = a*(divisor_root**3) + b*(divisor_root**2) + c*divisor_root + d
+        answer = str(remainder)
+        hint = f"According to the Remainder Theorem, the remainder when $P(x)$ is divided by $(x-a)$ is $P(a)$. Here, a = {divisor_root}."
+        explanation = f"We need to evaluate $P({divisor_root})$:\n$P({divisor_root}) = {a}({divisor_root})^3 + {b}({divisor_root})^2 + {c}({divisor_root}) + {d} = {remainder}$."
+        options = {answer, str(d), str(a+b+c+d)}
+
+    elif q_type == 'factor_theorem':
+        root = random.randint(1, 3)
+        a, c, d = random.randint(1, 3), random.randint(1, 5), random.randint(1, 10)
+        # P(root) = a*root^3 + k*root^2 + c*root + d = 0
+        # k*root^2 = -(a*root^3 + c*root + d)
+        k = - (a*(root**3) + c*root + d) // (root**2)
+        while k == 0: k = random.randint(-3, 3)
+        
+        # Verify P(root) is 0
+        p_val = a*(root**3) + k*(root**2) + c*root + d
+        if p_val != 0: return _generate_polynomial_functions_question() # Regenerate if numbers don't work out
+        
+        question = f"Given that $(x - {root})$ is a factor of the polynomial $P(x) = {a}x^3 + kx^2 + {c}x + {d}$, find the value of the constant $k$."
+        answer = str(k)
+        hint = f"By the Factor Theorem, if $(x-a)$ is a factor of $P(x)$, then $P(a) = 0$. Solve for $k$."
+        explanation = f"Since $(x - {root})$ is a factor, we know that $P({root}) = 0$.\n$P({root}) = {a}({root})^3 + k({root})^2 + {c}({root}) + {d} = 0$.\n${a*root**3} + {k*root**2}k + {c*root+d} = 0$.\n${k*root**2}k = -({a*root**3 + c*root+d})$.\n$k = {- (a*root**3 + c*root+d)} / {root**2} = {k}$."
+        options = {answer, str(-k), str(root)}
+
+    return {"question": question, "options": _finalize_options(options), "answer": answer, "hint": hint, "explanation": explanation}
+
+def _generate_trigonometry_question():
+    """Generates a question for Trigonometry."""
+    q_type = random.choice(['solve_equation', 'identity', 'cosine_rule'])
+
+    if q_type == 'solve_equation':
+        val, func, func_name = random.choice([(0.5, math.sin, "sin"), (0.5, math.cos, "cos")])
+        if func_name == "sin": solutions = "30, 150"; principal_val = 30
+        else: solutions = "60, 300"; principal_val = 60
+            
+        question = f"Solve the equation $2{func_name}(\\theta) = 1$ for $0^\\circ \leq \\theta \leq 360^\\circ$."
+        answer = f"{solutions[0]}°, {solutions[1]}°"
+        hint = f"First, isolate ${func_name}(\\theta)$. Then find the principal value and use the CAST rule or function graph to find all solutions in the range."
+        explanation = (f"1. ${func_name}(\\theta) = 1/2 = {val}$.\n"
+                       f"2. The principal value (acute angle) is $\\theta = {principal_val}^\\circ$.\n"
+                       f"3. Since ${func_name}$ is positive in the first and second (for sin) or fourth (for cos) quadrants, the solutions are:\n"
+                       f"   - Q1: $\\theta = {principal_val}^\\circ$\n"
+                       f"   - Q2/Q4: $\\theta = {180-principal_val if func_name=='sin' else 360-principal_val}^\\circ$\n"
+                       f"So the solutions are {answer}.")
+        options = {answer, f"{principal_val}°", f"{180-principal_val}°, {180+principal_val}°"}
+
+    elif q_type == 'identity':
+        question = r"Simplify the expression $\frac{{\sin^2\theta}}{{1 - \cos\theta}}$."
+        answer = r"$1 + \cos\theta$"
+        hint = "Use the fundamental identity $\sin^2\theta + \cos^2\theta = 1$ and the difference of two squares."
+        explanation = r"1. Rewrite the numerator: $\sin^2\theta = 1 - \cos^2\theta$.\n2. Factor the numerator as a difference of two squares: $(1 - \cos\theta)(1 + \cos\theta)$.\n3. The expression becomes $\frac{{(1 - \cos\theta)(1 + \cos\theta)}}{{1 - \cos\theta}}$.\n4. Cancel the $(1 - \cos\theta)$ term, leaving $1 + \cos\theta$."
+        options = {answer, r"$1 - \cos\theta$", r"$\cos\theta$"}
+
+    elif q_type == 'cosine_rule':
+        a, b, C_deg = random.randint(5, 10), random.randint(5, 10), 60
+        c_sq = a**2 + b**2 - 2*a*b*math.cos(math.radians(C_deg))
+        c = round(math.sqrt(c_sq), 2)
+        question = f"In triangle ABC, side $a = {a}$ cm, side $b = {b}$ cm, and the included angle $C = {C_deg}^\\circ$. Find the length of side $c$."
+        answer = f"{c} cm"
+        hint = "Use the Cosine Rule: $c^2 = a^2 + b^2 - 2ab\cos(C)$."
+        explanation = f"1. $c^2 = {a}^2 + {b}^2 - 2({a})({b})\cos({C_deg}^\\circ)$.\n2. $c^2 = {a**2} + {b**2} - {2*a*b}(0.5) = {c_sq}$.\n3. $c = \sqrt{{{c_sq}}} \\approx {c}$ cm."
+        options = {answer, f"{round(math.sqrt(a**2 + b**2), 2)} cm"}
+
+    return {"question": question, "options": _finalize_options(options), "answer": answer, "hint": hint, "explanation": explanation}
+
+def _generate_vectors_question():
+    """Generates a question for Vectors."""
+    q_type = random.choice(['algebra', 'magnitude', 'dot_product'])
+    
+    if q_type == 'algebra':
+        a = np.array([random.randint(-5, 5), random.randint(-5, 5)])
+        b = np.array([random.randint(-5, 5), random.randint(-5, 5)])
+        s1, s2 = random.randint(2, 4), random.randint(2, 4)
+        
+        question = f"Given vectors $\\mathbf{{a}} = \\binom{{{a[0]}}}{{{a[1]}}}$ and $\\mathbf{{b}} = \\binom{{{b[0]}}}{{{b[1]}}}$, find the vector ${s1}\\mathbf{{a}} - {s2}\\mathbf{{b}}$."
+        result_vec = s1*a - s2*b
+        answer = f"$\\binom{{{result_vec[0]}}}{{{result_vec[1]}}}$"
+        hint = "Multiply each vector by its scalar first, then subtract the corresponding components."
+        explanation = f"1. ${s1}\\mathbf{{a}} = {s1}\\binom{{{a[0]}}}{{{a[1]}}} = \\binom{{{s1*a[0]}}}{{{s1*a[1]}}}$.\n2. ${s2}\\mathbf{{b}} = {s2}\\binom{{{b[0]}}}{{{b[1]}}} = \\binom{{{s2*b[0]}}}{{{s2*b[1]}}}$.\n3. Subtract: $\\binom{{{s1*a[0]}}}{{{s1*a[1]}}} - \\binom{{{s2*b[0]}}}{{{s2*b[1]}}} = \\binom{{{s1*a[0] - s2*b[0]}}}{{{s1*a[1] - s2*b[1]}}} = {answer}$."
+        options = {answer, f"$\\binom{{{a[0]-b[0]}}}{{{a[1]-b[1]}}}$"}
+
+    elif q_type == 'magnitude':
+        v = np.array([random.randint(2, 12), random.randint(2, 12)])
+        question = f"Find the magnitude of the vector $\\mathbf{{v}} = {v[0]}\\mathbf{{i}} + {v[1]}\\mathbf{{j}}$."
+        magnitude = round(np.linalg.norm(v), 2)
+        answer = str(magnitude)
+        hint = "The magnitude of a vector $x\mathbf{i} + y\mathbf{j}$ is $\sqrt{x^2 + y^2}$."
+        explanation = f"Magnitude $|\mathbf{{v}}| = \sqrt{{({v[0]})^2 + ({v[1]})^2}} = \sqrt{{{v[0]**2} + {v[1]**2}}} = \sqrt{{{v[0]**2+v[1]**2}}} \\approx {answer}$."
+        options = {answer, str(v[0]+v[1])}
+
+    elif q_type == 'dot_product':
+        a = np.array([random.randint(-5, 5), random.randint(-5, 5)])
+        b = np.array([random.randint(-5, 5), random.randint(-5, 5)])
+        while np.linalg.norm(a) == 0 or np.linalg.norm(b) == 0: # Avoid zero vectors
+             a = np.array([random.randint(-5, 5), random.randint(-5, 5)]); b = np.array([random.randint(-5, 5), random.randint(-5, 5)])
+        
+        question = f"Find the angle between the vectors $\\mathbf{{a}} = \\binom{{{a[0]}}}{{{a[1]}}}$ and $\\mathbf{{b}} = \\binom{{{b[0]}}}{{{b[1]}}}$ to the nearest degree."
+        dot_product = np.dot(a, b)
+        mag_a, mag_b = np.linalg.norm(a), np.linalg.norm(b)
+        cos_theta = dot_product / (mag_a * mag_b)
+        angle_rad = np.arccos(np.clip(cos_theta, -1.0, 1.0)) # Clip for float precision errors
+        angle_deg = round(np.degrees(angle_rad))
+        answer = f"{angle_deg}°"
+        hint = "Use the dot product formula: $\mathbf{a} \cdot \mathbf{b} = |\mathbf{a}| |\mathbf{b}| \cos\theta$."
+        explanation = f"1. Dot Product: $\mathbf{{a}} \cdot \mathbf{{b}} = ({a[0]})({b[0]}) + ({a[1]})({b[1]}) = {dot_product}$.\n2. Magnitudes: $|\mathbf{{a}}| \\approx {round(mag_a, 2)}$, $|\mathbf{{b}}| \\approx {round(mag_b, 2)}$.\n3. $\cos\\theta = \\frac{{{dot_product}}}{{{round(mag_a,2)} \\times {round(mag_b,2)}}} \\approx {round(cos_theta, 2)}$.\n4. $\\theta = \cos^{{-1}}({round(cos_theta, 2)}) \\approx {answer}$."
+        options = {answer, f"{round(dot_product)}°"}
+
+    return {"question": question, "options": _finalize_options(options), "answer": answer, "hint": hint, "explanation": explanation}
+
 def _generate_advanced_combo_question():
     """Generates a multi-part question combining Geometry and Algebra."""
     # Generate initial values
@@ -984,7 +1242,7 @@ def _generate_advanced_combo_question():
 
 def generate_question(topic):
     # This dictionary now maps all 12 topics to their dedicated, complete generator functions.
-    generators = {
+   generators = {
         "Sets": _generate_sets_question, 
         "Percentages": _generate_percentages_question,
         "Fractions": _generate_fractions_question, 
@@ -997,6 +1255,12 @@ def generate_question(topic):
         "Shapes (Geometry)": _generate_shapes_question,
         "Algebra Basics": _generate_algebra_basics_question,
         "Linear Algebra": _generate_linear_algebra_question,
+        "Logarithms": _generate_logarithms_question,
+        "Probability": _generate_probability_question,
+        "Binomial Theorem": _generate_binomial_theorem_question,
+        "Polynomial Functions": _generate_polynomial_functions_question,
+        "Trigonometry": _generate_trigonometry_question,
+        "Vectors": _generate_vectors_question,
         "Advanced Combo": _generate_advanced_combo_question,
     }
     generator_func = generators.get(topic)
@@ -1579,6 +1843,12 @@ def show_main_app():
         "Sets", "Percentages", "Fractions", "Indices", "Surds", 
         "Binary Operations", "Relations and Functions", "Sequence and Series", 
         "Word Problems", "Shapes (Geometry)", "Algebra Basics", "Linear Algebra",
+        "Logarithms",
+        "Probability",
+        "Binomial Theorem",
+        "Polynomial Functions",
+        "Trigonometry",
+        "Vectors",
         "Advanced Combo"
     ]
     
@@ -1661,6 +1931,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
