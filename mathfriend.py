@@ -166,6 +166,7 @@ def save_quiz_result(username, topic, score, questions_answered):
                      {"username": username, "topic": topic, "score": score, "questions_answered": questions_answered})
         conn.commit()
 
+@st.cache_data(ttl=300) # Cache for 300 seconds (5 minutes)
 def get_top_scores(topic, time_filter="all"):
     with engine.connect() as conn:
         time_clause = ""
@@ -183,6 +184,7 @@ def get_top_scores(topic, time_filter="all"):
         result = conn.execute(query, {"topic": topic})
         return result.fetchall()
 
+@st.cache_data(ttl=60) # Cache for 60 seconds
 def get_user_stats(username):
     with engine.connect() as conn:
         total_quizzes = conn.execute(text("SELECT COUNT(*) FROM quiz_results WHERE username = :username"), {"username": username}).scalar_one()
@@ -192,6 +194,7 @@ def get_user_stats(username):
         top_score_str = f"{top_result[0]}/{top_result[1]}" if top_result and top_result[1] > 0 else "N/A"
         return total_quizzes, last_score_str, top_score_str
 
+@st.cache_data(ttl=60)
 def get_user_quiz_history(username):
     try:
         with engine.connect() as conn:
@@ -209,6 +212,7 @@ def get_topic_performance(username):
     performance['Accuracy'] = (performance['Score'] / performance['Total'] * 100).fillna(0)
     return performance.sort_values(by="Accuracy", ascending=False)
 
+@st.cache_data(ttl=300)
 def get_user_rank(username, topic, time_filter="all"):
     with engine.connect() as conn:
         time_clause = ""
@@ -228,6 +232,7 @@ def get_user_rank(username, topic, time_filter="all"):
         result = conn.execute(query, {"topic": topic, "username": username}).scalar_one_or_none()
         return result if result else "N/A"
 
+@st.cache_data(ttl=300)
 def get_total_players(topic, time_filter="all"):
     with engine.connect() as conn:
         time_clause = ""
@@ -1440,6 +1445,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
