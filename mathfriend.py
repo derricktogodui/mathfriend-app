@@ -686,7 +686,8 @@ def get_time_based_greeting():
     else: return "Good evening"
 
 def load_css():
-    """Loads the main CSS for the application for a consistent and responsive look."""
+    """Loads the main CSS for the application and includes a script to manage the theme."""
+    # The CSS part remains the same, defining the look of the app.
     st.markdown("""
     <style>
         /* --- BASE STYLES --- */
@@ -711,22 +712,17 @@ def load_css():
         div[data-testid="stSidebar"] {
             background-color: #0F1116 !important;
         }
+
         div[data-testid="stSidebar"] * {
             color: #FAFAFA !important;
         }
+
         div[data-testid="stSidebar"] h1 {
             color: #FFFFFF !important;
         }
+        
         div[data-testid="stSidebar"] [data-testid="stRadio"] label {
             color: #E0E0E0 !important;
-        }
-
-        /* --- NEW: DARK MODE OVERRIDE FOR SIDEBAR --- */
-        /* This ensures the sidebar text is bright when the system is in dark mode. */
-        body.dark-mode div[data-testid="stSidebar"] *,
-        body.dark-mode div[data-testid="stSidebar"] h1,
-        body.dark-mode div[data-testid="stSidebar"] [data-testid="stRadio"] label {
-            color: #FFFFFF !important;
         }
         
         /* --- COLOR OVERRIDES for main content --- */
@@ -761,6 +757,39 @@ def load_css():
         @media (max-width: 640px) { .main-content, .login-container { padding: 1rem; } .login-title { font-size: 1.8rem; } }
     </style>
     """, unsafe_allow_html=True)
+
+    # --- NEW: JavaScript to force light theme and prevent dark mode conflicts ---
+    # This script is injected into the app's HTML head.
+    js_code = """
+    <script>
+        // Function to set the theme to light
+        function setLightTheme() {
+            const streamlitDoc = window.parent.document;
+            if (streamlitDoc) {
+                // Access the Streamlit theme object and set it to 'light'
+                const theme_obj = {
+                    "base": "light",
+                    "primaryColor": "#0d6efd",
+                    "backgroundColor": "#f0f2ff",
+                    "secondaryBackgroundColor": "#ffffff",
+                    "textColor": "#31333F"
+                };
+                
+                // This is the command to set the theme override
+                window.parent.postMessage({
+                    isStreamlitMessage: true,
+                    type: "SET_THEME_CONFIG",
+                    themeInfo: theme_obj
+                }, "*");
+            }
+        }
+        
+        // Run the function immediately when the script loads
+        setLightTheme();
+    </script>
+    """
+    # Use st.components.v1.html to inject the script.
+    html(js_code, height=0)
 def display_dashboard(username):
     st.header(f"📈 Dashboard for {username}")
     tab1, tab2 = st.tabs(["📊 Performance Overview", "📜 Full History"])
@@ -1107,6 +1136,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
