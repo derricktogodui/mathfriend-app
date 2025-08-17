@@ -111,12 +111,11 @@ def login_user(username, password):
             chat_client.upsert_user({
                 "id": username, 
                 "name": display_name,
-                "role": "user",  # Standard user role
+                "role": "user",
                 "allow_uploads": True # Explicitly grant upload permission
             })
             return True
         return False
-
 def signup_user(username, password):
     try:
         with engine.connect() as conn:
@@ -737,15 +736,12 @@ def load_css():
             color: #FAFAFA !important;
         }
 
-        /* --- NEW: iMessage Style Chat Bubbles --- */
+        /* --- iMessage Style --- */
         [data-testid="stChatMessageContent"] {
-            border-radius: 20px;
-            padding: 12px 16px;
-            box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+            border-radius: 20px; padding: 12px 16px; box-shadow: 0 1px 2px rgba(0,0,0,0.1);
         }
         [data-testid="stChatMessage"]:has(div[data-testid="stChatMessageAssistantAvatar"]) [data-testid="stChatMessageContent"] {
-            background-color: #E5E5EA;
-            color: #31333F !important;
+            background-color: #E5E5EA; color: #31333F !important;
         }
         [data-testid="stChatMessage"]:has(div[data-testid="stChatMessageUserAvatar"]) [data-testid="stChatMessageContent"] {
             background-color: #007AFF;
@@ -760,7 +756,37 @@ def load_css():
             border-radius: 12px;
             margin-top: 8px;
         }
-        
+
+        /* --- NEW: Style for the camera icon uploader --- */
+        /* Hides the default ugly file input */
+        input[type="file"] {
+            display: none;
+        }
+        /* Styles the label to look like a button */
+        label[data-testid="stFileUploadDropzone"] {
+            background-color: #F0F0F0;
+            border-radius: 8px;
+            padding: 8px;
+            text-align: center;
+            cursor: pointer;
+            width: 100%;
+            height: 40px; /* Match height of send button */
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        label[data-testid="stFileUploadDropzone"]:hover {
+            background-color: #E0E0E0;
+        }
+        /* Overrides the default "Drag and drop" text with just the camera icon */
+        label[data-testid="stFileUploadDropzone"] p {
+            display: none;
+        }
+        label[data-testid="stFileUploadDropzone"]::before {
+            content: "📷";
+            font-size: 20px;
+        }
+
         /* --- COLOR OVERRIDES --- */
         button[data-testid="stFormSubmitButton"] *, div[data-testid="stButton"] > button * { color: white !important; }
         a, a * { color: #0068c9 !important; }
@@ -837,28 +863,47 @@ def display_dashboard(username):
 
 def display_blackboard_page():
     st.header("칠판 Blackboard")
-    st.write("A space for students to discuss theory questions and concepts.")
+    
+    # Welcome and info section
+    st.info("This is a community space. Ask clear questions, be respectful, and help your fellow students!", icon="👋")
 
-    # --- This section is unchanged ---
+    # Display online users
+    online_users = get_online_users(st.session_state.username)
+    if online_users:
+        st.markdown(f"**🟢 Online now:** {', '.join(online_users)}")
+    else:
+        st.markdown("_No other users are currently active._")
+
+    st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
+
+    # Define and connect to the main channel
     channel = chat_client.channel("messaging", channel_id="mathfriend-blackboard", data={"name": "MathFriend Blackboard"})
     channel.create(st.session_state.username)
+    
+    # Query the last 50 messages from the channel
     state = channel.query(watch=False, state=True, messages={"limit": 50})
     messages = state['messages']
 
-    # --- Display message history (now with image support) ---
+    # Display message history
     for msg in messages:
         is_current_user = (msg["user"].get("id") == st.session_state.username)
         with st.chat_message(name="user" if is_current_user else "assistant"):
-            st.markdown(msg["text"])
-            # Display any uploaded images attached to the message
+            if not is_current_user:
+                st.markdown(f"**{msg['user'].get('name', msg['user'].get('id'))}**")
+            
+            # Display text if it exists and is not just a placeholder space
+            if msg["text"].strip():
+                st.markdown(msg["text"])
+            
+            # Display any uploaded images
             if msg.get("attachments"):
                 for attachment in msg["attachments"]:
                     if attachment.get("type") == "image" and attachment.get("image_url"):
                         st.image(attachment["image_url"], width=200)
 
-    # --- NEW: Correct input form with text box, camera icon, and send button ---
+    # --- UPDATED: Input form with text box, camera icon, and send button ---
     with st.form("chat_form", clear_on_submit=True):
-        col1, col2, col3 = st.columns([0.7, 0.15, 0.15]) # Define layout columns
+        col1, col2, col3 = st.columns([0.7, 0.15, 0.15])
         with col1:
             prompt = st.text_input("Type a message...", label_visibility="collapsed", key="chat_prompt")
         with col2:
@@ -866,8 +911,7 @@ def display_blackboard_page():
         with col3:
             submitted = st.form_submit_button("Send", type="primary", use_container_width=True)
 
-    # --- Logic to handle form submission ---
-    if submitted and (prompt or uploaded_file):
+    if submitted and (prompt.strip() or uploaded_file):
         attachments = []
         if uploaded_file is not None:
             file_bytes = uploaded_file.getvalue()
@@ -876,7 +920,7 @@ def display_blackboard_page():
             attachments.append({"type": "image", "asset_url": upload_result["file"]})
         
         channel.send_message({
-            "text": prompt if prompt else " ",
+            "text": prompt if prompt.strip() else " ", # Message must have text, send a space if only image
             "attachments": attachments,
         }, user_id=st.session_state.username)
         st.rerun()
@@ -1240,6 +1284,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
