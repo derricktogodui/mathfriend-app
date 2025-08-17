@@ -1046,7 +1046,7 @@ def load_css():
     """, unsafe_allow_html=True)
 
 def display_dashboard(username):
-    # --- Daily Challenge Section ---
+    # --- Gamification Section ---
     challenge = get_or_create_daily_challenge(username)
     if challenge:
         st.subheader("Today's Challenge")
@@ -1055,16 +1055,20 @@ def display_dashboard(username):
         else:
             with st.container(border=True):
                 st.info(challenge['description'])
-                progress_percent = min(challenge['progress_count'] / challenge['target_count'], 1.0)
-                st.progress(progress_percent, text=f"Progress: {challenge['progress_count']} / {challenge['target_count']}")
-                # --- NEW: Added instructional text ---
+                # Ensure target_count is not zero to avoid division error
+                if challenge['target_count'] > 0:
+                    progress_percent = min(challenge['progress_count'] / challenge['target_count'], 1.0)
+                    st.progress(progress_percent, text=f"Progress: {challenge['progress_count']} / {challenge['target_count']}")
+                else:
+                    st.progress(1.0, text="Challenge Complete!")
                 st.caption("Visit the '📝 Quiz' page to make progress on your challenge!")
     
     st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
     
-    # --- Existing Dashboard Code ---
+    # --- Existing Dashboard Code with RESTORED line graph ---
     st.header(f"📈 Performance for {username}")
     tab1, tab2 = st.tabs(["📊 Performance Overview", "📜 Full History"])
+    
     with tab1:
         st.subheader("Key Metrics")
         total_quizzes, last_score, top_score = get_user_stats(username)
@@ -1072,15 +1076,50 @@ def display_dashboard(username):
         with col1: st.metric(label="📝 Total Quizzes Taken", value=total_quizzes)
         with col2: st.metric(label="🎯 Most Recent Score", value=last_score)
         with col3: st.metric(label="🏆 Best Ever Score", value=top_score)
+        st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
         st.subheader("Topic Performance")
         topic_perf_df = get_topic_performance(username)
         if not topic_perf_df.empty:
-            st.plotly_chart(px.bar(topic_perf_df, y='Accuracy', title="Average Accuracy by Topic"), use_container_width=True)
+            col1, col2 = st.columns(2)
+            with col1:
+                best_topic = topic_perf_df.index[0]; best_acc = topic_perf_df['Accuracy'].iloc[0]
+                st.success(f"💪 **Strongest Topic:** {best_topic} ({best_acc:.1f}%)")
+            with col2:
+                if len(topic_perf_df) > 1:
+                    worst_topic = topic_perf_df.index[-1]; worst_acc = topic_perf_df['Accuracy'].iloc[-1]
+                    st.warning(f"🤔 **Area for Practice:** {worst_topic} ({worst_acc:.1f}%)")
+            fig = px.bar(
+                topic_perf_df, y='Accuracy', title="Average Accuracy by Topic",
+                labels={'Accuracy': 'Accuracy (%)', 'Topic': 'Topic'}, text_auto='.2s'
+            )
+            fig.update_traces(textposition='outside')
+            st.plotly_chart(fig, use_container_width=True)
+        else:
+            st.info("Complete some quizzes to see your topic performance analysis!")
+            
     with tab2:
-        st.subheader("Full History")
+        st.subheader("Accuracy Over Time")
         history = get_user_quiz_history(username)
         if history:
-            st.dataframe(pd.DataFrame(history), use_container_width=True)
+            # RESTORED: Data processing logic for the graph
+            df_data = [
+                {
+                    "Topic": r['topic'], 
+                    "Score": f"{r['score']}/{r['questions_answered']}", 
+                    "Accuracy (%)": (r['score'] / r['questions_answered'] * 100) if r['questions_answered'] not in [None, 0] and r['score'] is not None else 0, 
+                    "Date": r['timestamp'].strftime("%Y-%m-%d %H:%M")
+                } for r in history
+            ]
+            df = pd.DataFrame(df_data)
+            
+            # RESTORED: The line graph itself
+            line_fig = px.line(df, x='Date', y='Accuracy (%)', color='Topic', markers=True, title="Quiz Performance Trend")
+            st.plotly_chart(line_fig, use_container_width=True)
+            
+            # The dataframe display
+            st.dataframe(df, use_container_width=True)
+        else:
+            st.info("Your quiz history is empty. Take a quiz to get started!")
 
 def display_blackboard_page():
     st.header("칠판 Blackboard")
@@ -1567,6 +1606,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
