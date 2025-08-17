@@ -754,10 +754,11 @@ def load_css():
             box-shadow: 0 1px 2px rgba(0,0,0,0.1);
         }
 
-        /* Bubble styles for messages FROM OTHERS (white) */
+        /* --- DEBUGGING STYLE --- */
         [data-testid="stChatMessage"]:has(div[data-testid="stChatMessageAssistantAvatar"]) [data-testid="stChatMessageContent"] {
-            background-color: #FFFFFF; /* Changed from #E5E5EA to white for better contrast */
-            color: #31333F !important; /* Ensure dark text on white bubble */
+            background-color: red !important; /* Make it red to see if this rule is working */
+            border: 5px solid black !important; /* Add a thick border */
+            color: white !important;
         }
 
         /* Bubble styles for messages FROM YOU (blue) */
@@ -1243,6 +1244,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
