@@ -1157,9 +1157,7 @@ def display_quiz_page(topic_options):
 
     # --- PHASE 1: SHOW THE QUESTION AND FORM ---
     if not st.session_state.get('answer_submitted', False):
-        # This logic handles both single and multi-part questions
         is_multi = q_data.get("is_multipart", False)
-        part_data = {}
         if is_multi:
             st.markdown(q_data["stem"], unsafe_allow_html=True)
             if 'current_part_index' not in st.session_state: st.session_state.current_part_index = 0
@@ -1176,26 +1174,24 @@ def display_quiz_page(topic_options):
             user_choice = st.radio("Select your answer:", options, index=None)
             if st.form_submit_button("Submit Answer", type="primary"):
                 if user_choice is not None:
-                    # --- LOGIC MOVED HERE ---
                     st.session_state.user_choice = user_choice
                     st.session_state.answer_submitted = True
                     
-                    # Determine correct answer based on question type
-                    actual_answer = part_data["answer"] if is_multi else q_data["answer"]
+                    actual_answer = q_data["parts"][st.session_state.current_part_index]["answer"] if is_multi else q_data["answer"]
                     is_correct = str(user_choice) == str(actual_answer)
-                    is_last_part = is_multi and (st.session_state.current_part_index + 1 == len(q_data["parts"]))
                     
-                    # Update score immediately, but only count question as "answered" for the last part of a multi-part question
-                    if not is_multi or (is_multi and is_last_part) or not is_correct:
-                         st.session_state.questions_answered += 1
-
+                    # --- SCORE LOGIC IS HERE (RUNS ON SUBMIT) ---
                     if is_correct:
+                        # Only update score for single questions or the LAST part of a multi-part question
+                        is_last_part = is_multi and (st.session_state.current_part_index + 1 == len(q_data["parts"]))
                         if not is_multi or is_last_part:
                             st.session_state.quiz_score += 1
-                            st.session_state.current_streak += 1
+                        st.session_state.current_streak += 1
                     else:
                         st.session_state.current_streak = 0
-                        st.session_state.incorrect_questions.append(q_data)
+                        # Only add to incorrect list once
+                        if not any(q['question'] == q_data['question'] for q in st.session_state.incorrect_questions):
+                             st.session_state.incorrect_questions.append(q_data)
                     
                     st.rerun()
                 else:
@@ -1206,40 +1202,34 @@ def display_quiz_page(topic_options):
         user_choice = st.session_state.user_choice
         is_multi = q_data.get("is_multipart", False)
         
-        part_data = {}
-        actual_answer = ""
-        explanation = ""
-        question_text = ""
+        part_data, actual_answer, explanation, question_text = {}, "", "", ""
 
         if is_multi:
             part_index = st.session_state.current_part_index
             part_data = q_data["parts"][part_index]
-            actual_answer = part_data["answer"]
-            explanation = part_data["explanation"]
+            actual_answer = part_data["answer"]; explanation = part_data["explanation"]
             question_text = q_data["stem"] + "\n\n" + part_data["question"]
         else:
-            actual_answer = q_data["answer"]
-            explanation = q_data.get("explanation", "No explanation available.")
+            actual_answer = q_data["answer"]; explanation = q_data.get("explanation", "No explanation available.")
             question_text = q_data["question"]
 
         is_correct = str(user_choice) == str(actual_answer)
         
         st.markdown(question_text, unsafe_allow_html=True)
         st.write("Your answer:")
-        if is_correct:
-            st.success(f"**{user_choice}** (Correct!)")
-        else:
-            st.error(f"**{user_choice}** (Incorrect)")
-            st.info(f"The correct answer was: **{actual_answer}**")
+        if is_correct: st.success(f"**{user_choice}** (Correct!)")
+        else: st.error(f"**{user_choice}** (Incorrect)"); st.info(f"The correct answer was: **{actual_answer}**")
 
-        with st.expander("Show Explanation", expanded=True):
-            st.markdown(explanation, unsafe_allow_html=True)
+        with st.expander("Show Explanation", expanded=True): st.markdown(explanation, unsafe_allow_html=True)
 
         is_last_part = is_multi and (st.session_state.current_part_index + 1 == len(q_data["parts"]))
         button_label = "Next Question" if not is_multi or is_last_part or not is_correct else "Next Part"
         
         if st.button(button_label, type="primary", use_container_width=True):
-            # --- SCORE LOGIC HAS BEEN REMOVED FROM HERE ---
+            # --- QUESTION COUNTER LOGIC MOVED HERE ---
+            if not is_multi or is_last_part or not is_correct:
+                st.session_state.questions_answered += 1
+
             if is_multi and is_correct and not is_last_part:
                 st.session_state.current_part_index += 1
             else:
@@ -1255,8 +1245,7 @@ def display_quiz_page(topic_options):
         st.session_state.on_summary_page = True
         keys_to_delete = ['current_q_data', 'user_choice', 'answer_submitted', 'current_part_index']
         for key in keys_to_delete:
-            if key in st.session_state:
-                del st.session_state[key]
+            if key in st.session_state: del st.session_state[key]
         st.rerun()
 def display_quiz_summary():
     st.header("🎉 Round Complete! 🎉")
@@ -1571,6 +1560,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
