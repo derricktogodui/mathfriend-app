@@ -701,38 +701,53 @@ def load_css():
     """Loads the main CSS for the application for a consistent and responsive look."""
     st.markdown("""
     <style>
-        /* --- FIX FOR SCROLLING ON ALL DEVICES --- */
-        [data-testid="stAppViewContainer"] {
-            overflow-y: auto !important;
-            overflow-x: hidden !important;
-        }
-
         /* --- BASE STYLES --- */
         .stApp {
             background-color: #f0f2ff;
         }
         
-        /* --- DARK MODE-AWARE SIDEBAR AND CONTENT FIX --- */
+        /* FIX FOR TABLET SCROLLING */
+        [data-testid="stAppViewContainer"] > .main {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            overflow: auto !important;
+        }
+
+        /* --- THE DEFINITIVE CHROME FIX (MAIN CONTENT) --- */
         div[data-testid="stAppViewContainer"] * {
             color: #31333F !important;
         }
 
+        /* --- FINAL, CROSS-BROWSER SIDEBAR FIX --- */
         div[data-testid="stSidebar"] {
             background-color: #0F1116 !important;
         }
         div[data-testid="stSidebar"] * {
             color: #FAFAFA !important;
         }
+        div[data-testid="stSidebar"] h1 {
+            color: #FFFFFF !important;
+        }
+        div[data-testid="stSidebar"] [data-testid="stRadio"] label {
+            color: #E0E0E0 !important;
+        }
 
+        /* --- DARK MODE TEXT FIX --- */
         [data-baseweb="theme-dark"] div[data-testid="stAppViewContainer"] * {
             color: #31333F !important;
         }
         [data-baseweb="theme-dark"] div[data-testid="stSidebar"] * {
             color: #FAFAFA !important;
         }
-
-        /* --- NEW, MOST RELIABLE iMessage Style --- */
-        /* This is the bubble that contains the text */
+        
+        /* --- NEW: iMessage Style Chat Bubbles --- */
+        /* This targets the container that holds the bubble and avatar */
+        [data-testid="stChatMessage"] {
+            background-color: transparent;
+        }
+        
+        /* This is the actual chat bubble that contains the text */
         [data-testid="stChatMessageContent"] {
             border-radius: 20px;
             padding: 12px 16px;
@@ -740,19 +755,17 @@ def load_css():
         }
 
         /* Bubble styles for messages FROM OTHERS (grey) */
-        /* This targets any chat message that has an "Assistant" avatar */
         [data-testid="stChatMessage"]:has(div[data-testid="stChatMessageAssistantAvatar"]) [data-testid="stChatMessageContent"] {
             background-color: #E5E5EA;
-            color: #31333F !important;
+            color: #31333F !important; /* Ensure dark text on grey bubble */
         }
 
         /* Bubble styles for messages FROM YOU (blue) */
-        /* This targets any chat message that has a "User" avatar */
         [data-testid="stChatMessage"]:has(div[data-testid="stChatMessageUserAvatar"]) [data-testid="stChatMessageContent"] {
             background-color: #007AFF;
         }
         
-        /* Text color for YOUR messages must be white */
+        /* Text color for messages FROM YOU must be white */
         [data-testid="stChatMessage"]:has(div[data-testid="stChatMessageUserAvatar"]) * {
             color: white !important;
         }
@@ -1230,6 +1243,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
