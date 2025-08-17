@@ -926,6 +926,12 @@ def load_css():
         .login-subtitle { text-align: center; color: #6c757d; margin-bottom: 2rem; }
         .main-content { background-color: #ffffff; padding: 2rem; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
         @media (max-width: 640px) { .main-content, .login-container { padding: 1rem; } .login-title { font-size: 1.8rem; } }
+
+        /* --- HIDE STREAMLIT BRANDING COMPLETELY --- */
+        footer {visibility: hidden !important;}
+        header {visibility: hidden !important;}
+        .stAppDeployButton {display: none !important;}
+        #MainMenu {visibility: hidden !important;}
     </style>
     """, unsafe_allow_html=True)
 
@@ -1434,4 +1440,5 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
