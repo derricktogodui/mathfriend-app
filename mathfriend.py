@@ -984,6 +984,8 @@ def display_dashboard(username):
 
 def display_blackboard_page():
     st.header("칠판 Blackboard")
+    # --- ADD THIS LINE ---
+    st.components.v1.html("<meta http-equiv='refresh' content='15'>", height=0)
     st.info("This is a community space. Ask clear questions, be respectful, and help your fellow students!", icon="👋")
     online_users = get_online_users(st.session_state.username)
     if online_users:
@@ -1445,6 +1447,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
