@@ -995,8 +995,29 @@ def get_time_based_greeting():
 def load_css():
     st.markdown("""
     <style>
+        /* --- BASE STYLES --- */
         .stApp { background-color: #f0f2ff; }
-        [data-testid="stAppViewContainer"] > .main { display: flex; flex-direction: column; align-items: center; overflow: auto !important; }
+        
+        /* --- GENERAL SCROLLING FIX (WORKS FOR MOST PAGES) --- */
+        [data-testid="stAppViewContainer"] > .main {
+            overflow: auto !important;
+        }
+
+        /* --- NEW, MORE SPECIFIC FIX FOR BLACKBOARD PAGE SCROLLING --- */
+        /* This targets the main container specifically when a chat input is present */
+        .stApp:has([data-testid="stChatInput"]) > div:first-child > div:first-child > div:first-child > section.main {
+            display: flex;
+            flex-direction: column;
+            height: 100vh; /* Ensure it takes full viewport height */
+        }
+
+        /* This targets the block of chat messages and makes it scrollable */
+        .stApp:has([data-testid="stChatInput"]) [data-testid="stVerticalBlock"] {
+            flex-grow: 1;
+            overflow-y: auto;
+        }
+
+        /* --- ALL OTHER STYLES --- */
         div[data-testid="stAppViewContainer"] * { color: #31333F !important; }
         div[data-testid="stSidebar"] { background-color: #0F1116 !important; }
         div[data-testid="stSidebar"] * { color: #FAFAFA !important; }
@@ -1036,15 +1057,8 @@ def load_css():
         .login-subtitle { text-align: center; color: #6c757d; margin-bottom: 2rem; }
         .main-content { background-color: #ffffff; padding: 2rem; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
         @media (max-width: 640px) { .main-content, .login-container { padding: 1rem; } .login-title { font-size: 1.8rem; } }
-
-        /* --- HIDE STREAMLIT BRANDING BUT KEEP NAV ICON --- */
-        footer {visibility: hidden !important;}
-        .stAppDeployButton {display: none !important;}
-        #MainMenu {display: none !important;}  /* hides the Streamlit default menu */
-        header .st-emotion-cache-6qob1r {display: none !important;}  /* hides Streamlit logo in header */
     </style>
     """, unsafe_allow_html=True)
-
 def display_dashboard(username):
     # --- Gamification Section ---
     challenge = get_or_create_daily_challenge(username)
@@ -1606,6 +1620,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
