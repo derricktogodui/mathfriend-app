@@ -941,21 +941,44 @@ def _generate_linear_algebra_question():
 
 def _generate_advanced_combo_question():
     """Generates a multi-part question combining Geometry and Algebra."""
+    # Generate initial values
     l, w = random.randint(5, 10), random.randint(11, 15)
     area = l * w
-    k = random.randint(5, 20)
+    # Ensure k is always less than area to avoid negative results
+    if area <= 5: k = 1
+    else: k = random.randint(5, area - 2)
     x = math.sqrt(area - k)
+
+    # Re-generate until we get a nice integer solution for x
     while x < 1 or x != int(x):
-        l, w = random.randint(5, 10), random.randint(11, 15); k = random.randint(5, area - 1)
-        if area > k: x = math.sqrt(area - k)
-        else: x = 0
+        l, w = random.randint(5, 10), random.randint(11, 15)
+        # THE FIX: Recalculate area inside the loop
+        area = l * w
+        if area <= 5: continue # Skip if area is too small
+        k = random.randint(5, area - 2)
+        x = math.sqrt(area - k)
+
     x = int(x)
+    
+    # Now that we have a consistent set of numbers, return the question
     return {
         "is_multipart": True,
-        "stem": f"A rectangular field has a length of **{l} metres** and a width of **{w} metres**.",
+        "stem": f"A rectangular field in the Ashanti Region has a length of **{l} metres** and a width of **{w} metres**.",
         "parts": [
-            {"question": "a) What is the area of the field in square metres?", "options": [str(area), str(2*(l+w)), str(l+w), str(area+10)], "answer": str(area), "hint": "Area = length × width.", "explanation": f"Area = $l \\times w = {l} \\times {w} = {area}\\ m^2$."},
-            {"question": f"b) The square of a positive number, $x$, when increased by {k}, is equal to the area of the field. What is the value of $x$?", "options": [str(x), str(area-k), str(math.sqrt(area)), str(x*x)], "answer": str(x), "hint": "Set up the equation $x^2 + {k} = Area$ and solve for $x$.", "explanation": f"1. $x^2 + {k} = {area}$.\n\n2. $x^2 = {area} - {k} = {area-k}$.\n\n3. $x = \sqrt{{{area-k}}} = {x}$."}
+            {
+                "question": "a) What is the area of the field in square metres?",
+                "options": _finalize_options({str(area), str(2*(l+w)), str(l+w)}),
+                "answer": str(area),
+                "hint": "Area = length × width.",
+                "explanation": f"Area = $l \\times w = {l} \\times {w} = {area}\\ m^2$."
+            },
+            {
+                "question": f"b) The square of a positive number, $x$, when increased by {k}, is equal to the area of the field. What is the value of $x$?",
+                "options": _finalize_options({str(x), str(area-k), str(int(math.sqrt(area)))}),
+                "answer": str(x),
+                "hint": "Set up the equation $x^2 + {k} = Area$ and solve for $x$.",
+                "explanation": f"1. $x^2 + {k} = {area}$.\n\n2. $x^2 = {area} - {k} = {area-k}$.\n\n3. $x = \sqrt{{{area-k}}} = {x}$."
+            }
         ]
     }
 
@@ -1620,6 +1643,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
