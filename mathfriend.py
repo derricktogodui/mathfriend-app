@@ -750,19 +750,14 @@ def load_css():
             color: white !important;
         }
         
-        /* --- NEW: Style for images in chat bubbles --- */
+        /* --- Style for images in chat bubbles --- */
         [data-testid="stChatMessageContent"] img {
             max-width: 100%;
             border-radius: 12px;
             margin-top: 8px;
         }
 
-        /* --- NEW: Style for the camera icon uploader --- */
-        /* Hides the default ugly file input */
-        input[type="file"] {
-            display: none;
-        }
-        /* Styles the label to look like a button */
+        /* --- Style for the camera icon uploader --- */
         label[data-testid="stFileUploadDropzone"] {
             background-color: #F0F0F0;
             border-radius: 8px;
@@ -770,7 +765,7 @@ def load_css():
             text-align: center;
             cursor: pointer;
             width: 100%;
-            height: 40px; /* Match height of send button */
+            height: 40px; 
             display: flex;
             align-items: center;
             justify-content: center;
@@ -778,7 +773,6 @@ def load_css():
         label[data-testid="stFileUploadDropzone"]:hover {
             background-color: #E0E0E0;
         }
-        /* Overrides the default "Drag and drop" text with just the camera icon */
         label[data-testid="stFileUploadDropzone"] p {
             display: none;
         }
@@ -864,52 +858,43 @@ def display_dashboard(username):
 def display_blackboard_page():
     st.header("칠판 Blackboard")
     
-    # Welcome and info section
+    # --- This part is unchanged ---
     st.info("This is a community space. Ask clear questions, be respectful, and help your fellow students!", icon="👋")
-
-    # Display online users
     online_users = get_online_users(st.session_state.username)
     if online_users:
         st.markdown(f"**🟢 Online now:** {', '.join(online_users)}")
     else:
         st.markdown("_No other users are currently active._")
-
     st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
-
-    # Define and connect to the main channel
     channel = chat_client.channel("messaging", channel_id="mathfriend-blackboard", data={"name": "MathFriend Blackboard"})
     channel.create(st.session_state.username)
-    
-    # Query the last 50 messages from the channel
     state = channel.query(watch=False, state=True, messages={"limit": 50})
     messages = state['messages']
 
-    # Display message history
+    # --- Display message history (now with image support) ---
     for msg in messages:
         is_current_user = (msg["user"].get("id") == st.session_state.username)
         with st.chat_message(name="user" if is_current_user else "assistant"):
             if not is_current_user:
                 st.markdown(f"**{msg['user'].get('name', msg['user'].get('id'))}**")
-            
-            # Display text if it exists and is not just a placeholder space
             if msg["text"].strip():
                 st.markdown(msg["text"])
-            
-            # Display any uploaded images
             if msg.get("attachments"):
                 for attachment in msg["attachments"]:
                     if attachment.get("type") == "image" and attachment.get("image_url"):
                         st.image(attachment["image_url"], width=200)
 
-    # --- UPDATED: Input form with text box, camera icon, and send button ---
-    with st.form("chat_form", clear_on_submit=True):
+    # --- NEW: Corrected input form with text box, camera icon, and send button ---
+    # This uses st.text_input and st.button within a container for precise layout control.
+    input_container = st.container()
+    with input_container:
         col1, col2, col3 = st.columns([0.7, 0.15, 0.15])
         with col1:
-            prompt = st.text_input("Type a message...", label_visibility="collapsed", key="chat_prompt")
+            prompt = st.text_input("Type a message...", key="chat_prompt", label_visibility="collapsed")
         with col2:
             uploaded_file = st.file_uploader("📷", type=["png", "jpg", "jpeg"], label_visibility="collapsed", key="chat_uploader")
         with col3:
-            submitted = st.form_submit_button("Send", type="primary", use_container_width=True)
+            submitted = st.button("Send", type="primary", use_container_width=True)
 
     if submitted and (prompt.strip() or uploaded_file):
         attachments = []
@@ -920,7 +905,7 @@ def display_blackboard_page():
             attachments.append({"type": "image", "asset_url": upload_result["file"]})
         
         channel.send_message({
-            "text": prompt if prompt.strip() else " ", # Message must have text, send a space if only image
+            "text": prompt if prompt.strip() else " ",
             "attachments": attachments,
         }, user_id=st.session_state.username)
         st.rerun()
@@ -1284,6 +1269,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
