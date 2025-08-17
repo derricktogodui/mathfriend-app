@@ -691,11 +691,10 @@ def load_css():
     <style>
         /* --- BASE STYLES --- */
         .stApp {
-            background-color: #f0f2f5;
+            background-color: #f0f2ff; /* A slightly lighter, bluer background */
         }
         
-        /* --- FIX 1: TABLET SCROLLING --- */
-        /* This ensures that the main container can scroll vertically if the content is too tall. */
+        /* --- FIX FOR TABLET SCROLLING --- */
         [data-testid="stAppViewContainer"] > .main {
             display: flex;
             flex-direction: column;
@@ -703,25 +702,30 @@ def load_css():
             overflow: auto; /* Allow scrolling */
         }
 
-        /* --- THE DEFINITIVE CHROME & SAFARI FIX --- */
+        /* --- THE DEFINITIVE CHROME FIX (MAIN CONTENT) --- */
         div[data-testid="stAppViewContainer"] * {
             color: #31333F !important;
         }
 
-        /* --- FIX 2: FINAL, CROSS-BROWSER SIDEBAR TEXT --- */
-        /* These redundant, highly specific rules ensure the sidebar text is bright on all devices. */
-        div[data-testid="stSidebarUserContent"] * {
-            color: #FAFAFA !important;
+        /* --- FINAL SIDEBAR FIX (BASED ON YOUR SUGGESTION) --- */
+        /* This sets a dark background and forces all text to be light. */
+        div[data-testid="stSidebar"] {
+            background-color: #0F1116 !important; /* Dark background for the entire sidebar */
         }
-        div[data-testid="stSidebarUserContent"] h1,
-        div[data-testid="stSidebarUserContent"] p {
-            color: #FFFFFF !important;
+
+        div[data-testid="stSidebar"] * {
+            color: #FAFAFA !important; /* Bright default text for everything inside */
         }
-        div[data-testid="stSidebarUserContent"] [data-testid="stRadio"] label {
-            color: #E0E0E0 !important;
+
+        div[data-testid="stSidebar"] h1 {
+            color: #FFFFFF !important; /* Pure white for the main title */
         }
         
-        /* --- COLOR OVERRIDES --- */
+        div[data-testid="stSidebar"] [data-testid="stRadio"] label {
+            color: #E0E0E0 !important; /* Slightly off-white for menu items */
+        }
+        
+        /* --- COLOR OVERRIDES for main content --- */
         button[data-testid="stFormSubmitButton"] *, div[data-testid="stButton"] > button * { color: white !important; }
         a, a * { color: #0068c9 !important; }
         .main-content h1, .main-content h2, .main-content h3, .main-content h4, .main-content h5, .main-content h6 { color: #1a1a1a !important; }
@@ -1099,6 +1103,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
