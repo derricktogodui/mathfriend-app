@@ -361,6 +361,13 @@ def update_gamification_progress(username, topic, score):
 
         conn.commit()
 
+def get_user_achievements(username):
+    """Fetches all achievements unlocked by a user."""
+    with engine.connect() as conn:
+        query = text("SELECT achievement_name, badge_icon, unlocked_at FROM user_achievements WHERE username = :username ORDER BY unlocked_at DESC")
+        result = conn.execute(query, {"username": username}).mappings().fetchall()
+        return [dict(row) for row in result]
+
 def get_online_users(current_user):
     with engine.connect() as conn:
         query = text("""
@@ -1049,7 +1056,22 @@ def load_css():
     """, unsafe_allow_html=True)
 
 def display_dashboard(username):
-    st.header(f"📈 Dashboard for {username}")
+    # --- NEW: Gamification Section ---
+    challenge = get_or_create_daily_challenge(username)
+    if challenge:
+        st.subheader("Today's Challenge")
+        if challenge['is_completed']:
+            st.success(f"🎉 Well done! You've completed today's challenge: {challenge['description']}")
+        else:
+            with st.container(border=True):
+                st.info(challenge['description'])
+                progress_percent = min(challenge['progress_count'] / challenge['target_count'], 1.0)
+                st.progress(progress_percent, text=f"Progress: {challenge['progress_count']} / {challenge['target_count']}")
+    
+    st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
+    
+    # --- Existing Dashboard Code ---
+    st.header(f"📈 Performance for {username}")
     tab1, tab2 = st.tabs(["📊 Performance Overview", "📜 Full History"])
     with tab1:
         st.subheader("Key Metrics")
@@ -1089,7 +1111,6 @@ def display_dashboard(username):
             st.dataframe(df, use_container_width=True)
         else:
             st.info("Your quiz history is empty. Take a quiz to get started!")
-
 def display_blackboard_page():
     st.header("칠판 Blackboard")
     # --- ADD THIS LINE ---
@@ -1435,7 +1456,27 @@ def display_profile_page():
         if st.form_submit_button("Save Profile", type="primary"):
             if update_user_profile(st.session_state.username, full_name, school, age, bio):
                 st.success("Profile updated!"); st.rerun()
+
     st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
+    
+    # --- NEW: Achievements/Trophy Case Section ---
+    st.subheader("🏆 My Achievements")
+    achievements = get_user_achievements(st.session_state.username)
+    if not achievements:
+        st.info("Your trophy case is empty for now. Keep playing to earn badges!")
+    else:
+        # Create a grid layout for the badges
+        cols = st.columns(4)
+        for i, achievement in enumerate(achievements):
+            col = cols[i % 4]
+            with col:
+                with st.container(border=True):
+                    st.markdown(f"<div style='font-size: 3rem; text-align: center;'>{achievement['badge_icon']}</div>", unsafe_allow_html=True)
+                    st.markdown(f"<div style='font-size: 1rem; text-align: center; font-weight: bold;'>{achievement['achievement_name']}</div>", unsafe_allow_html=True)
+                    st.markdown(f"<div style='font-size: 0.8rem; text-align: center; color: grey;'>Unlocked: {achievement['unlocked_at'].strftime('%b %d, %Y')}</div>", unsafe_allow_html=True)
+    
+    st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
+
     with st.form("password_form"):
         st.subheader("Change Password")
         current_password = st.text_input("Current Password", type="password")
@@ -1445,13 +1486,25 @@ def display_profile_page():
             if new_password != confirm_new_password: st.error("New passwords don't match!")
             elif change_password(st.session_state.username, current_password, new_password): st.success("Password changed successfully!")
             else: st.error("Incorrect current password")
-
 def show_main_app():
     load_css()
+    
+    # --- NEW: Notification Handler ---
+    if st.session_state.get('challenge_completed_toast', False):
+        st.toast("🎉 Daily Challenge Completed! Great job!", icon="🎉")
+        del st.session_state.challenge_completed_toast # Reset the flag
+        
+    if st.session_state.get('achievement_unlocked_toast', False):
+        achievement_name = st.session_state.achievement_unlocked_toast
+        st.toast(f"🏆 Achievement Unlocked: {achievement_name}!", icon="🏆")
+        st.balloons()
+        del st.session_state.achievement_unlocked_toast # Reset the flag
+
     last_update = st.session_state.get("last_status_update", 0)
     if time.time() - last_update > 60:
         update_user_status(st.session_state.username, True)
         st.session_state.last_status_update = time.time()
+        
     with st.sidebar:
         greeting = get_time_based_greeting()
         profile = get_user_profile(st.session_state.username)
@@ -1466,6 +1519,9 @@ def show_main_app():
         st.write("---")
         if st.button("Logout", type="primary", use_container_width=True):
             st.session_state.logged_in = False
+            # Clean up gamification flags on logout
+            if 'challenge_completed_toast' in st.session_state: del st.session_state.challenge_completed_toast
+            if 'achievement_unlocked_toast' in st.session_state: del st.session_state.achievement_unlocked_toast
             st.rerun()
             
     st.markdown('<div class="main-content">', unsafe_allow_html=True)
@@ -1490,7 +1546,6 @@ def show_main_app():
         display_learning_resources(topic_options)
         
     st.markdown('</div>', unsafe_allow_html=True)
-
 def show_login_or_signup_page():
     load_css()
     st.markdown('<div class="login-container">', unsafe_allow_html=True)
@@ -1555,6 +1610,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
