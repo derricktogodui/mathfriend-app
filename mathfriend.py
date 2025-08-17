@@ -428,7 +428,10 @@ def _generate_indices_question():
         question = f"Simplify: ${base}^{{{p1}}} {sym} {base}^{{{p2}}}$"
         answer = f"${base}^{{{res_p}}}$"
         hint = f"When you {op} powers with the same base, you {'add' if op=='multiply' else 'subtract'} the exponents."
-        explanation = f"Rule: $x^a {sym} x^b = x^{{a{'+' if op=='multiply' else '-' }b}}}$.\n\nSo, ${base}^{{{p1}}} {sym} {base}^{{{p2}}} = {base}^{{{p1}{'+' if op=='multiply' else '-'}{p2}}} = {base}^{{{res_p}}}$."
+        
+        # --- THIS LINE IS CORRECTED ---
+        explanation = f"Rule: $x^a {sym} x^b = x^{{a{'+' if op=='multiply' else '-' }b}}$.\n\nSo, ${base}^{{{p1}}} {sym} {base}^{{{p2}}} = {base}^{{{p1}{'+' if op=='multiply' else '-'}{p2}}} = {base}^{{{res_p}}}$."
+        
         options = {answer, f"${base}^{{{p1*p2}}}$"}
 
     elif q_type == 'law_power':
@@ -464,7 +467,6 @@ def _generate_indices_question():
         options = {answer, str(base*p), str(base**p)}
 
     return {"question": question, "options": _finalize_options(options), "answer": answer, "hint": hint, "explanation": explanation}
-
 def _generate_surds_question():
     # Subtopics: Simplification, Operations, Rationalization, Equations
     q_type = random.choice(['simplify', 'operate', 'rationalize', 'equation'])
@@ -1105,3 +1107,4 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
