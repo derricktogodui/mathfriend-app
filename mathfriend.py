@@ -481,11 +481,23 @@ def _generate_fractions_question():
         f2 = Fraction(random.randint(1, 10), random.randint(2, 10))
         op, sym = random.choice([('add', '+'), ('subtract', '-'), ('multiply', '\\times'), ('divide', '\\div')])
         if op == 'divide' and f2.numerator == 0: f2 = Fraction(1, f2.denominator)
-        question = f"Calculate: ${_get_fraction_latex_code(f1)} {sym} ${_get_fraction_latex_code(f2)}$"
-        if op == 'add': res = f1 + f2
-        elif op == 'subtract': res = f1 - f2
-        elif op == 'multiply': res = f1 * f2
-        else: res = f1 / f2
+
+        # THIS IS THE ONLY FIX APPLIED TO THE FUNCTION
+        # 1. Generate the LaTeX parts first and store them in simple variables.
+        f1_latex = _get_fraction_latex_code(f1)
+        f2_latex = _get_fraction_latex_code(f2)
+        # 2. Assemble the final string from the simple variables.
+        question = f"Calculate: ${f1_latex} {sym} {f2_latex}$"
+        
+        if op == 'add': 
+            res = f1 + f2
+        elif op == 'subtract': 
+            res = f1 - f2
+        elif op == 'multiply': 
+            res = f1 * f2
+        else: 
+            res = f1 / f2
+        
         answer = _format_fraction_text(res)
         hint = "For +/-, find a common denominator. For ×, multiply numerators/denominators. For ÷, invert the second fraction and multiply."
         explanation = f"To {op} ${_get_fraction_latex_code(f1)}$ and ${_get_fraction_latex_code(f2)}$, you follow the rule for that operation. The simplified result is ${_get_fraction_latex_code(res)}$."
@@ -494,6 +506,7 @@ def _generate_fractions_question():
     
     elif q_type == 'bodmas':
         a, b, c = [random.randint(2, 6) for _ in range(3)]
+        # This includes the fix from our previous discussion to add the '$' delimiters
         question = f"Evaluate the expression: $ (\\frac{{1}}{{{a}}} + \\frac{{1}}{{{b}}}) \\times {c} $"
         res = (Fraction(1, a) + Fraction(1, b)) * c
         answer = _format_fraction_text(res)
@@ -508,14 +521,15 @@ def _generate_fractions_question():
         num = random.randint(1, den-1)
         spent = Fraction(num, den)
         remaining = total * (1-spent)
+        # This wording is reverted to your original version
         question = f"Kofi had GHS {total}. He spent $\\frac{{{num}}}{{{den}}}$ of it on airtime. How much money does he have left?"
         answer = f"GHS {remaining}"
         hint = "First, find the amount spent by multiplying the fraction by the total. Then, subtract this from the total."
         explanation = f"1. Amount spent = $\\frac{{{num}}}{{{den}}} \\times {total} = {total*spent}$.\n\n2. Money left = Total - Spent = {total} - {total*spent} = {remaining}."
+        # The options are reverted to your original version's formatting
         options = {answer, f"GHS {total*spent}"}
 
     return {"question": question, "options": _finalize_options(options, "fraction"), "answer": answer, "hint": hint, "explanation": explanation}
-
 def _generate_indices_question():
     # Subtopics: Laws of Indices, Fractional, Exponential Equations
     q_type = random.choice(['law_multiply_divide', 'law_power', 'law_negative_zero', 'fractional', 'equation'])
@@ -1533,6 +1547,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
