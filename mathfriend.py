@@ -1802,87 +1802,141 @@ def display_learning_resources(topic_options):
 
     topics_content = {
         "Sets": """
-        A **set** is a collection of distinct objects.
+        A **set** is a well-defined collection of distinct objects.
         - **Union ($A \\cup B$):** All elements that are in set A, or in set B, or in both.
         - **Intersection ($A \\cap B$):** All elements that are in *both* set A and set B.
-        - **Complement ($A'$):** All elements in the universal set ($\mathcal{U}$) that are *not* in set A.
+        - **Complement ($A'$ or $A^c$):** All elements in the universal set ($\mathcal{U}$) that are *not* in set A.
+        - **Number of Subsets:** A set with $n$ elements has $2^n$ subsets.
+        - **Venn Diagrams:** Visual diagrams used to show relationships between sets. For two sets A and B, the key formula is:
+          $$ |A \cup B| = |A| + |B| - |A \cap B| $$
         """,
         "Percentages": """
         A **percentage** is a number or ratio expressed as a fraction of 100.
         - **Percentage of a number:** To find $p\%$ of $N$, calculate $\\frac{p}{100} \\times N$.
-        - **Percent Change:** $\\frac{\\text{New Value} - \\text{Old Value}}{\\text{Old Value}} \\times 100\\%$.
-        - **Compound Interest:** $A = P(1 + \\frac{r}{n})^{nt}$.
+        - **Percentage Change:** Used to find the increase or decrease in a value.
+          $$ \\text{Percent Change} = \\frac{{\\text{New Value} - \\text{Old Value}}}{{\\text{Old Value}}} \\times 100\\% $$
+        - **Profit and Loss:**
+            - Profit % = $(\\frac{{\\text{Profit}}}{{\\text{Cost Price}}}) \\times 100\\%$
+            - Loss % = $(\\frac{{\\text{Loss}}}{{\\text{Cost Price}}}) \\times 100\\%$
+        - **Simple Interest:** $I = P \times R \times T$, where P=Principal, R=Rate (as decimal), T=Time.
         """,
         "Fractions": """
-        A **fraction** represents a part of a whole.
-        - **Adding/Subtracting:** You must find a common denominator.
-        - **Multiplying:** Multiply the numerators together and the denominators together.
-        - **Dividing:** Invert the second fraction and multiply (Keep, Change, Flip).
+        A **fraction** represents a part of a whole, written as $\\frac{{\\text{numerator}}}{{\\text{denominator}}}$.
+        - **Adding/Subtracting:** Find a common denominator, then add or subtract the numerators.
+        - **Multiplying:** Multiply the numerators together and the denominators together. $\\frac{a}{b} \\times \\frac{c}{d} = \\frac{ac}{bd}$.
+        - **Dividing:** Invert the second fraction and multiply. $\\frac{a}{b} \\div \\frac{c}{d} = \\frac{a}{b} \\times \\frac{d}{c} = \\frac{ad}{bc}$.
+        - **Order of Operations (BODMAS):** Brackets, Orders (powers/roots), Division, Multiplication, Addition, Subtraction.
         """,
         "Indices": """
-        Indices (or exponents) represent repeated multiplication.
+        Indices (or exponents) show how many times a number is multiplied by itself.
         - **Multiplication Rule:** $x^a \\times x^b = x^{a+b}$
         - **Division Rule:** $x^a \\div x^b = x^{a-b}$
         - **Power of a Power Rule:** $(x^a)^b = x^{ab}$
         - **Negative Exponent:** $x^{-a} = \\frac{1}{x^a}$
         - **Fractional Exponent:** $x^{\\frac{1}{n}} = \\sqrt[n]{x}$
+        - **Zero Exponent:** $x^0 = 1$ (for any non-zero x)
         """,
         "Surds": """
-        A **surd** is an irrational number expressed with a root symbol (e.g., $\sqrt{2}$).
-        - **Simplifying:** Find the largest perfect square factor. $\sqrt{12} = \sqrt{4 \times 3} = 2\sqrt{3}$.
-        - **Rationalizing the Denominator:** Multiply the numerator and denominator by the conjugate of the denominator. For $\\frac{a}{b+\sqrt{c}}$, multiply by $\\frac{b-\sqrt{c}}{b-\sqrt{c}}$.
+        A **surd** is an irrational root of a number (e.g., $\sqrt{2}$).
+        - **Simplifying:** Find the largest perfect square factor. Example: $\sqrt{50} = \sqrt{25 \times 2} = \sqrt{25} \times \sqrt{2} = 5\sqrt{2}$.
+        - **Operations:** You can only add or subtract 'like' surds. Example: $4\sqrt{3} + 2\sqrt{3} = 6\sqrt{3}$.
+        - **Rationalizing the Denominator:** To remove a surd from the denominator, multiply the numerator and denominator by the conjugate of the denominator. The conjugate of $(a + \sqrt{b})$ is $(a - \sqrt{b})$.
         """,
         "Binary Operations": """
-        A **binary operation** combines two elements to produce a third.
-        - **Identity Element (e):** An element such that $a * e = a$.
-        - **Inverse Element (a⁻¹):** An element such that $a * a^{-1} = e$.
-        - **Commutative Property:** $a * b = b * a$.
+        A **binary operation** ($\ast$) on a set is a rule for combining any two elements of the set to produce another element.
+        - **Commutative Property:** The operation is commutative if $a \ast b = b \ast a$.
+        - **Associative Property:** The operation is associative if $(a \ast b) \ast c = a \ast (b \ast c)$.
+        - **Identity Element (e):** An element such that $a \ast e = e \ast a = a$.
+        - **Inverse Element ($a^{-1}$):** An element such that $a \ast a^{-1} = a^{-1} \ast a = e$.
         """,
         "Relations and Functions": """
         - **Relation:** A set of ordered pairs $(x, y)$.
         - **Function:** A special relation where each input ($x$) has exactly one output ($y$).
         - **Domain:** The set of all possible input values ($x$).
-        - **Range:** The set of all possible output values ($y$).
-        - **Composite Function $f(g(x))$:** The output of $g(x)$ becomes the input for $f(x)$.
+        - **Range:** The set of all actual output values ($y$).
+        - **Composite Function $f(g(x))$:** The output of $g(x)$ becomes the input for $f(x)$. First evaluate $g(x)$, then apply $f$ to the result.
+        - **Inverse Function $f^{-1}(x)$:** The function that reverses $f(x)$. To find it: let $y=f(x)$, swap $x$ and $y$, then solve for $y$.
         """,
         "Sequence and Series": """
-        - **Arithmetic Progression (AP):** Has a *common difference* ($d$). Nth term: $a_n = a_1 + (n-1)d$.
-        - **Geometric Progression (GP):** Has a *common ratio* ($r$). Nth term: $a_n = a_1 r^{n-1}$.
-        - **Sum to Infinity (GP):** $S_\\infty = \\frac{a_1}{1-r}$, only if $|r| < 1$.
+        - **Arithmetic Progression (AP):** A sequence with a *common difference* ($d$).
+            - Nth term: $a_n = a_1 + (n-1)d$
+            - Sum of n terms: $S_n = \\frac{n}{2}(2a_1 + (n-1)d)$
+        - **Geometric Progression (GP):** A sequence with a *common ratio* ($r$).
+            - Nth term: $a_n = a_1 r^{n-1}$
+            - Sum of n terms: $S_n = \\frac{{a_1(r^n - 1)}}{{r-1}}$
+        - **Sum to Infinity (GP):** For $|r| < 1$, $S_\\infty = \\frac{a_1}{1-r}$.
         """,
         "Word Problems": """
-        A systematic approach is key:
+        A systematic approach is key for any student in Kumasi and beyond:
         1.  **Read and Understand:** Identify what is given and what is being asked.
         2.  **Define Variables:** Assign letters (e.g., $x, y$) to the unknown quantities.
-        3.  **Formulate Equations:** Translate the words into mathematical equations.
-        4.  **Solve** the equations.
+        3.  **Formulate Equations:** Translate the words into mathematical equations or inequalities.
+        4.  **Solve** the system of equations.
         5.  **Check** your answer to ensure it makes sense in the context of the problem.
         """,
         "Shapes (Geometry)": """
         - **Rectangle:** Area = $l \times w$; Perimeter = $2(l+w)$.
         - **Circle:** Area = $\pi r^2$; Circumference = $2\pi r$.
         - **Cylinder:** Volume = $\pi r^2 h$; Surface Area = $2\pi r h + 2\pi r^2$.
-        - **Rectangular Prism:** Volume = $l \times w \times h$.
+        - **Pythagoras' Theorem:** For a right-angled triangle, $a^2 + b^2 = c^2$, where $c$ is the hypotenuse.
         """,
         "Algebra Basics": """
-        - **Substitution:** Replacing a variable with its numerical value.
         - **Change of Subject:** Rearranging a formula to isolate a different variable.
-        - **Factorization:** Expressing an algebraic expression as a product of its factors.
+        - **Factorization:** Expressing an algebraic expression as a product of its factors (e.g., difference of two squares, quadratics).
+        - **Solving Equations:**
+            - **Linear:** Isolate the variable.
+            - **Quadratic ($ax^2+bx+c=0$):** Solve by factorization, completing the square, or the quadratic formula: $x = \\frac{{-b \pm \sqrt{{b^2-4ac}}}}{{2a}}$.
         """,
         "Linear Algebra": """
-        Focuses on vectors and matrices.
-        - **Matrix Addition:** Add corresponding elements.
-        - **Matrix Multiplication:** Dot product of rows and columns.
-        - **Determinant (2x2):** For $\\begin{pmatrix} a & b \\\\ c & d \\end{pmatrix}$, the determinant is $ad - bc$.
+        Focuses on vectors and matrices. For a 2x2 matrix $A = \\begin{pmatrix} a & b \\\\ c & d \\end{pmatrix}$:
+        - **Determinant:** $\det(A) = ad - bc$.
+        - **Matrix Multiplication:** Is done by row-by-column dot product. Not commutative ($AB \neq BA$).
+        - **Inverse Matrix:** $A^{-1} = \\frac{1}{{\det(A)}} \\begin{pmatrix} d & -b \\\\ c & a \\end{pmatrix}$. The inverse only exists if $\det(A) \neq 0$.
+        """,
+        "Logarithms": """
+        A logarithm is the inverse operation to exponentiation. $\log_b(N) = x$ is the same as $b^x = N$.
+        - **Product Rule:** $\log_b(M) + \log_b(N) = \log_b(MN)$
+        - **Quotient Rule:** $\log_b(M) - \log_b(N) = \log_b(\\frac{M}{N})$
+        - **Power Rule:** $\log_b(M^p) = p \log_b(M)$
+        - **Change of Base:** $\log_b(a) = \\frac{{\log_c(a)}}{{\log_c(b)}}$
+        """,
+        "Probability": """
+        Probability measures the likelihood of an event occurring. $P(\text{Event}) = \\frac{{\text{Number of Favorable Outcomes}}}{{\text{Total Number of Outcomes}}}$.
+        - **Range:** $0 \le P(E) \le 1$. $P(E)=0$ means impossible, $P(E)=1$ means certain.
+        - **Mutually Exclusive Events (OR):** Events that cannot happen at the same time. $P(A \text{ or } B) = P(A) + P(B)$.
+        - **Independent Events (AND):** The outcome of one event does not affect the other. $P(A \text{ and } B) = P(A) \\times P(B)$.
+        """,
+        "Binomial Theorem": """
+        Used to expand powers of binomials, like $(a+b)^n$.
+        - **The Formula:** $(a+b)^n = \sum_{k=0}^{n} \binom{n}{k} a^{n-k} b^k$
+        - **Combinations:** The coefficient $\binom{n}{k}$ (read "n choose k") is calculated as $\\frac{{n!}}{{k!(n-k)!}}$.
+        - **Finding the $(r+1)^{th}$ term:** The term is given by $T_{r+1} = \binom{n}{r} a^{n-r} b^r$.
+        """,
+        "Polynomial Functions": """
+        Expressions with one or more terms, involving variables with non-negative integer exponents.
+        - **Remainder Theorem:** The remainder when a polynomial $P(x)$ is divided by $(x-a)$ is equal to $P(a)$.
+        - **Factor Theorem:** A special case of the Remainder Theorem. If $P(a)=0$, then $(x-a)$ is a factor of $P(x)$. This is key to finding the roots of polynomials.
+        """,
+        "Trigonometry": """
+        The study of relationships between the angles and sides of triangles.
+        - **SOH CAH TOA:** For right-angled triangles.
+        - **Identities:** $\sin^2\theta + \cos^2\theta = 1$ and $\tan\theta = \\frac{{\sin\theta}}{{\cos\theta}}$.
+        - **Sine Rule:** Used for any triangle when you have a side and its opposite angle. $\\frac{a}{{\sin A}} = \\frac{b}{{\sin B}} = \\frac{c}{{\sin C}}$.
+        - **Cosine Rule:** Used when you have two sides and the included angle, or all three sides. $c^2 = a^2 + b^2 - 2ab\cos(C)$.
+        """,
+        "Vectors": """
+        A quantity having both magnitude (length) and direction.
+        - **Component Form:** A vector $\mathbf{v}$ can be written as $x\mathbf{i} + y\mathbf{j}$ or as a column vector $\\binom{x}{y}$.
+        - **Magnitude:** The length of $\mathbf{v} = x\mathbf{i} + y\mathbf{j}$ is $|\mathbf{v}| = \sqrt{x^2 + y^2}$.
+        - **Scalar (Dot) Product:** $\mathbf{a} \cdot \mathbf{b} = a_1b_1 + a_2b_2$.
+        - **Angle Between Vectors:** $\cos\theta = \\frac{{\mathbf{a} \cdot \mathbf{b}}}{{|\mathbf{a}| |\mathbf{b}|}}$.
         """
     }
 
     for topic in topic_options:
         if topic in topics_content:
-            with st.expander(f"**{topic}**"):
+            with st.expander(f"**{topic}**", expanded=(topic == topic_options[0])):
                 st.markdown(topics_content[topic], unsafe_allow_html=True)
-
-
 def display_profile_page():
     st.header("👤 Your Profile")
     profile = get_user_profile(st.session_state.username) or {}
@@ -2021,6 +2075,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
