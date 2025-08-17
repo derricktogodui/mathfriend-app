@@ -1241,8 +1241,7 @@ def _generate_advanced_combo_question():
     }
 
 def generate_question(topic):
-    # This dictionary now maps all 12 topics to their dedicated, complete generator functions.
-   generators = {
+    generators = {
         "Sets": _generate_sets_question, 
         "Percentages": _generate_percentages_question,
         "Fractions": _generate_fractions_question, 
@@ -1263,6 +1262,7 @@ def generate_question(topic):
         "Vectors": _generate_vectors_question,
         "Advanced Combo": _generate_advanced_combo_question,
     }
+    # This block is now correctly indented
     generator_func = generators.get(topic)
     if generator_func: 
         return generator_func()
@@ -1931,6 +1931,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
