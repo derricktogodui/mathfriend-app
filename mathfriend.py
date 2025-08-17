@@ -38,7 +38,8 @@ def initialize_session_state():
         "questions_answered": 0,
         "current_streak": 0,
         "incorrect_questions": [],
-        "on_summary_page": False
+        "on_summary_page": False,
+        "difficulty": "Medium"
     }
     for key, value in defaults.items():
         if key not in st.session_state:
@@ -102,10 +103,9 @@ def login_user(username, password):
         result = conn.execute(text("SELECT password FROM users WHERE username = :username"), {"username": username})
         record = result.first()
         if record and check_password(record[0], password):
-            # Create or update user in Stream Chat on login
             profile = get_user_profile(username)
             display_name = profile.get('full_name') if profile and profile.get('full_name') else username
-            chat_client.upsert_user({"id": username, "name": display_name})
+            chat_client.upsert_user({"id": username, "name": display_name, "role": "user", "allow_uploads": True})
             return True
         return False
 
@@ -115,7 +115,6 @@ def signup_user(username, password):
             conn.execute(text("INSERT INTO users (username, password) VALUES (:username, :password)"), 
                          {"username": username, "password": hash_password(password)})
             conn.commit()
-            # Create user in Stream Chat on signup
             chat_client.upsert_user({"id": username, "name": username})
         return True
     except sqlalchemy.exc.IntegrityError:
@@ -138,7 +137,6 @@ def update_user_profile(username, full_name, school, age, bio):
         """)
         conn.execute(query, {"username": username, "full_name": full_name, "school": school, "age": age, "bio": bio})
         conn.commit()
-        # Update user's name in Stream Chat on profile update
         chat_client.upsert_user({"id": username, "name": full_name if full_name else username})
     return True
 
@@ -268,9 +266,7 @@ def get_user_stats_for_topic(username, topic):
         return f"{best_score:.1f}%", attempts
 
 def get_online_users(current_user):
-    """Returns a list of users currently online, excluding the current user."""
     with engine.connect() as conn:
-        # Consider users online if their last_seen is within the last 5 minutes
         query = text("""
             SELECT username FROM user_status 
             WHERE is_online = TRUE AND last_seen > NOW() - INTERVAL '5 minutes'
@@ -280,62 +276,71 @@ def get_online_users(current_user):
         return [row[0] for row in result.fetchall()]
 
 # --- Fully Upgraded Question Generation Engine ---
-def _generate_sets_question():
-    q_type = random.choice(['simple_operation', 'simple_operation', 'venn_two_set', 'venn_three_set'])
-    if q_type == 'simple_operation': # Beginner
+def _generate_sets_question(difficulty="Medium"):
+    # (This function is now upgraded)
+    if difficulty == "Easy": q_type = 'simple_operation'
+    elif difficulty == "Medium": q_type = 'venn_two_set'
+    else: q_type = 'venn_three_set'
+    
+    if q_type == 'simple_operation':
         set_a = set(random.sample(range(1, 20), k=random.randint(4, 6)))
         set_b = set(random.sample(range(1, 20), k=random.randint(4, 6)))
         operation, op_symbol = random.choice([('union', '\\cup'), ('intersection', '\\cap'), ('difference', '-')])
-        question_text = f"Given the universal set $\mathcal{{U}} = \\{{1, 2, ..., 20\\}}$, Set $A = {set_a}$ and Set $B = {set_b}$, find $A {op_symbol} B$."
+        verb = random.choice(["Find", "Determine", "List the elements of"])
+        question_text = f"Given $A = {set_a}$ and $B = {set_b}$, {verb} $A {op_symbol} B$."
         if operation == 'union': correct_answer = str(set_a.union(set_b))
         elif operation == 'intersection': correct_answer = str(set_a.intersection(set_b))
         else: correct_answer = str(set_a.difference(set_b))
         options = {correct_answer, str(set_a.symmetric_difference(set_b)), str(set_b.difference(set_a))}
         hint = "Review the basic set operations: union ($\cup$), intersection ($\cap$), and difference ($-$)."
-    elif q_type == 'venn_two_set': # Intermediate
+    elif q_type == 'venn_two_set':
         total = random.randint(40, 60)
         group_a_name, group_b_name = random.choice([("Physics", "Chemistry"), ("History", "Government"), ("Kenkey", "Waakye")])
         a_only, b_only, both = random.randint(5, 15), random.randint(5, 15), random.randint(3, 10)
         neither = total - (a_only + b_only + both)
-        question_text = f"In a survey of {total} students, it was found that {a_only+both} liked {group_a_name} and {b_only+both} liked {group_b_name}. If {neither} students liked neither, how many students liked BOTH {group_a_name} and {group_b_name}?"
+        question_text = f"In a survey of {total} students, {a_only+both} liked {group_a_name} and {b_only+both} liked {group_b_name}. If every student liked at least one of the two, how many students liked BOTH {group_a_name} and {group_b_name}?"
         correct_answer = str(both)
-        options = {correct_answer, str(a_only), str(b_only), str(total - (a_only+both) - (b_only+both))}
-        hint = "Use a Venn diagram or the formula $|A \cup B| = |A| + |B| - |A \cap B|$. The number who like at least one is Total - Neither."
-    elif q_type == 'venn_three_set': # Advanced
-        a,b,c,ab,bc,ac,abc = [random.randint(2, 6) for _ in range(7)]
+        options = {correct_answer, str(a_only), str(b_only), str(total - (a_only+both))}
+        hint = "Use the formula $|A \cup B| = |A| + |B| - |A \cap B|$. The number who like at least one is Total - Neither."
+    elif q_type == 'venn_three_set':
+        a,b,c,ab,bc,ac,abc = [random.randint(3, 8) for _ in range(7)]
         a_only, b_only, c_only, ab_only, bc_only, ac_only, all_three = a, b, c, ab, bc, ac, abc
-        total = a_only + b_only + c_only + ab_only + bc_only + ac_only + all_three
         total_a, total_b, total_c = a_only+ab_only+ac_only+all_three, b_only+ab_only+bc_only+all_three, c_only+ac_only+bc_only+all_three
-        question_text = f"A group of {total} people were asked about three fruits: Apples (A), Bananas (B), and Coconuts (C). {total_a} liked A, {total_b} liked B, and {total_c} liked C. {ab_only+all_three} liked A and B, {ac_only+all_three} liked A and C, {bc_only+all_three} liked B and C, and {all_three} liked all three. How many people liked exactly one type of fruit?"
-        correct_answer = str(a_only + b_only + c_only)
-        options = {correct_answer, str(ab_only+bc_only+ac_only), str(total)}
-        hint = "Draw a three-set Venn diagram and start by filling the innermost region (A ∩ B ∩ C). Work your way outwards by subtracting."
+        question_text = f"In a class, {total_a} students play Football (F), {total_b} play Volleyball (V), and {total_c} play Basketball (B). {ab_only+all_three} play F and V, {ac_only+all_three} play F and B, {bc_only+all_three} play V and B, and {all_three} play all three sports. How many students play exactly two sports?"
+        correct_answer = str(ab_only + bc_only + ac_only)
+        options = {correct_answer, str(a_only + b_only + c_only), str(all_three)}
+        hint = "Draw a three-set Venn diagram and start by filling the innermost region (F ∩ V ∩ B). The number who play exactly two is the sum of the three 'overlap' regions, after subtracting the 'all three' part from each."
     while len(options) < 4: options.add(str(random.randint(1, 60)))
     return {"question": question_text, "options": list(set(options)), "answer": correct_answer, "hint": hint}
 
-def _generate_percentages_question():
-    q_type = random.choice(['percent_of', 'what_percent', 'original_price', 'percent_change'])
+def _generate_percentages_question(difficulty="Medium"):
+    # (This function is now upgraded)
+    if difficulty == "Easy": q_type = 'percent_of'
+    elif difficulty == "Medium": q_type = random.choice(['what_percent', 'original_price'])
+    else: q_type = 'percent_change'
+    
     if q_type == 'percent_of':
-        percent = random.randint(1, 40) * 5; number = random.randint(1, 50) * 10
+        percent = random.randint(1, 19) * 5; number = random.randint(10, 50) * 10
         question_text = f"What is {percent}% of {number}?"; correct_answer = f"{float((percent / 100) * number):.2f}"
         hint = "To find the percent of a number, convert the percent to a decimal (divide by 100) and multiply."
     elif q_type == 'what_percent':
-        part = random.randint(1, 20); whole = random.randint(part + 1, 50)
-        question_text = f"What percent of {whole} is {part}?"; correct_answer = f"{float((part / whole) * 100):.2f}%"
+        part = random.randint(10, 40); whole = random.randint(part + 5, 100)
+        question_text = f"What percentage of {whole} is {part}?"; correct_answer = f"{float((part / whole) * 100):.1f}%"
         hint = "To find what percent a part is of a whole, divide the part by the whole and multiply by 100."
     elif q_type == 'original_price':
-        original_price = random.randint(20, 200); discount_percent = random.randint(1, 8) * 5
+        original_price = random.randint(50, 500); discount_percent = random.randint(2, 8) * 5
         final_price = original_price * (1 - discount_percent/100)
-        question_text = f"An item is sold for GHS {final_price:.2f} after a {discount_percent}% discount. What was the original price?"
+        question_text = f"A phone is sold for GHS {final_price:.2f} after a {discount_percent}% discount. What was its original price?"
         correct_answer = f"GHS {float(original_price):.2f}"
         hint = "Let the original price be 'P'. The final price is P * (1 - discount/100). Solve for P."
     elif q_type == 'percent_change':
-        old_value = random.randint(50, 200); change_factor = random.choice([random.uniform(0.5, 0.9), random.uniform(1.1, 1.5)])
+        old_value = random.randint(100, 500)
+        change_factor = random.choice([random.uniform(0.6, 0.9), random.uniform(1.1, 1.4)])
         new_value = round(old_value * change_factor, 2)
         change_type = "increase" if new_value > old_value else "decrease"
-        question_text = f"The price of an item changed from GHS {old_value} to GHS {new_value}. What was the percentage {change_type}?"
+        question_text = f"The enrollment in a school changed from {old_value} to {new_value} students. Calculate the percentage {change_type}."
         percent_change = ((new_value - old_value) / old_value) * 100
-        correct_answer = f"{abs(percent_change):.2f}%"
+        correct_answer = f"{abs(percent_change):.1f}%"
         hint = "The formula for percent change is ((New Value - Old Value) / Old Value) * 100."
     options = [correct_answer]
     while len(options) < 4:
@@ -344,10 +349,9 @@ def _generate_percentages_question():
             noise = random.uniform(0.5, 1.5); wrong_answer_val = correct_val * noise
             if wrong_answer_val == correct_val: continue
             prefix = "GHS " if correct_answer.startswith("GHS") else ""; suffix = "%" if correct_answer.endswith("%") else ""
-            new_option = f"{prefix}{abs(wrong_answer_val):.2f}{suffix}"
+            new_option = f"{prefix}{abs(wrong_answer_val):.1f}{suffix}"
             if new_option not in options: options.append(new_option)
-        except (ValueError, IndexError): options.append(f"{random.randint(1,100):.2f}%")
-    random.shuffle(options)
+        except (ValueError, IndexError): options.append(f"{random.randint(1,100):.1f}%")
     return {"question": question_text, "options": list(set(options)), "answer": correct_answer, "hint": hint}
 
 def _get_fraction_latex_code(f: Fraction):
@@ -358,8 +362,11 @@ def _format_fraction_text(f: Fraction):
     if f.denominator == 1: return str(f.numerator)
     return f"{f.numerator}/{f.denominator}"
 
-def _generate_fractions_question():
-    q_type = random.choice(['add_sub', 'mul_div', 'simplify', 'mixed_numbers'])
+def _generate_fractions_question(difficulty="Medium"):
+    # (This function is now upgraded)
+    if difficulty == "Easy": q_type = 'add_sub'
+    elif difficulty == "Medium": q_type = 'mul_div'
+    else: q_type = 'mixed_numbers'
     f1 = Fraction(random.randint(1, 10), random.randint(2, 10)); f2 = Fraction(random.randint(1, 10), random.randint(2, 10))
     if q_type == 'add_sub':
         op_symbol = random.choice(['+', '-']); expression_code = f"{_get_fraction_latex_code(f1)} {op_symbol} {_get_fraction_latex_code(f2)}"
@@ -373,12 +380,6 @@ def _generate_fractions_question():
         else:
             correct_answer_obj = f1 * f2; hint = "To multiply fractions, multiply the numerators and denominators."
         question_text = f"Calculate: ${expression_code}$"
-    elif q_type == 'simplify':
-        common_factor = random.randint(2, 5)
-        unsimplified_f = Fraction(f1.numerator * common_factor, f1.denominator * common_factor)
-        expression_code = f"{_get_fraction_latex_code(unsimplified_f)}"; correct_answer_obj = f1
-        question_text = f"Simplify the fraction ${expression_code}$ to its lowest terms."
-        hint = "Divide the numerator and denominator by their greatest common divisor."
     elif q_type == 'mixed_numbers':
         w1, f1_rem = 1 + f1.numerator // f1.denominator, f1 % 1
         w2, f2_rem = 1 + f2.numerator // f2.denominator, f2 % 1
@@ -386,7 +387,7 @@ def _generate_fractions_question():
         if f2_rem == 0: f2_rem = Fraction(1, random.randint(2,5))
         mixed_f1 = w1 + f1_rem; mixed_f2 = w2 + f2_rem
         correct_answer_obj = mixed_f1 + mixed_f2
-        question_text = f"Calculate: ${w1}\\frac{{{f1_rem.numerator}}}{{{f1_rem.denominator}}} + {w2}\\frac{{{f2_rem.numerator}}}{{{f2_rem.denominator}}}$"
+        question_text = f"Evaluate: ${w1}\\frac{{{f1_rem.numerator}}}{{{f1_rem.denominator}}} + {w2}\\frac{{{f2_rem.numerator}}}{{{f2_rem.denominator}}}$"
         hint = "First, convert the mixed numbers to improper fractions. Then, find a common denominator to add them."
     correct_answer = _format_fraction_text(correct_answer_obj)
     options = {correct_answer}
@@ -395,8 +396,11 @@ def _generate_fractions_question():
         options.add(_format_fraction_text(distractor_f))
     return {"question": question_text, "options": list(options), "answer": correct_answer, "hint": hint}
 
-def _generate_surds_question():
-    q_type = random.choice(['simplify', 'operate', 'rationalize'])
+def _generate_surds_question(difficulty="Medium"):
+    # (This function is now upgraded)
+    if difficulty == "Easy": q_type = 'simplify'
+    elif difficulty == "Medium": q_type = 'operate'
+    else: q_type = 'rationalize'
     if q_type == 'simplify':
         p = random.choice([4, 9, 16, 25, 36]); n = random.choice([2, 3, 5, 6, 7])
         num_inside = p * n; coeff_out = int(math.sqrt(p))
@@ -424,8 +428,11 @@ def _generate_surds_question():
         options.add(f"${random.randint(1,10)}\sqrt{{{random.randint(2,7)}}}$")
     return {"question": question_text, "options": list(options), "answer": correct_answer, "hint": hint}
 
-def _generate_binary_ops_question():
-    q_type = random.choice(['simple', 'multi_step', 'find_inverse'])
+def _generate_binary_ops_question(difficulty="Medium"):
+    # (This function is now upgraded)
+    if difficulty == "Easy": q_type = 'simple'
+    elif difficulty == "Medium": q_type = 'multi_step'
+    else: q_type = 'find_inverse'
     a, b = random.randint(2, 9), random.randint(2, 9)
     op_def, op_func = random.choice([
         (r"p \ast q = p + q + 2", lambda x, y: x + y + 2),
@@ -452,8 +459,11 @@ def _generate_binary_ops_question():
     while len(options) < 4: options.add(str(random.randint(-20, 50)))
     return {"question": question_text, "options": list(set(options)), "answer": correct_answer, "hint": hint}
 
-def _generate_word_problems_question():
-    q_type = random.choice(['simple_equation', 'age_problem', 'consecutive_integers'])
+def _generate_word_problems_question(difficulty="Medium"):
+    # (This function is now upgraded)
+    if difficulty == "Easy": q_type = 'simple_equation'
+    elif difficulty == "Medium": q_type = 'age_problem'
+    else: q_type = 'consecutive_integers'
     if q_type == 'simple_equation':
         x = random.randint(3, 12); k = random.randint(2, 7)
         op_word, op_func = random.choice([("multiplied by 3", lambda n: 3*n), ("doubled", lambda n: 2*n)])
@@ -486,9 +496,13 @@ def _generate_word_problems_question():
     while len(options) < 4: options.add(str(random.randint(1, 60)))
     return {"question": question_text, "options": list(set(options)), "answer": correct_answer, "hint": hint}
 
-def _generate_indices_question():
-    q_type = random.choice(['multiply', 'divide', 'power', 'negative', 'fractional', 'combined'])
+def _generate_indices_question(difficulty="Medium"):
+    # (This function is now upgraded)
     base = random.randint(2, 6)
+    if difficulty == "Easy": q_type = random.choice(['multiply', 'divide', 'power'])
+    elif difficulty == "Medium": q_type = random.choice(['negative', 'fractional'])
+    else: q_type = 'combined'
+
     if q_type == 'combined':
         p1, p2, p3 = random.randint(3, 6), random.randint(2, 4), random.randint(2, 5)
         question_text = f"Simplify fully: $\\frac{{({base}^{p1})^{p2}}}{{{base}^{p3}}}$"
@@ -521,8 +535,12 @@ def _generate_indices_question():
     while len(options) < 4: options.add(str(random.randint(1, 100)))
     return {"question": question_text, "options": list(options), "answer": correct_answer, "hint": hint}
 
-def _generate_relations_functions_question():
-    q_type = random.choice(['domain_range', 'is_function', 'evaluate', 'composite', 'inverse'])
+def _generate_relations_functions_question(difficulty="Medium"):
+    # (This function is now upgraded)
+    if difficulty == "Easy": q_type = random.choice(['domain_range', 'evaluate'])
+    elif difficulty == "Medium": q_type = 'is_function'
+    else: q_type = 'composite'
+    
     if q_type == 'domain_range':
         sub_type = random.choice(['domain', 'range']); domain_set = set(random.sample(range(-5, 10), k=4))
         range_set = set(random.sample(range(-5, 10), k=4))
@@ -548,17 +566,14 @@ def _generate_relations_functions_question():
         correct_answer = str(a*g_of_x + b)
         hint = f"First, calculate the inner function, $g({x_val})$. Then, use that result as the input for the outer function, $f(p)$."
         options = {correct_answer, str(c*(a*x_val + b) + d), str(g_of_x)}
-    elif q_type == 'inverse':
-        a, b = random.randint(2,7), random.randint(1,10)
-        question_text = f"Find the inverse function, $f^{{-1}}(x)$, of the function $f(x) = {a}x - {b}$."
-        correct_answer = r"$f^{-1}(x) = \frac{x + " + str(b) + r"}{" + str(a) + r"}$"
-        hint = "Let y = f(x), then swap x and y. Finally, make y the subject of the formula."
-        options = {correct_answer, r"$f^{-1}(x) = \frac{x - " + str(b) + r"}{" + str(a) + r"}$", r"$f^{-1}(x) = " + str(a) + r"x + " + str(b) + r"$"}
     while len(options) < 4: options.add(str(set(random.sample(range(1,10), k=3))))
     return {"question": question_text, "options": list(options), "answer": correct_answer, "hint": hint}
 
-def _generate_sequence_series_question():
-    q_type = random.choice(['ap_term', 'gp_term', 'ap_sum', 'gp_sum_infinity'])
+def _generate_sequence_series_question(difficulty="Medium"):
+    # (This function is now upgraded)
+    if difficulty == "Easy": q_type = 'ap_term'
+    elif difficulty == "Medium": q_type = 'gp_term'
+    else: q_type = random.choice(['ap_sum', 'gp_sum_infinity'])
     a = random.randint(2, 6)
     if q_type == 'ap_term':
         d = random.randint(3, 8); n = random.randint(8, 15)
@@ -588,8 +603,11 @@ def _generate_sequence_series_question():
     while len(options) < 4: options.add(str(random.randint(50, 500)))
     return {"question": question_text, "options": list(options), "answer": correct_answer, "hint": hint}
 
-def _generate_shapes_question():
-    q_type = random.choice(['area_rectangle', 'perimeter_triangle', 'volume_cylinder', 'area_circle_reverse', 'complex_surface_area'])
+def _generate_shapes_question(difficulty="Medium"):
+    # (This function is now upgraded)
+    if difficulty == "Easy": q_type = random.choice(['area_rectangle', 'perimeter_triangle'])
+    elif difficulty == "Medium": q_type = 'volume_cylinder'
+    else: q_type = random.choice(['area_circle_reverse', 'complex_surface_area'])
     if q_type == 'area_rectangle':
         l, w = random.randint(5, 20), random.randint(5, 20)
         question_text = f"What is the area of a rectangle with length ${l}$ cm and width ${w}$ cm?"; correct_answer = str(l * w)
@@ -621,8 +639,11 @@ def _generate_shapes_question():
     while len(options) < 4: options.add(str(random.randint(50, 500)))
     return {"question": question_text, "options": [str(o) for o in list(options)], "answer": correct_answer, "hint": hint}
 
-def _generate_algebra_basics_question():
-    q_type = random.choice(['substitution', 'change_subject', 'combined'])
+def _generate_algebra_basics_question(difficulty="Medium"):
+    # (This function is now upgraded)
+    if difficulty == "Easy": q_type = 'substitution'
+    elif difficulty == "Medium": q_type = 'change_subject'
+    else: q_type = 'combined'
     if q_type == 'substitution':
         x, y = random.randint(2, 6), random.randint(2, 6); a, b = random.randint(2, 5), random.randint(2, 5)
         question_text = f"If $x={x}$ and $y={y}$, what is the value of ${a}x + {b}y$?"; correct_answer = str(a*x + b*y)
@@ -648,8 +669,11 @@ def _generate_algebra_basics_question():
     while len(options) < 4: options.add(str(random.randint(1, 100)))
     return {"question": question_text, "options": [str(o) for o in list(options)], "answer": correct_answer, "hint": hint}
 
-def _generate_linear_algebra_question():
-    q_type = random.choice(['add', 'determinant', 'multiply'])
+def _generate_linear_algebra_question(difficulty="Medium"):
+    # (This function is now upgraded)
+    if difficulty == "Easy": q_type = 'add'
+    elif difficulty == "Medium": q_type = 'determinant'
+    else: q_type = 'multiply'
     mat_a = np.random.randint(-5, 10, size=(2, 2)); mat_b = np.random.randint(-5, 10, size=(2, 2))
     def mat_to_latex(m): return f"\\begin{{pmatrix}} {m[0,0]} & {m[0,1]} \\\\ {m[1,0]} & {m[1,1]} \\end{{pmatrix}}"
     if q_type == 'add':
@@ -670,7 +694,7 @@ def _generate_linear_algebra_question():
         else: options.add(f"${mat_to_latex(np.random.randint(-5, 10, size=(2,2)))}$")
     return {"question": question_text, "options": [str(o) for o in list(options)], "answer": str(correct_answer), "hint": hint}
 
-def generate_question(topic):
+def generate_question(topic, difficulty="Medium"):
     generators = {
         "Sets": _generate_sets_question, "Percentages": _generate_percentages_question,
         "Fractions": _generate_fractions_question, "Indices": _generate_indices_question,
@@ -683,11 +707,10 @@ def generate_question(topic):
         "Linear Algebra": _generate_linear_algebra_question,
     }
     generator_func = generators.get(topic)
-    if generator_func: return generator_func()
+    if generator_func: return generator_func(difficulty)
     else: return {"question": f"Questions for **{topic}** are coming soon!", "options": ["OK"], "answer": "OK", "hint": "This topic is under development."}
 
 # ... (All display functions, CSS, and main app flow logic remain here, unchanged) ...
-# (Omitted for final response brevity, but present in the actual code)
 def confetti_animation():
     html("""<script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.5.1/dist/confetti.browser.min.js"></script><script>confetti();</script>""")
 
@@ -698,79 +721,16 @@ def get_time_based_greeting():
     else: return "Good evening"
 
 def load_css():
-    """Loads the main CSS for the application for a consistent and responsive look."""
     st.markdown("""
     <style>
-        /* --- BASE STYLES --- */
-        .stApp {
-            background-color: #f0f2ff;
-        }
-        
-        /* FIX FOR TABLET SCROLLING */
-        [data-testid="stAppViewContainer"] > .main {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            overflow: auto !important;
-        }
-
-        /* --- THE DEFINITIVE CHROME FIX (MAIN CONTENT) --- */
-        div[data-testid="stAppViewContainer"] * {
-            color: #31333F !important;
-        }
-
-        /* --- FINAL, CROSS-BROWSER SIDEBAR FIX --- */
-        div[data-testid="stSidebar"] {
-            background-color: #0F1116 !important;
-        }
-        div[data-testid="stSidebar"] * {
-            color: #FAFAFA !important;
-        }
-        div[data-testid="stSidebar"] h1 {
-            color: #FFFFFF !important;
-        }
-        div[data-testid="stSidebar"] [data-testid="stRadio"] label {
-            color: #E0E0E0 !important;
-        }
-
-        /* --- DARK MODE TEXT FIX --- */
-        [data-baseweb="theme-dark"] div[data-testid="stAppViewContainer"] * {
-            color: #31333F !important;
-        }
-        [data-baseweb="theme-dark"] div[data-testid="stSidebar"] * {
-            color: #FAFAFA !important;
-        }
-        
-        /* --- NEW: iMessage Style Chat Bubbles --- */
-        /* This targets the container that holds the bubble and avatar */
-        [data-testid="stChatMessage"] {
-            background-color: transparent;
-        }
-        
-        /* This is the actual chat bubble that contains the text */
-        [data-testid="stChatMessageContent"] {
-            border-radius: 20px;
-            padding: 12px 16px;
-            box-shadow: 0 1px 2px rgba(0,0,0,0.1);
-        }
-
-        /* Bubble styles for messages FROM OTHERS (grey) */
-        [data-testid="stChatMessage"]:has(div[data-testid="stChatMessageAssistantAvatar"]) [data-testid="stChatMessageContent"] {
-            background-color: #E5E5EA;
-            color: #31333F !important; /* Ensure dark text on grey bubble */
-        }
-
-        /* Bubble styles for messages FROM YOU (blue) */
-        [data-testid="stChatMessage"]:has(div[data-testid="stChatMessageUserAvatar"]) [data-testid="stChatMessageContent"] {
-            background-color: #007AFF;
-        }
-        
-        /* Text color for messages FROM YOU must be white */
-        [data-testid="stChatMessage"]:has(div[data-testid="stChatMessageUserAvatar"]) * {
-            color: white !important;
-        }
-        
-        /* --- COLOR OVERRIDES for main content --- */
+        .stApp { background-color: #f0f2ff; }
+        [data-testid="stAppViewContainer"] { overflow-y: auto !important; overflow-x: hidden !important; }
+        div[data-testid="stAppViewContainer"] > .main { display: flex; flex-direction: column; align-items: center; }
+        div[data-testid="stAppViewContainer"] * { color: #31333F !important; }
+        div[data-testid="stSidebar"] { background-color: #0F1116 !important; }
+        div[data-testid="stSidebar"] * { color: #FAFAFA !important; }
+        [data-baseweb="theme-dark"] div[data-testid="stAppViewContainer"] * { color: #31333F !important; }
+        [data-baseweb="theme-dark"] div[data-testid="stSidebar"] * { color: #FAFAFA !important; }
         button[data-testid="stFormSubmitButton"] *, div[data-testid="stButton"] > button * { color: white !important; }
         a, a * { color: #0068c9 !important; }
         .main-content h1, .main-content h2, .main-content h3, .main-content h4, .main-content h5, .main-content h6 { color: #1a1a1a !important; }
@@ -779,8 +739,6 @@ def load_css():
         [data-testid="stInfo"] * { color: #0c5460 !important; }
         [data-testid="stWarning"] * { color: #856404 !important; }
         [data-testid="stError"] * { color: #721c24 !important; }
-        
-        /* --- GENERAL STYLING --- */
         .main-content h1, .main-content h2, .main-content h3 { border-left: 5px solid #0d6efd; padding-left: 15px; border-radius: 3px; }
         [data-testid="stMetric"] { background-color: #FFFFFF; border: 1px solid #CCCCCC; padding: 20px; border-radius: 10px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); border-left: 5px solid #CCCCCC; }
         [data-testid="stHorizontalBlock"] > div:nth-of-type(1) [data-testid="stMetric"] { border-left-color: #0d6efd; }
@@ -798,10 +756,14 @@ def load_css():
         .login-container { background: #ffffff; border-radius: 16px; padding: 2rem 3rem; margin: auto; max-width: 450px; box-shadow: 0 8px 32px rgba(0,0,0,0.1); }
         .login-title { text-align: center; font-weight: 800; font-size: 2.2rem; }
         .login-subtitle { text-align: center; color: #6c757d; margin-bottom: 2rem; }
-        .main-content { background-color: #ffffff; padding: 2rem; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
+        .main-content { background-color: #ffffff; padding: 2rem; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); width: 100%; max-width: 1200px; margin: 20px;}
         @media (max-width: 640px) { .main-content, .login-container { padding: 1rem; } .login-title { font-size: 1.8rem; } }
+        [data-baseweb="theme-dark"] .main-content { background-color: #1E1E1E; color: #FAFAFA; }
+        [data-baseweb="theme-dark"] .login-container { background-color: #FFFFFF; }
+        [data-baseweb="theme-dark"] .main-content h1, [data-baseweb="theme-dark"] .main-content h2, [data-baseweb="theme-dark"] .main-content h3 { color: #FAFAFA !important; }
     </style>
     """, unsafe_allow_html=True)
+
 def display_dashboard(username):
     st.header(f"📈 Dashboard for {username}")
     tab1, tab2 = st.tabs(["📊 Performance Overview", "📜 Full History"])
@@ -846,43 +808,27 @@ def display_dashboard(username):
 
 def display_blackboard_page():
     st.header("칠판 Blackboard")
-    
-    # --- NEW: Welcome and info section ---
     st.info("This is a community space. Ask clear questions, be respectful, and help your fellow students!", icon="👋")
-
-    # --- NEW: Display online users ---
     online_users = get_online_users(st.session_state.username)
     if online_users:
         st.markdown(f"**🟢 Online now:** {', '.join(online_users)}")
     else:
         st.markdown("_No other users are currently active._")
-
     st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
-
-    # Define and connect to the main channel
     channel = chat_client.channel("messaging", channel_id="mathfriend-blackboard", data={"name": "MathFriend Blackboard"})
     channel.create(st.session_state.username)
-    
-    # Query the last 50 messages from the channel
     state = channel.query(watch=False, state=True, messages={"limit": 50})
     messages = state['messages']
-
-    # Display message history
     for msg in messages:
-        user_id = msg["user"].get("id", "Unknown")
-        user_name = msg["user"].get("name", user_id)
-        is_current_user = (user_id == st.session_state.username)
-        
+        is_current_user = (msg["user"].get("id") == st.session_state.username)
         with st.chat_message(name="user" if is_current_user else "assistant"):
-            # For other users, show their name above the message for clarity
             if not is_current_user:
-                st.markdown(f"**{user_name}**")
+                st.markdown(f"**{msg['user'].get('name', msg['user'].get('id'))}**")
             st.markdown(msg["text"])
-
-    # Input for new messages at the bottom of the screen
     if prompt := st.chat_input("Post your question or comment..."):
         channel.send_message({"text": prompt}, user_id=st.session_state.username)
         st.rerun()
+
 def display_quiz_page(topic_options):
     st.header("🧠 Quiz Time!")
     QUIZ_LENGTH = 10
@@ -1243,39 +1189,3 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
