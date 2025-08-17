@@ -754,13 +754,10 @@ def load_css():
             box-shadow: 0 1px 2px rgba(0,0,0,0.1);
         }
 
-        /* --- DEBUGGING WITH NEW SELECTOR --- */
-        /* PASTE THE SELECTOR YOU COPIED FROM THE BROWSER ON THE LINE BELOW. */
-        /* Make sure it's followed by a space and { */
-        /* For example: #root > div:nth-child(1) > div > div > div > section > div > div > div > div > div > div:nth-child(4) > div > div > div > div { */
-        PASTE_YOUR_SELECTOR_HERE {
-            background-color: red !important;
-            border: 5px solid black !important;
+        /* Bubble styles for messages FROM OTHERS (grey) */
+        [data-testid="stChatMessage"]:has(div[data-testid="stChatMessageAssistantAvatar"]) [data-testid="stChatMessageContent"] {
+            background-color: #E5E5EA;
+            color: #31333F !important; /* Ensure dark text on grey bubble */
         }
 
         /* Bubble styles for messages FROM YOU (blue) */
@@ -1246,9 +1243,6 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
-
-
-
 
 
 
