@@ -691,15 +691,15 @@ def load_css():
     <style>
         /* --- BASE STYLES --- */
         .stApp {
-            background-color: #f0f2ff; /* A slightly lighter, bluer background */
+            background-color: #f0f2ff;
         }
         
-        /* --- FIX FOR TABLET SCROLLING --- */
+        /* FIX FOR TABLET SCROLLING */
         [data-testid="stAppViewContainer"] > .main {
             display: flex;
             flex-direction: column;
             align-items: center;
-            overflow: auto; /* Allow scrolling */
+            overflow: auto !important;
         }
 
         /* --- THE DEFINITIVE CHROME FIX (MAIN CONTENT) --- */
@@ -707,22 +707,26 @@ def load_css():
             color: #31333F !important;
         }
 
-        /* --- FINAL SIDEBAR FIX (BASED ON YOUR SUGGESTION) --- */
-        /* This sets a dark background and forces all text to be light. */
+        /* --- FINAL, CROSS-BROWSER SIDEBAR FIX --- */
         div[data-testid="stSidebar"] {
-            background-color: #0F1116 !important; /* Dark background for the entire sidebar */
+            background-color: #0F1116 !important;
         }
-
         div[data-testid="stSidebar"] * {
-            color: #FAFAFA !important; /* Bright default text for everything inside */
+            color: #FAFAFA !important;
+        }
+        div[data-testid="stSidebar"] h1 {
+            color: #FFFFFF !important;
+        }
+        div[data-testid="stSidebar"] [data-testid="stRadio"] label {
+            color: #E0E0E0 !important;
         }
 
-        div[data-testid="stSidebar"] h1 {
-            color: #FFFFFF !important; /* Pure white for the main title */
-        }
-        
-        div[data-testid="stSidebar"] [data-testid="stRadio"] label {
-            color: #E0E0E0 !important; /* Slightly off-white for menu items */
+        /* --- NEW: DARK MODE OVERRIDE FOR SIDEBAR --- */
+        /* This ensures the sidebar text is bright when the system is in dark mode. */
+        body.dark-mode div[data-testid="stSidebar"] *,
+        body.dark-mode div[data-testid="stSidebar"] h1,
+        body.dark-mode div[data-testid="stSidebar"] [data-testid="stRadio"] label {
+            color: #FFFFFF !important;
         }
         
         /* --- COLOR OVERRIDES for main content --- */
@@ -1103,6 +1107,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
