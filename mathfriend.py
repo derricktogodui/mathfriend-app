@@ -1197,49 +1197,139 @@ def _generate_vectors_question():
 
     return {"question": question, "options": _finalize_options(options), "answer": answer, "hint": hint, "explanation": explanation}
 
-def _generate_advanced_combo_question():
-    """Generates a multi-part question combining Geometry and Algebra."""
-    # Generate initial values
+# --- ADVANCED COMBO HELPER FUNCTIONS ---
+
+def _combo_geometry_algebra():
+    """ The original combo: Geometry -> Area -> Quadratic Equation """
     l, w = random.randint(5, 10), random.randint(11, 15)
     area = l * w
-    # Ensure k is always less than area to avoid negative results
-    if area <= 5: k = 1
-    else: k = random.randint(5, area - 2)
+    k = random.randint(5, 20)
     x = math.sqrt(area - k)
-
-    # Re-generate until we get a nice integer solution for x
     while x < 1 or x != int(x):
-        l, w = random.randint(5, 10), random.randint(11, 15)
-        # THE FIX: Recalculate area inside the loop
-        area = l * w
-        if area <= 5: continue # Skip if area is too small
+        l, w = random.randint(5, 10), random.randint(11, 15); area = l * w
+        if area <= 5: continue
         k = random.randint(5, area - 2)
         x = math.sqrt(area - k)
-
     x = int(x)
-    
-    # Now that we have a consistent set of numbers, return the question
     return {
         "is_multipart": True,
         "stem": f"A rectangular field in the Ashanti Region has a length of **{l} metres** and a width of **{w} metres**.",
         "parts": [
+            {"question": "a) What is the area of the field in square metres?", "options": _finalize_options({str(area), str(2*(l+w))}), "answer": str(area), "hint": "Area = length × width.", "explanation": f"Area = $l \\times w = {l} \\times {w} = {area}\\ m^2$."},
+            {"question": f"b) The square of a positive number, $x$, when increased by {k}, is equal to the area. Find $x$.", "options": _finalize_options({str(x), str(area-k)}), "answer": str(x), "hint": "Set up the equation $x^2 + {k} = Area$ and solve for $x$.", "explanation": f"1. $x^2 + {k} = {area}$.\n\n2. $x^2 = {area} - {k} = {area-k}$.\n\n3. $x = \sqrt{{{area-k}}} = {x}$."}
+        ]
+    }
+
+def _combo_surds_geometry():
+    """ Combo: Surds -> Pythagoras """
+    a_val, b_val = random.choice([(5,11), (7,18), (3,13), (6,10)])
+    question = f"A right-angled triangle has shorter sides of length $\sqrt{{{a_val}}}$ cm and $\sqrt{{{b_val}}}$ cm. Find the **square** of the length of the hypotenuse."
+    answer = str(a_val + b_val)
+    hint = "Use Pythagoras' theorem: $a^2 + b^2 = c^2$. Remember that $(\sqrt{x})^2 = x$."
+    explanation = f"Let the sides be $a = \sqrt{{{a_val}}}$ and $b = \sqrt{{{b_val}}}$.\n\n1. By Pythagoras' theorem, the square of the hypotenuse, $c^2$, is $a^2 + b^2$.\n\n2. $c^2 = (\sqrt{{{a_val}}})^2 + (\sqrt{{{b_val}}})^2$.\n\n3. $c^2 = {a_val} + {b_val} = {answer}$.\nThe square of the hypotenuse is {answer} $cm^2$."
+    return {
+        "is_multipart": False, # This is a single question
+        "question": question, "options": _finalize_options({answer, str(a_val*b_val), str(int(math.sqrt(a_val+b_val)))}),
+        "answer": answer, "hint": hint, "explanation": explanation
+    }
+
+def _combo_trig_vectors():
+    """ Combo: Vectors -> Dot Product -> Trigonometry """
+    a = np.array([random.randint(-5, 5), random.randint(-5, 5)])
+    b = np.array([random.randint(-5, 5), random.randint(-5, 5)])
+    while np.linalg.norm(a) == 0 or np.linalg.norm(b) == 0:
+         a, b = np.array([random.randint(-5, 5), random.randint(-5, 5)]), np.array([random.randint(-5, 5), random.randint(-5, 5)])
+    question = f"Find the angle between the vectors $\\mathbf{{a}} = \\binom{{{a[0]}}}{{{a[1]}}}$ and $\\mathbf{{b}} = \\binom{{{b[0]}}}{{{b[1]}}}$ to the nearest degree."
+    dot_product = np.dot(a, b)
+    mag_a, mag_b = np.linalg.norm(a), np.linalg.norm(b)
+    cos_theta = dot_product / (mag_a * mag_b)
+    angle_rad = np.arccos(np.clip(cos_theta, -1.0, 1.0))
+    angle_deg = round(np.degrees(angle_rad))
+    answer = f"{angle_deg}°"
+    hint = "Use the dot product formula: $\mathbf{a} \cdot \mathbf{b} = |\mathbf{a}| |\mathbf{b}| \cos\theta$."
+    explanation = f"1. Dot Product: $\mathbf{{a}} \cdot \mathbf{{b}} = ({a[0]})({b[0]}) + ({a[1]})({b[1]}) = {dot_product}$.\n2. Magnitudes: $|\mathbf{{a}}| \\approx {round(mag_a, 2)}$, $|\mathbf{{b}}| \\approx {round(mag_b, 2)}$.\n3. $\cos\\theta = \\frac{{{dot_product}}}{{{round(mag_a,2)} \\times {round(mag_b,2)}}} \\approx {round(cos_theta, 2)}$.\n4. $\\theta = \cos^{{-1}}({round(cos_theta, 2)}) \\approx {answer}$."
+    return {
+        "is_multipart": False,
+        "question": question, "options": _finalize_options({answer, f"{round(dot_product)}°"}),
+        "answer": answer, "hint": hint, "explanation": explanation
+    }
+
+def _combo_prob_binomial():
+    """ Combo: Binomial Theorem (Combinations) -> Probability """
+    men = random.randint(5, 7)
+    women = random.randint(4, 6)
+    total_people = men + women
+    committee_size = 5
+    men_in_committee = 3
+    women_in_committee = committee_size - men_in_committee
+    
+    question = f"A committee of {committee_size} people is to be chosen from a group of {men} men and {women} women. What is the probability that the committee consists of exactly {men_in_committee} men?"
+    
+    favorable_outcomes = math.comb(men, men_in_committee) * math.comb(women, women_in_committee)
+    total_outcomes = math.comb(total_people, committee_size)
+    prob = Fraction(favorable_outcomes, total_outcomes)
+    answer = _format_fraction_text(prob)
+    
+    hint = "Prob = (Favorable Outcomes) / (Total Outcomes). Use combinations $\binom{n}{k}$ to find the number of ways to choose."
+    explanation = (f"1. Favorable Outcomes: Ways to choose {men_in_committee} men from {men} AND {women_in_committee} women from {women}.\n   - $\\binom{{{men}}}{{{men_in_committee}}} \\times \\binom{{{women}}}{{{women_in_committee}}} = {math.comb(men, men_in_committee)} \\times {math.comb(women, women_in_committee)} = {favorable_outcomes}$.\n"
+                   f"2. Total Outcomes: Ways to choose any {committee_size} people from {total_people}.\n   - $\\binom{{{total_people}}}{{{committee_size}}} = {total_outcomes}$.\n"
+                   f"3. Probability = $\\frac{{{favorable_outcomes}}}{{{total_outcomes}}} = {_get_fraction_latex_code(prob)}$")
+
+    return {
+        "is_multipart": False,
+        "question": question, "options": _finalize_options({answer}, "fraction"),
+        "answer": answer, "hint": hint, "explanation": explanation
+    }
+
+def _combo_polynomial_functions():
+    """ Combo: Polynomials (Remainder Theorem) -> Functions (Evaluate) """
+    a, b, c, d = [random.randint(-5, 5) for _ in range(4)]
+    divisor_root = random.randint(-3, 3)
+    remainder = a*(divisor_root**3) + b*(divisor_root**2) + c*divisor_root + d
+    
+    f_a, f_b = random.randint(2, 5), random.randint(1, 10)
+    f_of_r = f_a * remainder + f_b
+
+    stem = f"The polynomial $P(x) = {a}x^3 + {b}x^2 + {c}x + {d}$ is divided by $(x - {divisor_root})$ to give a remainder, $R$."
+    part_a = f"a) Find the value of the remainder, $R$."
+    part_b = f"b) Given that $f(y) = {f_a}y + {f_b}$, find the value of $f(R)$."
+
+    return {
+        "is_multipart": True,
+        "stem": stem,
+        "parts": [
             {
-                "question": "a) What is the area of the field in square metres?",
-                "options": _finalize_options({str(area), str(2*(l+w)), str(l+w)}),
-                "answer": str(area),
-                "hint": "Area = length × width.",
-                "explanation": f"Area = $l \\times w = {l} \\times {w} = {area}\\ m^2$."
+                "question": part_a,
+                "options": _finalize_options({str(remainder), str(d), str(a+b+c+d)}),
+                "answer": str(remainder),
+                "hint": f"By the Remainder Theorem, the remainder is $P({divisor_root})$." ,
+                "explanation": f"To find the remainder, evaluate the polynomial at $x={divisor_root}$.\n$P({divisor_root}) = {a}({divisor_root})^3 + {b}({divisor_root})^2 + {c}({divisor_root}) + {d} = {remainder}$."
             },
             {
-                "question": f"b) The square of a positive number, $x$, when increased by {k}, is equal to the area of the field. What is the value of $x$?",
-                "options": _finalize_options({str(x), str(area-k), str(int(math.sqrt(area)))}),
-                "answer": str(x),
-                "hint": "Set up the equation $x^2 + {k} = Area$ and solve for $x$.",
-                "explanation": f"1. $x^2 + {k} = {area}$.\n\n2. $x^2 = {area} - {k} = {area-k}$.\n\n3. $x = \sqrt{{{area-k}}} = {x}$."
+                "question": part_b,
+                "options": _finalize_options({str(f_of_r), str(f_a*remainder), str(remainder+f_b)}),
+                "answer": str(f_of_r),
+                "hint": "Substitute the value of R you found in Part (a) into the function f(y).",
+                "explanation": f"From Part (a), we know $R={remainder}$.\nWe need to find $f(R) = f({remainder})$.\n$f({remainder}) = {f_a}({remainder}) + {f_b} = {f_of_r}$."
             }
         ]
     }
 
+def _generate_advanced_combo_question():
+    """Randomly selects and runs one of the curated advanced combo generators."""
+    
+    # List of all the special combo generator functions we just created
+    possible_combos = [
+        _combo_geometry_algebra,
+        _combo_surds_geometry,
+        _combo_trig_vectors,
+        _combo_prob_binomial,
+        _combo_polynomial_functions,
+    ]
+    
+    # Pick one of the functions from the list and execute it
+    selected_combo_func = random.choice(possible_combos)
+    return selected_combo_func()
 def generate_question(topic):
     generators = {
         "Sets": _generate_sets_question, 
@@ -1931,6 +2021,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
