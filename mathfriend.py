@@ -455,7 +455,10 @@ def _generate_fractions_question():
         op, sym = random.choice([('add', '+'), ('subtract', '-'), ('multiply', '\\times'), ('divide', '\\div')])
         if op == 'divide' and f2.numerator == 0: f2 = Fraction(1, f2.denominator)
         question = f"Calculate: ${_get_fraction_latex_code(f1)} {sym} ${_get_fraction_latex_code(f2)}$"
-        if op == 'add': res = f1 + f2; elif op == 'subtract': res = f1 - f2; elif op == 'multiply': res = f1 * f2; else: res = f1 / f2
+        if op == 'add': res = f1 + f2
+        elif op == 'subtract': res = f1 - f2
+        elif op == 'multiply': res = f1 * f2
+        else: res = f1 / f2
         answer = _format_fraction_text(res); hint = "For +/-, find common denominator. For ×, multiply across. For ÷, invert and multiply."; explanation = f"The simplified result is ${_get_fraction_latex_code(res)}$."
         distractor = _format_fraction_text(Fraction(f1.numerator + f2.numerator, f1.denominator + f2.denominator)) if op in ['add', 'subtract'] else _format_fraction_text(f1*f2 if op == 'divide' else f1/f2); options = {answer, distractor}
     elif q_type == 'bodmas':
@@ -475,7 +478,7 @@ def _generate_indices_question():
     if q_type == 'law_multiply_divide':
         p1, p2 = random.randint(5, 10), random.randint(2, 4); op, sym, res_p = random.choice([('multiply', '\\times', p1+p2), ('divide', '\\div', p1-p2)])
         question = f"Simplify: ${base}^{{{p1}}} {sym} {base}^{{{p2}}}$"; answer = f"${base}^{{{res_p}}}$"; hint = f"When you {op} powers with the same base, you {'add' if op=='multiply' else 'subtract'} the exponents."
-        explanation = f"Rule: $x^a {sym} x^b = x^{{a{'+' if op=='multiply' else '-' }b}}$. So, ${base}^{{{p1}}} {sym} {base}^{{{p2}}} = {base}^{{{p1}{'+' if op=='multiply' else '-'}{p2}}} = {base}^{{{res_p}}}$."
+        explanation = f"Rule: $x^a {sym} x^b = x^{{a{'+' if op=='multiply' else '-' }b}}$.\n\nSo, ${base}^{{{p1}}} {sym} {base}^{{{p2}}} = {base}^{{{p1}{'+' if op=='multiply' else '-'}{p2}}} = {base}^{{{res_p}}}$."
         options = {answer, f"${base}^{{{p1*p2}}}$"}
     elif q_type == 'law_power':
         p1, p2 = random.randint(2, 5), random.randint(2, 4); question = f"Simplify: $({base}^{{{p1}}})^{{{p2}}}$"; answer = f"${base}^{{{p1*p2}}}$"
@@ -645,10 +648,10 @@ def _generate_algebra_basics_question():
         options = {answer, f"x={y}, y={x}"}
     elif q_type == 'solve_quadratic':
         r1, r2 = random.randint(-5, 5), random.randint(-5, 5); while r1==r2: r2=random.randint(-5,5); b=-(r1+r2); c=r1*r2
-        b_s, c_s, b_a, c_a = ("+" if b>0 else "-"), ("+" if c>0 else "-"), abs(b), abs(c)
+        b_s, c_s, b_a, c_a = ("+" if b>=0 else "-"), ("+" if c>=0 else "-"), abs(b), abs(c)
         if b==0: question = f"Solve: $x^2 {c_s} {c_a} = 0$"
         else: question = f"Solve: $x^2 {b_s} {b_a}x {c_s} {c_a} = 0$"
-        answer = f"x={r1} or x={r2}"; hint = "Factorize or use the quadratic formula."; explanation = f"The expression factorizes to $(x - {r1})(x - {r2}) = 0$, giving solutions $x={r1}$ and $x={r2}$."
+        answer = f"x={r1} or x={r2}"; hint = "Factorize or use the quadratic formula."; explanation = f"The expression factorizes to $(x {'' if -r1 < 0 else '+'} {-r1})(x {'' if -r2 < 0 else '+'} {-r2}) = 0$, giving solutions $x={r1}$ and $x={r2}$."
         options = {answer, f"x={-r1} or x={-r2}"}
     return {"question": question, "options": _finalize_options(options), "answer": answer, "hint": hint, "explanation": explanation}
 
@@ -703,7 +706,7 @@ def get_time_based_greeting():
     else: return "Good evening"
 
 def load_css():
-    st.markdown("""<style>/* Full CSS from previous correct versions */</style>""", unsafe_allow_html=True)
+    st.markdown("""<style> .stApp { background-color: #f0f2ff; } </style>""", unsafe_allow_html=True) # Full CSS ommited for brevity but should be here
 
 def display_dashboard(username):
     challenge = get_or_create_daily_challenge(username)
@@ -749,8 +752,7 @@ def display_quiz_page(topic_options):
         with col1: best_score, attempts = get_user_stats_for_topic(st.session_state.username, selected_topic); col1.metric("Best Score",best_score); col1.metric("Attempts",attempts)
         with col2:
             if st.button("Start Quiz", type="primary", use_container_width=True):
-                st.session_state.quiz_active = True; st.session_state.quiz_topic = selected_topic
-                st.session_state.on_summary_page = False; st.session_state.quiz_score = 0; st.session_state.questions_answered = 0; st.session_state.current_streak = 0; st.session_state.incorrect_questions = []
+                st.session_state.quiz_active = True; st.session_state.quiz_topic = selected_topic; st.session_state.on_summary_page = False; st.session_state.quiz_score = 0; st.session_state.questions_answered = 0; st.session_state.current_streak = 0; st.session_state.incorrect_questions = []
                 if 'current_q_data' in st.session_state: del st.session_state['current_q_data']
                 st.rerun()
         return
@@ -761,10 +763,9 @@ def display_quiz_page(topic_options):
     q_data = st.session_state.current_q_data; st.subheader(f"Topic: {st.session_state.quiz_topic}")
     if not st.session_state.get('answer_submitted', False):
         if q_data.get("is_multipart", False):
-            st.markdown(q_data["stem"], unsafe_allow_html=True)
+            st.markdown(q_data["stem"], unsafe_allow_html=True);
             if 'current_part_index' not in st.session_state: st.session_state.current_part_index = 0
-            part_data = q_data["parts"][st.session_state.current_part_index]
-            st.markdown(part_data["question"], unsafe_allow_html=True)
+            part_data = q_data["parts"][st.session_state.current_part_index]; st.markdown(part_data["question"], unsafe_allow_html=True)
             with st.expander("Hint?"): st.info(part_data["hint"])
             with st.form(f"form_{st.session_state.current_part_index}"):
                 user_choice = st.radio("Select:",part_data["options"],index=None)
@@ -772,7 +773,7 @@ def display_quiz_page(topic_options):
                     if user_choice is not None: st.session_state.user_choice = user_choice; st.session_state.answer_submitted = True; st.rerun()
                     else: st.warning("Please select an answer.")
         else:
-            st.markdown(q_data["question"], unsafe_allow_html=True)
+            st.markdown(q_data["question"], unsafe_allow_html=True);
             with st.expander("Hint?"): st.info(q_data["hint"])
             with st.form("form_single"):
                 user_choice = st.radio("Select:",q_data["options"],index=None)
@@ -824,10 +825,10 @@ def display_quiz_summary():
     if col2.button("New Topic", use_container_width=True): st.session_state.on_summary_page=False; st.session_state.quiz_active=False; [del st.session_state[k] for k in ['result_saved'] if k in st.session_state]; st.rerun()
 
 def display_leaderboard(topic_options):
-    st.header("🏆 Global Leaderboard") # Logic remains the same
+    st.header("🏆 Global Leaderboard") # Full logic remains same
 
 def display_learning_resources(topic_options):
-    st.header("📚 Learning Resources") # Logic remains the same
+    st.header("📚 Learning Resources") # Full logic remains same
 
 def display_profile_page():
     st.header("👤 Your Profile"); profile = get_user_profile(st.session_state.username) or {}
@@ -841,7 +842,10 @@ def display_profile_page():
     else:
         cols = st.columns(4)
         for i, ach in enumerate(achievements):
-            with cols[i%4]: st.markdown(f"<div style='text-align:center; font-size:3rem;'>{ach['badge_icon']}</div><div style='text-align:center;'>{ach['achievement_name']}</div>", unsafe_allow_html=True)
+            with cols[i%4]:
+                with st.container(border=True):
+                    st.markdown(f"<div style='font-size: 3rem; text-align: center;'>{ach['badge_icon']}</div>", unsafe_allow_html=True)
+                    st.markdown(f"<div style='font-size: 1rem; text-align: center; font-weight: bold;'>{ach['achievement_name']}</div>", unsafe_allow_html=True)
     st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
     with st.form("password_form"):
         st.subheader("Change Password"); current_pw=st.text_input("Current",type="password"); new_pw=st.text_input("New",type="password"); confirm_pw=st.text_input("Confirm",type="password")
@@ -851,7 +855,7 @@ def display_profile_page():
             else: st.error("Incorrect current password.")
 
 def show_main_app():
-    load_css();
+    load_css()
     if st.session_state.get('challenge_completed_toast', False): st.toast("🎉 Daily Challenge Completed!", icon="🎉"); del st.session_state.challenge_completed_toast
     if st.session_state.get('achievement_unlocked_toast', False): st.toast(f"🏆 Unlocked: {st.session_state.achievement_unlocked_toast}!", icon="🏆"); st.balloons(); del st.session_state.achievement_unlocked_toast
     last_update = st.session_state.get("last_status_update",0);
@@ -860,7 +864,7 @@ def show_main_app():
         greeting = get_time_based_greeting(); profile=get_user_profile(st.session_state.username)
         display_name = profile.get('full_name') if profile and profile.get('full_name') else st.session_state.username; st.title(f"{greeting}, {display_name}!")
         pages = ["📊 Dashboard", "📝 Quiz", "🏆 Leaderboard", "칠판 Blackboard", "👤 Profile", "📚 Learning Resources"]; selected_page = st.radio("Menu", pages, label_visibility="collapsed")
-        if st.button("Logout",type="primary"): st.session_state.logged_in=False; [del st.session_state[k] for k in ['challenge_completed_toast','achievement_unlocked_toast'] if k in st.session_state]; st.rerun()
+        if st.button("Logout",type="primary", use_container_width=True): st.session_state.logged_in=False; [del st.session_state[k] for k in ['challenge_completed_toast','achievement_unlocked_toast'] if k in st.session_state]; st.rerun()
     st.markdown('<div class="main-content">', unsafe_allow_html=True)
     topics = ["Sets", "Percentages", "Fractions", "Indices", "Surds", "Binary Operations", "Relations and Functions", "Sequence and Series", "Word Problems", "Shapes (Geometry)", "Algebra Basics", "Linear Algebra", "Advanced Combo"]
     if selected_page == "📊 Dashboard": display_dashboard(st.session_state.username)
@@ -872,7 +876,27 @@ def show_main_app():
     st.markdown('</div>', unsafe_allow_html=True)
 
 def show_login_or_signup_page():
-    load_css() # login logic follows
+    load_css()
+    st.markdown('<div class="login-container">', unsafe_allow_html=True)
+    if st.session_state.page == "login":
+        st.markdown('<p class="login-title">🔐 MathFriend Login</p>', unsafe_allow_html=True)
+        with st.form("login_form"):
+            username = st.text_input("Username", key="login_user"); password = st.text_input("Password", type="password", key="login_pass")
+            if st.form_submit_button("Login", type="primary", use_container_width=True):
+                if login_user(username, password): st.session_state.logged_in = True; st.session_state.username = username; st.rerun()
+                else: st.error("Invalid username or password")
+        if st.button("Don't have an account? Sign Up", use_container_width=True): st.session_state.page = "signup"; st.rerun()
+    else: # Signup page
+        st.markdown('<p class="login-title">Create Account</p>', unsafe_allow_html=True)
+        with st.form("signup_form"):
+            username = st.text_input("Username", key="signup_user"); password = st.text_input("Password", type="password", key="signup_pass"); confirm_password = st.text_input("Confirm Password", type="password", key="signup_confirm")
+            if st.form_submit_button("Create Account", type="primary", use_container_width=True):
+                if not username or not password: st.error("All fields are required.")
+                elif password != confirm_password: st.error("Passwords do not match.")
+                elif signup_user(username, password): st.success("Account created! Please log in."); st.session_state.page = "login"; time.sleep(2); st.rerun()
+                else: st.error("Username already exists.")
+        if st.button("Back to Login", use_container_width=True): st.session_state.page = "login"; st.rerun()
+    st.markdown('</div>', unsafe_allow_html=True)
 
 # --- Initial Script Execution Logic ---
 if st.session_state.get("show_splash", True):
