@@ -356,8 +356,8 @@ def get_online_users(current_user):
 # --- UTILITY FUNCTIONS FOR QUESTION GENERATION ---
 def _get_fraction_latex_code(f: Fraction):
     if f.denominator == 1: return str(f.numerator)
-    return f"\\frac{{{f.numerator}}}{{{f.denominator}}}"
-
+    # The 'r' before the string ensures backslashes are treated literally for LaTeX
+    return rf"\frac{{{f.numerator}}}{{{f.denominator}}}"
 def _format_fraction_text(f: Fraction):
     if f.denominator == 1: return str(f.numerator)
     return f"{f.numerator}/{f.denominator}"
@@ -1533,6 +1533,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
