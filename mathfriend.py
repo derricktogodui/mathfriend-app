@@ -1255,17 +1255,27 @@ def display_quiz_page(topic_options):
                     actual_answer = q_data["parts"][st.session_state.current_part_index]["answer"] if is_multi else q_data["answer"]
                     is_correct = str(user_choice) == str(actual_answer)
                     
-                    # --- REVISED SCORING LOGIC ---
+                    # --- REVISED SCORING LOGIC ON SUBMIT ---
                     if is_multi:
                         part_index = st.session_state.current_part_index
-                        # Only count as an attempt on the first part
+                        is_last_part = (part_index + 1 == len(q_data["parts"]))
+                        
                         if part_index == 0:
                             st.session_state.questions_attempted += 1
-                        # Track if all parts so far are correct
-                        if 'multi_part_correct' not in st.session_state:
-                            st.session_state.multi_part_correct = True
+                            st.session_state.multi_part_correct = True # Assume correct until a part is wrong
+                        
                         if not is_correct:
                             st.session_state.multi_part_correct = False
+
+                        if is_correct and is_last_part and st.session_state.multi_part_correct:
+                            st.session_state.quiz_score += 1
+                            st.session_state.current_streak += 1
+                        
+                        if not is_correct:
+                             st.session_state.current_streak = 0
+                             if not any(q.get('stem', q.get('question')) == q_data.get('stem', q_data.get('question')) for q in st.session_state.incorrect_questions):
+                                st.session_state.incorrect_questions.append(q_data)
+
                     else: # Single question logic
                         st.session_state.questions_attempted += 1
                         if is_correct:
@@ -1301,16 +1311,6 @@ def display_quiz_page(topic_options):
         button_label = "Next Question" if not is_multi or is_last_part or not is_correct else "Next Part"
         
         if st.button(button_label, type="primary", use_container_width=True):
-            # --- REVISED SCORE & COUNTER LOGIC FOR "NEXT" ---
-            if is_multi:
-                if is_correct and is_last_part and st.session_state.multi_part_correct:
-                    st.session_state.quiz_score += 1
-                    st.session_state.current_streak += 1
-                if not is_correct:
-                    st.session_state.current_streak = 0
-                    if not any(q.get('stem', q.get('question')) == q_data.get('stem', q_data.get('question')) for q in st.session_state.incorrect_questions):
-                        st.session_state.incorrect_questions.append(q_data)
-
             if not is_multi or is_last_part or not is_correct:
                 st.session_state.questions_answered += 1
 
@@ -1661,6 +1661,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
