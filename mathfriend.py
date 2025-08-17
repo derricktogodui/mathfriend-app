@@ -69,98 +69,26 @@ def get_stream_chat_client():
 chat_client = get_stream_chat_client()
 
 def create_and_verify_tables():
-    """Creates, verifies, and populates necessary database tables WITH DIAGNOSTICS."""
-    st.write("Attempting to set up database tables...")
+    """Creates and verifies all necessary database tables in PostgreSQL."""
     try:
         with engine.connect() as conn:
-            # Wrap each table creation in its own try/except to isolate the error
-            try:
-                conn.execute(text('''CREATE TABLE IF NOT EXISTS users (username TEXT PRIMARY KEY, password TEXT)'''))
-                st.success("✅ Table 'users' verified.")
-                conn.execute(text('''CREATE TABLE IF NOT EXISTS quiz_results
-                             (id SERIAL PRIMARY KEY, username TEXT, topic TEXT, score INTEGER,
-                              questions_answered INTEGER, timestamp TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP)'''))
-                st.success("✅ Table 'quiz_results' verified.")
-                conn.execute(text('''CREATE TABLE IF NOT EXISTS user_profiles
-                             (username TEXT PRIMARY KEY, full_name TEXT, school TEXT, age INTEGER, bio TEXT)'''))
-                st.success("✅ Table 'user_profiles' verified.")
-                conn.execute(text('''CREATE TABLE IF NOT EXISTS user_status
-                             (username TEXT PRIMARY KEY, is_online BOOLEAN, last_seen TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP)'''))
-                st.success("✅ Table 'user_status' verified.")
-                conn.commit()
-            except Exception as e:
-                st.error(f"❌ Error creating standard tables: {e}")
-                return # Stop if standard tables fail
-
-            # --- Diagnostics for Gamification Tables ---
-            try:
-                conn.execute(text('''CREATE TABLE IF NOT EXISTS daily_challenges (
-                                    id SERIAL PRIMARY KEY,
-                                    description TEXT NOT NULL,
-                                    topic TEXT NOT NULL,
-                                    target_count INTEGER NOT NULL
-                                )'''))
-                st.success("✅ Table 'daily_challenges' verified.")
-                conn.commit()
-            except Exception as e:
-                st.error(f"❌ FAILED TO CREATE 'daily_challenges': {e}")
-                return
-
-            try:
-                conn.execute(text('''CREATE TABLE IF NOT EXISTS user_daily_progress (
-                                    username TEXT NOT NULL,
-                                    challenge_date DATE NOT NULL,
-                                    challenge_id INTEGER REFERENCES daily_challenges(id),
-                                    progress_count INTEGER DEFAULT 0,
-                                    is_completed BOOLEAN DEFAULT FALSE,
-                                    PRIMARY KEY (username, challenge_date)
-                                )'''))
-                st.success("✅ Table 'user_daily_progress' verified.")
-                conn.commit()
-            except Exception as e:
-                st.error(f"❌ FAILED TO CREATE 'user_daily_progress': {e}")
-                return
-
-            try:
-                conn.execute(text('''CREATE TABLE IF NOT EXISTS user_achievements (
-                                    id SERIAL PRIMARY KEY,
-                                    username TEXT NOT NULL,
-                                    achievement_name TEXT NOT NULL,
-                                    badge_icon TEXT,
-                                    unlocked_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-                                )'''))
-                st.success("✅ Table 'user_achievements' verified.")
-                conn.commit()
-            except Exception as e:
-                st.error(f"❌ FAILED TO CREATE 'user_achievements': {e}")
-                return
-
-            # --- Diagnostics for Populating Data ---
-            try:
-                result = conn.execute(text("SELECT COUNT(*) FROM daily_challenges")).scalar_one()
-                if result == 0:
-                    st.write("Attempting to populate 'daily_challenges' table...")
-                    challenges = [
-                        ("Answer 5 questions correctly on any topic.", "Any", 5),
-                        ("Get 3 correct answers in a Fractions quiz.", "Fractions", 3),
-                        ("Get 3 correct answers in a Surds quiz.", "Surds", 3),
-                        ("Score at least 4 in an Algebra Basics quiz.", "Algebra Basics", 4),
-                        ("Complete any quiz with a score of 5 or more.", "Any", 5)
-                    ]
-                    conn.execute(text("INSERT INTO daily_challenges (description, topic, target_count) VALUES (:description, :topic, :target_count)"), 
-                                 [{"description": d, "topic": t, "target_count": c} for d, t, c in challenges])
-                    st.success("✅ Table 'daily_challenges' populated.")
-                else:
-                    st.success("✅ Table 'daily_challenges' already has data.")
-                conn.commit()
-            except Exception as e:
-                st.error(f"❌ FAILED TO POPULATE 'daily_challenges': {e}")
-                return
-            
-            st.success("🎉 Database setup appears to be complete!")
-
+            conn.execute(text('''CREATE TABLE IF NOT EXISTS users (username TEXT PRIMARY KEY, password TEXT)'''))
+            conn.execute(text('''CREATE TABLE IF NOT EXISTS quiz_results
+                         (id SERIAL PRIMARY KEY, username TEXT, topic TEXT, score INTEGER,
+                          questions_answered INTEGER, timestamp TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP)'''))
+            conn.execute(text('''CREATE TABLE IF NOT EXISTS user_profiles
+                         (username TEXT PRIMARY KEY, full_name TEXT, school TEXT, age INTEGER, bio TEXT)'''))
+            conn.execute(text('''CREATE TABLE IF NOT EXISTS user_status
+                         (username TEXT PRIMARY KEY, is_online BOOLEAN, last_seen TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP)'''))
+            conn.commit()
+        # A print statement for local debugging, will appear in logs on Streamlit Cloud
+        print("Database tables created or verified successfully.")
     except Exception as e:
-        st.error(f"A critical error occurred during database connection or setup: {e}")
+        st.error(f"Database setup error: {e}")
+
+create_and_verify_tables()
+
+
 # --- Core Backend Functions (PostgreSQL) ---
 def hash_password(password):
     salt = "mathfriend_static_salt_for_performance"
@@ -237,9 +165,6 @@ def save_quiz_result(username, topic, score, questions_answered):
         conn.execute(text("INSERT INTO quiz_results (username, topic, score, questions_answered) VALUES (:username, :topic, :score, :questions_answered)"),
                      {"username": username, "topic": topic, "score": score, "questions_answered": questions_answered})
         conn.commit()
-    
-    # --- ADD THIS LINE ---
-    update_gamification_progress(username, topic, score)
 
 @st.cache_data(ttl=300) # Cache for 300 seconds (5 minutes)
 def get_top_scores(topic, time_filter="all"):
@@ -327,84 +252,6 @@ def get_user_stats_for_topic(username, topic):
         query_attempts = text("SELECT COUNT(*) FROM quiz_results WHERE username = :username AND topic = :topic")
         attempts = conn.execute(query_attempts, {"username": username, "topic": topic}).scalar_one()
         return f"{best_score:.1f}%", attempts
-
-def get_or_create_daily_challenge(username):
-    """Fetches or assigns a daily challenge for a user."""
-    today = datetime.now().date() # In a real scenario, use today's date
-    with engine.connect() as conn:
-        # Check if a challenge for today already exists for this user
-        progress_query = text("""
-            SELECT p.progress_count, p.is_completed, c.description, c.topic, c.target_count 
-            FROM user_daily_progress p JOIN daily_challenges c ON p.challenge_id = c.id
-            WHERE p.username = :username AND p.challenge_date = :today
-        """)
-        result = conn.execute(progress_query, {"username": username, "today": today}).mappings().first()
-        
-        if result:
-            return dict(result)
-        else:
-            # No challenge for today, so assign a new one
-            challenge_ids_query = text("SELECT id FROM daily_challenges")
-            challenge_ids = [row[0] for row in conn.execute(challenge_ids_query).fetchall()]
-            if not challenge_ids: return None # No challenges in the database
-            
-            new_challenge_id = random.choice(challenge_ids)
-            
-            insert_query = text("""
-                INSERT INTO user_daily_progress (username, challenge_date, challenge_id)
-                VALUES (:username, :today, :challenge_id)
-            """)
-            conn.execute(insert_query, {"username": username, "today": today, "challenge_id": new_challenge_id})
-            conn.commit()
-            
-            # Fetch the newly created challenge to return its details
-            return get_or_create_daily_challenge(username) # Recursive call to get the full details
-
-def update_gamification_progress(username, topic, score):
-    """Updates daily challenge progress and checks for achievements after a quiz."""
-    today = datetime.now().date()
-    challenge = get_or_create_daily_challenge(username)
-    
-    if not challenge or challenge['is_completed']:
-        return # No challenge or already completed
-
-    with engine.connect() as conn:
-        # Update daily challenge progress
-        if challenge['topic'] == 'Any' or challenge['topic'] == topic:
-            new_progress = challenge['progress_count'] + score
-            
-            update_progress_query = text("""
-                UPDATE user_daily_progress 
-                SET progress_count = :new_progress 
-                WHERE username = :username AND challenge_date = :today
-            """)
-            conn.execute(update_progress_query, {"new_progress": new_progress, "username": username, "today": today})
-
-            if new_progress >= challenge['target_count']:
-                complete_challenge_query = text("""
-                    UPDATE user_daily_progress SET is_completed = TRUE 
-                    WHERE username = :username AND challenge_date = :today
-                """)
-                conn.execute(complete_challenge_query, {"username": username, "today": today})
-                st.session_state.challenge_completed_toast = True # Flag for UI
-        
-        # Check for "First Quiz" Achievement
-        achieved_query = text("SELECT COUNT(*) FROM user_achievements WHERE username = :username AND achievement_name = 'First Step'")
-        has_achieved = conn.execute(achieved_query, {"username": username}).scalar_one() > 0
-        
-        if not has_achieved:
-            insert_achievement_query = text("INSERT INTO user_achievements (username, achievement_name, badge_icon) VALUES (:username, 'First Step', '👟')")
-            conn.execute(insert_achievement_query, {"username": username})
-            st.session_state.achievement_unlocked_toast = "First Step" # Flag for UI
-
-        conn.commit()
-
-def get_user_achievements(username):
-    """Fetches all achievements unlocked by a user."""
-    with engine.connect() as conn:
-        query = text("SELECT achievement_name, badge_icon, unlocked_at FROM user_achievements WHERE username = :username ORDER BY unlocked_at DESC")
-        result = conn.execute(query, {"username": username}).mappings().fetchall()
-        return [dict(row) for row in result]
 
 def get_online_users(current_user):
     with engine.connect() as conn:
@@ -1094,22 +941,7 @@ def load_css():
     """, unsafe_allow_html=True)
 
 def display_dashboard(username):
-    # --- NEW: Gamification Section ---
-    challenge = get_or_create_daily_challenge(username)
-    if challenge:
-        st.subheader("Today's Challenge")
-        if challenge['is_completed']:
-            st.success(f"🎉 Well done! You've completed today's challenge: {challenge['description']}")
-        else:
-            with st.container(border=True):
-                st.info(challenge['description'])
-                progress_percent = min(challenge['progress_count'] / challenge['target_count'], 1.0)
-                st.progress(progress_percent, text=f"Progress: {challenge['progress_count']} / {challenge['target_count']}")
-    
-    st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
-    
-    # --- Existing Dashboard Code ---
-    st.header(f"📈 Performance for {username}")
+    st.header(f"📈 Dashboard for {username}")
     tab1, tab2 = st.tabs(["📊 Performance Overview", "📜 Full History"])
     with tab1:
         st.subheader("Key Metrics")
@@ -1149,6 +981,7 @@ def display_dashboard(username):
             st.dataframe(df, use_container_width=True)
         else:
             st.info("Your quiz history is empty. Take a quiz to get started!")
+
 def display_blackboard_page():
     st.header("칠판 Blackboard")
     # --- ADD THIS LINE ---
@@ -1494,27 +1327,7 @@ def display_profile_page():
         if st.form_submit_button("Save Profile", type="primary"):
             if update_user_profile(st.session_state.username, full_name, school, age, bio):
                 st.success("Profile updated!"); st.rerun()
-
     st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
-    
-    # --- NEW: Achievements/Trophy Case Section ---
-    st.subheader("🏆 My Achievements")
-    achievements = get_user_achievements(st.session_state.username)
-    if not achievements:
-        st.info("Your trophy case is empty for now. Keep playing to earn badges!")
-    else:
-        # Create a grid layout for the badges
-        cols = st.columns(4)
-        for i, achievement in enumerate(achievements):
-            col = cols[i % 4]
-            with col:
-                with st.container(border=True):
-                    st.markdown(f"<div style='font-size: 3rem; text-align: center;'>{achievement['badge_icon']}</div>", unsafe_allow_html=True)
-                    st.markdown(f"<div style='font-size: 1rem; text-align: center; font-weight: bold;'>{achievement['achievement_name']}</div>", unsafe_allow_html=True)
-                    st.markdown(f"<div style='font-size: 0.8rem; text-align: center; color: grey;'>Unlocked: {achievement['unlocked_at'].strftime('%b %d, %Y')}</div>", unsafe_allow_html=True)
-    
-    st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
-
     with st.form("password_form"):
         st.subheader("Change Password")
         current_password = st.text_input("Current Password", type="password")
@@ -1524,25 +1337,13 @@ def display_profile_page():
             if new_password != confirm_new_password: st.error("New passwords don't match!")
             elif change_password(st.session_state.username, current_password, new_password): st.success("Password changed successfully!")
             else: st.error("Incorrect current password")
+
 def show_main_app():
     load_css()
-    
-    # --- NEW: Notification Handler ---
-    if st.session_state.get('challenge_completed_toast', False):
-        st.toast("🎉 Daily Challenge Completed! Great job!", icon="🎉")
-        del st.session_state.challenge_completed_toast # Reset the flag
-        
-    if st.session_state.get('achievement_unlocked_toast', False):
-        achievement_name = st.session_state.achievement_unlocked_toast
-        st.toast(f"🏆 Achievement Unlocked: {achievement_name}!", icon="🏆")
-        st.balloons()
-        del st.session_state.achievement_unlocked_toast # Reset the flag
-
     last_update = st.session_state.get("last_status_update", 0)
     if time.time() - last_update > 60:
         update_user_status(st.session_state.username, True)
         st.session_state.last_status_update = time.time()
-        
     with st.sidebar:
         greeting = get_time_based_greeting()
         profile = get_user_profile(st.session_state.username)
@@ -1557,9 +1358,6 @@ def show_main_app():
         st.write("---")
         if st.button("Logout", type="primary", use_container_width=True):
             st.session_state.logged_in = False
-            # Clean up gamification flags on logout
-            if 'challenge_completed_toast' in st.session_state: del st.session_state.challenge_completed_toast
-            if 'achievement_unlocked_toast' in st.session_state: del st.session_state.achievement_unlocked_toast
             st.rerun()
             
     st.markdown('<div class="main-content">', unsafe_allow_html=True)
@@ -1584,6 +1382,7 @@ def show_main_app():
         display_learning_resources(topic_options)
         
     st.markdown('</div>', unsafe_allow_html=True)
+
 def show_login_or_signup_page():
     load_css()
     st.markdown('<div class="login-container">', unsafe_allow_html=True)
@@ -1648,9 +1447,6 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
-
-
-
 
 
 
