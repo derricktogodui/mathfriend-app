@@ -105,17 +105,10 @@ def login_user(username, password):
             # Create or update user in Stream Chat on login
             profile = get_user_profile(username)
             display_name = profile.get('full_name') if profile and profile.get('full_name') else username
-            
-            # --- THIS IS THE UPDATE ---
-            # We now give the user permission to upload files when they log in.
-            chat_client.upsert_user({
-                "id": username, 
-                "name": display_name,
-                "role": "user",
-                "allow_uploads": True # Explicitly grant upload permission
-            })
+            chat_client.upsert_user({"id": username, "name": display_name})
             return True
         return False
+
 def signup_user(username, password):
     try:
         with engine.connect() as conn:
@@ -708,33 +701,25 @@ def load_css():
     """Loads the main CSS for the application for a consistent and responsive look."""
     st.markdown("""
     <style>
-        /* --- FIX FOR SCROLLING ON ALL DEVICES --- */
-        html, body {
-            overflow-x: hidden;
-            overflow-y: auto !important;
-            height: auto !important;
-        }
-        [data-testid="stAppViewContainer"] {
-            overflow-y: auto !important;
-            overflow-x: hidden !important;
-        }
-
         /* --- BASE STYLES --- */
         .stApp {
             background-color: #f0f2ff;
         }
-
-        /* --- NAVBAR FIX --- */
-        .navbar, .navbar a, .navbar span, .navbar p {
-            color: white !important;
+        
+        /* FIX FOR TABLET SCROLLING */
+        [data-testid="stAppViewContainer"] > .main {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            overflow: auto !important;
         }
 
-        /* --- MAIN CONTENT TEXT COLOR FIX --- */
+        /* --- THE DEFINITIVE CHROME FIX (MAIN CONTENT) --- */
         div[data-testid="stAppViewContainer"] * {
             color: #31333F !important;
         }
 
-        /* --- SIDEBAR FIX --- */
+        /* --- FINAL, CROSS-BROWSER SIDEBAR FIX --- */
         div[data-testid="stSidebar"] {
             background-color: #0F1116 !important;
         }
@@ -755,47 +740,37 @@ def load_css():
         [data-baseweb="theme-dark"] div[data-testid="stSidebar"] * {
             color: #FAFAFA !important;
         }
-
-        /* --- CHAT MESSAGE BUBBLES (iMessage style) --- */
+        
+        /* --- NEW: iMessage Style Chat Bubbles --- */
+        /* This targets the container that holds the bubble and avatar */
+        [data-testid="stChatMessage"] {
+            background-color: transparent;
+        }
+        
+        /* This is the actual chat bubble that contains the text */
         [data-testid="stChatMessageContent"] {
             border-radius: 20px;
             padding: 12px 16px;
             box-shadow: 0 1px 2px rgba(0,0,0,0.1);
-            max-width: 75%;
-        }
-        /* Assistant messages (grey, left) */
-        [data-testid="stChatMessage"]:not([data-testid="stChatMessage-user"]) [data-testid="stChatMessageContent"] {
-            background-color: #E5E5EA !important;
-            color: #31333F !important;
-        }
-        /* User messages (blue, right) */
-        [data-testid="stChatMessage"][data-testid="stChatMessage-user"] [data-testid="stChatMessageContent"] {
-            background-color: #007AFF !important;
-            color: white !important;
-            margin-left: auto;
         }
 
-        /* --- CAMERA BUTTON STYLING --- */
-        input[type="file"] {
-            display: none;
+        /* Bubble styles for messages FROM OTHERS (grey) */
+        [data-testid="stChatMessage"]:has(div[data-testid="stChatMessageAssistantAvatar"]) [data-testid="stChatMessageContent"] {
+            background-color: #E5E5EA;
+            color: #31333F !important; /* Ensure dark text on grey bubble */
         }
-        label[data-testid="stFileUploadDropzone"] {
+
+        /* Bubble styles for messages FROM YOU (blue) */
+        [data-testid="stChatMessage"]:has(div[data-testid="stChatMessageUserAvatar"]) [data-testid="stChatMessageContent"] {
             background-color: #007AFF;
-            color: white;
-            border-radius: 50%;
-            padding: 6px;
-            cursor: pointer;
-            width: 36px; height: 36px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
         }
-        label[data-testid="stFileUploadDropzone"]::before {
-            content: "📷";
-            font-size: 18px;
+        
+        /* Text color for messages FROM YOU must be white */
+        [data-testid="stChatMessage"]:has(div[data-testid="stChatMessageUserAvatar"]) * {
+            color: white !important;
         }
-
-        /* --- COLOR OVERRIDES --- */
+        
+        /* --- COLOR OVERRIDES for main content --- */
         button[data-testid="stFormSubmitButton"] *, div[data-testid="stButton"] > button * { color: white !important; }
         a, a * { color: #0068c9 !important; }
         .main-content h1, .main-content h2, .main-content h3, .main-content h4, .main-content h5, .main-content h6 { color: #1a1a1a !important; }
@@ -804,33 +779,18 @@ def load_css():
         [data-testid="stInfo"] * { color: #0c5460 !important; }
         [data-testid="stWarning"] * { color: #856404 !important; }
         [data-testid="stError"] * { color: #721c24 !important; }
-
+        
         /* --- GENERAL STYLING --- */
-        .main-content h1, .main-content h2, .main-content h3 {
-            border-left: 5px solid #0d6efd; padding-left: 15px; border-radius: 3px;
-        }
-        [data-testid="stMetric"] {
-            background-color: #FFFFFF; border: 1px solid #CCCCCC; padding: 20px; border-radius: 10px;
-            box-shadow: 0 4px 8px rgba(0,0,0,0.1); border-left: 5px solid #CCCCCC;
-        }
+        .main-content h1, .main-content h2, .main-content h3 { border-left: 5px solid #0d6efd; padding-left: 15px; border-radius: 3px; }
+        [data-testid="stMetric"] { background-color: #FFFFFF; border: 1px solid #CCCCCC; padding: 20px; border-radius: 10px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); border-left: 5px solid #CCCCCC; }
         [data-testid="stHorizontalBlock"] > div:nth-of-type(1) [data-testid="stMetric"] { border-left-color: #0d6efd; }
         [data-testid="stHorizontalBlock"] > div:nth-of-type(2) [data-testid="stMetric"] { border-left-color: #28a745; }
         [data-testid="stHorizontalBlock"] > div:nth-of-type(3) [data-testid="stMetric"] { border-left-color: #ffc107; }
         .stTextInput input, .stTextArea textarea, .stNumberInput input { color: #000 !important; background-color: #fff !important; }
-        button[data-testid="stFormSubmitButton"] {
-            background-color: #0d6efd; border: 1px solid #0d6efd; 
-            box-shadow: 0 4px 8px rgba(0,0,0,0.1); transition: all 0.2s ease-in-out;
-        }
-        button[data-testid="stFormSubmitButton"]:hover {
-            background-color: #0b5ed7; border-color: #0a58ca; 
-            transform: translateY(-2px); box-shadow: 0 6px 12px rgba(0,0,0,0.15);
-        }
-        div[data-testid="stButton"] > button {
-            background-color: #6c757d; border: 1px solid #6c757d;
-        }
-        div[data-testid="stButton"] > button:hover {
-            background-color: #5a6268; border-color: #545b62;
-        }
+        button[data-testid="stFormSubmitButton"] { background-color: #0d6efd; border: 1px solid #0d6efd; box-shadow: 0 4px 8px rgba(0,0,0,0.1); transition: all 0.2s ease-in-out; }
+        button[data-testid="stFormSubmitButton"]:hover { background-color: #0b5ed7; border-color: #0a58ca; transform: translateY(-2px); box-shadow: 0 6px 12px rgba(0,0,0,0.15); }
+        div[data-testid="stButton"] > button { background-color: #6c757d; border: 1px solid #6c757d; }
+        div[data-testid="stButton"] > button:hover { background-color: #5a6268; border-color: #545b62; }
         [data-testid="stSelectbox"] div[data-baseweb="select"] > div { background-color: #fff !important; }
         .stDataFrame th { background-color: #e9ecef; font-weight: bold; }
         [data-testid="stForm"] { border: 1px solid #dee2e6; border-radius: 0.5rem; padding: 1.5rem; background-color: #fafafa; }
@@ -839,13 +799,9 @@ def load_css():
         .login-title { text-align: center; font-weight: 800; font-size: 2.2rem; }
         .login-subtitle { text-align: center; color: #6c757d; margin-bottom: 2rem; }
         .main-content { background-color: #ffffff; padding: 2rem; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
-        @media (max-width: 640px) {
-            .main-content, .login-container { padding: 1rem; }
-            .login-title { font-size: 1.8rem; }
-        }
+        @media (max-width: 640px) { .main-content, .login-container { padding: 1rem; } .login-title { font-size: 1.8rem; } }
     </style>
     """, unsafe_allow_html=True)
-
 def display_dashboard(username):
     st.header(f"📈 Dashboard for {username}")
     tab1, tab2 = st.tabs(["📊 Performance Overview", "📜 Full History"])
@@ -889,61 +845,44 @@ def display_dashboard(username):
             st.info("Your quiz history is empty. Take a quiz to get started!")
 
 def display_blackboard_page():
-    st.markdown("## 🖤 칠판 Blackboard")
-    st.write("A space for students to discuss theory questions and concepts.")
+    st.header("칠판 Blackboard")
+    
+    # --- NEW: Welcome and info section ---
+    st.info("This is a community space. Ask clear questions, be respectful, and help your fellow students!", icon="👋")
 
-    if "username" not in st.session_state:
-        st.warning("Please log in to use the Blackboard.")
-        return
+    # --- NEW: Display online users ---
+    online_users = get_online_users(st.session_state.username)
+    if online_users:
+        st.markdown(f"**🟢 Online now:** {', '.join(online_users)}")
+    else:
+        st.markdown("_No other users are currently active._")
 
-    username = st.session_state.username
-    channel = chat_client.channel("messaging", "blackboard", {"members": [username]})
+    st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
 
-    # Ensure channel exists
-    try:
-        channel.create(username)
-    except:
-        pass
+    # Define and connect to the main channel
+    channel = chat_client.channel("messaging", channel_id="mathfriend-blackboard", data={"name": "MathFriend Blackboard"})
+    channel.create(st.session_state.username)
+    
+    # Query the last 50 messages from the channel
+    state = channel.query(watch=False, state=True, messages={"limit": 50})
+    messages = state['messages']
 
-    # Load last 50 messages
-    state = channel.query(state=True, messages={"limit": 50})
-    messages = state.get("messages", [])
-
-    # Display messages
+    # Display message history
     for msg in messages:
-        with st.chat_message("user" if msg["user"]["id"] == username else "assistant"):
-            if "attachments" in msg and msg["attachments"]:
-                for att in msg["attachments"]:
-                    if att["type"] == "image":
-                        st.image(att["asset_url"], caption="📷")
+        user_id = msg["user"].get("id", "Unknown")
+        user_name = msg["user"].get("name", user_id)
+        is_current_user = (user_id == st.session_state.username)
+        
+        with st.chat_message(name="user" if is_current_user else "assistant"):
+            # For other users, show their name above the message for clarity
+            if not is_current_user:
+                st.markdown(f"**{user_name}**")
             st.markdown(msg["text"])
 
-    # --- Chat input with camera + send ---
-    col1, col2, col3 = st.columns([7, 1, 1])
-
-    with col1:
-        prompt = st.text_input("Type your message...", key="chat_input", label_visibility="collapsed")
-
-    with col2:
-        uploaded_file = st.file_uploader("", type=["png","jpg","jpeg"], label_visibility="collapsed", key="chat_image")
-        if uploaded_file is not None:
-            file_name = uploaded_file.name
-            # Right now just sends filename (no real storage yet)
-            channel.send_message(
-                {
-                    "text": "📷 Sent an image",
-                    "attachments": [{"type": "image", "asset_url": file_name}],
-                },
-                user_id=username
-            )
-            st.success("Image sent!")
-
-    with col3:
-        if st.button("Send"):
-            if prompt.strip():
-                channel.send_message({"text": prompt}, user_id=username)
-                st.session_state.chat_input = ""  # clear
-
+    # Input for new messages at the bottom of the screen
+    if prompt := st.chat_input("Post your question or comment..."):
+        channel.send_message({"text": prompt}, user_id=st.session_state.username)
+        st.rerun()
 def display_quiz_page(topic_options):
     st.header("🧠 Quiz Time!")
     QUIZ_LENGTH = 10
@@ -1304,11 +1243,6 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
-
-
-
-
-
 
 
 
