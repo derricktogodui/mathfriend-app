@@ -738,27 +738,38 @@ def display_quiz_page(topic_options):
     st.header("🧠 Quiz Time!")
     QUIZ_LENGTH = 10
 
-    # Part 1: Initial Setup (If quiz is not active)
+    # Part 1: Initial Setup (If quiz is not active) - RESTORED DESIGN
     if not st.session_state.quiz_active:
         st.subheader("Choose Your Challenge")
         topic_perf_df = get_topic_performance(st.session_state.username)
-        if not topic_perf_df.empty and topic_perf_df['Accuracy'].iloc[-1] < 100:
+        if not topic_perf_df.empty and len(topic_perf_df) > 1 and topic_perf_df['Accuracy'].iloc[-1] < 100:
             weakest_topic = topic_perf_df.index[-1]
             st.info(f"💡 **Practice Suggestion:** Your lowest accuracy is in **{weakest_topic}**. Why not give it a try?")
         
         selected_topic = st.selectbox("Select a topic to begin:", topic_options)
         
-        if st.button("Start Quiz", type="primary", use_container_width=True, key="start_quiz_main"):
-            st.session_state.quiz_active = True
-            st.session_state.quiz_topic = selected_topic
-            st.session_state.on_summary_page = False
-            st.session_state.quiz_score = 0
-            st.session_state.questions_answered = 0
-            st.session_state.current_streak = 0
-            st.session_state.incorrect_questions = []
-            if 'current_q_data' in st.session_state: del st.session_state['current_q_data']
-            st.rerun()
+        # --- THIS IS THE RESTORED DESIGN SECTION ---
+        st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
+        col1, col2 = st.columns(2)
+        with col1:
+            best_score, attempts = get_user_stats_for_topic(st.session_state.username, selected_topic)
+            st.metric("Your Best Score on this Topic", best_score)
+            st.metric("Quizzes Taken on this Topic", attempts)
+        with col2:
+            st.write("") 
+            st.write("")
+            if st.button("Start Quiz", type="primary", use_container_width=True, key="start_quiz_main"):
+                st.session_state.quiz_active = True
+                st.session_state.quiz_topic = selected_topic
+                st.session_state.on_summary_page = False
+                st.session_state.quiz_score = 0
+                st.session_state.questions_answered = 0
+                st.session_state.current_streak = 0
+                st.session_state.incorrect_questions = []
+                if 'current_q_data' in st.session_state: del st.session_state['current_q_data']
+                st.rerun()
         return
+    # --- END OF RESTORED SECTION ---
 
     # Part 2: Main Quiz Logic (If quiz is active)
     if st.session_state.get('on_summary_page', False) or st.session_state.questions_answered >= QUIZ_LENGTH:
@@ -779,7 +790,7 @@ def display_quiz_page(topic_options):
     q_data = st.session_state.current_q_data
     st.subheader(f"Topic: {st.session_state.quiz_topic}")
 
-    # NEW STATE: Check if an answer has been submitted for the current question/part
+    # STATE: Check if an answer has been submitted for the current question/part
     if not st.session_state.get('answer_submitted', False):
         # --- PHASE 1: SHOW THE QUESTION AND FORM ---
         # A. Handle Multi-Part Questions
@@ -1163,6 +1174,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
