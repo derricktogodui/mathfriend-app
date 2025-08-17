@@ -1043,12 +1043,13 @@ def display_dashboard(username):
                 st.info(challenge['description'])
                 progress_percent = min(challenge['progress_count'] / challenge['target_count'], 1.0)
                 st.progress(progress_percent, text=f"Progress: {challenge['progress_count']} / {challenge['target_count']}")
+                # --- NEW: Added instructional text ---
+                st.caption("Visit the '📝 Quiz' page to make progress on your challenge!")
     
     st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
     
     # --- Existing Dashboard Code ---
     st.header(f"📈 Performance for {username}")
-    # ... (the rest of the dashboard code remains the same)
     tab1, tab2 = st.tabs(["📊 Performance Overview", "📜 Full History"])
     with tab1:
         st.subheader("Key Metrics")
@@ -1532,6 +1533,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
