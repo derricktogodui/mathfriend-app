@@ -1218,15 +1218,89 @@ def display_leaderboard(topic_options):
 def display_learning_resources(topic_options):
     st.header("📚 Learning Resources")
     st.write("A summary of key concepts and formulas for each topic. Click a topic to expand it.")
+
     topics_content = {
-        "Sets": """A **set** is a collection of distinct objects.""",
-        "Percentages": """A **percentage** is a number or ratio expressed as a fraction of 100.""",
-        "Fractions": """A **fraction** represents a part of a whole.""",
+        "Sets": """
+        A **set** is a collection of distinct objects.
+        - **Union ($A \\cup B$):** All elements that are in set A, or in set B, or in both.
+        - **Intersection ($A \\cap B$):** All elements that are in *both* set A and set B.
+        - **Complement ($A'$):** All elements in the universal set ($\mathcal{U}$) that are *not* in set A.
+        """,
+        "Percentages": """
+        A **percentage** is a number or ratio expressed as a fraction of 100.
+        - **Percentage of a number:** To find $p\%$ of $N$, calculate $\\frac{p}{100} \\times N$.
+        - **Percent Change:** $\\frac{\\text{New Value} - \\text{Old Value}}{\\text{Old Value}} \\times 100\\%$.
+        - **Compound Interest:** $A = P(1 + \\frac{r}{n})^{nt}$.
+        """,
+        "Fractions": """
+        A **fraction** represents a part of a whole.
+        - **Adding/Subtracting:** You must find a common denominator.
+        - **Multiplying:** Multiply the numerators together and the denominators together.
+        - **Dividing:** Invert the second fraction and multiply (Keep, Change, Flip).
+        """,
+        "Indices": """
+        Indices (or exponents) represent repeated multiplication.
+        - **Multiplication Rule:** $x^a \\times x^b = x^{a+b}$
+        - **Division Rule:** $x^a \\div x^b = x^{a-b}$
+        - **Power of a Power Rule:** $(x^a)^b = x^{ab}$
+        - **Negative Exponent:** $x^{-a} = \\frac{1}{x^a}$
+        - **Fractional Exponent:** $x^{\\frac{1}{n}} = \\sqrt[n]{x}$
+        """,
+        "Surds": """
+        A **surd** is an irrational number expressed with a root symbol (e.g., $\sqrt{2}$).
+        - **Simplifying:** Find the largest perfect square factor. $\sqrt{12} = \sqrt{4 \times 3} = 2\sqrt{3}$.
+        - **Rationalizing the Denominator:** Multiply the numerator and denominator by the conjugate of the denominator. For $\\frac{a}{b+\sqrt{c}}$, multiply by $\\frac{b-\sqrt{c}}{b-\sqrt{c}}$.
+        """,
+        "Binary Operations": """
+        A **binary operation** combines two elements to produce a third.
+        - **Identity Element (e):** An element such that $a * e = a$.
+        - **Inverse Element (a⁻¹):** An element such that $a * a^{-1} = e$.
+        - **Commutative Property:** $a * b = b * a$.
+        """,
+        "Relations and Functions": """
+        - **Relation:** A set of ordered pairs $(x, y)$.
+        - **Function:** A special relation where each input ($x$) has exactly one output ($y$).
+        - **Domain:** The set of all possible input values ($x$).
+        - **Range:** The set of all possible output values ($y$).
+        - **Composite Function $f(g(x))$:** The output of $g(x)$ becomes the input for $f(x)$.
+        """,
+        "Sequence and Series": """
+        - **Arithmetic Progression (AP):** Has a *common difference* ($d$). Nth term: $a_n = a_1 + (n-1)d$.
+        - **Geometric Progression (GP):** Has a *common ratio* ($r$). Nth term: $a_n = a_1 r^{n-1}$.
+        - **Sum to Infinity (GP):** $S_\\infty = \\frac{a_1}{1-r}$, only if $|r| < 1$.
+        """,
+        "Word Problems": """
+        A systematic approach is key:
+        1.  **Read and Understand:** Identify what is given and what is being asked.
+        2.  **Define Variables:** Assign letters (e.g., $x, y$) to the unknown quantities.
+        3.  **Formulate Equations:** Translate the words into mathematical equations.
+        4.  **Solve** the equations.
+        5.  **Check** your answer to ensure it makes sense in the context of the problem.
+        """,
+        "Shapes (Geometry)": """
+        - **Rectangle:** Area = $l \times w$; Perimeter = $2(l+w)$.
+        - **Circle:** Area = $\pi r^2$; Circumference = $2\pi r$.
+        - **Cylinder:** Volume = $\pi r^2 h$; Surface Area = $2\pi r h + 2\pi r^2$.
+        - **Rectangular Prism:** Volume = $l \times w \times h$.
+        """,
+        "Algebra Basics": """
+        - **Substitution:** Replacing a variable with its numerical value.
+        - **Change of Subject:** Rearranging a formula to isolate a different variable.
+        - **Factorization:** Expressing an algebraic expression as a product of its factors.
+        """,
+        "Linear Algebra": """
+        Focuses on vectors and matrices.
+        - **Matrix Addition:** Add corresponding elements.
+        - **Matrix Multiplication:** Dot product of rows and columns.
+        - **Determinant (2x2):** For $\\begin{pmatrix} a & b \\\\ c & d \\end{pmatrix}$, the determinant is $ad - bc$.
+        """
     }
+
     for topic in topic_options:
         if topic in topics_content:
             with st.expander(f"**{topic}**"):
                 st.markdown(topics_content[topic], unsafe_allow_html=True)
+
 
 def display_profile_page():
     st.header("👤 Your Profile")
@@ -1360,3 +1434,4 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
