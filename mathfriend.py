@@ -690,22 +690,30 @@ def load_css():
     st.markdown("""
     <style>
         /* --- BASE STYLES --- */
-        /* This sets the background for the light theme. Dark theme is handled by Streamlit. */
-        body {
+        .stApp {
             background-color: #f0f2ff;
         }
         
-        /* --- FIX FOR TABLET SCROLLING & CENTERING--- */
+        /* FIX FOR TABLET SCROLLING */
         [data-testid="stAppViewContainer"] > .main {
             display: flex;
             flex-direction: column;
             align-items: center;
-            overflow: auto !important; /* Allow scrolling on all devices */
+            overflow: auto !important;
         }
 
-        /* --- STYLING FOR MAIN CONTENT AREA (Works in both Light and Dark mode) --- */
+        /* --- CUSTOM DARK SIDEBAR (Works in all modes) --- */
+        div[data-testid="stSidebar"] {
+            background-color: #0F1116 !important;
+        }
+        div[data-testid="stSidebar"] * {
+            color: #FAFAFA !important;
+        }
+
+        /* --- MAIN CONTENT STYLING (Now theme-aware) --- */
         .main-content {
-            background-color: var(--streamlit-theme-secondary-background-color);
+            background-color: #FFFFFF; /* Force a white background for light theme */
+            color: #31333F; /* Force dark text for light theme */
             padding: 2rem;
             border-radius: 12px;
             box-shadow: 0 4px 12px rgba(0,0,0,0.08);
@@ -714,64 +722,45 @@ def load_css():
             margin: 20px;
         }
 
-        .main-content h1, .main-content h2, .main-content h3 {
-            border-left: 5px solid var(--streamlit-theme-primary-color);
-            padding-left: 15px;
-            border-radius: 3px;
+        /* --- DARK MODE OVERRIDE --- */
+        /* When dark mode is active, we adjust the main content to match */
+        [data-baseweb="theme-dark"] .main-content {
+            background-color: #1E1E1E; /* A dark background for the content card */
+            color: #FAFAFA; /* Light text for the content card */
+        }
+        
+        /* This rule ensures that even in dark mode, the login container remains light */
+        [data-baseweb="theme-dark"] .login-container {
+             background-color: #FFFFFF;
+        }
+        
+        /* This ensures that headers inside the dark-mode content card are light */
+        [data-baseweb="theme-dark"] .main-content h1,
+        [data-baseweb="theme-dark"] .main-content h2,
+        [data-baseweb="theme-dark"] .main-content h3 {
+            color: #FAFAFA !important;
         }
 
-        [data-testid="stMetric"] {
-            background-color: var(--streamlit-theme-secondary-background-color);
-            border: 1px solid var(--streamlit-theme-gray-20);
-            padding: 20px;
-            border-radius: 10px;
-            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
-            border-left: 5px solid var(--streamlit-theme-gray-40); 
-        }
-
+        /* --- GENERAL STYLING (Unchanged) --- */
+        .main-content h1, .main-content h2, .main-content h3 { border-left: 5px solid #0d6efd; padding-left: 15px; border-radius: 3px; }
+        [data-testid="stMetric"] { background-color: var(--streamlit-theme-secondary-background-color); border: 1px solid var(--streamlit-theme-gray-20); padding: 20px; border-radius: 10px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); border-left: 5px solid var(--streamlit-theme-gray-40); }
         [data-testid="stHorizontalBlock"] > div:nth-of-type(1) [data-testid="stMetric"] { border-left-color: #0d6efd; }
         [data-testid="stHorizontalBlock"] > div:nth-of-type(2) [data-testid="stMetric"] { border-left-color: #28a745; }
         [data-testid="stHorizontalBlock"] > div:nth-of-type(3) [data-testid="stMetric"] { border-left-color: #ffc107; }
-
-        [data-testid="stForm"] {
-            border: 1px solid var(--streamlit-theme-gray-20);
-            border-radius: 0.5rem;
-            padding: 1.5rem;
-        }
-
-        .styled-hr {
-            border: none;
-            height: 2px;
-            background: linear-gradient(to right, var(--streamlit-theme-primary-color), transparent);
-            margin: 2rem 0;
-        }
+        .stTextInput input, .stTextArea textarea, .stNumberInput input { color: #000 !important; background-color: #fff !important; }
+        button[data-testid="stFormSubmitButton"] { background-color: #0d6efd; border: 1px solid #0d6efd; box-shadow: 0 4px 8px rgba(0,0,0,0.1); transition: all 0.2s ease-in-out; }
+        button[data-testid="stFormSubmitButton"]:hover { background-color: #0b5ed7; border-color: #0a58ca; transform: translateY(-2px); box-shadow: 0 6px 12px rgba(0,0,0,0.15); }
+        div[data-testid="stButton"] > button { background-color: #6c757d; border: 1px solid #6c757d; color: white !important; }
+        div[data-testid="stButton"] > button:hover { background-color: #5a6268; border-color: #545b62; }
+        [data-testid="stSelectbox"] div[data-baseweb="select"] > div { background-color: #fff !important; }
+        .stDataFrame th { background-color: #e9ecef; font-weight: bold; }
+        [data-testid="stForm"] { border: 1px solid var(--streamlit-theme-gray-20); border-radius: 0.5rem; padding: 1.5rem; }
+        .styled-hr { border: none; height: 2px; background: linear-gradient(to right, #0d6efd, transparent); margin: 2rem 0; }
+        .login-container { background: #ffffff; border-radius: 16px; padding: 2rem 3rem; margin: auto; max-width: 450px; box-shadow: 0 8px 32px rgba(0,0,0,0.1); }
+        .login-title { text-align: center; font-weight: 800; font-size: 2.2rem; }
+        .login-subtitle { text-align: center; color: #6c757d; margin-bottom: 2rem; }
         
-        .login-container {
-            background-color: var(--streamlit-theme-secondary-background-color);
-            border-radius: 16px;
-            padding: 2rem 3rem;
-            margin: auto;
-            max-width: 450px;
-            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
-        }
-
-        .login-title {
-            text-align: center;
-            font-weight: 800;
-            font-size: 2.2rem;
-        }
-
-        .login-subtitle {
-            text-align: center;
-            color: var(--streamlit-theme-gray-60);
-            margin-bottom: 2rem;
-        }
-
-        /* Responsive adjustments */
-        @media (max-width: 640px) {
-            .main-content, .login-container { padding: 1rem; }
-            .login-title { font-size: 1.8rem; }
-        }
+        @media (max-width: 640px) { .main-content, .login-container { padding: 1rem; } .login-title { font-size: 1.8rem; } }
     </style>
     """, unsafe_allow_html=True)
 def display_dashboard(username):
@@ -1120,6 +1109,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
