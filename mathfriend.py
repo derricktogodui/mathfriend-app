@@ -36,6 +36,7 @@ def initialize_session_state():
         "quiz_topic": "Sets",
         "quiz_score": 0,
         "questions_answered": 0,
+        "questions_attempted": 0, # NEW VARIABLE
         "current_streak": 0,
         "incorrect_questions": [],
         "on_summary_page": False
@@ -43,7 +44,6 @@ def initialize_session_state():
     for key, value in defaults.items():
         if key not in st.session_state:
             st.session_state[key] = value
-
 initialize_session_state()
 
 
@@ -1114,7 +1114,6 @@ def display_quiz_page(topic_options):
     QUIZ_LENGTH = 10
 
     if not st.session_state.quiz_active:
-        # This part for selecting a quiz remains the same
         st.subheader("Choose Your Challenge")
         topic_perf_df = get_topic_performance(st.session_state.username)
         if not topic_perf_df.empty and len(topic_perf_df) > 1 and topic_perf_df['Accuracy'].iloc[-1] < 100:
@@ -1133,8 +1132,8 @@ def display_quiz_page(topic_options):
             if st.button("Start Quiz", type="primary", use_container_width=True, key="start_quiz_main"):
                 st.session_state.quiz_active = True; st.session_state.quiz_topic = selected_topic
                 st.session_state.on_summary_page = False; st.session_state.quiz_score = 0
-                st.session_state.questions_answered = 0; st.session_state.current_streak = 0
-                st.session_state.incorrect_questions = []
+                st.session_state.questions_answered = 0; st.session_state.questions_attempted = 0
+                st.session_state.current_streak = 0; st.session_state.incorrect_questions = []
                 if 'current_q_data' in st.session_state: del st.session_state['current_q_data']
                 st.rerun()
         return
@@ -1143,7 +1142,7 @@ def display_quiz_page(topic_options):
         display_quiz_summary(); return
 
     col1, col2, col3 = st.columns(3)
-    with col1: st.metric("Score", f"{st.session_state.quiz_score}/{st.session_state.questions_answered}")
+    with col1: st.metric("Score", f"{st.session_state.quiz_score}/{st.session_state.questions_attempted}")
     with col2: st.metric("Question", f"{st.session_state.questions_answered + 1}/{QUIZ_LENGTH}")
     with col3: st.metric("🔥 Streak", st.session_state.current_streak)
     st.progress(st.session_state.questions_answered / QUIZ_LENGTH, text="Round Progress")
@@ -1155,9 +1154,9 @@ def display_quiz_page(topic_options):
     q_data = st.session_state.current_q_data
     st.subheader(f"Topic: {st.session_state.quiz_topic}")
 
-    # --- PHASE 1: SHOW THE QUESTION AND FORM ---
     if not st.session_state.get('answer_submitted', False):
         is_multi = q_data.get("is_multipart", False)
+        options = []
         if is_multi:
             st.markdown(q_data["stem"], unsafe_allow_html=True)
             if 'current_part_index' not in st.session_state: st.session_state.current_part_index = 0
@@ -1180,43 +1179,36 @@ def display_quiz_page(topic_options):
                     actual_answer = q_data["parts"][st.session_state.current_part_index]["answer"] if is_multi else q_data["answer"]
                     is_correct = str(user_choice) == str(actual_answer)
                     
-                    # --- SCORE LOGIC IS HERE (RUNS ON SUBMIT) ---
+                    st.session_state.questions_attempted += 1
+
                     if is_correct:
-                        # Only update score for single questions or the LAST part of a multi-part question
                         is_last_part = is_multi and (st.session_state.current_part_index + 1 == len(q_data["parts"]))
                         if not is_multi or is_last_part:
                             st.session_state.quiz_score += 1
                         st.session_state.current_streak += 1
                     else:
                         st.session_state.current_streak = 0
-                        # Only add to incorrect list once
-                        if not any(q['question'] == q_data['question'] for q in st.session_state.incorrect_questions):
+                        if not any(q.get('stem', q.get('question')) == q_data.get('stem', q_data.get('question')) for q in st.session_state.incorrect_questions):
                              st.session_state.incorrect_questions.append(q_data)
                     
                     st.rerun()
                 else:
                     st.warning("Please select an answer before submitting.")
-    
-    # --- PHASE 2: SHOW THE EXPLANATION AND "NEXT" BUTTON ---
     else:
-        user_choice = st.session_state.user_choice
-        is_multi = q_data.get("is_multipart", False)
-        
+        user_choice = st.session_state.user_choice; is_multi = q_data.get("is_multipart", False)
         part_data, actual_answer, explanation, question_text = {}, "", "", ""
 
         if is_multi:
-            part_index = st.session_state.current_part_index
-            part_data = q_data["parts"][part_index]
-            actual_answer = part_data["answer"]; explanation = part_data["explanation"]
+            part_index = st.session_state.current_part_index; part_data = q_data["parts"][part_index]
+            actual_answer, explanation = part_data["answer"], part_data["explanation"]
             question_text = q_data["stem"] + "\n\n" + part_data["question"]
         else:
-            actual_answer = q_data["answer"]; explanation = q_data.get("explanation", "No explanation available.")
+            actual_answer, explanation = q_data["answer"], q_data.get("explanation", "")
             question_text = q_data["question"]
 
         is_correct = str(user_choice) == str(actual_answer)
-        
         st.markdown(question_text, unsafe_allow_html=True)
-        st.write("Your answer:")
+        st.write("Your answer:");
         if is_correct: st.success(f"**{user_choice}** (Correct!)")
         else: st.error(f"**{user_choice}** (Incorrect)"); st.info(f"The correct answer was: **{actual_answer}**")
 
@@ -1226,7 +1218,6 @@ def display_quiz_page(topic_options):
         button_label = "Next Question" if not is_multi or is_last_part or not is_correct else "Next Part"
         
         if st.button(button_label, type="primary", use_container_width=True):
-            # --- QUESTION COUNTER LOGIC MOVED HERE ---
             if not is_multi or is_last_part or not is_correct:
                 st.session_state.questions_answered += 1
 
@@ -1234,11 +1225,9 @@ def display_quiz_page(topic_options):
                 st.session_state.current_part_index += 1
             else:
                 del st.session_state.current_q_data
-                if 'current_part_index' in st.session_state:
-                    del st.session_state.current_part_index
+                if 'current_part_index' in st.session_state: del st.session_state['current_part_index']
             
-            del st.session_state.user_choice
-            del st.session_state.answer_submitted
+            del st.session_state.user_choice; del st.session_state.answer_submitted
             st.rerun()
 
     if st.button("Stop Round & Save Score"):
@@ -1250,12 +1239,20 @@ def display_quiz_page(topic_options):
 def display_quiz_summary():
     st.header("🎉 Round Complete! 🎉")
     final_score = st.session_state.quiz_score
-    total_questions = st.session_state.questions_answered
+    
+    # --- FIX 1: Use the correct total ---
+    # Use questions_attempted to reflect the questions the user actually saw.
+    total_questions = st.session_state.questions_attempted
+    
     accuracy = (final_score / total_questions * 100) if total_questions > 0 else 0
+    
     if total_questions > 0 and 'result_saved' not in st.session_state:
+        # Save the correct total to the database
         save_quiz_result(st.session_state.username, st.session_state.quiz_topic, final_score, total_questions)
         st.session_state.result_saved = True
+        
     st.metric(label="Your Final Score", value=f"{final_score}/{total_questions}", delta=f"{accuracy:.1f}% Accuracy")
+    
     if accuracy >= 90:
         st.success("🏆 Excellent work! You're a true MathFriend master!"); confetti_animation()
     elif accuracy >= 70:
@@ -1283,16 +1280,26 @@ def display_quiz_summary():
     col1, col2 = st.columns(2)
     with col1:
         if st.button("Play Again (Same Topic)", use_container_width=True, type="primary"):
-            st.session_state.on_summary_page = False; st.session_state.quiz_active = True
-            st.session_state.quiz_score = 0; st.session_state.questions_answered = 0
-            st.session_state.current_streak = 0; st.session_state.incorrect_questions = []
-            if 'current_q_data' in st.session_state: del st.session_state['current_q_data']
-            if 'result_saved' in st.session_state: del st.session_state['result_saved']
-            if 'current_part_index' in st.session_state: del st.session_state['current_part_index']
+            st.session_state.on_summary_page = False
+            st.session_state.quiz_active = True
+            st.session_state.quiz_score = 0
+            st.session_state.questions_answered = 0
+            
+            # --- FIX 2: Reset the new counter as well ---
+            st.session_state.questions_attempted = 0
+            
+            st.session_state.current_streak = 0
+            st.session_state.incorrect_questions = []
+            
+            keys_to_clear = ['current_q_data', 'result_saved', 'current_part_index', 'user_choice', 'answer_submitted']
+            for key in keys_to_clear:
+                if key in st.session_state: del st.session_state[key]
             st.rerun()
+            
     with col2:
         if st.button("Choose New Topic", use_container_width=True):
-            st.session_state.on_summary_page = False; st.session_state.quiz_active = False
+            st.session_state.on_summary_page = False
+            st.session_state.quiz_active = False
             if 'result_saved' in st.session_state: del st.session_state['result_saved']
             st.rerun()
 
@@ -1560,6 +1567,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
