@@ -494,7 +494,7 @@ def _generate_fractions_question():
     
     elif q_type == 'bodmas':
         a, b, c = [random.randint(2, 6) for _ in range(3)]
-        question = f"Evaluate: $(\\frac{{1}}{{{a}}} + \\frac{{1}}{{{b}}}) \\times {c}$"
+        question = f"Evaluate the expression: $ (\\frac{{1}}{{{a}}} + \\frac{{1}}{{{b}}}) \\times {c} $"
         res = (Fraction(1, a) + Fraction(1, b)) * c
         answer = _format_fraction_text(res)
         hint = "Follow BODMAS. Solve the operation inside the brackets first."
@@ -1533,6 +1533,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
