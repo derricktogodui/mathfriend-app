@@ -741,32 +741,27 @@ def load_css():
             color: #FAFAFA !important;
         }
         
-        /* --- NEW: iMessage Style Chat Bubbles --- */
-        /* This targets the container that holds the bubble and avatar */
-        [data-testid="stChatMessage"] {
-            background-color: transparent;
-        }
-        
-        /* This is the actual chat bubble that contains the text */
+        /* --- NEW, MORE RELIABLE iMessage Style --- */
+        /* This is the bubble that contains the text */
         [data-testid="stChatMessageContent"] {
             border-radius: 20px;
             padding: 12px 16px;
             box-shadow: 0 1px 2px rgba(0,0,0,0.1);
         }
 
-        /* Bubble styles for messages FROM OTHERS (grey) */
-        [data-testid="stChatMessage"]:has(div[data-testid="stChatMessageAssistantAvatar"]) [data-testid="stChatMessageContent"] {
+        /* Messages from OTHERS (left-aligned, grey) */
+        .st-emotion-cache-4oy321 [data-testid="stChatMessageContent"] {
             background-color: #E5E5EA;
-            color: #31333F !important; /* Ensure dark text on grey bubble */
+            color: #31333F !important;
         }
 
-        /* Bubble styles for messages FROM YOU (blue) */
-        [data-testid="stChatMessage"]:has(div[data-testid="stChatMessageUserAvatar"]) [data-testid="stChatMessageContent"] {
+        /* Messages from YOU (right-aligned, blue) */
+        .st-emotion-cache-1c7y2kd [data-testid="stChatMessageContent"] {
             background-color: #007AFF;
         }
         
-        /* Text color for messages FROM YOU must be white */
-        [data-testid="stChatMessage"]:has(div[data-testid="stChatMessageUserAvatar"]) * {
+        /* Text color for YOUR messages must be white */
+        .st-emotion-cache-1c7y2kd [data-testid="stChatMessageContent"] * {
             color: white !important;
         }
         
@@ -1243,6 +1238,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
