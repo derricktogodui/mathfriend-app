@@ -69,60 +69,98 @@ def get_stream_chat_client():
 chat_client = get_stream_chat_client()
 
 def create_and_verify_tables():
-    """Creates, verifies, and populates necessary database tables."""
+    """Creates, verifies, and populates necessary database tables WITH DIAGNOSTICS."""
+    st.write("Attempting to set up database tables...")
     try:
         with engine.connect() as conn:
-            # --- Existing Tables ---
-            conn.execute(text('''CREATE TABLE IF NOT EXISTS users (username TEXT PRIMARY KEY, password TEXT)'''))
-            conn.execute(text('''CREATE TABLE IF NOT EXISTS quiz_results
-                         (id SERIAL PRIMARY KEY, username TEXT, topic TEXT, score INTEGER,
-                          questions_answered INTEGER, timestamp TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP)'''))
-            conn.execute(text('''CREATE TABLE IF NOT EXISTS user_profiles
-                         (username TEXT PRIMARY KEY, full_name TEXT, school TEXT, age INTEGER, bio TEXT)'''))
-            conn.execute(text('''CREATE TABLE IF NOT EXISTS user_status
-                         (username TEXT PRIMARY KEY, is_online BOOLEAN, last_seen TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP)'''))
-            
-            # --- NEW: Gamification Tables ---
-            conn.execute(text('''CREATE TABLE IF NOT EXISTS daily_challenges (
-                                id SERIAL PRIMARY KEY,
-                                description TEXT NOT NULL,
-                                topic TEXT NOT NULL,
-                                target_count INTEGER NOT NULL
-                            )'''))
-            conn.execute(text('''CREATE TABLE IF NOT EXISTS user_daily_progress (
-                                username TEXT NOT NULL,
-                                challenge_date DATE NOT NULL,
-                                challenge_id INTEGER REFERENCES daily_challenges(id),
-                                progress_count INTEGER DEFAULT 0,
-                                is_completed BOOLEAN DEFAULT FALSE,
-                                PRIMARY KEY (username, challenge_date)
-                            )'''))
-            conn.execute(text('''CREATE TABLE IF NOT EXISTS user_achievements (
-                                id SERIAL PRIMARY KEY,
-                                username TEXT NOT NULL,
-                                achievement_name TEXT NOT NULL,
-                                badge_icon TEXT,
-                                unlocked_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-                            )'''))
+            # Wrap each table creation in its own try/except to isolate the error
+            try:
+                conn.execute(text('''CREATE TABLE IF NOT EXISTS users (username TEXT PRIMARY KEY, password TEXT)'''))
+                st.success("✅ Table 'users' verified.")
+                conn.execute(text('''CREATE TABLE IF NOT EXISTS quiz_results
+                             (id SERIAL PRIMARY KEY, username TEXT, topic TEXT, score INTEGER,
+                              questions_answered INTEGER, timestamp TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP)'''))
+                st.success("✅ Table 'quiz_results' verified.")
+                conn.execute(text('''CREATE TABLE IF NOT EXISTS user_profiles
+                             (username TEXT PRIMARY KEY, full_name TEXT, school TEXT, age INTEGER, bio TEXT)'''))
+                st.success("✅ Table 'user_profiles' verified.")
+                conn.execute(text('''CREATE TABLE IF NOT EXISTS user_status
+                             (username TEXT PRIMARY KEY, is_online BOOLEAN, last_seen TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP)'''))
+                st.success("✅ Table 'user_status' verified.")
+                conn.commit()
+            except Exception as e:
+                st.error(f"❌ Error creating standard tables: {e}")
+                return # Stop if standard tables fail
 
-            # --- NEW: Populate daily_challenges if it's empty ---
-            result = conn.execute(text("SELECT COUNT(*) FROM daily_challenges")).scalar_one()
-            if result == 0:
-                print("Populating daily_challenges table for the first time.")
-                challenges = [
-                    ("Answer 5 questions correctly on any topic.", "Any", 5),
-                    ("Get 3 correct answers in a Fractions quiz.", "Fractions", 3),
-                    ("Get 3 correct answers in a Surds quiz.", "Surds", 3),
-                    ("Score at least 4 in an Algebra Basics quiz.", "Algebra Basics", 4),
-                    ("Complete any quiz with a score of 5 or more.", "Any", 5)
-                ]
-                conn.execute(text("INSERT INTO daily_challenges (description, topic, target_count) VALUES (:description, :topic, :target_count)"), 
-                             [{"description": d, "topic": t, "target_count": c} for d, t, c in challenges])
+            # --- Diagnostics for Gamification Tables ---
+            try:
+                conn.execute(text('''CREATE TABLE IF NOT EXISTS daily_challenges (
+                                    id SERIAL PRIMARY KEY,
+                                    description TEXT NOT NULL,
+                                    topic TEXT NOT NULL,
+                                    target_count INTEGER NOT NULL
+                                )'''))
+                st.success("✅ Table 'daily_challenges' verified.")
+                conn.commit()
+            except Exception as e:
+                st.error(f"❌ FAILED TO CREATE 'daily_challenges': {e}")
+                return
+
+            try:
+                conn.execute(text('''CREATE TABLE IF NOT EXISTS user_daily_progress (
+                                    username TEXT NOT NULL,
+                                    challenge_date DATE NOT NULL,
+                                    challenge_id INTEGER REFERENCES daily_challenges(id),
+                                    progress_count INTEGER DEFAULT 0,
+                                    is_completed BOOLEAN DEFAULT FALSE,
+                                    PRIMARY KEY (username, challenge_date)
+                                )'''))
+                st.success("✅ Table 'user_daily_progress' verified.")
+                conn.commit()
+            except Exception as e:
+                st.error(f"❌ FAILED TO CREATE 'user_daily_progress': {e}")
+                return
+
+            try:
+                conn.execute(text('''CREATE TABLE IF NOT EXISTS user_achievements (
+                                    id SERIAL PRIMARY KEY,
+                                    username TEXT NOT NULL,
+                                    achievement_name TEXT NOT NULL,
+                                    badge_icon TEXT,
+                                    unlocked_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+                                )'''))
+                st.success("✅ Table 'user_achievements' verified.")
+                conn.commit()
+            except Exception as e:
+                st.error(f"❌ FAILED TO CREATE 'user_achievements': {e}")
+                return
+
+            # --- Diagnostics for Populating Data ---
+            try:
+                result = conn.execute(text("SELECT COUNT(*) FROM daily_challenges")).scalar_one()
+                if result == 0:
+                    st.write("Attempting to populate 'daily_challenges' table...")
+                    challenges = [
+                        ("Answer 5 questions correctly on any topic.", "Any", 5),
+                        ("Get 3 correct answers in a Fractions quiz.", "Fractions", 3),
+                        ("Get 3 correct answers in a Surds quiz.", "Surds", 3),
+                        ("Score at least 4 in an Algebra Basics quiz.", "Algebra Basics", 4),
+                        ("Complete any quiz with a score of 5 or more.", "Any", 5)
+                    ]
+                    conn.execute(text("INSERT INTO daily_challenges (description, topic, target_count) VALUES (:description, :topic, :target_count)"), 
+                                 [{"description": d, "topic": t, "target_count": c} for d, t, c in challenges])
+                    st.success("✅ Table 'daily_challenges' populated.")
+                else:
+                    st.success("✅ Table 'daily_challenges' already has data.")
+                conn.commit()
+            except Exception as e:
+                st.error(f"❌ FAILED TO POPULATE 'daily_challenges': {e}")
+                return
             
-            conn.commit()
-        print("Database tables created or verified successfully, including gamification tables.")
+            st.success("🎉 Database setup appears to be complete!")
+
     except Exception as e:
-        st.error(f"Database setup error: {e}")
+        st.error(f"A critical error occurred during database connection or setup: {e}")
 # --- Core Backend Functions (PostgreSQL) ---
 def hash_password(password):
     salt = "mathfriend_static_salt_for_performance"
@@ -1610,6 +1648,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
