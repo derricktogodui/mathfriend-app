@@ -690,67 +690,88 @@ def load_css():
     st.markdown("""
     <style>
         /* --- BASE STYLES --- */
-        .stApp {
-            background-color: #f0f2ff; /* A slightly lighter, bluer background */
+        /* This sets the background for the light theme. Dark theme is handled by Streamlit. */
+        body {
+            background-color: #f0f2ff;
         }
         
-        /* --- FIX 1: TABLET SCROLLING & CENTERING --- */
-        /* This rule is removed to allow natural scrolling. Centering is now handled by the .main-content class below. */
-        /*
+        /* --- FIX FOR TABLET SCROLLING & CENTERING--- */
         [data-testid="stAppViewContainer"] > .main {
             display: flex;
             flex-direction: column;
             align-items: center;
+            overflow: auto !important; /* Allow scrolling on all devices */
         }
-        */
 
-        /* --- THE DEFINITIVE CHROME FIX (MAIN CONTENT) --- */
-        /* This rule now only targets the main content, leaving the sidebar alone. */
-        .main-content * {
-            color: #31333F !important;
+        /* --- STYLING FOR MAIN CONTENT AREA (Works in both Light and Dark mode) --- */
+        .main-content {
+            background-color: var(--streamlit-theme-secondary-background-color);
+            padding: 2rem;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+            width: 100%;
+            max-width: 1200px;
+            margin: 20px;
         }
-        
-        /* --- ALL CUSTOM SIDEBAR STYLING HAS BEEN REMOVED --- */
-        /* We now let Streamlit's default, responsive styling handle the sidebar. */
-        
-        /* --- COLOR OVERRIDES for main content --- */
-        button[data-testid="stFormSubmitButton"] *, div[data-testid="stButton"] > button * { color: white !important; }
-        a, a * { color: #0068c9 !important; }
-        .main-content h1, .main-content h2, .main-content h3, .main-content h4, .main-content h5, .main-content h6 { color: #1a1a1a !important; }
-        [data-testid="stMetricValue"] { color: #1a1a1a !important; }
-        [data-testid="stSuccess"] * { color: #155724 !important; }
-        [data-testid="stInfo"] * { color: #0c5460 !important; }
-        [data-testid="stWarning"] * { color: #856404 !important; }
-        [data-testid="stError"] * { color: #721c24 !important; }
-        
-        /* --- GENERAL STYLING --- */
-        .main-content h1, .main-content h2, .main-content h3 { border-left: 5px solid #0d6efd; padding-left: 15px; border-radius: 3px; }
-        [data-testid="stMetric"] { background-color: #FFFFFF; border: 1px solid #CCCCCC; padding: 20px; border-radius: 10px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); border-left: 5px solid #CCCCCC; }
+
+        .main-content h1, .main-content h2, .main-content h3 {
+            border-left: 5px solid var(--streamlit-theme-primary-color);
+            padding-left: 15px;
+            border-radius: 3px;
+        }
+
+        [data-testid="stMetric"] {
+            background-color: var(--streamlit-theme-secondary-background-color);
+            border: 1px solid var(--streamlit-theme-gray-20);
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+            border-left: 5px solid var(--streamlit-theme-gray-40); 
+        }
+
         [data-testid="stHorizontalBlock"] > div:nth-of-type(1) [data-testid="stMetric"] { border-left-color: #0d6efd; }
         [data-testid="stHorizontalBlock"] > div:nth-of-type(2) [data-testid="stMetric"] { border-left-color: #28a745; }
         [data-testid="stHorizontalBlock"] > div:nth-of-type(3) [data-testid="stMetric"] { border-left-color: #ffc107; }
-        .stTextInput input, .stTextArea textarea, .stNumberInput input { color: #000 !important; background-color: #fff !important; }
-        button[data-testid="stFormSubmitButton"] { background-color: #0d6efd; border: 1px solid #0d6efd; box-shadow: 0 4px 8px rgba(0,0,0,0.1); transition: all 0.2s ease-in-out; }
-        button[data-testid="stFormSubmitButton"]:hover { background-color: #0b5ed7; border-color: #0a58ca; transform: translateY(-2px); box-shadow: 0 6px 12px rgba(0,0,0,0.15); }
-        div[data-testid="stButton"] > button { background-color: #6c757d; border: 1px solid #6c757d; }
-        div[data-testid="stButton"] > button:hover { background-color: #5a6268; border-color: #545b62; }
-        [data-testid="stSelectbox"] div[data-baseweb="select"] > div { background-color: #fff !important; }
-        .stDataFrame th { background-color: #e9ecef; font-weight: bold; }
-        [data-testid="stForm"] { border: 1px solid #dee2e6; border-radius: 0.5rem; padding: 1.5rem; background-color: #fafafa; }
-        .styled-hr { border: none; height: 2px; background: linear-gradient(to right, #0d6efd, #f0f2f5); margin: 2rem 0; }
-        .login-container { background: #ffffff; border-radius: 16px; padding: 2rem 3rem; margin: auto; max-width: 450px; box-shadow: 0 8px 32px rgba(0,0,0,0.1); }
-        .login-title { text-align: center; font-weight: 800; font-size: 2.2rem; color: #1a1a1a !important; }
-        .login-subtitle { text-align: center; color: #6c757d !important; margin-bottom: 2rem; }
-        .main-content { 
-            background-color: #ffffff; 
-            padding: 2rem; 
-            border-radius: 12px; 
-            box-shadow: 0 4px 12px rgba(0,0,0,0.08);
-            width: 100%;
-            max-width: 1200px; /* Control max width on large screens */
-            margin: 20px; /* Add some space at the top/bottom */
+
+        [data-testid="stForm"] {
+            border: 1px solid var(--streamlit-theme-gray-20);
+            border-radius: 0.5rem;
+            padding: 1.5rem;
         }
-        @media (max-width: 640px) { .main-content, .login-container { padding: 1rem; } .login-title { font-size: 1.8rem; } }
+
+        .styled-hr {
+            border: none;
+            height: 2px;
+            background: linear-gradient(to right, var(--streamlit-theme-primary-color), transparent);
+            margin: 2rem 0;
+        }
+        
+        .login-container {
+            background-color: var(--streamlit-theme-secondary-background-color);
+            border-radius: 16px;
+            padding: 2rem 3rem;
+            margin: auto;
+            max-width: 450px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+        }
+
+        .login-title {
+            text-align: center;
+            font-weight: 800;
+            font-size: 2.2rem;
+        }
+
+        .login-subtitle {
+            text-align: center;
+            color: var(--streamlit-theme-gray-60);
+            margin-bottom: 2rem;
+        }
+
+        /* Responsive adjustments */
+        @media (max-width: 640px) {
+            .main-content, .login-container { padding: 1rem; }
+            .login-title { font-size: 1.8rem; }
+        }
     </style>
     """, unsafe_allow_html=True)
 def display_dashboard(username):
@@ -1099,6 +1120,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
