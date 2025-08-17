@@ -689,10 +689,11 @@ def load_css():
     """Loads the main CSS for the application for a consistent and responsive look."""
     st.markdown("""
     <style>
-        /* --- NEW: FIX FOR MOBILE CHROME "WIGGLING" --- */
-        /* This rule prevents horizontal overflow, which causes the wiggle effect. */
-        html, body {
-            overflow-x: hidden;
+        /* --- FIX FOR SCROLLING ON ALL DEVICES --- */
+        /* This is the robust fix that ensures vertical scrolling always works */
+        [data-testid="stAppViewContainer"] {
+            overflow-y: auto !important;
+            overflow-x: hidden !important;
         }
 
         /* --- BASE STYLES --- */
@@ -700,34 +701,21 @@ def load_css():
             background-color: #f0f2ff;
         }
         
-        /* FIX FOR TABLET SCROLLING */
-        [data-testid="stAppViewContainer"] > .main {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            overflow-y: auto !important; /* Explicitly allow vertical scrolling */
-        }
-
-        /* --- THE DEFINITIVE CHROME FIX (MAIN CONTENT) --- */
+        /* --- DARK MODE-AWARE SIDEBAR AND CONTENT FIX --- */
+        /* By default (light mode), this ensures all text is dark */
         div[data-testid="stAppViewContainer"] * {
             color: #31333F !important;
         }
 
-        /* --- FINAL, CROSS-BROWSER SIDEBAR FIX --- */
+        /* This creates our custom dark sidebar and forces its text to be light */
         div[data-testid="stSidebar"] {
             background-color: #0F1116 !important;
         }
         div[data-testid="stSidebar"] * {
             color: #FAFAFA !important;
         }
-        div[data-testid="stSidebar"] h1 {
-            color: #FFFFFF !important;
-        }
-        div[data-testid="stSidebar"] [data-testid="stRadio"] label {
-            color: #E0E0E0 !important;
-        }
 
-        /* --- DARK MODE TEXT FIX --- */
+        /* This rule specifically targets dark mode to ensure our custom styles are not overridden */
         [data-baseweb="theme-dark"] div[data-testid="stAppViewContainer"] * {
             color: #31333F !important;
         }
@@ -735,7 +723,7 @@ def load_css():
             color: #FAFAFA !important;
         }
         
-        /* --- COLOR OVERRIDES for main content (must come after the dark mode fix) --- */
+        /* --- COLOR OVERRIDES for main content --- */
         button[data-testid="stFormSubmitButton"] *, div[data-testid="stButton"] > button * { color: white !important; }
         a, a * { color: #0068c9 !important; }
         .main-content h1, .main-content h2, .main-content h3, .main-content h4, .main-content h5, .main-content h6 { color: #1a1a1a !important; }
@@ -1113,6 +1101,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
