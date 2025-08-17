@@ -1114,14 +1114,13 @@ def display_quiz_page(topic_options):
     QUIZ_LENGTH = 10
 
     if not st.session_state.quiz_active:
+        # This part for selecting a quiz remains the same
         st.subheader("Choose Your Challenge")
         topic_perf_df = get_topic_performance(st.session_state.username)
         if not topic_perf_df.empty and len(topic_perf_df) > 1 and topic_perf_df['Accuracy'].iloc[-1] < 100:
             weakest_topic = topic_perf_df.index[-1]
             st.info(f"💡 **Practice Suggestion:** Your lowest accuracy is in **{weakest_topic}**. Why not give it a try?")
-        
         selected_topic = st.selectbox("Select a topic to begin:", topic_options)
-        
         st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
         col1, col2 = st.columns(2)
         with col1:
@@ -1132,20 +1131,16 @@ def display_quiz_page(topic_options):
             st.write("") 
             st.write("")
             if st.button("Start Quiz", type="primary", use_container_width=True, key="start_quiz_main"):
-                st.session_state.quiz_active = True
-                st.session_state.quiz_topic = selected_topic
-                st.session_state.on_summary_page = False
-                st.session_state.quiz_score = 0
-                st.session_state.questions_answered = 0
-                st.session_state.current_streak = 0
+                st.session_state.quiz_active = True; st.session_state.quiz_topic = selected_topic
+                st.session_state.on_summary_page = False; st.session_state.quiz_score = 0
+                st.session_state.questions_answered = 0; st.session_state.current_streak = 0
                 st.session_state.incorrect_questions = []
                 if 'current_q_data' in st.session_state: del st.session_state['current_q_data']
                 st.rerun()
         return
 
     if st.session_state.get('on_summary_page', False) or st.session_state.questions_answered >= QUIZ_LENGTH:
-        display_quiz_summary()
-        return
+        display_quiz_summary(); return
 
     col1, col2, col3 = st.columns(3)
     with col1: st.metric("Score", f"{st.session_state.quiz_score}/{st.session_state.questions_answered}")
@@ -1160,80 +1155,109 @@ def display_quiz_page(topic_options):
     q_data = st.session_state.current_q_data
     st.subheader(f"Topic: {st.session_state.quiz_topic}")
 
+    # --- PHASE 1: SHOW THE QUESTION AND FORM ---
     if not st.session_state.get('answer_submitted', False):
-        if q_data.get("is_multipart", False):
+        # This logic handles both single and multi-part questions
+        is_multi = q_data.get("is_multipart", False)
+        part_data = {}
+        if is_multi:
             st.markdown(q_data["stem"], unsafe_allow_html=True)
             if 'current_part_index' not in st.session_state: st.session_state.current_part_index = 0
             part_data = q_data["parts"][st.session_state.current_part_index]
             st.markdown(part_data["question"], unsafe_allow_html=True)
             with st.expander("🤔 Need a hint?"): st.info(part_data["hint"])
-            with st.form(key=f"multipart_form_{st.session_state.current_part_index}"):
-                user_choice = st.radio("Select your answer:", part_data["options"], index=None)
-                if st.form_submit_button("Submit Answer"):
-                    if user_choice is not None:
-                        st.session_state.user_choice = user_choice
-                        st.session_state.answer_submitted = True
-                        st.rerun()
-                    else: st.warning("Please select an answer.")
-        else: # Single Question
+            options = part_data["options"]
+        else:
             st.markdown(q_data["question"], unsafe_allow_html=True)
             with st.expander("🤔 Need a hint?"): st.info(q_data["hint"])
-            with st.form(key=f"quiz_form_{st.session_state.questions_answered}"):
-                user_choice = st.radio("Select your answer:", q_data["options"], index=None)
-                if st.form_submit_button("Submit Answer", type="primary"):
-                    if user_choice is not None:
-                        st.session_state.user_choice = user_choice
-                        st.session_state.answer_submitted = True
-                        st.rerun()
-                    else: st.warning("Please select an answer before submitting.")
-    else: # Explanation phase
+            options = q_data["options"]
+
+        with st.form(key=f"quiz_form_{st.session_state.questions_answered}"):
+            user_choice = st.radio("Select your answer:", options, index=None)
+            if st.form_submit_button("Submit Answer", type="primary"):
+                if user_choice is not None:
+                    # --- LOGIC MOVED HERE ---
+                    st.session_state.user_choice = user_choice
+                    st.session_state.answer_submitted = True
+                    
+                    # Determine correct answer based on question type
+                    actual_answer = part_data["answer"] if is_multi else q_data["answer"]
+                    is_correct = str(user_choice) == str(actual_answer)
+                    is_last_part = is_multi and (st.session_state.current_part_index + 1 == len(q_data["parts"]))
+                    
+                    # Update score immediately, but only count question as "answered" for the last part of a multi-part question
+                    if not is_multi or (is_multi and is_last_part) or not is_correct:
+                         st.session_state.questions_answered += 1
+
+                    if is_correct:
+                        if not is_multi or is_last_part:
+                            st.session_state.quiz_score += 1
+                            st.session_state.current_streak += 1
+                    else:
+                        st.session_state.current_streak = 0
+                        st.session_state.incorrect_questions.append(q_data)
+                    
+                    st.rerun()
+                else:
+                    st.warning("Please select an answer before submitting.")
+    
+    # --- PHASE 2: SHOW THE EXPLANATION AND "NEXT" BUTTON ---
+    else:
         user_choice = st.session_state.user_choice
-        if q_data.get("is_multipart", False):
+        is_multi = q_data.get("is_multipart", False)
+        
+        part_data = {}
+        actual_answer = ""
+        explanation = ""
+        question_text = ""
+
+        if is_multi:
             part_index = st.session_state.current_part_index
             part_data = q_data["parts"][part_index]
-            is_correct = str(user_choice) == str(part_data["answer"])
-            is_last_part = part_index + 1 == len(q_data["parts"])
-            st.markdown(q_data["stem"], unsafe_allow_html=True)
-            st.markdown(part_data["question"], unsafe_allow_html=True)
-            st.write("Your answer:")
-            if is_correct: st.success(f"**{user_choice}** (Correct!)")
-            else: st.error(f"**{user_choice}** (Incorrect)"); st.info(f"The correct answer was: **{part_data['answer']}**")
-            with st.expander("Show Explanation", expanded=True): st.markdown(part_data["explanation"], unsafe_allow_html=True)
-            button_label = "Next Question" if (is_last_part or not is_correct) else "Next Part"
-            if st.button(button_label, type="primary", use_container_width=True):
-                if is_correct and not is_last_part:
-                    st.session_state.current_part_index += 1
-                else:
-                    st.session_state.questions_answered += 1
-                    if is_correct and is_last_part:
-                        st.session_state.quiz_score += 1; st.session_state.current_streak += 1
-                    else:
-                        st.session_state.current_streak = 0; st.session_state.incorrect_questions.append(q_data)
-                    del st.session_state.current_q_data; del st.session_state.current_part_index
-                del st.session_state.user_choice; del st.session_state.answer_submitted
-                st.rerun()
-        else: # Single Question Explanation
-            is_correct = str(user_choice) == str(q_data["answer"])
-            st.markdown(q_data["question"], unsafe_allow_html=True)
-            st.write("Your answer:")
-            if is_correct: st.success(f"**{user_choice}** (Correct!)")
-            else: st.error(f"**{user_choice}** (Incorrect)"); st.info(f"The correct answer was: **{q_data['answer']}**")
-            if q_data.get("explanation"):
-                with st.expander("Show Explanation", expanded=True): st.markdown(q_data["explanation"], unsafe_allow_html=True)
-            if st.button("Next Question", type="primary", use_container_width=True):
-                st.session_state.questions_answered += 1
-                if is_correct: st.session_state.quiz_score += 1; st.session_state.current_streak += 1
-                else: st.session_state.current_streak = 0; st.session_state.incorrect_questions.append(q_data)
-                del st.session_state.current_q_data; del st.session_state.user_choice; del st.session_state.answer_submitted
-                st.rerun()
-    
+            actual_answer = part_data["answer"]
+            explanation = part_data["explanation"]
+            question_text = q_data["stem"] + "\n\n" + part_data["question"]
+        else:
+            actual_answer = q_data["answer"]
+            explanation = q_data.get("explanation", "No explanation available.")
+            question_text = q_data["question"]
+
+        is_correct = str(user_choice) == str(actual_answer)
+        
+        st.markdown(question_text, unsafe_allow_html=True)
+        st.write("Your answer:")
+        if is_correct:
+            st.success(f"**{user_choice}** (Correct!)")
+        else:
+            st.error(f"**{user_choice}** (Incorrect)")
+            st.info(f"The correct answer was: **{actual_answer}**")
+
+        with st.expander("Show Explanation", expanded=True):
+            st.markdown(explanation, unsafe_allow_html=True)
+
+        is_last_part = is_multi and (st.session_state.current_part_index + 1 == len(q_data["parts"]))
+        button_label = "Next Question" if not is_multi or is_last_part or not is_correct else "Next Part"
+        
+        if st.button(button_label, type="primary", use_container_width=True):
+            # --- SCORE LOGIC HAS BEEN REMOVED FROM HERE ---
+            if is_multi and is_correct and not is_last_part:
+                st.session_state.current_part_index += 1
+            else:
+                del st.session_state.current_q_data
+                if 'current_part_index' in st.session_state:
+                    del st.session_state.current_part_index
+            
+            del st.session_state.user_choice
+            del st.session_state.answer_submitted
+            st.rerun()
+
     if st.button("Stop Round & Save Score"):
         st.session_state.on_summary_page = True
         keys_to_delete = ['current_q_data', 'user_choice', 'answer_submitted', 'current_part_index']
         for key in keys_to_delete:
-            if key in st.session_state: del st.session_state[key]
+            if key in st.session_state:
+                del st.session_state[key]
         st.rerun()
-
 def display_quiz_summary():
     st.header("🎉 Round Complete! 🎉")
     final_score = st.session_state.quiz_score
@@ -1547,6 +1571,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
