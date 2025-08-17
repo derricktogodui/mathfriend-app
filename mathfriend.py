@@ -927,10 +927,11 @@ def load_css():
         .main-content { background-color: #ffffff; padding: 2rem; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
         @media (max-width: 640px) { .main-content, .login-container { padding: 1rem; } .login-title { font-size: 1.8rem; } }
 
-        /* --- HIDE STREAMLIT BRANDING COMPLETELY --- */
+        /* --- HIDE STREAMLIT BRANDING BUT KEEP NAV ICON --- */
         footer {visibility: hidden !important;}
-        header {visibility: hidden !important;}
         .stAppDeployButton {display: none !important;}
+        #MainMenu {display: none !important;}  /* hides the Streamlit default menu */
+        header .st-emotion-cache-6qob1r {display: none !important;}  /* hides Streamlit logo in header */
     </style>
     """, unsafe_allow_html=True)
 
@@ -1439,6 +1440,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
