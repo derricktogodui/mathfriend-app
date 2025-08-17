@@ -737,12 +737,15 @@ def load_css():
             color: #FAFAFA !important;
         }
 
-        /* --- iMessage Style --- */
+        /* --- NEW: iMessage Style Chat Bubbles --- */
         [data-testid="stChatMessageContent"] {
-            border-radius: 20px; padding: 12px 16px; box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+            border-radius: 20px;
+            padding: 12px 16px;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.1);
         }
         [data-testid="stChatMessage"]:has(div[data-testid="stChatMessageAssistantAvatar"]) [data-testid="stChatMessageContent"] {
-            background-color: #E5E5EA; color: #31333F !important;
+            background-color: #E5E5EA;
+            color: #31333F !important;
         }
         [data-testid="stChatMessage"]:has(div[data-testid="stChatMessageUserAvatar"]) [data-testid="stChatMessageContent"] {
             background-color: #007AFF;
@@ -834,69 +837,46 @@ def display_dashboard(username):
 
 def display_blackboard_page():
     st.header("칠판 Blackboard")
-    
-    # Welcome and info section
-    st.info("This is a community space. Ask clear questions, be respectful, and help your fellow students!", icon="👋")
+    st.write("A space for students to discuss theory questions and concepts.")
 
-    # Display online users
-    online_users = get_online_users(st.session_state.username)
-    if online_users:
-        st.markdown(f"**🟢 Online now:** {', '.join(online_users)}")
-    else:
-        st.markdown("_No other users are currently active._")
-
-    st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
-
-    # Define and connect to the main channel
+    # --- This section is unchanged ---
     channel = chat_client.channel("messaging", channel_id="mathfriend-blackboard", data={"name": "MathFriend Blackboard"})
     channel.create(st.session_state.username)
-    
-    # Query the last 50 messages from the channel
     state = channel.query(watch=False, state=True, messages={"limit": 50})
     messages = state['messages']
 
-    # Display message history
+    # --- Display message history (now with image support) ---
     for msg in messages:
         is_current_user = (msg["user"].get("id") == st.session_state.username)
         with st.chat_message(name="user" if is_current_user else "assistant"):
-            if not is_current_user:
-                st.markdown(f"**{msg['user'].get('name', msg['user'].get('id'))}**")
             st.markdown(msg["text"])
-            
-            # --- NEW: Display uploaded images ---
+            # Display any uploaded images attached to the message
             if msg.get("attachments"):
                 for attachment in msg["attachments"]:
                     if attachment.get("type") == "image" and attachment.get("image_url"):
                         st.image(attachment["image_url"], width=200)
 
-    # --- UPDATED: Input form with file uploader and camera icon ---
+    # --- NEW: Correct input form with text box, camera icon, and send button ---
     with st.form("chat_form", clear_on_submit=True):
-        col1, col2, col3 = st.columns([0.7, 0.15, 0.15])
+        col1, col2, col3 = st.columns([0.7, 0.15, 0.15]) # Define layout columns
         with col1:
-            prompt = st.text_input("Type your message...", label_visibility="collapsed")
+            prompt = st.text_input("Type a message...", label_visibility="collapsed", key="chat_prompt")
         with col2:
-            # Here is the file uploader with a camera icon as the label
-            uploaded_file = st.file_uploader("📷", type=["png", "jpg", "jpeg"], label_visibility="collapsed")
+            uploaded_file = st.file_uploader("📷", type=["png", "jpg", "jpeg"], label_visibility="collapsed", key="chat_uploader")
         with col3:
             submitted = st.form_submit_button("Send", type="primary", use_container_width=True)
 
+    # --- Logic to handle form submission ---
     if submitted and (prompt or uploaded_file):
         attachments = []
         if uploaded_file is not None:
-            # Upload the file to Stream's CDN
             file_bytes = uploaded_file.getvalue()
             file_name = uploaded_file.name
             upload_result = chat_client.upload_file(file_bytes, name=file_name)
-            
-            # Add the file URL to our attachments list
-            attachments.append({
-                "type": "image",
-                "asset_url": upload_result["file"],
-            })
+            attachments.append({"type": "image", "asset_url": upload_result["file"]})
         
-        # Send the message with the text and any attachments
         channel.send_message({
-            "text": prompt if prompt else " ", # Message text is required, send a space if empty
+            "text": prompt if prompt else " ",
             "attachments": attachments,
         }, user_id=st.session_state.username)
         st.rerun()
@@ -1260,6 +1240,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
