@@ -991,7 +991,7 @@ def display_leaderboard(topic_options):
     else:
         st.info(f"No scores recorded for **{leaderboard_topic}** in this time period. Be the first!")
 
-def display_learning_resources():
+def display_learning_resources(topic_options):
     st.header("📚 Learning Resources")
     st.write("A summary of key concepts and formulas for each topic. Click a topic to expand it.")
 
@@ -1140,7 +1140,7 @@ def show_main_app():
     elif selected_page == "👤 Profile":
         display_profile_page()
     elif selected_page == "📚 Learning Resources":
-        display_learning_resources()
+        display_learning_resources(topic_options)
         
     st.markdown('</div>', unsafe_allow_html=True)
 
@@ -1208,6 +1208,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
