@@ -276,32 +276,49 @@ def get_online_users(current_user):
         return [row[0] for row in result.fetchall()]
 
 # --- Fully Upgraded Question Generation Engine ---
+# --- FULLY UPGRADED QUESTION GENERATION ENGINE ---
+
+def _get_fraction_latex_code(f: Fraction):
+    if f.denominator == 1: return str(f.numerator)
+    return f"\\frac{{{f.numerator}}}{{{f.denominator}}}"
+
+def _format_fraction_text(f: Fraction):
+    if f.denominator == 1: return str(f.numerator)
+    return f"{f.numerator}/{f.denominator}"
+
 def _generate_sets_question(difficulty="Medium"):
-    # (This function is now upgraded)
-    if difficulty == "Easy": q_type = 'simple_operation'
+    if difficulty == "Easy": q_type = random.choice(['simple_operation', 'subsets'])
     elif difficulty == "Medium": q_type = 'venn_two_set'
     else: q_type = 'venn_three_set'
+    
+    verb = random.choice(["Find", "Determine", "Calculate", "List the elements of"])
     
     if q_type == 'simple_operation':
         set_a = set(random.sample(range(1, 20), k=random.randint(4, 6)))
         set_b = set(random.sample(range(1, 20), k=random.randint(4, 6)))
         operation, op_symbol = random.choice([('union', '\\cup'), ('intersection', '\\cap'), ('difference', '-')])
-        verb = random.choice(["Find", "Determine", "List the elements of"])
         question_text = f"Given $A = {set_a}$ and $B = {set_b}$, {verb} $A {op_symbol} B$."
         if operation == 'union': correct_answer = str(set_a.union(set_b))
         elif operation == 'intersection': correct_answer = str(set_a.intersection(set_b))
         else: correct_answer = str(set_a.difference(set_b))
         options = {correct_answer, str(set_a.symmetric_difference(set_b)), str(set_b.difference(set_a))}
         hint = "Review the basic set operations: union ($\cup$), intersection ($\cap$), and difference ($-$)."
+    elif q_type == 'subsets':
+        n = random.randint(3, 5)
+        s = set(random.sample(range(1, 10), k=n))
+        question_text = f"How many proper subsets does the set $S = {s}$ have?"
+        correct_answer = str(2**n - 1)
+        options = {correct_answer, str(2**n), str(n), str(n-1)}
+        hint = "The total number of subsets is $2^n$, where n is the number of elements. A proper subset is any subset except the set itself."
     elif q_type == 'venn_two_set':
         total = random.randint(40, 60)
         group_a_name, group_b_name = random.choice([("Physics", "Chemistry"), ("History", "Government"), ("Kenkey", "Waakye")])
         a_only, b_only, both = random.randint(5, 15), random.randint(5, 15), random.randint(3, 10)
         neither = total - (a_only + b_only + both)
-        question_text = f"In a survey of {total} students, {a_only+both} liked {group_a_name} and {b_only+both} liked {group_b_name}. If every student liked at least one of the two, how many students liked BOTH {group_a_name} and {group_b_name}?"
+        question_text = f"In a survey of {total} students, {a_only+both} liked {group_a_name} and {b_only+both} liked {group_b_name}. If {neither} students liked neither, how many students liked BOTH {group_a_name} and {group_b_name}?"
         correct_answer = str(both)
-        options = {correct_answer, str(a_only), str(b_only), str(total - (a_only+both))}
-        hint = "Use the formula $|A \cup B| = |A| + |B| - |A \cap B|$. The number who like at least one is Total - Neither."
+        options = {correct_answer, str(a_only), str(b_only), str(total - (a_only+both) - (b_only+both))}
+        hint = "Use a Venn diagram or the formula $|A \cup B| = |A| + |B| - |A \cap B|$. The number who like at least one is Total - Neither."
     elif q_type == 'venn_three_set':
         a,b,c,ab,bc,ac,abc = [random.randint(3, 8) for _ in range(7)]
         a_only, b_only, c_only, ab_only, bc_only, ac_only, all_three = a, b, c, ab, bc, ac, abc
@@ -314,15 +331,14 @@ def _generate_sets_question(difficulty="Medium"):
     return {"question": question_text, "options": list(set(options)), "answer": correct_answer, "hint": hint}
 
 def _generate_percentages_question(difficulty="Medium"):
-    # (This function is now upgraded)
     if difficulty == "Easy": q_type = 'percent_of'
-    elif difficulty == "Medium": q_type = random.choice(['what_percent', 'original_price'])
-    else: q_type = 'percent_change'
+    elif difficulty == "Medium": q_type = random.choice(['what_percent', 'original_price', 'profit_loss'])
+    else: q_type = 'compound_interest'
     
     if q_type == 'percent_of':
         percent = random.randint(1, 19) * 5; number = random.randint(10, 50) * 10
-        question_text = f"What is {percent}% of {number}?"; correct_answer = f"{float((percent / 100) * number):.2f}"
-        hint = "To find the percent of a number, convert the percent to a decimal (divide by 100) and multiply."
+        question_text = f"What is {percent}% of GHS {number}?"; correct_answer = f"GHS {float((percent / 100) * number):.2f}"
+        hint = "To find the percent of a number, convert the percent to a decimal and multiply."
     elif q_type == 'what_percent':
         part = random.randint(10, 40); whole = random.randint(part + 5, 100)
         question_text = f"What percentage of {whole} is {part}?"; correct_answer = f"{float((part / whole) * 100):.1f}%"
@@ -333,15 +349,19 @@ def _generate_percentages_question(difficulty="Medium"):
         question_text = f"A phone is sold for GHS {final_price:.2f} after a {discount_percent}% discount. What was its original price?"
         correct_answer = f"GHS {float(original_price):.2f}"
         hint = "Let the original price be 'P'. The final price is P * (1 - discount/100). Solve for P."
-    elif q_type == 'percent_change':
-        old_value = random.randint(100, 500)
-        change_factor = random.choice([random.uniform(0.6, 0.9), random.uniform(1.1, 1.4)])
-        new_value = round(old_value * change_factor, 2)
-        change_type = "increase" if new_value > old_value else "decrease"
-        question_text = f"The enrollment in a school changed from {old_value} to {new_value} students. Calculate the percentage {change_type}."
-        percent_change = ((new_value - old_value) / old_value) * 100
-        correct_answer = f"{abs(percent_change):.1f}%"
-        hint = "The formula for percent change is ((New Value - Old Value) / Old Value) * 100."
+    elif q_type == 'profit_loss':
+        cost_price = random.randint(50, 300)
+        profit_percent = random.randint(5, 25)
+        selling_price = cost_price * (1 + profit_percent / 100)
+        question_text = f"A trader bought a bag of rice for GHS {cost_price:.2f} and sold it for GHS {selling_price:.2f}. Calculate her percentage profit."
+        correct_answer = f"{profit_percent:.1f}%"
+        hint = "Percentage Profit = ((Selling Price - Cost Price) / Cost Price) * 100."
+    elif q_type == 'compound_interest':
+        principal = random.randint(500, 2000); rate = random.uniform(5.0, 12.0); years = random.randint(2, 4)
+        amount = principal * ((1 + rate/100) ** years)
+        question_text = f"Kofi invested GHS {principal:.2f} in a bank at a compound interest rate of {rate:.1f}% per annum. Find the total amount in his account after {years} years, to the nearest pesewa."
+        correct_answer = f"GHS {amount:.2f}"
+        hint = "Use the compound interest formula $A = P(1 + r)^n$."
     options = [correct_answer]
     while len(options) < 4:
         try:
@@ -349,24 +369,15 @@ def _generate_percentages_question(difficulty="Medium"):
             noise = random.uniform(0.5, 1.5); wrong_answer_val = correct_val * noise
             if wrong_answer_val == correct_val: continue
             prefix = "GHS " if correct_answer.startswith("GHS") else ""; suffix = "%" if correct_answer.endswith("%") else ""
-            new_option = f"{prefix}{abs(wrong_answer_val):.1f}{suffix}"
+            new_option = f"{prefix}{abs(wrong_answer_val):.2f}{suffix}"
             if new_option not in options: options.append(new_option)
         except (ValueError, IndexError): options.append(f"{random.randint(1,100):.1f}%")
     return {"question": question_text, "options": list(set(options)), "answer": correct_answer, "hint": hint}
 
-def _get_fraction_latex_code(f: Fraction):
-    if f.denominator == 1: return str(f.numerator)
-    return f"\\frac{{{f.numerator}}}{{{f.denominator}}}"
-
-def _format_fraction_text(f: Fraction):
-    if f.denominator == 1: return str(f.numerator)
-    return f"{f.numerator}/{f.denominator}"
-
 def _generate_fractions_question(difficulty="Medium"):
-    # (This function is now upgraded)
-    if difficulty == "Easy": q_type = 'add_sub'
-    elif difficulty == "Medium": q_type = 'mul_div'
-    else: q_type = 'mixed_numbers'
+    if difficulty == "Easy": q_type = 'simplify'
+    elif difficulty == "Medium": q_type = random.choice(['add_sub', 'mul_div'])
+    else: q_type = 'mixed_numbers_bodmas'
     f1 = Fraction(random.randint(1, 10), random.randint(2, 10)); f2 = Fraction(random.randint(1, 10), random.randint(2, 10))
     if q_type == 'add_sub':
         op_symbol = random.choice(['+', '-']); expression_code = f"{_get_fraction_latex_code(f1)} {op_symbol} {_get_fraction_latex_code(f2)}"
@@ -379,16 +390,21 @@ def _generate_fractions_question(difficulty="Medium"):
             correct_answer_obj = f1 / f2; hint = "To divide by a fraction, invert the second fraction and multiply."
         else:
             correct_answer_obj = f1 * f2; hint = "To multiply fractions, multiply the numerators and denominators."
-        question_text = f"Calculate: ${expression_code}$"
-    elif q_type == 'mixed_numbers':
+        question_text = f"Evaluate: ${expression_code}$"
+    elif q_type == 'simplify':
+        common_factor = random.randint(2, 5)
+        unsimplified_f = Fraction(f1.numerator * common_factor, f1.denominator * common_factor)
+        expression_code = f"{_get_fraction_latex_code(unsimplified_f)}"; correct_answer_obj = f1
+        question_text = f"Simplify the fraction ${expression_code}$ to its lowest terms."
+        hint = "Divide the numerator and denominator by their greatest common divisor."
+    elif q_type == 'mixed_numbers_bodmas':
         w1, f1_rem = 1 + f1.numerator // f1.denominator, f1 % 1
-        w2, f2_rem = 1 + f2.numerator // f2.denominator, f2 % 1
+        f3 = Fraction(random.randint(1, 5), random.randint(2, 5))
         if f1_rem == 0: f1_rem = Fraction(1, random.randint(2,5))
-        if f2_rem == 0: f2_rem = Fraction(1, random.randint(2,5))
-        mixed_f1 = w1 + f1_rem; mixed_f2 = w2 + f2_rem
-        correct_answer_obj = mixed_f1 + mixed_f2
-        question_text = f"Evaluate: ${w1}\\frac{{{f1_rem.numerator}}}{{{f1_rem.denominator}}} + {w2}\\frac{{{f2_rem.numerator}}}{{{f2_rem.denominator}}}$"
-        hint = "First, convert the mixed numbers to improper fractions. Then, find a common denominator to add them."
+        mixed_f1 = w1 + f1_rem
+        correct_answer_obj = (mixed_f1 - f2) * f3
+        question_text = f"Evaluate: $({w1}\\frac{{{f1_rem.numerator}}}{{{f1_rem.denominator}}} - \\frac{{{f2.numerator}}}{{{f2.denominator}}}) \\times \\frac{{{f3.numerator}}}{{{f3.denominator}}}$"
+        hint = "Follow BODMAS. First, solve the operation in the brackets by converting the mixed number to an improper fraction. Then, perform the multiplication."
     correct_answer = _format_fraction_text(correct_answer_obj)
     options = {correct_answer}
     while len(options) < 4:
@@ -396,8 +412,45 @@ def _generate_fractions_question(difficulty="Medium"):
         options.add(_format_fraction_text(distractor_f))
     return {"question": question_text, "options": list(options), "answer": correct_answer, "hint": hint}
 
+def _generate_indices_question(difficulty="Medium"):
+    base = random.randint(2, 6)
+    if difficulty == "Easy": q_type = random.choice(['multiply', 'divide', 'power'])
+    elif difficulty == "Medium": q_type = random.choice(['negative', 'fractional'])
+    else: q_type = 'solve_equation'
+    if q_type == 'solve_equation':
+        p1 = random.randint(2, 4); x = random.randint(2, 4)
+        result_power = p1 * x
+        question_text = f"Solve for $x$ in the equation: $({base}^x)^{p1} = {base}^{result_power}$."
+        correct_answer = str(x)
+        hint = "Simplify the left side using the power of a power rule for indices. Then, equate the exponents to solve for x."
+        options = {correct_answer, str(result_power/p1), str(result_power-p1)}
+    else:
+        if q_type == 'multiply':
+            p1, p2 = random.randint(2, 5), random.randint(2, 5)
+            question_text = f"Simplify: ${base}^{{{p1}}} \\times {base}^{{{p2}}}$"; correct_answer = f"${base}^{{{p1+p2}}}$"
+            hint = r"Rule: $x^a \times x^b = x^{a+b}$"; options = {correct_answer, f"${base}^{{{p1*p2}}}$"}
+        elif q_type == 'divide':
+            p1, p2 = random.randint(5, 9), random.randint(2, 4)
+            question_text = f"Simplify: ${base}^{{{p1}}} \\div {base}^{{{p2}}}$"; correct_answer = f"${base}^{{{p1-p2}}}$"
+            hint = r"Rule: $x^a \div x^b = x^{a-b}$"; options = {correct_answer, f"${base}^{{{p1//p2}}}$"}
+        elif q_type == 'power':
+            p1, p2 = random.randint(2, 4), random.randint(2, 3)
+            question_text = f"Simplify: $({base}^{{{p1}}})^{{{p2}}}$"; correct_answer = f"${base}^{{{p1*p2}}}$"
+            hint = r"Rule: $(x^a)^b = x^{ab}$"; options = {correct_answer, f"${base}^{{{p1+p2}}}$"}
+        elif q_type == 'negative':
+            p1 = random.randint(2, 4)
+            question_text = f"Express ${base}^{{-{p1}}}$ as a fraction."; correct_answer = f"$\\frac{{1}}{{{base**p1}}}$"
+            hint = r"Rule: $x^{-a} = \frac{1}{x^a}$"; options = {correct_answer, f"$-{base*p1}$"}
+        else: # fractional
+            roots = {8: 3, 27: 3, 4: 2, 9: 2, 16: 4, 64: 3, 81: 4}
+            num = random.choice(list(roots.keys())); root = roots[num]
+            exponent_latex = f"\\frac{{1}}{{{root}}}"
+            question_text = f"What is the value of ${num}^{{{exponent_latex}}}$?"; correct_answer = str(int(round(num**(1/root))))
+            hint = r"Rule: $x^{\frac{1}{n}} = \sqrt[n]{x}$"; options = {correct_answer, str(num/root)}
+    while len(options) < 4: options.add(str(random.randint(1, 100)))
+    return {"question": question_text, "options": list(options), "answer": correct_answer, "hint": hint}
+
 def _generate_surds_question(difficulty="Medium"):
-    # (This function is now upgraded)
     if difficulty == "Easy": q_type = 'simplify'
     elif difficulty == "Medium": q_type = 'operate'
     else: q_type = 'rationalize'
@@ -429,7 +482,6 @@ def _generate_surds_question(difficulty="Medium"):
     return {"question": question_text, "options": list(options), "answer": correct_answer, "hint": hint}
 
 def _generate_binary_ops_question(difficulty="Medium"):
-    # (This function is now upgraded)
     if difficulty == "Easy": q_type = 'simple'
     elif difficulty == "Medium": q_type = 'multi_step'
     else: q_type = 'find_inverse'
@@ -460,7 +512,6 @@ def _generate_binary_ops_question(difficulty="Medium"):
     return {"question": question_text, "options": list(set(options)), "answer": correct_answer, "hint": hint}
 
 def _generate_word_problems_question(difficulty="Medium"):
-    # (This function is now upgraded)
     if difficulty == "Easy": q_type = 'simple_equation'
     elif difficulty == "Medium": q_type = 'age_problem'
     else: q_type = 'consecutive_integers'
@@ -496,51 +547,10 @@ def _generate_word_problems_question(difficulty="Medium"):
     while len(options) < 4: options.add(str(random.randint(1, 60)))
     return {"question": question_text, "options": list(set(options)), "answer": correct_answer, "hint": hint}
 
-def _generate_indices_question(difficulty="Medium"):
-    # (This function is now upgraded)
-    base = random.randint(2, 6)
-    if difficulty == "Easy": q_type = random.choice(['multiply', 'divide', 'power'])
-    elif difficulty == "Medium": q_type = random.choice(['negative', 'fractional'])
-    else: q_type = 'combined'
-
-    if q_type == 'combined':
-        p1, p2, p3 = random.randint(3, 6), random.randint(2, 4), random.randint(2, 5)
-        question_text = f"Simplify fully: $\\frac{{({base}^{p1})^{p2}}}{{{base}^{p3}}}$"
-        correct_answer = f"${base}^{{{p1*p2-p3}}}$"
-        hint = "First, simplify the numerator by multiplying the exponents. Then, simplify the fraction by subtracting the exponents."
-        options = {correct_answer, f"${base}^{{{p1+p2-p3}}}$", f"${base}^{{{p1*p2+p3}}}$"}
-    else:
-        if q_type == 'multiply':
-            p1, p2 = random.randint(2, 5), random.randint(2, 5)
-            question_text = f"Simplify: ${base}^{{{p1}}} \\times {base}^{{{p2}}}$"; correct_answer = f"${base}^{{{p1+p2}}}$"
-            hint = r"Rule: $x^a \times x^b = x^{a+b}$"; options = {correct_answer, f"${base}^{{{p1*p2}}}$"}
-        elif q_type == 'divide':
-            p1, p2 = random.randint(5, 9), random.randint(2, 4)
-            question_text = f"Simplify: ${base}^{{{p1}}} \\div {base}^{{{p2}}}$"; correct_answer = f"${base}^{{{p1-p2}}}$"
-            hint = r"Rule: $x^a \div x^b = x^{a-b}$"; options = {correct_answer, f"${base}^{{{p1//p2}}}$"}
-        elif q_type == 'power':
-            p1, p2 = random.randint(2, 4), random.randint(2, 3)
-            question_text = f"Simplify: $({base}^{{{p1}}})^{{{p2}}}$"; correct_answer = f"${base}^{{{p1*p2}}}$"
-            hint = r"Rule: $(x^a)^b = x^{ab}$"; options = {correct_answer, f"${base}^{{{p1+p2}}}$"}
-        elif q_type == 'negative':
-            p1 = random.randint(2, 4)
-            question_text = f"Express ${base}^{{-{p1}}}$ as a fraction."; correct_answer = f"$\\frac{{1}}{{{base**p1}}}$"
-            hint = r"Rule: $x^{-a} = \frac{1}{x^a}$"; options = {correct_answer, f"$-{base*p1}$"}
-        else: # fractional
-            roots = {8: 3, 27: 3, 4: 2, 9: 2, 16: 4, 64: 3, 81: 4}
-            num = random.choice(list(roots.keys())); root = roots[num]
-            exponent_latex = f"\\frac{{1}}{{{root}}}"
-            question_text = f"What is the value of ${num}^{{{exponent_latex}}}$?"; correct_answer = str(int(round(num**(1/root))))
-            hint = r"Rule: $x^{\frac{1}{n}} = \sqrt[n]{x}$"; options = {correct_answer, str(num/root)}
-    while len(options) < 4: options.add(str(random.randint(1, 100)))
-    return {"question": question_text, "options": list(options), "answer": correct_answer, "hint": hint}
-
 def _generate_relations_functions_question(difficulty="Medium"):
-    # (This function is now upgraded)
     if difficulty == "Easy": q_type = random.choice(['domain_range', 'evaluate'])
     elif difficulty == "Medium": q_type = 'is_function'
-    else: q_type = 'composite'
-    
+    else: q_type = random.choice(['composite', 'inverse'])
     if q_type == 'domain_range':
         sub_type = random.choice(['domain', 'range']); domain_set = set(random.sample(range(-5, 10), k=4))
         range_set = set(random.sample(range(-5, 10), k=4))
@@ -566,11 +576,16 @@ def _generate_relations_functions_question(difficulty="Medium"):
         correct_answer = str(a*g_of_x + b)
         hint = f"First, calculate the inner function, $g({x_val})$. Then, use that result as the input for the outer function, $f(p)$."
         options = {correct_answer, str(c*(a*x_val + b) + d), str(g_of_x)}
+    elif q_type == 'inverse':
+        a, b = random.randint(2,7), random.randint(1,10)
+        question_text = f"Find the inverse function, $f^{{-1}}(x)$, of the function $f(x) = {a}x - {b}$."
+        correct_answer = r"$f^{-1}(x) = \frac{x + " + str(b) + r"}{" + str(a) + r"}$"
+        hint = "Let y = f(x), then swap x and y. Finally, make y the subject of the formula."
+        options = {correct_answer, r"$f^{-1}(x) = \frac{x - " + str(b) + r"}{" + str(a) + r"}$", r"$f^{-1}(x) = " + str(a) + r"x + " + str(b) + r"$"}
     while len(options) < 4: options.add(str(set(random.sample(range(1,10), k=3))))
     return {"question": question_text, "options": list(options), "answer": correct_answer, "hint": hint}
 
 def _generate_sequence_series_question(difficulty="Medium"):
-    # (This function is now upgraded)
     if difficulty == "Easy": q_type = 'ap_term'
     elif difficulty == "Medium": q_type = 'gp_term'
     else: q_type = random.choice(['ap_sum', 'gp_sum_infinity'])
@@ -604,7 +619,6 @@ def _generate_sequence_series_question(difficulty="Medium"):
     return {"question": question_text, "options": list(options), "answer": correct_answer, "hint": hint}
 
 def _generate_shapes_question(difficulty="Medium"):
-    # (This function is now upgraded)
     if difficulty == "Easy": q_type = random.choice(['area_rectangle', 'perimeter_triangle'])
     elif difficulty == "Medium": q_type = 'volume_cylinder'
     else: q_type = random.choice(['area_circle_reverse', 'complex_surface_area'])
@@ -640,7 +654,6 @@ def _generate_shapes_question(difficulty="Medium"):
     return {"question": question_text, "options": [str(o) for o in list(options)], "answer": correct_answer, "hint": hint}
 
 def _generate_algebra_basics_question(difficulty="Medium"):
-    # (This function is now upgraded)
     if difficulty == "Easy": q_type = 'substitution'
     elif difficulty == "Medium": q_type = 'change_subject'
     else: q_type = 'combined'
@@ -670,7 +683,6 @@ def _generate_algebra_basics_question(difficulty="Medium"):
     return {"question": question_text, "options": [str(o) for o in list(options)], "answer": correct_answer, "hint": hint}
 
 def _generate_linear_algebra_question(difficulty="Medium"):
-    # (This function is now upgraded)
     if difficulty == "Easy": q_type = 'add'
     elif difficulty == "Medium": q_type = 'determinant'
     else: q_type = 'multiply'
@@ -1189,3 +1201,4 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
