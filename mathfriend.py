@@ -931,7 +931,6 @@ def load_css():
         footer {visibility: hidden !important;}
         header {visibility: hidden !important;}
         .stAppDeployButton {display: none !important;}
-        #MainMenu {visibility: hidden !important;}
     </style>
     """, unsafe_allow_html=True)
 
@@ -1440,5 +1439,6 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
