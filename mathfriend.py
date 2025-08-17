@@ -689,31 +689,53 @@ def load_css():
     """Loads the main CSS for the application for a consistent and responsive look."""
     st.markdown("""
     <style>
+        /* --- NEW: FIX FOR MOBILE CHROME "WIGGLING" --- */
+        /* This rule prevents horizontal overflow, which causes the wiggle effect. */
+        html, body {
+            overflow-x: hidden;
+        }
+
         /* --- BASE STYLES --- */
         .stApp {
-            background-color: #f0f2ff; /* A slightly lighter, bluer background */
+            background-color: #f0f2ff;
         }
         
-        /* --- FIX 1: TABLET SCROLLING & CENTERING --- */
-        /* This rule is removed to allow natural scrolling. Centering is now handled by the .main-content class below. */
-        /*
+        /* FIX FOR TABLET SCROLLING */
         [data-testid="stAppViewContainer"] > .main {
             display: flex;
             flex-direction: column;
             align-items: center;
+            overflow-y: auto !important; /* Explicitly allow vertical scrolling */
         }
-        */
 
         /* --- THE DEFINITIVE CHROME FIX (MAIN CONTENT) --- */
-        /* This rule now only targets the main content, leaving the sidebar alone. */
-        .main-content * {
+        div[data-testid="stAppViewContainer"] * {
             color: #31333F !important;
         }
+
+        /* --- FINAL, CROSS-BROWSER SIDEBAR FIX --- */
+        div[data-testid="stSidebar"] {
+            background-color: #0F1116 !important;
+        }
+        div[data-testid="stSidebar"] * {
+            color: #FAFAFA !important;
+        }
+        div[data-testid="stSidebar"] h1 {
+            color: #FFFFFF !important;
+        }
+        div[data-testid="stSidebar"] [data-testid="stRadio"] label {
+            color: #E0E0E0 !important;
+        }
+
+        /* --- DARK MODE TEXT FIX --- */
+        [data-baseweb="theme-dark"] div[data-testid="stAppViewContainer"] * {
+            color: #31333F !important;
+        }
+        [data-baseweb="theme-dark"] div[data-testid="stSidebar"] * {
+            color: #FAFAFA !important;
+        }
         
-        /* --- ALL CUSTOM SIDEBAR STYLING HAS BEEN REMOVED --- */
-        /* We now let Streamlit's default, responsive styling handle the sidebar. */
-        
-        /* --- COLOR OVERRIDES for main content --- */
+        /* --- COLOR OVERRIDES for main content (must come after the dark mode fix) --- */
         button[data-testid="stFormSubmitButton"] *, div[data-testid="stButton"] > button * { color: white !important; }
         a, a * { color: #0068c9 !important; }
         .main-content h1, .main-content h2, .main-content h3, .main-content h4, .main-content h5, .main-content h6 { color: #1a1a1a !important; }
@@ -739,17 +761,9 @@ def load_css():
         [data-testid="stForm"] { border: 1px solid #dee2e6; border-radius: 0.5rem; padding: 1.5rem; background-color: #fafafa; }
         .styled-hr { border: none; height: 2px; background: linear-gradient(to right, #0d6efd, #f0f2f5); margin: 2rem 0; }
         .login-container { background: #ffffff; border-radius: 16px; padding: 2rem 3rem; margin: auto; max-width: 450px; box-shadow: 0 8px 32px rgba(0,0,0,0.1); }
-        .login-title { text-align: center; font-weight: 800; font-size: 2.2rem; color: #1a1a1a !important; }
-        .login-subtitle { text-align: center; color: #6c757d !important; margin-bottom: 2rem; }
-        .main-content { 
-            background-color: #ffffff; 
-            padding: 2rem; 
-            border-radius: 12px; 
-            box-shadow: 0 4px 12px rgba(0,0,0,0.08);
-            width: 100%;
-            max-width: 1200px; /* Control max width on large screens */
-            margin: 20px; /* Add some space at the top/bottom */
-        }
+        .login-title { text-align: center; font-weight: 800; font-size: 2.2rem; }
+        .login-subtitle { text-align: center; color: #6c757d; margin-bottom: 2rem; }
+        .main-content { background-color: #ffffff; padding: 2rem; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
         @media (max-width: 640px) { .main-content, .login-container { padding: 1rem; } .login-title { font-size: 1.8rem; } }
     </style>
     """, unsafe_allow_html=True)
@@ -1099,6 +1113,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
