@@ -1255,22 +1255,29 @@ def display_quiz_page(topic_options):
                     actual_answer = q_data["parts"][st.session_state.current_part_index]["answer"] if is_multi else q_data["answer"]
                     is_correct = str(user_choice) == str(actual_answer)
                     
-                    st.session_state.questions_attempted += 1
-
-                    if is_correct:
-                        is_last_part = is_multi and (st.session_state.current_part_index + 1 == len(q_data["parts"]))
-                        if not is_multi or is_last_part:
+                    # --- REVISED SCORING LOGIC ---
+                    if is_multi:
+                        part_index = st.session_state.current_part_index
+                        # Only count as an attempt on the first part
+                        if part_index == 0:
+                            st.session_state.questions_attempted += 1
+                        # Track if all parts so far are correct
+                        if 'multi_part_correct' not in st.session_state:
+                            st.session_state.multi_part_correct = True
+                        if not is_correct:
+                            st.session_state.multi_part_correct = False
+                    else: # Single question logic
+                        st.session_state.questions_attempted += 1
+                        if is_correct:
                             st.session_state.quiz_score += 1
-                        st.session_state.current_streak += 1
-                    else:
-                        st.session_state.current_streak = 0
-                        if not any(q.get('stem', q.get('question')) == q_data.get('stem', q_data.get('question')) for q in st.session_state.incorrect_questions):
-                             st.session_state.incorrect_questions.append(q_data)
-                    
+                            st.session_state.current_streak += 1
+                        else:
+                            st.session_state.current_streak = 0
+                            st.session_state.incorrect_questions.append(q_data)
                     st.rerun()
                 else:
                     st.warning("Please select an answer before submitting.")
-    else:
+    else: # Explanation Phase
         user_choice = st.session_state.user_choice; is_multi = q_data.get("is_multipart", False)
         part_data, actual_answer, explanation, question_text = {}, "", "", ""
 
@@ -1294,6 +1301,16 @@ def display_quiz_page(topic_options):
         button_label = "Next Question" if not is_multi or is_last_part or not is_correct else "Next Part"
         
         if st.button(button_label, type="primary", use_container_width=True):
+            # --- REVISED SCORE & COUNTER LOGIC FOR "NEXT" ---
+            if is_multi:
+                if is_correct and is_last_part and st.session_state.multi_part_correct:
+                    st.session_state.quiz_score += 1
+                    st.session_state.current_streak += 1
+                if not is_correct:
+                    st.session_state.current_streak = 0
+                    if not any(q.get('stem', q.get('question')) == q_data.get('stem', q_data.get('question')) for q in st.session_state.incorrect_questions):
+                        st.session_state.incorrect_questions.append(q_data)
+
             if not is_multi or is_last_part or not is_correct:
                 st.session_state.questions_answered += 1
 
@@ -1302,13 +1319,14 @@ def display_quiz_page(topic_options):
             else:
                 del st.session_state.current_q_data
                 if 'current_part_index' in st.session_state: del st.session_state['current_part_index']
+                if 'multi_part_correct' in st.session_state: del st.session_state.multi_part_correct
             
             del st.session_state.user_choice; del st.session_state.answer_submitted
             st.rerun()
 
     if st.button("Stop Round & Save Score"):
         st.session_state.on_summary_page = True
-        keys_to_delete = ['current_q_data', 'user_choice', 'answer_submitted', 'current_part_index']
+        keys_to_delete = ['current_q_data', 'user_choice', 'answer_submitted', 'current_part_index', 'multi_part_correct']
         for key in keys_to_delete:
             if key in st.session_state: del st.session_state[key]
         st.rerun()
@@ -1643,6 +1661,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
