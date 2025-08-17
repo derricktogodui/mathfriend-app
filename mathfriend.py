@@ -105,7 +105,15 @@ def login_user(username, password):
             # Create or update user in Stream Chat on login
             profile = get_user_profile(username)
             display_name = profile.get('full_name') if profile and profile.get('full_name') else username
-            chat_client.upsert_user({"id": username, "name": display_name})
+            
+            # --- THIS IS THE UPDATE ---
+            # We now give the user permission to upload files when they log in.
+            chat_client.upsert_user({
+                "id": username, 
+                "name": display_name,
+                "role": "user",  # Standard user role
+                "allow_uploads": True # Explicitly grant upload permission
+            })
             return True
         return False
 
@@ -701,76 +709,56 @@ def load_css():
     """Loads the main CSS for the application for a consistent and responsive look."""
     st.markdown("""
     <style>
+        /* --- FIX FOR SCROLLING ON ALL DEVICES --- */
+        [data-testid="stAppViewContainer"] {
+            overflow-y: auto !important;
+            overflow-x: hidden !important;
+        }
+
         /* --- BASE STYLES --- */
         .stApp {
             background-color: #f0f2ff;
         }
         
-        /* FIX FOR TABLET SCROLLING */
-        [data-testid="stAppViewContainer"] > .main {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            overflow: auto !important;
-        }
-
-        /* --- THE DEFINITIVE CHROME FIX (MAIN CONTENT) --- */
+        /* --- DARK MODE-AWARE SIDEBAR AND CONTENT FIX --- */
         div[data-testid="stAppViewContainer"] * {
             color: #31333F !important;
         }
-
-        /* --- FINAL, CROSS-BROWSER SIDEBAR FIX --- */
         div[data-testid="stSidebar"] {
             background-color: #0F1116 !important;
         }
         div[data-testid="stSidebar"] * {
             color: #FAFAFA !important;
         }
-        div[data-testid="stSidebar"] h1 {
-            color: #FFFFFF !important;
-        }
-        div[data-testid="stSidebar"] [data-testid="stRadio"] label {
-            color: #E0E0E0 !important;
-        }
-
-        /* --- DARK MODE TEXT FIX --- */
         [data-baseweb="theme-dark"] div[data-testid="stAppViewContainer"] * {
             color: #31333F !important;
         }
         [data-baseweb="theme-dark"] div[data-testid="stSidebar"] * {
             color: #FAFAFA !important;
         }
-        
-        /* --- NEW: iMessage Style Chat Bubbles --- */
-        /* This targets the container that holds the bubble and avatar */
-        [data-testid="stChatMessage"] {
-            background-color: transparent;
-        }
-        
-        /* This is the actual chat bubble that contains the text */
+
+        /* --- iMessage Style --- */
         [data-testid="stChatMessageContent"] {
-            border-radius: 20px;
-            padding: 12px 16px;
-            box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+            border-radius: 20px; padding: 12px 16px; box-shadow: 0 1px 2px rgba(0,0,0,0.1);
         }
-
-        /* Bubble styles for messages FROM OTHERS (grey) */
         [data-testid="stChatMessage"]:has(div[data-testid="stChatMessageAssistantAvatar"]) [data-testid="stChatMessageContent"] {
-            background-color: #E5E5EA;
-            color: #31333F !important; /* Ensure dark text on grey bubble */
+            background-color: #E5E5EA; color: #31333F !important;
         }
-
-        /* Bubble styles for messages FROM YOU (blue) */
         [data-testid="stChatMessage"]:has(div[data-testid="stChatMessageUserAvatar"]) [data-testid="stChatMessageContent"] {
             background-color: #007AFF;
         }
-        
-        /* Text color for messages FROM YOU must be white */
         [data-testid="stChatMessage"]:has(div[data-testid="stChatMessageUserAvatar"]) * {
             color: white !important;
         }
         
-        /* --- COLOR OVERRIDES for main content --- */
+        /* --- NEW: Style for images in chat bubbles --- */
+        [data-testid="stChatMessageContent"] img {
+            max-width: 100%;
+            border-radius: 12px;
+            margin-top: 8px;
+        }
+        
+        /* --- COLOR OVERRIDES --- */
         button[data-testid="stFormSubmitButton"] *, div[data-testid="stButton"] > button * { color: white !important; }
         a, a * { color: #0068c9 !important; }
         .main-content h1, .main-content h2, .main-content h3, .main-content h4, .main-content h5, .main-content h6 { color: #1a1a1a !important; }
@@ -847,10 +835,10 @@ def display_dashboard(username):
 def display_blackboard_page():
     st.header("칠판 Blackboard")
     
-    # --- NEW: Welcome and info section ---
+    # Welcome and info section
     st.info("This is a community space. Ask clear questions, be respectful, and help your fellow students!", icon="👋")
 
-    # --- NEW: Display online users ---
+    # Display online users
     online_users = get_online_users(st.session_state.username)
     if online_users:
         st.markdown(f"**🟢 Online now:** {', '.join(online_users)}")
@@ -869,19 +857,48 @@ def display_blackboard_page():
 
     # Display message history
     for msg in messages:
-        user_id = msg["user"].get("id", "Unknown")
-        user_name = msg["user"].get("name", user_id)
-        is_current_user = (user_id == st.session_state.username)
-        
+        is_current_user = (msg["user"].get("id") == st.session_state.username)
         with st.chat_message(name="user" if is_current_user else "assistant"):
-            # For other users, show their name above the message for clarity
             if not is_current_user:
-                st.markdown(f"**{user_name}**")
+                st.markdown(f"**{msg['user'].get('name', msg['user'].get('id'))}**")
             st.markdown(msg["text"])
+            
+            # --- NEW: Display uploaded images ---
+            if msg.get("attachments"):
+                for attachment in msg["attachments"]:
+                    if attachment.get("type") == "image" and attachment.get("image_url"):
+                        st.image(attachment["image_url"], width=200)
 
-    # Input for new messages at the bottom of the screen
-    if prompt := st.chat_input("Post your question or comment..."):
-        channel.send_message({"text": prompt}, user_id=st.session_state.username)
+    # --- UPDATED: Input form with file uploader and camera icon ---
+    with st.form("chat_form", clear_on_submit=True):
+        col1, col2, col3 = st.columns([0.7, 0.15, 0.15])
+        with col1:
+            prompt = st.text_input("Type your message...", label_visibility="collapsed")
+        with col2:
+            # Here is the file uploader with a camera icon as the label
+            uploaded_file = st.file_uploader("📷", type=["png", "jpg", "jpeg"], label_visibility="collapsed")
+        with col3:
+            submitted = st.form_submit_button("Send", type="primary", use_container_width=True)
+
+    if submitted and (prompt or uploaded_file):
+        attachments = []
+        if uploaded_file is not None:
+            # Upload the file to Stream's CDN
+            file_bytes = uploaded_file.getvalue()
+            file_name = uploaded_file.name
+            upload_result = chat_client.upload_file(file_bytes, name=file_name)
+            
+            # Add the file URL to our attachments list
+            attachments.append({
+                "type": "image",
+                "asset_url": upload_result["file"],
+            })
+        
+        # Send the message with the text and any attachments
+        channel.send_message({
+            "text": prompt if prompt else " ", # Message text is required, send a space if empty
+            "attachments": attachments,
+        }, user_id=st.session_state.username)
         st.rerun()
 def display_quiz_page(topic_options):
     st.header("🧠 Quiz Time!")
@@ -1243,6 +1260,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
