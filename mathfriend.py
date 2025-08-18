@@ -2135,6 +2135,10 @@ def show_login_or_signup_page():
             password = st.text_input("Password", type="password", key="login_pass")
             if st.form_submit_button("Login", type="primary", use_container_width=True):
                 if login_user(username, password):
+                    
+                    # --- THIS IS THE NEW LINE YOU REQUESTED ---
+                    st.toast(f"Welcome back, {username}! Ready to solve some math today?", icon="🎉")
+                    
                     st.session_state.logged_in = True
                     st.session_state.username = username
                     st.rerun()
@@ -2188,6 +2192,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
