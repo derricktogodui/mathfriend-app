@@ -794,45 +794,57 @@ def _generate_indices_question():
         a, b = 2, -1
         while (power - b) % a != 0:
             power = random.randint(2, 5)
-        question = f"Solve for the variable $x$: ${base}^{{{a}x {b}}} = {base**power}$"
-        answer = str(Fraction(power - b, a))
+        question = f"Solve for the variable $x$: ${base}^{{{a}x + ({b})}} = {base**power}$"
+        answer = _format_fraction_text(Fraction(power - b, a))
         hint = "If the bases on both sides of an equation are the same, you can equate the exponents."
-        explanation = f"1. The equation is ${base}^{{{a}x {b}}} = {base**power}$.\n2. Since the bases are equal, set the exponents equal: ${a}x {b} = {power}$.\n3. ${a}x = {power-b}$.\n4. $x = \\frac{{{power-b}}}{{{a}}}$."
+        explanation = f"1. The equation is ${base}^{{{a}x + ({b})}} = {base**power}$.\n2. Since the bases are equal, set the exponents equal: ${a}x + ({b}) = {power}$.\n3. ${a}x = {power-b}$.\n4. $x = \\frac{{{power-b}}}{{{a}}}$."
         options = {answer, str(power), str(power-b)}
 
     elif q_type == 'standard_form':
-        # --- THIS ENTIRE BLOCK IS REWRITTEN FOR CLARITY AND CORRECTNESS ---
         num = round(random.uniform(1.0, 9.9), random.randint(2, 4))
         power = random.randint(3, 6)
-        
-        # Create clean LaTeX strings first
         correct_latex = f"{num} \\times 10^{{-{power}}}"
-        distractor_latex_1 = f"{num} \\times 10^{{{power}}}"
-        
         decimal_form = f"{num / (10**power):.{power+len(str(num))-2}f}"
-        distractor_plain_2 = f"{decimal_form} \\times 10^1" # This is intentionally not a math format
-
         question = f"A measurement taken by a scientist in Accra is {decimal_form} metres. Express this number in standard form."
         answer = f"${correct_latex}$"
-        hint = "Standard form is written as $A \\times 10^n$, where $1 \\le A < 10$. Count how many places the decimal point must move."
-        explanation = f"To get the number {num} (which is between 1 and 10), we must move the decimal point {power} places to the right. Moving to the right corresponds to a negative exponent.\nThus, the standard form is ${correct_latex}$."
-        
-        # All options are now distinct and correctly formatted strings before being finalized
-        options = {
-            answer, 
-            f"${distractor_latex_1}$",
-            distractor_plain_2
-        }
+        hint = "Standard form is written as $A \\times 10^n$, where $1 \\le A < 10$."
+        explanation = f"To get {num}, we must move the decimal point {power} places to the right, which corresponds to a negative exponent.\nThus, the standard form is ${correct_latex}$."
+        options = {answer, f"${num} \\times 10^{{{power}}}$", f"{decimal_form} \\times 10^1"}
 
     elif q_type == 'solve_different_base':
-        base1, p1, base2, p2 = random.choice([(4, 2, 8, 3), (9, 3, 27, 2), (4, 3, 2, 6)])
-        common_base = 2 if base1 == 4 else 3
-        x_val = -p2 / (p1 - p2)
-        question = f"Solve for x in the equation: ${base1}^x = {base2}^{{x-1}}$"
-        answer = str(int(x_val))
+        # --- THIS ENTIRE BLOCK IS REWRITTEN AND CORRECTED ---
+        # Setup: (base1, power_of_common_base1, base2, power_of_common_base2, common_base)
+        problems = [
+            (4, 2, 2, 1, 2),  # 4^x = 2^(x-1) type
+            (8, 3, 4, 2, 2),  # 8^x = 4^(x-1) type
+            (9, 2, 3, 1, 3),  # 9^x = 3^(x-1) type
+            (27, 3, 9, 2, 3)  # 27^x = 9^(x-1) type
+        ]
+        base1, p1, base2, p2, common_base = random.choice(problems)
+        
+        # We need to solve p1*x = p2*(x-k) for x. Let's make k random and solvable.
+        k = random.randint(1, 4)
+        # p1*x = p2*x - p2*k  => (p1-p2)x = -p2*k => x = -p2*k / (p1-p2)
+        x_val_frac = Fraction(-p2 * k, p1 - p2)
+        
+        # Ensure we don't have a division by zero or an overly complex fraction.
+        # This loop will regenerate numbers if the result isn't a simple integer.
+        while (p1 - p2) == 0 or x_val_frac.denominator != 1:
+            base1, p1, base2, p2, common_base = random.choice(problems)
+            k = random.randint(1, 4)
+            if (p1 - p2) != 0:
+                x_val_frac = Fraction(-p2 * k, p1 - p2)
+        
+        x_val = x_val_frac.numerator
+        
+        question = f"Solve for x in the equation: ${base1}^x = {base2}^{{x-{k}}}$"
+        answer = str(x_val)
         hint = "Express both sides of the equation as powers of the same common base."
-        explanation = f"1. Express both sides with a base of {common_base}: $({common_base}^{{{p1}}})^x = ({common_base}^{{{p2}}})^{{x-1}}$.\n2. Simplify the exponents: ${common_base}^{{{p1}x}} = {common_base}^{{{p2}(x-1)}}$.\n3. Equate the exponents: ${p1}x = {p2}x - {p2}$.\n4. Solve for x: $({p1-p2})x = {-p2} \implies x = {answer}$."
-        options = {answer, str(x_val-1), str(p1*x_val)}
+        explanation = (f"1. Express both sides with a base of {common_base}: $({common_base}^{{{p1}}})^x = ({common_base}^{{{p2}}})^{{x-{k}}}$.\n"
+                       f"2. Simplify the exponents: ${common_base}^{{{p1}x}} = {common_base}^{{{p2}(x-{k})}}$.\n"
+                       f"3. Equate the exponents: ${p1}x = {p2}(x-{k}) \implies {p1}x = {p2}x - {p2*k}$.\n"
+                       f"4. Solve for x: $({p1-p2})x = {-p2*k} \implies x = {x_val}$.")
+        options = {answer, str(k), str(x_val + 1)}
 
     return {"question": question, "options": _finalize_options(options), "answer": answer, "hint": hint, "explanation": explanation}
 
@@ -2390,6 +2402,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
