@@ -99,7 +99,7 @@ def create_and_verify_tables():
                             )'''))
 
             # --- Populate daily_challenges if it's empty ---
-           def create_and_verify_tables():
+def create_and_verify_tables():
     """Creates, verifies, and populates necessary database tables."""
     try:
         with engine.connect() as conn:
@@ -2129,6 +2129,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
