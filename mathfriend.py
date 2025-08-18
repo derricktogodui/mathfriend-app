@@ -754,6 +754,7 @@ def _generate_fractions_question():
     return {"question": question, "options": _finalize_options(options, "fraction"), "answer": answer, "hint": hint, "explanation": explanation}
 def _generate_indices_question():
     """Generates a multi-subtopic question for Indices with enhanced variety."""
+    # Subtopics: Laws, Fractional, Solving Equations (same/different base), Standard Form
     q_type = random.choice(['laws', 'fractional', 'solve_same_base', 'standard_form', 'solve_different_base'])
     question, answer, hint, explanation = "", "", "", ""
     options = set()
@@ -801,48 +802,46 @@ def _generate_indices_question():
         options = {answer, str(power), str(power-b)}
 
     elif q_type == 'standard_form':
+        # --- THIS ENTIRE BLOCK IS REWRITTEN FOR ROBUSTNESS ---
         num = round(random.uniform(1.0, 9.9), random.randint(2, 4))
         power = random.randint(3, 6)
-        correct_latex = f"{num} \\times 10^{{-{power}}}"
-        decimal_form = f"{num / (10**power):.{power+len(str(num))-2}f}"
-        question = f"A measurement taken by a scientist in Accra is {decimal_form} metres. Express this number in standard form."
-        answer = f"${correct_latex}$"
-        hint = "Standard form is written as $A \\times 10^n$, where $1 \\le A < 10$."
-        explanation = f"To get {num}, we must move the decimal point {power} places to the right, which corresponds to a negative exponent.\nThus, the standard form is ${correct_latex}$."
-        options = {answer, f"${num} \\times 10^{{{power}}}$", f"{decimal_form} \\times 10^1"}
+        
+        # Create the decimal form of the number
+        decimal_form = f"{num / (10**power):.{power+len(str(int(num)))}f}"
+        
+        # Create the correctly formatted LaTeX answer
+        answer = f"${num} \\times 10^{{-{power}}}$"
+        
+        # Create a set of unique, correctly formatted distractors
+        distractors = {
+            f"${num} \\times 10^{{{power}}}$",         # Wrong sign on exponent
+            f"{decimal_form}",                       # Just the decimal form
+            f"${round(num*10, 2)} \\times 10^{{-{power+1}}}$" # Wrong coefficient
+        }
+        
+        question = f"A measurement taken by a scientist in Kajaji is {decimal_form} metres. Express this number in standard form."
+        hint = "Standard form is written as $A \\times 10^n$, where $1 \\le A < 10$. Count how many places the decimal point must move."
+        explanation = f"To get the number {num} (which is between 1 and 10), we must move the decimal point {power} places to the right. Moving to the right corresponds to a negative exponent.\nThus, the standard form is {answer}."
+        
+        options = {answer, *distractors}
 
     elif q_type == 'solve_different_base':
-        # --- THIS ENTIRE BLOCK IS REWRITTEN AND CORRECTED ---
-        # Setup: (base1, power_of_common_base1, base2, power_of_common_base2, common_base)
-        problems = [
-            (4, 2, 2, 1, 2),  # 4^x = 2^(x-1) type
-            (8, 3, 4, 2, 2),  # 8^x = 4^(x-1) type
-            (9, 2, 3, 1, 3),  # 9^x = 3^(x-1) type
-            (27, 3, 9, 2, 3)  # 27^x = 9^(x-1) type
-        ]
+        problems = [(4, 2, 2, 1, 2), (8, 3, 4, 2, 2), (9, 2, 3, 1, 3), (27, 3, 9, 2, 3)]
         base1, p1, base2, p2, common_base = random.choice(problems)
-        
-        # We need to solve p1*x = p2*(x-k) for x. Let's make k random and solvable.
         k = random.randint(1, 4)
-        # p1*x = p2*x - p2*k  => (p1-p2)x = -p2*k => x = -p2*k / (p1-p2)
         x_val_frac = Fraction(-p2 * k, p1 - p2)
-        
-        # Ensure we don't have a division by zero or an overly complex fraction.
-        # This loop will regenerate numbers if the result isn't a simple integer.
         while (p1 - p2) == 0 or x_val_frac.denominator != 1:
             base1, p1, base2, p2, common_base = random.choice(problems)
             k = random.randint(1, 4)
-            if (p1 - p2) != 0:
-                x_val_frac = Fraction(-p2 * k, p1 - p2)
-        
+            if (p1 - p2) != 0: x_val_frac = Fraction(-p2 * k, p1 - p2)
         x_val = x_val_frac.numerator
         
         question = f"Solve for x in the equation: ${base1}^x = {base2}^{{x-{k}}}$"
         answer = str(x_val)
         hint = "Express both sides of the equation as powers of the same common base."
-        explanation = (f"1. Express both sides with a base of {common_base}: $({common_base}^{{{p1}}})^x = ({common_base}^{{{p2}}})^{{x-{k}}}$.\n"
-                       f"2. Simplify the exponents: ${common_base}^{{{p1}x}} = {common_base}^{{{p2}(x-{k})}}$.\n"
-                       f"3. Equate the exponents: ${p1}x = {p2}(x-{k}) \implies {p1}x = {p2}x - {p2*k}$.\n"
+        explanation = (f"1. Express with base {common_base}: $({common_base}^{{{p1}}})^x = ({common_base}^{{{p2}}})^{{x-{k}}}$.\n"
+                       f"2. Simplify exponents: ${common_base}^{{{p1}x}} = {common_base}^{{{p2}(x-{k})}}$.\n"
+                       f"3. Equate exponents: ${p1}x = {p2}x - {p2*k}$.\n"
                        f"4. Solve for x: $({p1-p2})x = {-p2*k} \implies x = {x_val}$.")
         options = {answer, str(k), str(x_val + 1)}
 
@@ -2402,6 +2401,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
