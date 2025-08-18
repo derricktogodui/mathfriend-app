@@ -754,7 +754,6 @@ def _generate_fractions_question():
     return {"question": question, "options": _finalize_options(options, "fraction"), "answer": answer, "hint": hint, "explanation": explanation}
 def _generate_indices_question():
     """Generates a multi-subtopic question for Indices with enhanced variety."""
-    # UPGRADED: Expanded list of sub-topics based on your suggestions
     q_type = random.choice(['laws', 'fractional', 'solve_same_base', 'standard_form', 'solve_different_base'])
     question, answer, hint, explanation = "", "", "", ""
     options = set()
@@ -792,15 +791,21 @@ def _generate_indices_question():
     elif q_type == 'solve_same_base':
         base = random.randint(2, 5)
         power = random.randint(2, 4)
-        question = f"Solve for the variable $x$: ${base}^{{2x-1}} = {base**power}$"
-        # 2x - 1 = power => 2x = power + 1 => x = (power+1)/2
-        # Ensure the answer is a nice number
-        while (power+1) % 2 != 0:
-            power = random.randint(2, 4)
-        answer = str(Fraction(power+1, 2))
+        # Equation: base^(ax+b) = base^power
+        a, b = 2, -1 # From 2x-1
+        
+        # Ensure the answer x = (power-b)/a is a nice number
+        while (power - b) % a != 0:
+            power = random.randint(2, 5)
+            
+        # --- THIS IS THE FIX ---
+        # The question must be generated AFTER the final power is chosen.
+        question = f"Solve for the variable $x$: ${base}^{{{a}x {b}}} = {base**power}$"
+        
+        answer = str(Fraction(power - b, a))
         hint = "If the bases on both sides of an equation are the same, you can equate the exponents."
-        explanation = f"1. Since the bases are equal, we set the exponents equal: $2x - 1 = {power}$.\n2. $2x = {power+1}$.\n3. $x = \\frac{{{power+1}}}{{2}}$."
-        options = {answer, str(power), str(power+1)}
+        explanation = f"1. The equation is ${base}^{{{a}x {b}}} = {base**power}$.\n2. Since the bases are equal, set the exponents equal: ${a}x {b} = {power}$.\n3. ${a}x = {power-b}$.\n4. $x = \\frac{{{power-b}}}{{{a}}}$."
+        options = {answer, str(power), str(power-b)}
 
     elif q_type == 'standard_form':
         num = round(random.uniform(1.0, 9.9), random.randint(2, 4))
@@ -814,10 +819,8 @@ def _generate_indices_question():
         options = {answer, f"${num} \\times 10^{{{power}}}$", f"{decimal_form} \\times 10^1"}
 
     elif q_type == 'solve_different_base':
-        base1, p1, base2, p2 = random.choice([(4, 2, 8, 3), (9, 3, 27, 2), (4, 3, 2, 6)]) # (base1, common_base_p1, base2, common_base_p2)
+        base1, p1, base2, p2 = random.choice([(4, 2, 8, 3), (9, 3, 27, 2), (4, 3, 2, 6)])
         common_base = 2 if base1 == 4 else 3
-        # Equation: base1^x = base2^(x-1) => (common_base^p1)^x = (common_base^p2)^(x-1)
-        # p1*x = p2*x - p2 => (p1-p2)x = -p2 => x = -p2 / (p1-p2)
         x_val = -p2 / (p1 - p2)
         question = f"Solve for x in the equation: ${base1}^x = {base2}^{{x-1}}$"
         answer = str(int(x_val))
@@ -2381,6 +2384,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
