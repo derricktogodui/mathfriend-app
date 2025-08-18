@@ -98,6 +98,15 @@ def create_and_verify_tables():
                                 PRIMARY KEY (username, challenge_date)
                             )'''))
 
+            # --- PASTE THE NEW CODE EXACTLY HERE ---
+            conn.execute(text('''CREATE TABLE IF NOT EXISTS seen_questions (
+                                id SERIAL PRIMARY KEY,
+                                username TEXT NOT NULL,
+                                question_id TEXT NOT NULL,
+                                seen_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                                UNIQUE (username, question_id)
+                            )'''))
+            
             # ADD THIS BLOCK
             conn.execute(text('''CREATE TABLE IF NOT EXISTS user_achievements (
                                 id SERIAL PRIMARY KEY,
@@ -384,6 +393,22 @@ def get_online_users(current_user):
         result = conn.execute(query, {"current_user": current_user})
         return [row[0] for row in result.fetchall()]
 
+# ADD THESE TWO NEW FUNCTIONS
+
+def get_seen_questions(username):
+    """Fetches the set of all question IDs a user has already seen."""
+    with engine.connect() as conn:
+        query = text("SELECT question_id FROM seen_questions WHERE username = :username")
+        result = conn.execute(query, {"username": username}).fetchall()
+        return {row[0] for row in result}
+
+def save_seen_question(username, question_id):
+    """Saves a question ID to a user's seen list."""
+    with engine.connect() as conn:
+        query = text("INSERT INTO seen_questions (username, question_id) VALUES (:username, :question_id) ON CONFLICT DO NOTHING")
+        conn.execute(query, {"username": username, "question_id": question_id})
+        conn.commit()
+
 # ADD THESE THREE NEW FUNCTIONS
 
 def check_and_award_achievements(username, topic):
@@ -456,6 +481,11 @@ def _finalize_options(options_set, default_type="int"):
     final_options = list(options_set)
     random.shuffle(final_options)
     return final_options
+
+# ADD THIS NEW FUNCTION
+def get_question_id(question_text):
+    """Creates a unique and consistent ID for a question based on its text."""
+    return hashlib.md5(question_text.encode()).hexdigest()
 
 # --- FULLY IMPLEMENTED QUESTION GENERATION ENGINE (12 TOPICS) ---
 
@@ -1417,13 +1447,11 @@ def _generate_advanced_combo_question():
     selected_combo_func = random.choice(possible_combos)
     return selected_combo_func()
 def generate_question(topic):
+    # This dictionary of all 18 generators remains the same
     generators = {
-        "Sets": _generate_sets_question, 
-        "Percentages": _generate_percentages_question,
-        "Fractions": _generate_fractions_question, 
-        "Indices": _generate_indices_question,
-        "Surds": _generate_surds_question, 
-        "Binary Operations": _generate_binary_ops_question,
+        "Sets": _generate_sets_question, "Percentages": _generate_percentages_question,
+        "Fractions": _generate_fractions_question, "Indices": _generate_indices_question,
+        "Surds": _generate_surds_question, "Binary Operations": _generate_binary_ops_question,
         "Relations and Functions": _generate_relations_functions_question,
         "Sequence and Series": _generate_sequence_series_question,
         "Word Problems": _generate_word_problems_question,
@@ -1438,12 +1466,34 @@ def generate_question(topic):
         "Vectors": _generate_vectors_question,
         "Advanced Combo": _generate_advanced_combo_question,
     }
-    # This block is now correctly indented
+    
     generator_func = generators.get(topic)
-    if generator_func: 
-        return generator_func()
-    else: 
-        return {"question": f"Questions for **{topic}** are coming soon!", "options": ["OK"], "answer": "OK", "hint": "This topic is under development.", "explanation": "No explanation available."}
+    if not generator_func:
+        return {"question": f"Questions for **{topic}** are coming soon!", "options": ["OK"], "answer": "OK", "hint": "Under development."}
+
+    # --- NEW LOGIC TO PREVENT REPEATS ---
+    seen_ids = get_seen_questions(st.session_state.username)
+    
+    # Try up to 10 times to find a new question to avoid an infinite loop
+    for _ in range(10):
+        # 1. Generate a candidate question
+        candidate_question = generator_func()
+        
+        # For multi-part, the stem is the unique identifier
+        question_text = candidate_question.get("stem", candidate_question.get("question", ""))
+        
+        # 2. Create its unique ID
+        q_id = get_question_id(question_text)
+        
+        # 3. Check if it has been seen
+        if q_id not in seen_ids:
+            # 4. If not seen, save it and return it
+            save_seen_question(st.session_state.username, q_id)
+            return candidate_question
+    
+    # If we fail to find a new question after 10 tries, return a fallback message
+    return {"question": "Wow! You've seen a lot of questions. We're digging deep for a new one...", "options": ["OK"], "answer": "OK", "hint": "Generating a fresh challenge!"}
+        
 
 # --- UI DISPLAY FUNCTIONS ---
 def confetti_animation():
@@ -2198,6 +2248,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
