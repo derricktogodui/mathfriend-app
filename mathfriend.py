@@ -1396,62 +1396,94 @@ def get_time_based_greeting():
     else: return "Good evening"
 
 def load_css():
-    st.markdown("""
+    # SVG Icons for input fields, URL encoded for use in CSS
+    user_icon = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%236c757d' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2'%3E%3C/path%3E%3Ccircle cx='12' cy='7' r='4'%3E%3C/circle%3E%3C/svg%3E"
+    lock_icon = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%236c757d' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='11' width='18' height='11' rx='2' ry='2'%3E%3C/rect%3E%3Cpath d='M7 11V7a5 5 0 0 1 10 0v4'%3E%3C/path%3E%3C/svg%3E"
+
+    st.markdown(f"""
     <style>
         /* --- FINAL, ROBUST SCROLLING FIX FOR ALL DEVICES --- */
-        /* This targets the main view container, locks it to the screen size,
-           and makes it the primary scrollable element. This is a more
-           powerful approach that should override other conflicting styles. */
-        div[data-testid="stAppViewContainer"] {
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            overflow-y: auto;
-        }
+        div[data-testid="stAppViewContainer"] {{
+            position: fixed; top: 0; left: 0; right: 0; bottom: 0; overflow-y: auto;
+        }}
         
-        /* --- BASE STYLES & OTHER RULES --- */
-        .stApp { background-color: #f0f2ff; }
-        div[data-testid="stAppViewContainer"] * { color: #31333F !important; }
-        div[data-testid="stSidebar"] { background-color: #0F1116 !important; }
-        div[data-testid="stSidebar"] * { color: #FAFAFA !important; }
-        div[data-testid="stSidebar"] h1 { color: #FFFFFF !important; }
-        div[data-testid="stSidebar"] [data-testid="stRadio"] label { color: #E0E0E0 !important; }
-        [data-baseweb="theme-dark"] div[data-testid="stAppViewContainer"] * { color: #31333F !important; }
-        [data-baseweb="theme-dark"] div[data-testid="stSidebar"] * { color: #FAFAFA !important; }
-        [data-testid="stChatMessage"] { background-color: transparent; }
-        [data-testid="stChatMessageContent"] { border-radius: 20px; padding: 12px 16px; box-shadow: 0 1px 2px rgba(0,0,0,0.1); }
-        [data-testid="stChatMessage"]:has(div[data-testid="stChatMessageAssistantAvatar"]) [data-testid="stChatMessageContent"] { background-color: #E5E5EA; color: #31333F !important; }
-        [data-testid="stChatMessage"]:has(div[data-testid="stChatMessageUserAvatar"]) [data-testid="stChatMessageContent"] { background-color: #007AFF; }
-        [data-testid="stChatMessage"]:has(div[data-testid="stChatMessageUserAvatar"]) * { color: white !important; }
-        button[data-testid="stFormSubmitButton"] *, div[data-testid="stButton"] > button * { color: white !important; }
-        a, a * { color: #0068c9 !important; }
-        .main-content h1, .main-content h2, .main-content h3, .main-content h4, .main-content h5, .main-content h6 { color: #1a1a1a !important; }
-        [data-testid="stMetricValue"] { color: #1a1a1a !important; }
-        [data-testid="stSuccess"] * { color: #155724 !important; }
-        [data-testid="stInfo"] * { color: #0c5460 !important; }
-        [data-testid="stWarning"] * { color: #856404 !important; }
-        [data-testid="stError"] * { color: #721c24 !important; }
-        .main-content h1, .main-content h2, .main-content h3 { border-left: 5px solid #0d6efd; padding-left: 15px; border-radius: 3px; }
-        [data-testid="stMetric"] { background-color: #FFFFFF; border: 1px solid #CCCCCC; padding: 20px; border-radius: 10px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); border-left: 5px solid #CCCCCC; }
-        [data-testid="stHorizontalBlock"] > div:nth-of-type(1) [data-testid="stMetric"] { border-left-color: #0d6efd; }
-        [data-testid="stHorizontalBlock"] > div:nth-of-type(2) [data-testid="stMetric"] { border-left-color: #28a745; }
-        [data-testid="stHorizontalBlock"] > div:nth-of-type(3) [data-testid="stMetric"] { border-left-color: #ffc107; }
-        .stTextInput input, .stTextArea textarea, .stNumberInput input { color: #000 !important; background-color: #fff !important; }
-        button[data-testid="stFormSubmitButton"] { background-color: #0d6efd; border: 1px solid #0d6efd; box-shadow: 0 4px 8px rgba(0,0,0,0.1); transition: all 0.2s ease-in-out; }
-        button[data-testid="stFormSubmitButton"]:hover { background-color: #0b5ed7; border-color: #0a58ca; transform: translateY(-2px); box-shadow: 0 6px 12px rgba(0,0,0,0.15); }
-        div[data-testid="stButton"] > button { background-color: #6c757d; border: 1px solid #6c757d; }
-        div[data-testid="stButton"] > button:hover { background-color: #5a6268; border-color: #545b62; }
-        [data-testid="stSelectbox"] div[data-baseweb="select"] > div { background-color: #fff !important; }
-        .stDataFrame th { background-color: #e9ecef; font-weight: bold; }
-        [data-testid="stForm"] { border: 1px solid #dee2e6; border-radius: 0.5rem; padding: 1.5rem; background-color: #fafafa; }
-        .styled-hr { border: none; height: 2px; background: linear-gradient(to right, #0d6efd, #f0f2f5); margin: 2rem 0; }
-        .login-container { background: #ffffff; border-radius: 16px; padding: 2rem 3rem; margin: auto; max-width: 450px; box-shadow: 0 8px 32px rgba(0,0,0,0.1); }
-        .login-title { text-align: center; font-weight: 800; font-size: 2.2rem; }
-        .login-subtitle { text-align: center; color: #6c757d; margin-bottom: 2rem; }
-        .main-content { background-color: #ffffff; padding: 2rem; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
-        @media (max-width: 640px) { .main-content, .login-container { padding: 1rem; } .login-title { font-size: 1.8rem; } }
+        /* --- NEW: Background Gradient --- */
+        .stApp {{
+            background-color: #f0f2ff;
+            background-image: linear-gradient(135deg, #f0f2ff 0%, #e6e9ff 100%);
+        }}
+
+        /* --- NEW: Styles for input fields with icons --- */
+        div[data-testid="stForm"] div[data-testid="stTextInput"] input {{
+            padding-left: 45px !important;
+            background-repeat: no-repeat;
+            background-position: 12px center;
+            border: 1px solid #ced4da;
+            transition: border-color .15s ease-in-out,box-shadow .15s ease-in-out;
+        }}
+        div[data-testid="stForm"] div[data-testid="stTextInput"] input:focus {{
+            border-color: #80bdff;
+            outline: 0;
+            box-shadow: 0 0 0 0.2rem rgba(0,123,255,.25);
+        }}
+        div[data-testid="stForm"] div[data-testid="stTextInput"][key="login_user"] input,
+        div[data-testid="stForm"] div[data-testid="stTextInput"][key="signup_user"] input {{
+            background-image: url("{user_icon}");
+        }}
+        div[data-testid="stForm"] div[data-testid="stTextInput"][key="login_pass"] input,
+        div[data-testid="stForm"] div[data-testid="stTextInput"][key="signup_pass"] input,
+        div[data-testid="stForm"] div[data-testid="stTextInput"][key="signup_confirm"] input {{
+            background-image: url("{lock_icon}");
+        }}
+        
+        /* --- UPDATED: Login Container Styling (NO LONGER CENTERED, USES COLUMNS) --- */
+        .login-container {{
+            background: #ffffff; border-radius: 16px; padding: 2rem 3rem;
+            max-width: 450px; width: 100%; box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+            border: 1px solid #e0e0e0;
+        }}
+        .login-title {{ text-align: center; font-weight: 800; font-size: 2.2rem; color: #1a1a1a !important; }}
+        .login-subtitle {{ text-align: center; color: #6c757d !important; margin-bottom: 2rem; }}
+
+        /* --- ALL OTHER EXISTING STYLES --- */
+        div[data-testid="stSidebar"] {{ background-color: #0F1116 !important; }}
+        div[data-testid="stSidebar"] * {{ color: #FAFAFA !important; }}
+        div[data-testid="stSidebar"] h1 {{ color: #FFFFFF !important; }}
+        div[data-testid="stSidebar"] [data-testid="stRadio"] label {{ color: #E0E0E0 !important; }}
+        [data-baseweb="theme-dark"] div[data-testid="stAppViewContainer"] * {{ color: #31333F !important; }}
+        [data-baseweb="theme-dark"] div[data-testid="stSidebar"] * {{ color: #FAFAFA !important; }}
+        [data-testid="stChatMessage"] {{ background-color: transparent; }}
+        [data-testid="stChatMessageContent"] {{ border-radius: 20px; padding: 12px 16px; box-shadow: 0 1px 2px rgba(0,0,0,0.1); }}
+        [data-testid="stChatMessage"]:has(div[data-testid="stChatMessageAssistantAvatar"]) [data-testid="stChatMessageContent"] {{ background-color: #E5E5EA; color: #31333F !important; }}
+        [data-testid="stChatMessage"]:has(div[data-testid="stChatMessageUserAvatar"]) [data-testid="stChatMessageContent"] {{ background-color: #007AFF; }}
+        [data-testid="stChatMessage"]:has(div[data-testid="stChatMessageUserAvatar"]) * {{ color: white !important; }}
+        button[data-testid="stFormSubmitButton"] *, div[data-testid="stButton"] > button * {{ color: white !important; }}
+        a, a * {{ color: #0068c9 !important; }}
+        .main-content h1, .main-content h2, .main-content h3, .main-content h4, .main-content h5, .main-content h6 {{ color: #1a1a1a !important; }}
+        [data-testid="stMetricValue"] {{ color: #1a1a1a !important; }}
+        [data-testid="stSuccess"] * {{ color: #155724 !important; }}
+        [data-testid="stInfo"] * {{ color: #0c5460 !important; }}
+        [data-testid="stWarning"] * {{ color: #856404 !important; }}
+        [data-testid="stError"] * {{ color: #721c24 !important; }}
+        .main-content h1, .main-content h2, .main-content h3 {{ border-left: 5px solid #0d6efd; padding-left: 15px; border-radius: 3px; }}
+        [data-testid="stMetric"] {{ background-color: #FFFFFF; border: 1px solid #CCCCCC; padding: 20px; border-radius: 10px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); border-left: 5px solid #CCCCCC; }}
+        [data-testid="stHorizontalBlock"] > div:nth-of-type(1) [data-testid="stMetric"] {{ border-left-color: #0d6efd; }}
+        [data-testid="stHorizontalBlock"] > div:nth-of-type(2) [data-testid="stMetric"] {{ border-left-color: #28a745; }}
+        [data-testid="stHorizontalBlock"] > div:nth-of-type(3) [data-testid="stMetric"] {{ border-left-color: #ffc107; }}
+        .stTextInput input, .stTextArea textarea, .stNumberInput input {{ color: #000 !important; background-color: #fff !important; }}
+        button[data-testid="stFormSubmitButton"] {{ background-color: #0d6efd; border: 1px solid #0d6efd; box-shadow: 0 4px 8px rgba(0,0,0,0.1); transition: all 0.2s ease-in-out; }}
+        button[data-testid="stFormSubmitButton"]:hover {{ background-color: #0b5ed7; border-color: #0a58ca; transform: translateY(-2px); box-shadow: 0 6px 12px rgba(0,0,0,0.15); }}
+        div[data-testid="stButton"] > button {{ background-color: #6c757d; border: 1px solid #6c757d; }}
+        div[data-testid="stButton"] > button:hover {{ background-color: #5a6268; border-color: #545b62; }}
+        [data-testid="stSelectbox"] div[data-baseweb="select"] > div {{ background-color: #fff !important; }}
+        .stDataFrame th {{ background-color: #e9ecef; font-weight: bold; }}
+        [data-testid="stForm"] {{ border: 1px solid #dee2e6; border-radius: 0.5rem; padding: 1.5rem; background-color: #fafafa; }}
+        .styled-hr {{ border: none; height: 2px; background: linear-gradient(to right, #0d6efd, #f0f2f5); margin: 2rem 0; }}
+        .main-content {{ background-color: #ffffff; padding: 2rem; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); }}
+        @media (max-width: 992px) {{
+            div[data-testid="stHorizontalBlock"] > div:nth-of-type(1) {{ display: none; }} /* Hides the SVG on smaller screens */
+        }}
+        @media (max-width: 640px) {{ .main-content, .login-container {{ padding: 1rem; }} .login-title {{ font-size: 1.8rem; }} }}
     </style>
     """, unsafe_allow_html=True)
 def display_dashboard(username):
@@ -2031,45 +2063,69 @@ def show_main_app():
 
 def show_login_or_signup_page():
     load_css()
-    st.markdown('<div class="login-container">', unsafe_allow_html=True)
-    if st.session_state.page == "login":
-        st.markdown('<p class="login-title">🔐 MathFriend Login</p>', unsafe_allow_html=True)
-        st.markdown('<p class="login-subtitle">Welcome Back!</p>', unsafe_allow_html=True)
-        with st.form("login_form"):
-            username = st.text_input("Username", key="login_user")
-            password = st.text_input("Password", type="password", key="login_pass")
-            if st.form_submit_button("Login", type="primary", use_container_width=True):
-                if login_user(username, password):
-                    st.session_state.logged_in = True
-                    st.session_state.username = username
-                    st.rerun()
-                else:
-                    st.error("Invalid username or password")
-        if st.button("Don't have an account? Sign Up", use_container_width=True):
-            st.session_state.page = "signup"
-            st.rerun()
-    else: # Signup page
-        st.markdown('<p class="login-title">Create Account</p>', unsafe_allow_html=True)
-        with st.form("signup_form"):
-            username = st.text_input("Username", key="signup_user")
-            password = st.text_input("Password", type="password", key="signup_pass")
-            confirm_password = st.text_input("Confirm Password", type="password", key="signup_confirm")
-            if st.form_submit_button("Create Account", type="primary", use_container_width=True):
-                if not username or not password:
-                    st.error("All fields are required.")
-                elif password != confirm_password:
-                    st.error("Passwords do not match.")
-                elif signup_user(username, password):
-                    st.success("Account created! Please log in.")
-                    st.session_state.page = "login"
-                    time.sleep(2)
-                    st.rerun()
-                else:
-                    st.error("Username already exists.")
-        if st.button("Back to Login", use_container_width=True):
-            st.session_state.page = "login"
-            st.rerun()
-    st.markdown('</div>', unsafe_allow_html=True)
+    
+    # Create a two-column layout
+    col1, col2 = st.columns([1, 1.2], gap="large")
+
+    with col1:
+        # This column contains a decorative SVG icon. You could also use st.image() here.
+        st.markdown("""
+            <div style='display: flex; justify-content: center; align-items: center; height: 100vh;'>
+                <svg width="250" height="250" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M19 3H5C3.89543 3 3 3.89543 3 5V19C3 20.1046 3.89543 21 5 21H19C20.1046 21 21 20.1046 21 19V5C21 3.89543 20.1046 3 19 3Z" stroke="#0d6efd" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                    <path d="M7 7H12" stroke="#0d6efd" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                    <path d="M7 12H17" stroke="#0d6efd" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                    <path d="M7 17H17" stroke="#0d6efd" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                    <path d="M17 7L14 12L17 17" stroke="#0d6efd" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+            </div>
+        """, unsafe_allow_html=True)
+
+    with col2:
+        # This column contains the login/signup form, vertically centered.
+        st.markdown("<div style='display: flex; justify-content: center; align-items: center; height: 100vh;'>", unsafe_allow_html=True)
+        st.markdown('<div class="login-container">', unsafe_allow_html=True)
+        
+        if st.session_state.page == "login":
+            st.markdown('<p class="login-title">Welcome Back!</p>', unsafe_allow_html=True)
+            st.markdown('<p class="login-subtitle">Login to your MathFriend account</p>', unsafe_allow_html=True)
+            with st.form("login_form"):
+                username = st.text_input("Username", key="login_user", placeholder="Enter your username")
+                password = st.text_input("Password", type="password", key="login_pass", placeholder="Enter your password")
+                if st.form_submit_button("Login", type="primary", use_container_width=True):
+                    if login_user(username, password):
+                        st.session_state.logged_in = True
+                        st.session_state.username = username
+                        st.rerun()
+                    else:
+                        st.error("Invalid username or password")
+            if st.button("Don't have an account? Sign Up", use_container_width=True):
+                st.session_state.page = "signup"
+                st.rerun()
+        else: # Signup page
+            st.markdown('<p class="login-title">Create Account</p>', unsafe_allow_html=True)
+            with st.form("signup_form"):
+                username = st.text_input("Username", key="signup_user", placeholder="Choose a username")
+                password = st.text_input("Password", type="password", key="signup_pass", placeholder="Create a password")
+                confirm_password = st.text_input("Confirm Password", type="password", key="signup_confirm", placeholder="Confirm your password")
+                if st.form_submit_button("Create Account", type="primary", use_container_width=True):
+                    if not username or not password:
+                        st.error("All fields are required.")
+                    elif password != confirm_password:
+                        st.error("Passwords do not match.")
+                    elif signup_user(username, password):
+                        st.success("Account created! Please log in.")
+                        st.session_state.page = "login"
+                        time.sleep(2)
+                        st.rerun()
+                    else:
+                        st.error("Username already exists.")
+            if st.button("Back to Login", use_container_width=True):
+                st.session_state.page = "login"
+                st.rerun()
+        
+        st.markdown('</div>', unsafe_allow_html=True)
+        st.markdown("</div>", unsafe_allow_html=True)
 
 # --- Initial Script Execution Logic ---
 if st.session_state.get("show_splash", True):
@@ -2093,6 +2149,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
