@@ -1234,7 +1234,6 @@ def _generate_word_problems_question():
 
 def _generate_shapes_question():
     """Generates a multi-subtopic question for Shapes/Geometry with enhanced variety."""
-    # UPGRADED: Expanded list of sub-topics based on your suggestions
     q_type = random.choice(['angles_lines', 'triangles_pythagoras', 'area_perimeter', 'volume_surface_area', 'circle_theorems'])
     question, answer, hint, explanation = "", "", "", ""
     options = set()
@@ -1245,18 +1244,20 @@ def _generate_shapes_question():
             a1, a2 = random.randint(100, 150), random.randint(80, 120)
             a3 = 360 - (a1 + a2)
             question = f"Three angles meet at a point. Two of the angles are {a1}° and {a2}°. What is the size of the third angle?"
-            answer = str(a3)
+            # CORRECTED: Added degree sign to answer and options
+            answer = f"{a3}°"
             hint = "The sum of angles at a point is always 360°."
             explanation = f"Angles at a point add up to 360°. So, the third angle is $360 - ({a1} + {a2}) = 360 - {a1+a2} = {a3}°$."
-            options = {answer, str(180 - a1), str(180 - a2)}
+            options = {answer, f"{180 - a1}°", f"{180 - a2}°"}
         else: # parallel lines
             angle1 = random.randint(50, 120)
             prop, angle2 = random.choice([("alternate", angle1), ("corresponding", angle1), ("co-interior", 180 - angle1)])
             question = f"In a diagram with two parallel lines cut by a transversal, one angle is {angle1}°. What is the size of its {prop} angle?"
-            answer = str(angle2)
+            # CORRECTED: Added degree sign to answer and options
+            answer = f"{angle2}°"
             hint = f"Recall the relationship between {prop} angles."
-            explanation = f"For parallel lines:\n- Alternate angles are equal.\n- Corresponding angles are equal.\n- Co-interior angles sum to 180°.\nTherefore, the {prop} angle is {answer}°."
-            options = {answer, str(180-angle1), str(90-angle1)}
+            explanation = f"For parallel lines:\n- Alternate angles are equal.\n- Corresponding angles are equal.\n- Co-interior angles sum to 180°.\nTherefore, the {prop} angle is {answer}."
+            options = {answer, f"{180-angle1}°", f"{90-angle1}°"}
 
     elif q_type == 'triangles_pythagoras':
         a, b = random.choice([(3,4), (5,12), (8,15), (7,24), (9,40)])
@@ -1314,13 +1315,13 @@ def _generate_shapes_question():
         angle_at_center = random.randint(40, 120) * 2
         angle_at_circumference = angle_at_center // 2
         question = f"In a circle, an arc subtends an angle of {angle_at_center}° at the center. What angle does it subtend at any point on the remaining part of the circumference?"
-        answer = str(angle_at_circumference)
+        # CORRECTED: Added degree sign to answer and options
+        answer = f"{angle_at_circumference}°"
         hint = "Recall the circle theorem: The angle at the center is twice the angle at the circumference."
         explanation = f"The angle at the circumference is half the angle at the center.\nAngle = $\\frac{{{angle_at_center}}}{{2}} = {angle_at_circumference}°$."
-        options = {answer, str(angle_at_center), str(180-angle_at_center)}
+        options = {answer, f"{angle_at_center}°", f"{180-angle_at_center}°"}
         
     return {"question": question, "options": _finalize_options(options), "answer": answer, "hint": hint, "explanation": explanation}
-
 def _generate_algebra_basics_question():
     # Subtopics: Simplification, Solving Equations (linear, quad, simultaneous), Change of Subject
     q_type = random.choice(['simplify', 'solve_linear', 'change_subject', 'solve_simultaneous', 'solve_quadratic'])
@@ -2618,6 +2619,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
