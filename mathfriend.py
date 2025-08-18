@@ -753,56 +753,77 @@ def _generate_fractions_question():
 
     return {"question": question, "options": _finalize_options(options, "fraction"), "answer": answer, "hint": hint, "explanation": explanation}
 def _generate_indices_question():
-    """Generates a multi-subtopic question for Indices."""
-    # Subtopics: Laws of Indices, Fractional, Exponential Equations
-    q_type = random.choice(['law_multiply_divide', 'law_power', 'law_negative_zero', 'fractional', 'equation'])
-    base = random.randint(2, 7)
+    """Generates a multi-subtopic question for Indices with enhanced variety."""
+    # UPGRADED: Expanded list of sub-topics based on your suggestions
+    q_type = random.choice(['laws', 'fractional', 'solve_same_base', 'standard_form', 'solve_different_base'])
     question, answer, hint, explanation = "", "", "", ""
     options = set()
 
-    if q_type == 'law_multiply_divide':
+    if q_type == 'laws':
+        base = random.randint(2, 7)
         p1, p2 = random.randint(5, 10), random.randint(2, 4)
-        op, sym, res_p = random.choice([('multiply', '\\times', p1+p2), ('divide', '\\div', p1-p2)])
-        question = f"Simplify: ${base}^{{{p1}}} {sym} {base}^{{{p2}}}$"
+        op, sym, res_p, rule = random.choice([
+            ('multiply', '\\times', p1+p2, 'a^m \\times a^n = a^{m+n}'), 
+            ('divide', '\\div', p1-p2, 'a^m \\div a^n = a^{m-n}'),
+            ('power', ')', p1*p2, '(a^m)^n = a^{mn}')
+        ])
+        if op == 'power':
+            question = f"Simplify the expression: $({base}^{{{p1}}})^{{{p2}}}$"
+            explanation = f"Using the power of a power rule, $(x^a)^b = x^{{ab}}$, we get $({base}^{{{p1}}})^{{{p2}}} = {base}^{{{p1*p2}}}$."
+        else:
+            question = f"Simplify the expression: ${base}^{{{p1}}} {sym} {base}^{{{p2}}}$"
+            explanation = f"Using the {op} rule, ${rule}$, we get ${base}^{{{p1}}} {sym} {base}^{{{p2}}} = {base}^{{{res_p}}}$."
         answer = f"${base}^{{{res_p}}}$"
-        hint = f"When you {op} powers with the same base, you {'add' if op=='multiply' else 'subtract'} the exponents."
-        explanation = f"Rule: $x^a {sym} x^b = x^{{a{'+' if op=='multiply' else '-' }b}}$.\n\nSo, ${base}^{{{p1}}} {sym} {base}^{{{p2}}} = {base}^{{{p1}{'+' if op=='multiply' else '-'}{p2}}} = {base}^{{{res_p}}}$."
-        options = {answer, f"${base}^{{{p1*p2}}}$"}
-
-    elif q_type == 'law_power':
-        p1, p2 = random.randint(2, 5), random.randint(2, 4)
-        question = f"Simplify: $({base}^{{{p1}}})^{{{p2}}}$"
-        answer = f"${base}^{{{p1*p2}}}$"
-        hint = "For a power of a power, you multiply the exponents."
-        explanation = f"Rule: $(x^a)^b = x^{{ab}}$.\n\nSo, $({base}^{{{p1}}})^{{{p2}}} = {base}^{{{p1} \\times {p2}}} = {base}^{{{p1*p2}}}$."
-        options = {answer, f"${base}^{{{p1+p2}}}$", f"${base}^{{{p1**p2}}}$"}
-
-    elif q_type == 'law_negative_zero':
-        p = random.randint(2, 4)
-        question = f"Evaluate ${base}^{{-{p}}}$"
-        answer = f"$\\frac{{1}}{{{base**p}}}$"
-        hint = "A negative exponent means you take the reciprocal of the base raised to the positive exponent."
-        explanation = f"Rule: $x^{{-a}} = \\frac{{1}}{{x^a}}$.\n\nSo, ${base}^{{-{p}}} = \\frac{{1}}{{{base}^{p}}} = \\frac{{1}}{{{base**p}}}$."
-        options = {answer, f"$-{base*p}$", f"$-{base**p}$"}
+        hint = f"Recall the laws of indices for '{op}' operations."
+        options = {answer, f"${base}^{{{p1+p2}}}$", f"${base}^{{{p1*p2}}}$"}
 
     elif q_type == 'fractional':
-        root_val, power_val = random.choice([(2,4), (2,9), (3,8), (3,27)])
-        question = f"Evaluate ${power_val}^{{\\frac{{1}}{{{root_val}}}}}$"
-        answer = str(int(power_val**(1/root_val)))
-        hint = r"The exponent $\frac{1}{n}$ means taking the nth root."
-        explanation = f"Rule: $x^{{\\frac{{1}}{{n}}}} = \\sqrt[n]{{x}}$.\n\nSo, ${power_val}^{{\\frac{{1}}{{{root_val}}}}} = \\sqrt[{root_val}]{{{power_val}}} = {answer}$."
-        options = {answer, str(power_val/root_val), str(power_val-root_val)}
+        base_num = random.choice([4, 8, 9, 16, 27, 64])
+        if base_num in [4, 9, 16]: root = 2
+        else: root = 3
+        power = random.randint(2, 3)
+        question = f"Evaluate: ${base_num}^{{\\frac{{{power}}}{{{root}}}}}$"
+        res = int(round((base_num**(1/root))**power))
+        answer = str(res)
+        hint = "First, find the root of the base number, then apply the power."
+        explanation = f"The expression ${base_num}^{{\\frac{{{power}}}{{{root}}}}}$ means $(\\sqrt[{root}]{{{base_num}}})^{{{power}}}$.\n1. $\\sqrt[{root}]{{{base_num}}} = {int(base_num**(1/root))}$.\n2. $({int(base_num**(1/root))})^{{{power}}} = {res}$."
+        options = {answer, str(base_num*power/root)}
 
-    elif q_type == 'equation':
-        base = random.randint(2, 4)
-        p = random.randint(2, 4)
-        question = f"Solve for x: ${base}^x = {base**p}$"
-        # This line ensures the answer is the correct exponent 'p'
-        answer = str(p)
-        hint = "If the bases are the same in an equation, then the exponents must be equal."
-        explanation = f"Given ${base}^x = {base**p}$.\n\nSince the bases on both sides of the equation are equal ({base}), we can equate the exponents: $x = {p}$."
-        # The incorrect calculation 'base * p' is only used for a wrong-answer option
-        options = {answer, str(base*p), str(base**p)}
+    elif q_type == 'solve_same_base':
+        base = random.randint(2, 5)
+        power = random.randint(2, 4)
+        question = f"Solve for the variable $x$: ${base}^{{2x-1}} = {base**power}$"
+        # 2x - 1 = power => 2x = power + 1 => x = (power+1)/2
+        # Ensure the answer is a nice number
+        while (power+1) % 2 != 0:
+            power = random.randint(2, 4)
+        answer = str(Fraction(power+1, 2))
+        hint = "If the bases on both sides of an equation are the same, you can equate the exponents."
+        explanation = f"1. Since the bases are equal, we set the exponents equal: $2x - 1 = {power}$.\n2. $2x = {power+1}$.\n3. $x = \\frac{{{power+1}}}{{2}}$."
+        options = {answer, str(power), str(power+1)}
+
+    elif q_type == 'standard_form':
+        num = round(random.uniform(1.0, 9.9), random.randint(2, 4))
+        power = random.randint(3, 6)
+        std_form = f"{num} \\times 10^{{-{power}}}"
+        decimal_form = f"{num / (10**power):.{power+len(str(num))-2}f}"
+        question = f"A measurement taken by a scientist in Accra is {decimal_form} metres. Express this number in standard form."
+        answer = f"${std_form}$"
+        hint = "Standard form is written as $A \\times 10^n$, where $1 \\le A < 10$. Count how many places the decimal point must move."
+        explanation = f"To get the number {num} (which is between 1 and 10), we must move the decimal point {power} places to the right. Moving to the right corresponds to a negative exponent.\nThus, the standard form is ${std_form}$."
+        options = {answer, f"${num} \\times 10^{{{power}}}$", f"{decimal_form} \\times 10^1"}
+
+    elif q_type == 'solve_different_base':
+        base1, p1, base2, p2 = random.choice([(4, 2, 8, 3), (9, 3, 27, 2), (4, 3, 2, 6)]) # (base1, common_base_p1, base2, common_base_p2)
+        common_base = 2 if base1 == 4 else 3
+        # Equation: base1^x = base2^(x-1) => (common_base^p1)^x = (common_base^p2)^(x-1)
+        # p1*x = p2*x - p2 => (p1-p2)x = -p2 => x = -p2 / (p1-p2)
+        x_val = -p2 / (p1 - p2)
+        question = f"Solve for x in the equation: ${base1}^x = {base2}^{{x-1}}$"
+        answer = str(int(x_val))
+        hint = "Express both sides of the equation as powers of the same common base."
+        explanation = f"1. Express both sides with a base of {common_base}: $({common_base}^{{{p1}}})^x = ({common_base}^{{{p2}}})^{{x-1}}$.\n2. Simplify the exponents: ${common_base}^{{{p1}x}} = {common_base}^{{{p2}(x-1)}}$.\n3. Equate the exponents: ${p1}x = {p2}x - {p2}$.\n4. Solve for x: $({p1-p2})x = {-p2} \implies x = {answer}$."
+        options = {answer, str(x_val-1), str(p1*x_val)}
 
     return {"question": question, "options": _finalize_options(options), "answer": answer, "hint": hint, "explanation": explanation}
 
@@ -2360,6 +2381,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
