@@ -1011,44 +1011,69 @@ def _generate_binary_ops_question():
     return {"question": question, "options": _finalize_options(options), "answer": answer, "hint": hint, "explanation": explanation}
 
 def _generate_relations_functions_question():
-    # Subtopics: Domain/Range, Evaluate, Composite, Inverse
-    q_type = random.choice(['domain_range', 'evaluate', 'composite', 'inverse'])
+    """Generates a multi-subtopic question for Relations and Functions with enhanced variety."""
+    q_type = random.choice(['domain_range', 'evaluate', 'composite', 'inverse', 'types_of_relations', 'is_function'])
+    question, answer, hint, explanation = "", "", "", ""
+    options = set()
     
     if q_type == 'domain_range':
-        d_set = set(random.sample(range(-5, 10), k=4))
-        r_set = set(random.sample(range(-5, 10), k=4))
-        relation = str(set(zip(d_set, r_set))).replace("'", "")
+        domain_set = set(random.sample(range(-15, 20), k=random.randint(4, 5)))
+        range_set = set(random.sample(range(-15, 20), k=random.randint(4, 5)))
+        relation_pairs = list(zip(domain_set, range_set))
+        relation_str = str(set(relation_pairs)).replace("'", "")
         d_or_r = random.choice(['domain', 'range'])
-        question = f"What is the {d_or_r} of the relation $R = {relation}$?"
-        answer = str(d_set if d_or_r == 'domain' else r_set)
-        hint = "The domain is the set of all first elements (x-values). The range is the set of all second elements (y-values)."
-        explanation = f"Given the relation $R = {relation}$:\n\n- The domain is the set of all unique first coordinates: ${d_set}$.\n\n- The range is the set of all unique second coordinates: ${r_set}$."
-        options = {str(d_set), str(r_set), str(d_set.union(r_set))}
-    
+        question = f"What is the {d_or_r} of the relation $R = {relation_str}$?"
+        answer = str(domain_set if d_or_r == 'domain' else range_set)
+        hint = "The domain is the set of all unique first elements (x-values). The range is the set of all unique second elements (y-values)."
+        explanation = f"Given the relation as a set of ordered pairs, the domain is the set of all first components, and the range is the set of all second components."
+        options = {answer, str(domain_set.union(range_set))}
+
     elif q_type == 'evaluate':
-        a, b, x = random.randint(2, 7), random.randint(-5, 5), random.randint(1, 5)
-        question = f"If $f(x) = {a}x + {b}$, find the value of $f({x})$."
-        answer = str(a * x + b)
-        hint = "Substitute the given value for x into the function's definition."
-        explanation = f"1. The function is $f(x) = {a}x + {b}$.\n\n2. We need to find $f({x})$, so we replace every 'x' with '{x}'.\n\n3. $f({x}) = {a}({x}) + {b} = {a*x} + {b} = {a*x+b}$."
-        options = {answer, str(a + x + b), str(a * (x + b))}
+        a, b, x = random.randint(2, 8), random.randint(-10, 10), random.randint(1, 7)
+        question = f"If $f(x) = {a}x^2 + {b}$, find the value of $f({x})$."
+        answer = str(a * (x**2) + b)
+        hint = "Substitute the given value for x into the function's definition and evaluate."
+        explanation = f"We replace every 'x' with '{x}':\n$f({x}) = {a}({x})^2 + {b} = {a*(x**2)} + {b} = {a*(x**2)+b}$."
+        options = {answer, str(a * x + b), str((a * x)**2 + b)}
 
     elif q_type == 'composite':
-        a, b, c, d, x = [random.randint(1, 5) for _ in range(5)]
-        question = f"Given $f(x) = {a}x + {b}$ and $g(x) = {c}x + {d}$, find $f(g({x}))$."
-        g_of_x = c * x + d
-        answer = str(a * g_of_x + b)
-        hint = "First, calculate the inner function $g(x)$. Then, use that result as the input for the outer function $f(x)$."
-        explanation = f"1. First find $g({x})$: $g({x}) = {c}({x}) + {d} = {g_of_x}$.\n\n2. Now use this result as the input for f: $f(g({x})) = f({g_of_x})$.\n\n3. $f({g_of_x}) = {a}({g_of_x}) + {b} = {a*g_of_x+b}$."
-        options = {answer, str(c*(a*x+b)+d)}
+        a, b, c, d, x_val = [random.randint(1, 5) for _ in range(5)]
+        g_of_x = c*x_val + d
+        question = f"Given $f(x) = {a}x + {b}$ and $g(x) = {c}x + {d}$, find the value of $(f \\circ g)({x_val})$."
+        answer = str(a*g_of_x + b)
+        hint = f"This means find $f(g({x_val}))$. Calculate the inner function first."
+        explanation = f"1. First find $g({x_val}) = {c}({x_val}) + {d} = {g_of_x}$.\n2. Now use this result as the input for f: $f({g_of_x}) = {a}({g_of_x}) + {b} = {a*g_of_x+b}$."
+        options = {answer, str(c*(a*x_val + b) + d)}
 
     elif q_type == 'inverse':
-        a, b = random.randint(2, 7), random.randint(1, 10)
-        question = f"Find the inverse function, $f^{{-1}}(x)$, of $f(x) = {a}x - {b}$."
-        answer = r"$\frac{x + " + str(b) + r"}{" + str(a) + r"}$"
-        hint = "Let y = f(x), then swap x and y. Finally, make y the subject of the formula."
-        explanation = f"1. Start with $y = {a}x - {b}$.\n\n2. Swap x and y: $x = {a}y - {b}$.\n\n3. Solve for y: $x + {b} = {a}y$.\n\n4. $y = \\frac{{x + {b}}}{{{a}}}$. So, $f^{{-1}}(x) = {answer}$."
-        options = {answer, r"$\frac{x - " + str(b) + r"}{" + str(a) + r"}$", r"${a}x + {b}$"}
+        a, b = random.randint(2,7), random.randint(1,10)
+        question = f"Find the inverse function, $f^{{-1}}(x)$, of the function $f(x) = \\frac{{x + {b}}}{{{a}}}$."
+        answer = f"$f^{{-1}}(x) = {a}x - {b}$"
+        hint = "Let y = f(x), swap x and y, then make y the subject of the formula."
+        explanation = f"1. Start with $y = \\frac{{x + {b}}}{{{a}}}$.\n2. Swap x and y: $x = \\frac{{y + {b}}}{{{a}}}$.\n3. Solve for y: ${a}x = y + {b} \\implies y = {a}x - {b}$."
+        options = {answer, f"$f^{{-1}}(x) = \\frac{{x - {b}}}{{{a}}}$", f"$f^{{-1}}(x) = {a}x + {b}$"}
+        
+    elif q_type == 'types_of_relations':
+        one_to_one = str({(1, 'a'), (2, 'b'), (3, 'c')})
+        many_to_one = str({(1, 'a'), (2, 'a'), (3, 'b')})
+        one_to_many = str({(1, 'a'), (1, 'b'), (2, 'c')})
+        relation, correct_type = random.choice([(one_to_one, "One-to-one"), (many_to_one, "Many-to-one"), (one_to_many, "One-to-many")])
+        question = f"The relation $R = {relation}$. What type of mapping is this?"
+        answer = correct_type
+        hint = "Check if any x-values or y-values are repeated in the ordered pairs."
+        explanation = f"This relation is **{correct_type}** because of how the inputs (first elements) map to the outputs (second elements)."
+        options = {"One-to-one", "Many-to-one", "One-to-many"}
+        # Ensure the correct answer is one of the options
+        options.add(answer)
+
+    elif q_type == 'is_function':
+        func_relation = str({(1, 5), (2, 10), (3, 15)})
+        not_func_relation = str({(1, 5), (1, 6), (2, 10)})
+        question = f"Which of the following relations is also a function?"
+        answer = func_relation
+        hint = "A relation is a function if every input (x-value) maps to exactly one, unique output (y-value)."
+        explanation = f"The relation {not_func_relation} is not a function because the input '1' maps to two different outputs (5 and 6). The relation {func_relation} is a function because every input has only one output."
+        options = {answer, not_func_relation}
 
     return {"question": question, "options": _finalize_options(options, "set_str"), "answer": answer, "hint": hint, "explanation": explanation}
 
@@ -2477,6 +2502,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
