@@ -746,7 +746,9 @@ def _generate_fractions_question():
         question = f"Simplify the complex fraction: $\\frac{{{_get_fraction_latex_code(f1)}}}{{{_get_fraction_latex_code(f2)}}}$"
         answer = _format_fraction_text(f1 / f2)
         hint = "Rewrite the complex fraction as a division problem: (top) ÷ (bottom)."
-        explanation = f"This is ${_get_fraction_latex_code(f1)} \\div {_get_fraction_latex_code(f2)}$, which equals ${_get_fraction_latex_code(f1)} \\times {_get_fraction_latex_code(f2.denominator, f2.numerator)} = {_get_fraction_latex_code(f1/f2)}$."
+        # --- THIS LINE IS CORRECTED ---
+        inverted_f2_latex = _get_fraction_latex_code(Fraction(f2.denominator, f2.numerator))
+        explanation = f"This is equivalent to ${_get_fraction_latex_code(f1)} \\div {_get_fraction_latex_code(f2)}$, which is ${_get_fraction_latex_code(f1)} \\times {inverted_f2_latex} = {_get_fraction_latex_code(f1/f2)}$."
         options = {answer, _format_fraction_text(f1*f2)}
 
     return {"question": question, "options": _finalize_options(options, "fraction"), "answer": answer, "hint": hint, "explanation": explanation}
@@ -2358,6 +2360,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
