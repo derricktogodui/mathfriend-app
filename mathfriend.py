@@ -98,6 +98,15 @@ def create_and_verify_tables():
                                 PRIMARY KEY (username, challenge_date)
                             )'''))
 
+            # ADD THIS BLOCK
+            conn.execute(text('''CREATE TABLE IF NOT EXISTS user_achievements (
+                                id SERIAL PRIMARY KEY,
+                                username TEXT NOT NULL,
+                                achievement_name TEXT NOT NULL,
+                                badge_icon TEXT,
+                                unlocked_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+                            )'''))
+            
             # --- Populate daily_challenges if it's empty ---
             result = conn.execute(text("SELECT COUNT(*) FROM daily_challenges")).scalar_one()
             if result == 0:
@@ -216,6 +225,8 @@ def save_quiz_result(username, topic, score, questions_answered):
         conn.execute(text("INSERT INTO quiz_results (username, topic, score, questions_answered) VALUES (:username, :topic, :score, :questions_answered)"),
                      {"username": username, "topic": topic, "score": score, "questions_answered": questions_answered})
         conn.commit()
+    # This now calls the umbrella function to update both challenges and achievements
+    update_gamification_progress(username, topic, score)
     
     # Call the daily challenge updater
     update_daily_challenge_progress(username, topic, score)
@@ -372,6 +383,55 @@ def get_online_users(current_user):
         """)
         result = conn.execute(query, {"current_user": current_user})
         return [row[0] for row in result.fetchall()]
+
+# ADD THESE THREE NEW FUNCTIONS
+
+def check_and_award_achievements(username, topic):
+    """Checks all achievement conditions for a user and awards them if met."""
+    with engine.connect() as conn:
+        existing_achievements_query = text("SELECT achievement_name FROM user_achievements WHERE username = :username")
+        existing_set = {row[0] for row in conn.execute(existing_achievements_query, {"username": username}).fetchall()}
+        
+        # --- Achievement 1: "First Step" (Take 1 quiz) ---
+        if "First Step" not in existing_set:
+            insert_query = text("INSERT INTO user_achievements (username, achievement_name, badge_icon) VALUES (:username, 'First Step', '👟')")
+            conn.execute(insert_query, {"username": username})
+            st.session_state.achievement_unlocked_toast = "First Step"
+            existing_set.add("First Step")
+
+        # --- Achievement 2: "Century Scorer" (Get 100 total correct answers) ---
+        if "Century Scorer" not in existing_set:
+            total_score_query = text("SELECT SUM(score) FROM quiz_results WHERE username = :username")
+            total_score = conn.execute(total_score_query, {"username": username}).scalar_one() or 0
+            if total_score >= 100:
+                insert_query = text("INSERT INTO user_achievements (username, achievement_name, badge_icon) VALUES (:username, 'Century Scorer', '💯')")
+                conn.execute(insert_query, {"username": username})
+                st.session_state.achievement_unlocked_toast = "Century Scorer"
+                existing_set.add("Century Scorer")
+
+        # --- Achievement 3: "Topic Master" (Get 25 correct answers in a specific topic) ---
+        achievement_name = f"{topic} Master"
+        if achievement_name not in existing_set:
+            topic_score_query = text("SELECT SUM(score) FROM quiz_results WHERE username = :username AND topic = :topic")
+            topic_score = conn.execute(topic_score_query, {"username": username, "topic": topic}).scalar_one() or 0
+            if topic_score >= 25:
+                insert_query = text("INSERT INTO user_achievements (username, achievement_name, badge_icon) VALUES (:username, :name, '🎓')")
+                conn.execute(insert_query, {"username": username, "name": achievement_name})
+                st.session_state.achievement_unlocked_toast = achievement_name
+
+        conn.commit()
+
+def get_user_achievements(username):
+    """Fetches all achievements unlocked by a user."""
+    with engine.connect() as conn:
+        query = text("SELECT achievement_name, badge_icon, unlocked_at FROM user_achievements WHERE username = :username ORDER BY unlocked_at DESC")
+        result = conn.execute(query, {"username": username}).mappings().fetchall()
+        return [dict(row) for row in result]
+
+def update_gamification_progress(username, topic, score):
+    """Umbrella function to update all gamification systems."""
+    update_daily_challenge_progress(username, topic, score)
+    check_and_award_achievements(username, topic)
 
 # --- UTILITY FUNCTIONS FOR QUESTION GENERATION ---
 def _get_fraction_latex_code(f: Fraction):
@@ -1968,6 +2028,23 @@ def display_profile_page():
             if update_user_profile(st.session_state.username, full_name, school, age, bio):
                 st.success("Profile updated!"); st.rerun()
     st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
+    # ADD THIS BLOCK
+    st.subheader("🏆 My Achievements")
+    achievements = get_user_achievements(st.session_state.username)
+    if not achievements:
+        st.info("Your trophy case is empty for now. Keep playing to earn badges!")
+    else:
+        # Create a grid layout for the badges
+        cols = st.columns(4)
+        for i, achievement in enumerate(achievements):
+            col = cols[i % 4]
+            with col:
+                with st.container(border=True):
+                    st.markdown(f"<div style='font-size: 3rem; text-align: center;'>{achievement['badge_icon']}</div>", unsafe_allow_html=True)
+                    st.markdown(f"<div style='font-size: 1rem; text-align: center; font-weight: bold;'>{achievement['achievement_name']}</div>", unsafe_allow_html=True)
+                    st.markdown(f"<div style='font-size: 0.8rem; text-align: center; color: grey;'>Unlocked: {achievement['unlocked_at'].strftime('%b %d, %Y')}</div>", unsafe_allow_html=True)
+    
+    st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
     with st.form("password_form"):
         st.subheader("Change Password")
         current_password = st.text_input("Current Password", type="password")
@@ -1980,10 +2057,25 @@ def display_profile_page():
 
 def show_main_app():
     load_css()
+    
+    # --- ADDED: Notification Handler for Both Features ---
+    # This checks for the daily challenge flag and shows a toast if it's set
+    if st.session_state.get('challenge_completed_toast', False):
+        st.toast("🎉 Daily Challenge Completed! Great job!", icon="🎉")
+        del st.session_state.challenge_completed_toast # Reset the flag
+
+    # This checks for the new achievement flag and shows a toast and balloons if it's set
+    if st.session_state.get('achievement_unlocked_toast', False):
+        achievement_name = st.session_state.achievement_unlocked_toast
+        st.toast(f"🏆 Achievement Unlocked: {achievement_name}!", icon="🏆")
+        st.balloons()
+        del st.session_state.achievement_unlocked_toast # Reset the flag
+
     last_update = st.session_state.get("last_status_update", 0)
     if time.time() - last_update > 60:
         update_user_status(st.session_state.username, True)
         st.session_state.last_status_update = time.time()
+        
     with st.sidebar:
         greeting = get_time_based_greeting()
         profile = get_user_profile(st.session_state.username)
@@ -1998,6 +2090,9 @@ def show_main_app():
         st.write("---")
         if st.button("Logout", type="primary", use_container_width=True):
             st.session_state.logged_in = False
+            # ADDED: Ensure achievement flag is cleared on logout
+            if 'challenge_completed_toast' in st.session_state: del st.session_state.challenge_completed_toast
+            if 'achievement_unlocked_toast' in st.session_state: del st.session_state.achievement_unlocked_toast
             st.rerun()
             
     st.markdown('<div class="main-content">', unsafe_allow_html=True)
@@ -2093,6 +2188,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
