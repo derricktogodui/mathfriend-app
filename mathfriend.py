@@ -1687,14 +1687,13 @@ def display_quiz_page(topic_options):
                     actual_answer = q_data["parts"][st.session_state.current_part_index]["answer"] if is_multi else q_data["answer"]
                     is_correct = str(user_choice) == str(actual_answer)
                     
-                    # --- REVISED SCORING LOGIC ON SUBMIT ---
                     if is_multi:
                         part_index = st.session_state.current_part_index
                         is_last_part = (part_index + 1 == len(q_data["parts"]))
                         
                         if part_index == 0:
                             st.session_state.questions_attempted += 1
-                            st.session_state.multi_part_correct = True # Assume correct until a part is wrong
+                            st.session_state.multi_part_correct = True 
                         
                         if not is_correct:
                             st.session_state.multi_part_correct = False
@@ -1734,8 +1733,15 @@ def display_quiz_page(topic_options):
         is_correct = str(user_choice) == str(actual_answer)
         st.markdown(question_text, unsafe_allow_html=True)
         st.write("Your answer:");
-        if is_correct: st.success(f"**{user_choice}** (Correct!)")
-        else: st.error(f"**{user_choice}** (Incorrect)"); st.info(f"The correct answer was: **{actual_answer}**")
+        if is_correct:
+            st.success(f"**{user_choice}** (Correct!)")
+            # --- THIS IS THE NEW LOGIC ---
+            # Celebrate when the streak hits 3, 5, or any multiple of 5
+            if st.session_state.current_streak in [3, 5] or (st.session_state.current_streak > 5 and st.session_state.current_streak % 5 == 0):
+                st.balloons()
+        else:
+            st.error(f"**{user_choice}** (Incorrect)")
+            st.info(f"The correct answer was: **{actual_answer}**")
 
         with st.expander("Show Explanation", expanded=True): st.markdown(explanation, unsafe_allow_html=True)
 
@@ -2192,6 +2198,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
