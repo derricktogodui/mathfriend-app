@@ -1372,27 +1372,21 @@ def get_time_based_greeting():
 def load_css():
     st.markdown("""
     <style>
-        /* --- ROBUST SCROLLING FIX FOR ALL PAGES --- */
-        section.main {
-            overflow-y: auto !important;
+        /* --- FINAL, ROBUST SCROLLING FIX FOR ALL DEVICES --- */
+        /* This targets the main view container, locks it to the screen size,
+           and makes it the primary scrollable element. This is a more
+           powerful approach that should override other conflicting styles. */
+        div[data-testid="stAppViewContainer"] {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            overflow-y: auto;
         }
         
-        /* --- SPECIFIC LAYOUT FIX FOR THE BLACKBOARD PAGE --- */
-        .stApp:has([data-testid="stChatInput"]) > div:first-child > div:first-child > div:first-child > section.main {
-            min-height: 100vh;  /* safer for iOS Safari */
-            display: flex;
-            flex-direction: column;
-        }
-        .stApp:has([data-testid="stChatInput"]) [data-testid="stVerticalBlock"] {
-            flex-grow: 1;
-            overflow-y: auto !important;
-            -webkit-overflow-scrolling: touch; /* smooth scroll on iOS */
-        }
-
-        /* --- BASE STYLES --- */
+        /* --- BASE STYLES & OTHER RULES --- */
         .stApp { background-color: #f0f2ff; }
-        
-        /* --- ALL OTHER STYLES (VERIFIED AND COMPLETE) --- */
         div[data-testid="stAppViewContainer"] * { color: #31333F !important; }
         div[data-testid="stSidebar"] { background-color: #0F1116 !important; }
         div[data-testid="stSidebar"] * { color: #FAFAFA !important; }
@@ -1400,70 +1394,40 @@ def load_css():
         div[data-testid="stSidebar"] [data-testid="stRadio"] label { color: #E0E0E0 !important; }
         [data-baseweb="theme-dark"] div[data-testid="stAppViewContainer"] * { color: #31333F !important; }
         [data-baseweb="theme-dark"] div[data-testid="stSidebar"] * { color: #FAFAFA !important; }
-        
-        /* Chat message bubbles */
         [data-testid="stChatMessage"] { background-color: transparent; }
         [data-testid="stChatMessageContent"] { border-radius: 20px; padding: 12px 16px; box-shadow: 0 1px 2px rgba(0,0,0,0.1); }
         [data-testid="stChatMessage"]:has(div[data-testid="stChatMessageAssistantAvatar"]) [data-testid="stChatMessageContent"] { background-color: #E5E5EA; color: #31333F !important; }
         [data-testid="stChatMessage"]:has(div[data-testid="stChatMessageUserAvatar"]) [data-testid="stChatMessageContent"] { background-color: #007AFF; }
         [data-testid="stChatMessage"]:has(div[data-testid="stChatMessageUserAvatar"]) * { color: white !important; }
-
-        /* Buttons */
         button[data-testid="stFormSubmitButton"] *, div[data-testid="stButton"] > button * { color: white !important; }
-        button[data-testid="stFormSubmitButton"] { background-color: #0d6efd; border: 1px solid #0d6efd; box-shadow: 0 4px 8px rgba(0,0,0,0.1); transition: all 0.2s ease-in-out; }
-        button[data-testid="stFormSubmitButton"]:hover { background-color: #0b5ed7; border-color: #0a58ca; transform: translateY(-2px); box-shadow: 0 6px 12px rgba(0,0,0,0.15); }
-        div[data-testid="stButton"] > button { background-color: #6c757d; border: 1px solid #6c757d; }
-        div[data-testid="stButton"] > button:hover { background-color: #5a6268; border-color: #545b62; }
-
-        /* Links */
         a, a * { color: #0068c9 !important; }
-
-        /* Headings */
         .main-content h1, .main-content h2, .main-content h3, .main-content h4, .main-content h5, .main-content h6 { color: #1a1a1a !important; }
-        .main-content h1, .main-content h2, .main-content h3 { border-left: 5px solid #0d6efd; padding-left: 15px; border-radius: 3px; }
-
-        /* Metrics */
         [data-testid="stMetricValue"] { color: #1a1a1a !important; }
-        [data-testid="stMetric"] { background-color: #FFFFFF; border: 1px solid #CCCCCC; padding: 20px; border-radius: 10px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); border-left: 5px solid #CCCCCC; }
-        [data-testid="stHorizontalBlock"] > div:nth-of-type(1) [data-testid="stMetric"] { border-left-color: #0d6efd; }
-        [data-testid="stHorizontalBlock"] > div:nth-of-type(2) [data-testid="stMetric"] { border-left-color: #28a745; }
-        [data-testid="stHorizontalBlock"] > div:nth-of-type(3) [data-testid="stMetric"] { border-left-color: #ffc107; }
-
-        /* Inputs */
-        .stTextInput input, .stTextArea textarea, .stNumberInput input { color: #000 !important; background-color: #fff !important; }
-        [data-testid="stSelectbox"] div[data-baseweb="select"] > div { background-color: #fff !important; }
-
-        /* DataFrames */
-        .stDataFrame th { background-color: #e9ecef; font-weight: bold; }
-
-        /* Alerts */
         [data-testid="stSuccess"] * { color: #155724 !important; }
         [data-testid="stInfo"] * { color: #0c5460 !important; }
         [data-testid="stWarning"] * { color: #856404 !important; }
         [data-testid="stError"] * { color: #721c24 !important; }
-
-        /* Forms */
+        .main-content h1, .main-content h2, .main-content h3 { border-left: 5px solid #0d6efd; padding-left: 15px; border-radius: 3px; }
+        [data-testid="stMetric"] { background-color: #FFFFFF; border: 1px solid #CCCCCC; padding: 20px; border-radius: 10px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); border-left: 5px solid #CCCCCC; }
+        [data-testid="stHorizontalBlock"] > div:nth-of-type(1) [data-testid="stMetric"] { border-left-color: #0d6efd; }
+        [data-testid="stHorizontalBlock"] > div:nth-of-type(2) [data-testid="stMetric"] { border-left-color: #28a745; }
+        [data-testid="stHorizontalBlock"] > div:nth-of-type(3) [data-testid="stMetric"] { border-left-color: #ffc107; }
+        .stTextInput input, .stTextArea textarea, .stNumberInput input { color: #000 !important; background-color: #fff !important; }
+        button[data-testid="stFormSubmitButton"] { background-color: #0d6efd; border: 1px solid #0d6efd; box-shadow: 0 4px 8px rgba(0,0,0,0.1); transition: all 0.2s ease-in-out; }
+        button[data-testid="stFormSubmitButton"]:hover { background-color: #0b5ed7; border-color: #0a58ca; transform: translateY(-2px); box-shadow: 0 6px 12px rgba(0,0,0,0.15); }
+        div[data-testid="stButton"] > button { background-color: #6c757d; border: 1px solid #6c757d; }
+        div[data-testid="stButton"] > button:hover { background-color: #5a6268; border-color: #545b62; }
+        [data-testid="stSelectbox"] div[data-baseweb="select"] > div { background-color: #fff !important; }
+        .stDataFrame th { background-color: #e9ecef; font-weight: bold; }
         [data-testid="stForm"] { border: 1px solid #dee2e6; border-radius: 0.5rem; padding: 1.5rem; background-color: #fafafa; }
-
-        /* Horizontal rule */
         .styled-hr { border: none; height: 2px; background: linear-gradient(to right, #0d6efd, #f0f2f5); margin: 2rem 0; }
-
-        /* Login page */
         .login-container { background: #ffffff; border-radius: 16px; padding: 2rem 3rem; margin: auto; max-width: 450px; box-shadow: 0 8px 32px rgba(0,0,0,0.1); }
         .login-title { text-align: center; font-weight: 800; font-size: 2.2rem; }
         .login-subtitle { text-align: center; color: #6c757d; margin-bottom: 2rem; }
-
-        /* Main content container */
         .main-content { background-color: #ffffff; padding: 2rem; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
-
-        /* Mobile tweaks */
-        @media (max-width: 640px) { 
-            .main-content, .login-container { padding: 1rem; } 
-            .login-title { font-size: 1.8rem; } 
-        }
+        @media (max-width: 640px) { .main-content, .login-container { padding: 1rem; } .login-title { font-size: 1.8rem; } }
     </style>
     """, unsafe_allow_html=True)
-
 def display_dashboard(username):
     # --- Gamification Section ---
     challenge = get_or_create_daily_challenge(username)
@@ -2103,6 +2067,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
