@@ -531,9 +531,12 @@ def _generate_fractions_question():
 
     return {"question": question, "options": _finalize_options(options, "fraction"), "answer": answer, "hint": hint, "explanation": explanation}
 def _generate_indices_question():
+    """Generates a multi-subtopic question for Indices."""
     # Subtopics: Laws of Indices, Fractional, Exponential Equations
     q_type = random.choice(['law_multiply_divide', 'law_power', 'law_negative_zero', 'fractional', 'equation'])
     base = random.randint(2, 7)
+    question, answer, hint, explanation = "", "", "", ""
+    options = set()
 
     if q_type == 'law_multiply_divide':
         p1, p2 = random.randint(5, 10), random.randint(2, 4)
@@ -569,11 +572,14 @@ def _generate_indices_question():
         options = {answer, str(power_val/root_val), str(power_val-root_val)}
 
     elif q_type == 'equation':
+        base = random.randint(2, 4)
         p = random.randint(2, 4)
         question = f"Solve for x: ${base}^x = {base**p}$"
+        # This line ensures the answer is the correct exponent 'p'
         answer = str(p)
         hint = "If the bases are the same in an equation, then the exponents must be equal."
         explanation = f"Given ${base}^x = {base**p}$.\n\nSince the bases on both sides of the equation are equal ({base}), we can equate the exponents: $x = {p}$."
+        # The incorrect calculation 'base * p' is only used for a wrong-answer option
         options = {answer, str(base*p), str(base**p)}
 
     return {"question": question, "options": _finalize_options(options), "answer": answer, "hint": hint, "explanation": explanation}
@@ -2067,6 +2073,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
