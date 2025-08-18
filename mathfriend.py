@@ -1233,51 +1233,91 @@ def _generate_word_problems_question():
 
 
 def _generate_shapes_question():
-    # Subtopics: Perimeter/Area (rect, tri, circle), Volume/Surface Area (cuboid, cylinder), Pythagoras
-    q_type = random.choice(['area_rect', 'area_circle', 'vol_cuboid', 'vol_cylinder', 'pythagoras'])
-    
-    if q_type == 'area_rect':
-        l, w = random.randint(5, 20), random.randint(5, 20)
-        question = f"A rectangle has a length of {l} cm and a width of {w} cm. Calculate its area."
-        answer = str(l*w)
-        hint = "Area of a rectangle = length × width."
-        explanation = f"Area = $l \\times w = {l} \\times {w} = {answer}\\ cm^2$."
-        options = {answer, str(2*(l+w)), str(l+w)}
+    """Generates a multi-subtopic question for Shapes/Geometry with enhanced variety."""
+    # UPGRADED: Expanded list of sub-topics based on your suggestions
+    q_type = random.choice(['angles_lines', 'triangles_pythagoras', 'area_perimeter', 'volume_surface_area', 'circle_theorems'])
+    question, answer, hint, explanation = "", "", "", ""
+    options = set()
 
-    elif q_type == 'area_circle':
-        r = 7 # Use 7 or 14 for nice pi calculation
-        question = f"Find the area of a circle with a radius of {r} cm. (Use $\\pi = 22/7$)"
-        area = Fraction(22,7) * r**2
-        answer = _format_fraction_text(area)
-        hint = "Area of a circle = $\pi r^2$."
-        explanation = f"Area = $\\pi r^2 = \\frac{{22}}{{7}} \\times {r}^2 = \\frac{{22}}{{7}} \\times {r*r} = {_get_fraction_latex_code(area)}\\ cm^2$."
-        options = {answer, _format_fraction_text(Fraction(22,7)*2*r)}
+    if q_type == 'angles_lines':
+        angle_type = random.choice(['point', 'straight_line', 'parallel'])
+        if angle_type == 'point':
+            a1, a2 = random.randint(100, 150), random.randint(80, 120)
+            a3 = 360 - (a1 + a2)
+            question = f"Three angles meet at a point. Two of the angles are {a1}° and {a2}°. What is the size of the third angle?"
+            answer = str(a3)
+            hint = "The sum of angles at a point is always 360°."
+            explanation = f"Angles at a point add up to 360°. So, the third angle is $360 - ({a1} + {a2}) = 360 - {a1+a2} = {a3}°$."
+            options = {answer, str(180 - a1), str(180 - a2)}
+        else: # parallel lines
+            angle1 = random.randint(50, 120)
+            prop, angle2 = random.choice([("alternate", angle1), ("corresponding", angle1), ("co-interior", 180 - angle1)])
+            question = f"In a diagram with two parallel lines cut by a transversal, one angle is {angle1}°. What is the size of its {prop} angle?"
+            answer = str(angle2)
+            hint = f"Recall the relationship between {prop} angles."
+            explanation = f"For parallel lines:\n- Alternate angles are equal.\n- Corresponding angles are equal.\n- Co-interior angles sum to 180°.\nTherefore, the {prop} angle is {answer}°."
+            options = {answer, str(180-angle1), str(90-angle1)}
 
-    elif q_type == 'vol_cuboid':
-        l, w, h = random.randint(5, 12), random.randint(5, 12), random.randint(5, 12)
-        question = f"A cuboid has dimensions {l} cm by {w} cm by {h} cm. What is its volume?"
-        answer = str(l*w*h)
-        hint = "Volume of a cuboid = length × width × height."
-        explanation = f"Volume = $l \\times w \\times h = {l} \\times {w} \\times {h} = {answer}\\ cm^3$."
-        options = {answer, str(2*(l*w+w*h+l*h)), str(l+w+h)}
-        
-    elif q_type == 'vol_cylinder':
-        r, h = 7, random.randint(5, 15)
-        question = f"Calculate the volume of a cylinder with radius {r} cm and height {h} cm. (Use $\\pi = 22/7$)"
-        vol = Fraction(22,7) * r**2 * h
-        answer = str(int(vol))
-        hint = "Volume of a cylinder = $\pi r^2 h$."
-        explanation = f"Volume = $\\pi r^2 h = \\frac{{22}}{{7}} \\times {r}^2 \\times {h} = {answer}\\ cm^3$."
-        options = {answer, str(int(2*Fraction(22,7)*r*h))}
-        
-    elif q_type == 'pythagoras':
-        a, b = random.choice([(3,4), (5,12), (8,15), (7,24)])
+    elif q_type == 'triangles_pythagoras':
+        a, b = random.choice([(3,4), (5,12), (8,15), (7,24), (9,40)])
         c = int(math.sqrt(a**2 + b**2))
-        question = f"A right-angled triangle has two shorter sides of length {a} cm and {b} cm. Find the length of the hypotenuse."
+        question = f"A right-angled triangle has shorter sides of length ${a}$ cm and ${b}$ cm. Find the length of its hypotenuse."
         answer = str(c)
-        hint = "Use the Pythagorean theorem: $a^2 + b^2 = c^2$."
-        explanation = f"1. Theorem: $a^2 + b^2 = c^2$.\n\n2. Substitute: ${a}^2 + {b}^2 = c^2$.\n\n3. ${a**2} + {b**2} = c^2 \implies {a**2+b**2} = c^2$.\n\n4. $c = \sqrt{{{a**2+b**2}}} = {c}$ cm."
+        hint = "Use Pythagoras' theorem: $a^2 + b^2 = c^2$."
+        explanation = f"1. By Pythagoras' theorem, $c^2 = a^2 + b^2$.\n2. $c^2 = {a}^2 + {b}^2 = {a**2} + {b**2} = {c**2}$.\n3. $c = \\sqrt{{{c**2}}} = {c}$ cm."
         options = {answer, str(a+b), str(abs(b-a))}
+
+    elif q_type == 'area_perimeter':
+        shape = random.choice(['rectangle', 'circle', 'trapezium'])
+        if shape == 'rectangle':
+            l, w = random.randint(10, 30), random.randint(5, 20)
+            calc = random.choice(['area', 'perimeter'])
+            question = f"A football field in Accra measures {l}m by {w}m. Calculate its {calc}."
+            answer = str(l*w) if calc == 'area' else str(2*(l+w))
+            hint = "Area of a rectangle is length × width. Perimeter is 2 × (length + width)."
+            explanation = f"For a rectangle with length {l} and width {w}:\n- Area = ${l} \\times {w} = {l*w} m^2$.\n- Perimeter = $2({l} + {w}) = {2*(l+w)} m$."
+            options = {str(l*w), str(2*(l+w))}
+        elif shape == 'circle':
+            r = random.randint(7, 21)
+            question = f"Find the area of a circular garden with a radius of {r}m. (Use $\\pi \\approx 22/7$)"
+            answer = str(int(Fraction(22,7) * r**2))
+            hint = "Area of a circle = $\pi r^2$."
+            explanation = f"Area = $\\pi r^2 = \\frac{{22}}{{7}} \\times {r}^2 = {answer} m^2$."
+            options = {answer, str(int(2*Fraction(22,7)*r))}
+        else: # trapezium
+            a, b, h = random.randint(5, 10), random.randint(11, 20), random.randint(6, 12)
+            question = f"A trapezium has parallel sides of length {a} cm and {b} cm, and a height of {h} cm. Find its area."
+            answer = str(int(0.5 * (a+b) * h))
+            hint = "Area of a trapezium = $\\frac{1}{2}(a+b)h$, where a and b are the parallel sides."
+            explanation = f"Area = $\\frac{{1}}{{2}}({a} + {b}) \\times {h} = {answer} cm^2$."
+            options = {answer, str((a+b)*h)}
+
+    elif q_type == 'volume_surface_area':
+        shape = random.choice(['cuboid', 'cylinder'])
+        if shape == 'cuboid':
+            l, w, h = random.randint(5,12), random.randint(5,12), random.randint(5,12)
+            calc = random.choice(['volume', 'surface area'])
+            question = f"A box has dimensions {l}cm by {w}cm by {h}cm. Find its total {calc}."
+            answer = str(l*w*h) if calc == 'volume' else str(2*(l*w+w*h+l*h))
+            hint = "Volume = l×w×h. Surface Area = 2(lw + wh + lh)."
+            explanation = f"For the cuboid:\n- Volume = ${l} \\times {w} \\times {h} = {l*w*h} cm^3$.\n- Surface Area = $2({l*w} + {w*h} + {l*h}) = {2*(l*w+w*h+l*h)} cm^2$."
+            options = {str(l*w*h), str(2*(l*w+w*h+l*h))}
+        else: # cylinder
+            r, h = 7, random.randint(10, 20) # Use r=7 for nice pi calculations
+            question = f"A cylindrical tin of Milo has a radius of {r}cm and a height of {h}cm. Find its volume. (Use $\\pi \\approx 22/7$)"
+            answer = str(int(Fraction(22,7) * r**2 * h))
+            hint = "Volume of a cylinder = $\pi r^2 h$."
+            explanation = f"Volume = $\\pi r^2 h = \\frac{{22}}{{7}} \\times {r}^2 \\times {h} = {answer} cm^3$."
+            options = {answer, str(int(2*Fraction(22,7)*r*h))}
+
+    elif q_type == 'circle_theorems':
+        angle_at_center = random.randint(40, 120) * 2
+        angle_at_circumference = angle_at_center // 2
+        question = f"In a circle, an arc subtends an angle of {angle_at_center}° at the center. What angle does it subtend at any point on the remaining part of the circumference?"
+        answer = str(angle_at_circumference)
+        hint = "Recall the circle theorem: The angle at the center is twice the angle at the circumference."
+        explanation = f"The angle at the circumference is half the angle at the center.\nAngle = $\\frac{{{angle_at_center}}}{{2}} = {angle_at_circumference}°$."
+        options = {answer, str(angle_at_center), str(180-angle_at_center)}
         
     return {"question": question, "options": _finalize_options(options), "answer": answer, "hint": hint, "explanation": explanation}
 
@@ -2578,6 +2618,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
