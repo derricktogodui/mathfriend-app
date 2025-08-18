@@ -666,61 +666,80 @@ def _generate_percentages_question():
     return {"question": question, "options": _finalize_options(options), "answer": answer, "hint": hint, "explanation": explanation}
 
 def _generate_fractions_question():
-    # Subtopics: Operations, BODMAS, Word Problems
-    q_type = random.choice(['operation', 'bodmas', 'word_problem'])
-    
-    if q_type == 'operation':
-        f1 = Fraction(random.randint(1, 10), random.randint(2, 10))
-        f2 = Fraction(random.randint(1, 10), random.randint(2, 10))
+    """Generates a multi-subtopic question for Fractions with enhanced variety."""
+    # UPGRADED: Expanded list of sub-topics based on your suggestions
+    q_type = random.choice(['convert_mixed', 'equivalent', 'compare', 'operation', 'word_problem', 'complex_fraction'])
+    question, answer, hint, explanation = "", "", "", ""
+    options = set()
+
+    if q_type == 'convert_mixed':
+        whole = random.randint(1, 5)
+        num, den = random.randint(1, 5), random.randint(6, 10)
+        improper_num = whole * den + num
+        
+        improper_frac = Fraction(improper_num, den)
+        mixed_num_latex = f"{whole}\\frac{{{num}}}{{{den}}}"
+        
+        if random.random() > 0.5:
+            question = f"Convert the mixed number ${mixed_num_latex}$ to an improper fraction."
+            answer = _format_fraction_text(improper_frac)
+            hint = "To convert, multiply the whole number by the denominator and add the numerator. Keep the same denominator."
+            explanation = f"1. Multiply whole number and denominator: ${whole} \\times {den} = {whole*den}$.\n2. Add the numerator: ${whole*den} + {num} = {improper_num}$.\n3. The improper fraction is ${_get_fraction_latex_code(improper_frac)}$."
+        else:
+            question = f"Convert the improper fraction ${_get_fraction_latex_code(improper_frac)}$ to a mixed number."
+            answer = f"${mixed_num_latex}$"
+            hint = "To convert, divide the numerator by the denominator. The quotient is the whole number, and the remainder is the new numerator."
+            explanation = f"1. Divide {improper_num} by {den}: ${improper_num} \\div {den} = {whole}$ with a remainder of ${num}$.\n2. The mixed number is ${mixed_num_latex}$."
+        options = {answer, f"{whole*num+den}/{den}", f"{whole+num}/{den}"}
+
+    elif q_type == 'equivalent':
+        num, den = random.randint(2, 5), random.randint(6, 11)
+        multiplier = random.randint(2, 5)
+        question = f"Find the missing value to make the fractions equivalent: $\\frac{{{num}}}{{{den}}} = \\frac{{?}}{{{den*multiplier}}}$"
+        answer = str(num * multiplier)
+        hint = "To find an equivalent fraction, you must multiply the numerator and the denominator by the same number."
+        explanation = f"To get from the first denominator ({den}) to the second ({den*multiplier}), you multiply by {multiplier}.\nTherefore, you must also multiply the first numerator ({num}) by {multiplier}.\nMissing value = ${num} \\times {multiplier} = {answer}$."
+        options = {answer, str(num+multiplier), str(den*multiplier/num)}
+        
+    elif q_type == 'compare':
+        f1 = Fraction(random.randint(1, 4), random.randint(5, 10))
+        f2 = Fraction(random.randint(1, 4), random.randint(5, 10))
+        while f1 == f2: f2 = Fraction(random.randint(1, 4), random.randint(5, 10))
+        question = f"Which of the following statements is true?"
+        answer = f"${_get_fraction_latex_code(f1)} > {_get_fraction_latex_code(f2)}$" if f1 > f2 else f"${_get_fraction_latex_code(f1)} < {_get_fraction_latex_code(f2)}$"
+        hint = "To compare fractions, find a common denominator or convert them to decimals."
+        explanation = f"Let's convert to decimals:\n- ${_get_fraction_latex_code(f1)} = {float(f1):.3f}$\n- ${_get_fraction_latex_code(f2)} = {float(f2):.3f}$\nSince {float(f1):.3f} is {'greater' if f1>f2 else 'less'} than {float(f2):.3f}, the correct statement is {answer}."
+        options = {answer, f"${_get_fraction_latex_code(f1)} = {_get_fraction_latex_code(f2)}$", f"${_get_fraction_latex_code(f1)} > 1$"}
+
+    elif q_type == 'operation':
+        f1, f2 = Fraction(random.randint(1, 10), random.randint(2, 10)), Fraction(random.randint(1, 10), random.randint(2, 10))
         op, sym = random.choice([('add', '+'), ('subtract', '-'), ('multiply', '\\times'), ('divide', '\\div')])
         if op == 'divide' and f2.numerator == 0: f2 = Fraction(1, f2.denominator)
-
-        # THIS IS THE ONLY FIX APPLIED TO THE FUNCTION
-        # 1. Generate the LaTeX parts first and store them in simple variables.
-        f1_latex = _get_fraction_latex_code(f1)
-        f2_latex = _get_fraction_latex_code(f2)
-        # 2. Assemble the final string from the simple variables.
-        question = f"Calculate: ${f1_latex} {sym} {f2_latex}$"
-        
-        if op == 'add': 
-            res = f1 + f2
-        elif op == 'subtract': 
-            res = f1 - f2
-        elif op == 'multiply': 
-            res = f1 * f2
-        else: 
-            res = f1 / f2
-        
-        answer = _format_fraction_text(res)
-        hint = "For +/-, find a common denominator. For ×, multiply numerators/denominators. For ÷, invert the second fraction and multiply."
-        explanation = f"To {op} ${_get_fraction_latex_code(f1)}$ and ${_get_fraction_latex_code(f2)}$, you follow the rule for that operation. The simplified result is ${_get_fraction_latex_code(res)}$."
-        distractor = _format_fraction_text(Fraction(f1.numerator + f2.numerator, f1.denominator + f2.denominator)) if op in ['add', 'subtract'] else _format_fraction_text(f1*f2 if op == 'divide' else f1/f2)
-        options = {answer, distractor}
-    
-    elif q_type == 'bodmas':
-        a, b, c = [random.randint(2, 6) for _ in range(3)]
-        # This includes the fix from our previous discussion to add the '$' delimiters
-        question = f"Evaluate the expression: $ (\\frac{{1}}{{{a}}} + \\frac{{1}}{{{b}}}) \\times {c} $"
-        res = (Fraction(1, a) + Fraction(1, b)) * c
-        answer = _format_fraction_text(res)
-        hint = "Follow BODMAS. Solve the operation inside the brackets first."
-        explanation = f"1. Bracket: $\\frac{{1}}{{{a}}} + \\frac{{1}}{{{b}}} = \\frac{{{b}+{a}}}{{{a*b}}}$.\n\n2. Multiply: $\\frac{{{a+b}}}{{{a*b}}} \\times {c} = {_get_fraction_latex_code(res)}$."
-        distractor = _format_fraction_text(Fraction(1,a) + Fraction(1,b)*c)
-        options = {answer, distractor}
+        question = f"Calculate: ${_get_fraction_latex_code(f1)} {sym} ${_get_fraction_latex_code(f2)}$"
+        if op == 'add': res = f1 + f2
+        elif op == 'subtract': res = f1 - f2
+        elif op == 'multiply': res = f1 * f2
+        else: res = f1 / f2
+        answer = _format_fraction_text(res); hint = "Remember the specific rules for adding, subtracting, multiplying, and dividing fractions."
+        explanation = f"The result of the calculation is ${_get_fraction_latex_code(res)}$."
+        options = {answer, _format_fraction_text(Fraction(f1.numerator+f2.numerator, f1.denominator+f2.denominator))}
         
     elif q_type == 'word_problem':
-        total = random.randint(20, 40)
-        den = random.choice([3, 4, 5])
-        num = random.randint(1, den-1)
-        spent = Fraction(num, den)
-        remaining = total * (1-spent)
-        # This wording is reverted to your original version
-        question = f"Kofi had GHS {total}. He spent $\\frac{{{num}}}{{{den}}}$ of it on airtime. How much money does he have left?"
-        answer = f"GHS {remaining}"
-        hint = "First, find the amount spent by multiplying the fraction by the total. Then, subtract this from the total."
-        explanation = f"1. Amount spent = $\\frac{{{num}}}{{{den}}} \\times {total} = {total*spent}$.\n\n2. Money left = Total - Spent = {total} - {total*spent} = {remaining}."
-        # The options are reverted to your original version's formatting
-        options = {answer, f"GHS {total*spent}"}
+        den = random.choice([3, 4, 5, 8]); num = random.randint(1, den-1); quantity = random.randint(10, 20) * den
+        question = f"A student in Accra had {quantity} oranges and gave away $\\frac{{{num}}}{{{den}}}$ of them. How many oranges did the student have left?"
+        answer = str(quantity * (1-Fraction(num,den)))
+        hint = "First, find the fraction of oranges remaining. Then, multiply that fraction by the total number of oranges."
+        explanation = f"1. Fraction remaining = $1 - \\frac{{{num}}}{{{den}}} = \\frac{{{den-num}}}{{{den}}}$.\n2. Oranges left = $\\frac{{{den-num}}}{{{den}}} \\times {quantity} = {answer}$."
+        options = {answer, str(quantity*Fraction(num,den))}
+
+    elif q_type == 'complex_fraction':
+        f1 = Fraction(random.randint(1, 5), random.randint(2, 6))
+        f2 = Fraction(random.randint(1, 5), random.randint(2, 6))
+        question = f"Simplify the complex fraction: $\\frac{{{_get_fraction_latex_code(f1)}}}{{{_get_fraction_latex_code(f2)}}}$"
+        answer = _format_fraction_text(f1 / f2)
+        hint = "A complex fraction can be rewritten as a division problem: (top fraction) ÷ (bottom fraction)."
+        explanation = f"This is equivalent to ${_get_fraction_latex_code(f1)} \\div {_get_fraction_latex_code(f2)}$, which is ${_get_fraction_latex_code(f1)} \\times {_get_fraction_latex_code(f2.denominator, f2.numerator)} = {_get_fraction_latex_code(f1/f2)}$."
+        options = {answer, _format_fraction_text(f1*f2)}
 
     return {"question": question, "options": _finalize_options(options, "fraction"), "answer": answer, "hint": hint, "explanation": explanation}
 def _generate_indices_question():
@@ -2331,6 +2350,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
