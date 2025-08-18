@@ -577,44 +577,91 @@ def _generate_sets_question():
 
     return {"question": question, "options": _finalize_options(options, default_type="set_str"), "answer": answer, "hint": hint, "explanation": explanation}
 def _generate_percentages_question():
-    # Subtopics: Basic Calcs, Increase/Decrease, Profit/Loss, Interest
-    q_type = random.choice(['percent_of', 'percent_change', 'profit_loss', 'simple_interest'])
-    
-    if q_type == 'percent_of':
+    """Generates a multi-subtopic question for Percentages with enhanced variety."""
+    # UPGRADED: Expanded list of sub-topics based on your suggestions
+    q_type = random.choice(['conversion', 'percent_of', 'express_as_percent', 'percent_change', 'profit_loss', 'reverse_percent', 'successive_change', 'percent_error'])
+    question, answer, hint, explanation = "", "", "", ""
+    options = set()
+
+    if q_type == 'conversion':
+        frac = Fraction(random.randint(1, 4), random.choice([5, 8, 10, 20]))
+        percent = frac.numerator / frac.denominator * 100
+        decimal = frac.numerator / frac.denominator
+        
+        start_form, end_form, ans_val = random.choice([
+            (f"${_get_fraction_latex_code(frac)}$", "a percentage", f"{percent:.0f}%"),
+            (f"{decimal}", "a percentage", f"{percent:.0f}%"),
+            (f"{percent:.0f}%", "a decimal", f"{decimal}")
+        ])
+        question = f"Express {start_form} as {end_form}."
+        answer = str(ans_val)
+        hint = "To convert a fraction or decimal to a percentage, multiply by 100. To convert a percentage to a decimal, divide by 100."
+        explanation = f"To convert {start_form} to {end_form}, you perform the required operation. The result is {answer}."
+        options = {answer, f"{decimal*10}", f"{percent/10}%"}
+
+    elif q_type == 'percent_of':
         percent, number = random.randint(1, 19)*5, random.randint(10, 50)*10
-        question = f"Calculate {percent}% of {number}."
-        answer = f"{(percent/100)*number:.2f}"
-        hint = "Convert the percentage to a decimal (divide by 100) and then multiply by the number."
-        explanation = f"1. Convert percent to decimal: {percent}% = {percent/100}.\n\n2. Multiply: {percent/100} * {number} = {float(answer)}."
-        options = {answer, f"{percent*number/10:.2f}", f"{number/percent:.2f}"}
+        question = f"Calculate {percent}% of GHS {number:.2f}."
+        answer = f"GHS {(percent/100)*number:.2f}"
+        hint = "Convert the percentage to a decimal and multiply."
+        explanation = f"{percent}% of {number} is equivalent to {percent/100} * {number} = {float(answer.split(' ')[1]):.2f}."
+        options = {answer, f"GHS {percent*number/10:.2f}", f"GHS {number/percent:.2f}"}
+
+    elif q_type == 'express_as_percent':
+        part, whole = random.randint(10, 40), random.randint(50, 100)
+        question = f"In a class in Accra, {part} students out of {whole} are girls. What percentage of the class are girls?"
+        answer = f"{(part/whole)*100:.1f}%"
+        hint = "Use the formula: (Part / Whole) * 100%."
+        explanation = f"The percentage is calculated as $(\\frac{{{part}}}{{{whole}}}) \\times 100\\% = {answer}$."
+        options = {answer, f"{(whole/part)*100:.1f}%"}
 
     elif q_type == 'percent_change':
         old, new = random.randint(50, 200), random.randint(201, 400)
-        question = f"A price increased from GHS {old} to GHS {new}. What is the percentage increase?"
-        ans_val = ((new - old) / old) * 100
-        answer = f"{ans_val:.2f}%"
-        hint = "Use the formula: $\\frac{{\\text{{New Value}} - \\text{{Old Value}}}}{{\\text{{Old Value}}}} \\times 100\\%$"
-        explanation = f"1. Change = {new} - {old} = {new-old}.\n\n2. Percent Change = (Change / Old Value) * 100 = ({new-old} / {old}) * 100 = {ans_val:.2f}%."
-        options = {answer, f"{((new-old)/new)*100:.2f}%", f"{ans_val/100:.2f}%"}
-    
+        question = f"The price of a textbook increased from GHS {old} to GHS {new}. Find the percentage increase."
+        ans_val = ((new - old) / old) * 100; answer = f"{ans_val:.1f}%"
+        hint = "Use the formula: (New Value - Old Value) / Old Value * 100%"; explanation = f"Change = {new} - {old} = {new-old}.\nPercent Change = (\\frac{{{new-old}}}{{{old}}}) \\times 100 = {answer}."
+        options = {answer, f"{((new-old)/new)*100:.1f}%"}
+
     elif q_type == 'profit_loss':
         cost, selling = random.randint(100, 200), random.randint(201, 300)
-        question = f"An item bought for GHS {cost} was sold for GHS {selling}. Find the profit percent."
-        profit = selling - cost
-        ans_val = (profit / cost) * 100
-        answer = f"{ans_val:.2f}%"
-        hint = "Profit Percent = $\\frac{{\\text{{Profit}}}}{{\\text{{Cost Price}}}} \\times 100\\%$"
-        explanation = f"1. Profit = Selling Price - Cost Price = {selling} - {cost} = {profit}.\n\n2. Profit Percent = (Profit / Cost) * 100 = ({profit} / {cost}) * 100 = {ans_val:.2f}%."
-        options = {answer, f"{(profit/selling)*100:.2f}%", f"{profit:.2f}%"}
+        question = f"A trader in Kumasi bought an item for GHS {cost} and sold it for GHS {selling}. Calculate the profit percent."
+        profit = selling - cost; ans_val = (profit / cost) * 100; answer = f"{ans_val:.1f}%"
+        hint = "Profit Percent = (Profit / Cost Price) * 100%"; explanation = f"Profit = {selling} - {cost} = {profit}.\nProfit Percent = (\\frac{{{profit}}}{{{cost}}}) \\times 100 = {answer}."
+        options = {answer, f"{(profit/selling)*100:.1f}%"}
 
-    elif q_type == 'simple_interest':
-        p, r, t = random.randint(10, 50)*100, random.randint(5, 15), random.randint(2, 5)
-        question = f"Find the simple interest on GHS {p} for {t} years at a rate of {r}% per annum."
-        ans_val = (p * r * t) / 100
-        answer = f"GHS {ans_val:.2f}"
-        hint = "Use the formula: Simple Interest = $P \\times R \\times T / 100$."
-        explanation = f"1. Formula: I = PRT/100.\n\n2. Substitute: I = ({p} * {r} * {t}) / 100.\n\n3. Calculate: I = {ans_val:.2f}."
-        options = {answer, f"GHS {p+ans_val:.2f}", f"GHS {p*r*t:.2f}"}
+    elif q_type == 'reverse_percent':
+        original_price = random.randint(100, 400)
+        discount = random.randint(1, 8) * 5 # 5, 10, 15... 40
+        final_price = original_price * (1 - discount/100)
+        question = f"After a {discount}% discount, a shirt costs GHS {final_price:.2f}. What was the original price?"
+        answer = f"GHS {original_price:.2f}"
+        hint = f"The final price represents {100-discount}% of the original price. Let the original price be P and solve for it."
+        explanation = f"Let P be the original price.\n$P \\times (1 - \\frac{{{discount}}}{{100}}) = {final_price:.2f}$.\n$P = \\frac{{{final_price:.2f}}}{{1 - {discount/100}}} = {original_price:.2f}$."
+        options = {answer, f"GHS {final_price * (1 + discount/100):.2f}"}
+
+    elif q_type == 'successive_change':
+        initial_val = 1000
+        increase = random.randint(10, 20)
+        decrease = random.randint(5, 9)
+        val_after_increase = initial_val * (1 + increase/100)
+        final_val = val_after_increase * (1 - decrease/100)
+        net_change = ((final_val - initial_val) / initial_val) * 100
+        question = f"A worker's salary of GHS {initial_val} was increased by {increase}%, and later decreased by {decrease}%. What is the net percentage change in their salary?"
+        answer = f"{net_change:.2f}%"
+        hint = "Calculate the new salary after the first change, then apply the second change to that new amount."
+        explanation = f"1. After {increase}% increase: GHS {initial_val} * 1.{increase} = GHS {val_after_increase}.\n2. After {decrease}% decrease: GHS {val_after_increase} * (1 - 0.0{decrease}) = GHS {final_val}.\n3. Net Change = {final_val} - {initial_val} = {final_val-initial_val}.\n4. Net % Change = (\\frac{{{final_val-initial_val}}}{{{initial_val}}}) \\times 100 = {answer}."
+        options = {answer, f"{increase-decrease}%"}
+
+    elif q_type == 'percent_error':
+        actual = random.randint(50, 100)
+        error = random.randint(1, 5)
+        measured = actual + error
+        question = f"A length was measured as {measured} cm, but the actual length was {actual} cm. Calculate the percentage error."
+        ans_val = (error / actual) * 100
+        answer = f"{ans_val:.2f}%"
+        hint = "Percentage Error = (Error / Actual Value) * 100%."
+        explanation = f"1. Error = Measured - Actual = {measured} - {actual} = {error}.\n2. Percentage Error = (\\frac{{{error}}}{{{actual}}}) \\times 100\\% = {answer}."
+        options = {answer, f"{(error/measured)*100:.2f}%"}
 
     return {"question": question, "options": _finalize_options(options), "answer": answer, "hint": hint, "explanation": explanation}
 
@@ -2284,6 +2331,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
