@@ -849,7 +849,6 @@ def _generate_indices_question():
 
 def _generate_surds_question():
     """Generates a multi-subtopic question for Surds with enhanced variety."""
-    # UPGRADED: Expanded list of sub-topics based on your suggestions
     q_type = random.choice(['identify', 'simplify', 'operate', 'rationalize', 'equation', 'geometry'])
     question, answer, hint, explanation = "", "", "", ""
     options = set()
@@ -885,15 +884,11 @@ def _generate_surds_question():
             options = {answer, f"${c1+c2}\\sqrt{{{base_surd*2}}}$"}
         else: # multiply
             a, b = random.randint(2, 5), random.randint(2, 5)
-            c, d = random.randint(2, 5), random.randint(2, 5)
-            question = f"Expand and simplify: $({a} + \\sqrt{{{b}}})({c} - \\sqrt{{{d}}})$"
-            # (a+sqrt(b))(c-sqrt(d)) = ac - a*sqrt(d) + c*sqrt(b) - sqrt(bd)
-            # To keep it simple for MCQs, let's make b=d
-            d = b
+            c = random.randint(2, 5)
             question = f"Expand and simplify: $({a} + \\sqrt{{{b}}})({c} - \\sqrt{{{b}}})$"
             res_term1 = a*c - b
             res_term2 = c - a
-            answer = f"${res_term1} + {res_term2}\\sqrt{{{b}}}$"
+            answer = f"${res_term1} + {res_term2}\\sqrt{{{b}}}$" if res_term2 >= 0 else f"${res_term1} - {abs(res_term2)}\\sqrt{{{b}}}$"
             hint = "Use the FOIL method to expand the brackets, then collect like terms."
             explanation = f"$({a} + \\sqrt{{{b}}})({c} - \\sqrt{{{b}}}) = {a*c} - {a}\\sqrt{{{b}}} + {c}\\sqrt{{{b}}} - {b} = {answer}$."
             options = {answer, f"{a*c+b} + {c+a}\\sqrt{{{b}}}$"}
@@ -902,20 +897,38 @@ def _generate_surds_question():
         a, b, c = random.randint(2, 9), random.randint(2, 9), random.choice([2, 3, 5, 7])
         while b*b == c: b = random.randint(2,9)
         question = f"Rationalize the denominator of $\\frac{{{a}}}{{{b} + \\sqrt{{{c}}}}}$"
-        num = f"{a*b} - {a}\\sqrt{{{c}}}"
+        num_part1, num_part2 = a*b, -a
         den = b**2 - c
-        answer = f"$\\frac{{{num}}}{{{den}}}$"
-        hint = f"Multiply the numerator and denominator by the conjugate of the denominator, which is $({b} - \\sqrt{{{c}}})$."
-        explanation = f"1. Multiply by conjugate: $\\frac{{{a}}}{{{b} + \\sqrt{{{c}}}}} \\times \\frac{{{b} - \\sqrt{{{c}}}}}{{{b} - \\sqrt{{{c}}}}}$.\n2. Numerator: ${a}({b} - \\sqrt{{{c}}}) = {num}$.\n3. Denominator: ${b}^2 - (\\sqrt{{{c}}})^2 = {den}$.\n4. Final Answer: ${answer}$."
-        options = {answer, f"$\\frac{{{num}}}{{{b+c}}}$", f"$\\frac{{{a}}}{{{den}}}$"}
         
+        common_divisor = math.gcd(math.gcd(num_part1, num_part2), den)
+        
+        s_num_part1 = num_part1 // common_divisor
+        s_num_part2 = num_part2 // common_divisor
+        s_den = den // common_divisor
+
+        num_latex = f"{s_num_part1} - {abs(s_num_part2)}\\sqrt{{{c}}}" if s_num_part2 < 0 else f"{s_num_part1} + {s_num_part2}\\sqrt{{{c}}}"
+        
+        if s_den == 1: answer = f"${num_latex}$"
+        else: answer = f"$\\frac{{{num_latex}}}{{{s_den}}}$"
+        
+        hint = f"Multiply the numerator and denominator by the conjugate of the denominator, which is $({b} - \\sqrt{{{c}}})$."
+        explanation = f"1. Multiply by conjugate: $\\frac{{{a}}}{{{b} + \\sqrt{{{c}}}}} \\times \\frac{{{b} - \\sqrt{{{c}}}}}{{{b} - \\sqrt{{{c}}}}}$.\n2. Numerator: ${a}({b} - \\sqrt{{{c}}}) = {a*b} - {a}\\sqrt{{{c}}}$.\n3. Denominator: ${b}^2 - (\\sqrt{{{c}}})^2 = {den}$.\n4. Result: $\\frac{{{a*b} - {a}\\sqrt{{{c}}}}}{{{den}}}$.\n5. Simplify by dividing all parts by {common_divisor} to get {answer}."
+        options = {answer, f"$\\frac{{{a*b} + {a}\\sqrt{{{c}}}}}{{{den}}}$"}
+
     elif q_type == 'equation':
-        x_val = random.randint(5, 25); c = random.randint(1, 5)
-        question = f"Solve for x: $\\sqrt{{x - {c}}} = {int(math.sqrt(x_val-c))}$"
+        # REWRITTEN LOGIC FOR GUARANTEED CORRECTNESS
+        result = random.randint(2, 5) # The result of the square root, e.g., 3
+        c = random.randint(1, 10)     # The number being subtracted from x, e.g., 3
+        x_val = result**2 + c         # The correct answer for x, e.g., 3^2 + 3 = 12
+        
+        question = f"Solve for x: $\\sqrt{{x - {c}}} = {result}$"
         answer = str(x_val)
         hint = "To solve for x, square both sides of the equation to eliminate the square root."
-        explanation = f"1. Given: $\\sqrt{{x - {c}}} = {int(math.sqrt(x_val-c))}$.\n2. Square both sides: $x - {c} = {int(math.sqrt(x_val-c))**2}$.\n3. $x - {c} = {x_val-c}$.\n4. $x = {x_val}$."
-        options = {answer, str(int(math.sqrt(x_val-c))**2)}
+        explanation = (f"1. Given: $\\sqrt{{x - {c}}} = {result}$.\n\n"
+                       f"2. Square both sides: $(\\sqrt{{x - {c}}})^2 = {result}^2$.\n\n"
+                       f"3. This simplifies to: $x - {c} = {result**2}$.\n\n"
+                       f"4. Add {c} to both sides: $x = {result**2} + {c} = {x_val}$.")
+        options = {answer, str(result + c), str(result**2)}
 
     elif q_type == 'geometry':
         a, b = random.randint(2, 4), random.randint(5, 7)
@@ -927,7 +940,6 @@ def _generate_surds_question():
         options = {answer, str(int(math.sqrt(c_sq))), str(a+b)}
 
     return {"question": question, "options": _finalize_options(options), "answer": answer, "hint": hint, "explanation": explanation}
-
 def _generate_binary_ops_question():
     # Subtopics: Evaluate, Identity/Inverse, Properties
     q_type = random.choice(['evaluate', 'identity_inverse', 'properties'])
@@ -2434,6 +2446,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
