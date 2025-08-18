@@ -897,47 +897,37 @@ def _generate_surds_question():
         a, b, c = random.randint(2, 9), random.randint(2, 9), random.choice([2, 3, 5, 7])
         while b*b == c: b = random.randint(2,9)
         question = f"Rationalize the denominator of $\\frac{{{a}}}{{{b} + \\sqrt{{{c}}}}}$"
-        num_part1, num_part2 = a*b, -a
-        den = b**2 - c
-        
+        num_part1, num_part2 = a*b, -a; den = b**2 - c
         common_divisor = math.gcd(math.gcd(num_part1, num_part2), den)
-        
-        s_num_part1 = num_part1 // common_divisor
-        s_num_part2 = num_part2 // common_divisor
-        s_den = den // common_divisor
-
+        s_num_part1, s_num_part2, s_den = num_part1//common_divisor, num_part2//common_divisor, den//common_divisor
         num_latex = f"{s_num_part1} - {abs(s_num_part2)}\\sqrt{{{c}}}" if s_num_part2 < 0 else f"{s_num_part1} + {s_num_part2}\\sqrt{{{c}}}"
-        
-        if s_den == 1: answer = f"${num_latex}$"
+        if s_den == 1 or s_den == -1: answer = f"${-s_num_part1 if s_den == -1 else s_num_part1} {'+' if -s_num_part2 > 0 else '-'} {abs(s_num_part2)}\\sqrt{{{c}}}$"
         else: answer = f"$\\frac{{{num_latex}}}{{{s_den}}}$"
-        
         hint = f"Multiply the numerator and denominator by the conjugate of the denominator, which is $({b} - \\sqrt{{{c}}})$."
-        explanation = f"1. Multiply by conjugate: $\\frac{{{a}}}{{{b} + \\sqrt{{{c}}}}} \\times \\frac{{{b} - \\sqrt{{{c}}}}}{{{b} - \\sqrt{{{c}}}}}$.\n2. Numerator: ${a}({b} - \\sqrt{{{c}}}) = {a*b} - {a}\\sqrt{{{c}}}$.\n3. Denominator: ${b}^2 - (\\sqrt{{{c}}})^2 = {den}$.\n4. Result: $\\frac{{{a*b} - {a}\\sqrt{{{c}}}}}{{{den}}}$.\n5. Simplify by dividing all parts by {common_divisor} to get {answer}."
+        explanation = f"1. Multiply by conjugate: $\\frac{{{a}}}{{{b} + \\sqrt{{{c}}}}} \\times \\frac{{{b} - \\sqrt{{{c}}}}}{{{b} - \\sqrt{{{c}}}}}$.\n2. Numerator: ${a*b} - {a}\\sqrt{{{c}}}$.\n3. Denominator: ${b**2} - {c} = {den}$.\n4. Simplify $\\frac{{{a*b} - {a}\\sqrt{{{c}}}}}{{{den}}}$ to get {answer}."
         options = {answer, f"$\\frac{{{a*b} + {a}\\sqrt{{{c}}}}}{{{den}}}$"}
 
     elif q_type == 'equation':
-        # REWRITTEN LOGIC FOR GUARANTEED CORRECTNESS
-        result = random.randint(2, 5) # The result of the square root, e.g., 3
-        c = random.randint(1, 10)     # The number being subtracted from x, e.g., 3
-        x_val = result**2 + c         # The correct answer for x, e.g., 3^2 + 3 = 12
-        
+        result = random.randint(2, 5); c = random.randint(1, 10); x_val = result**2 + c
         question = f"Solve for x: $\\sqrt{{x - {c}}} = {result}$"
-        answer = str(x_val)
-        hint = "To solve for x, square both sides of the equation to eliminate the square root."
-        explanation = (f"1. Given: $\\sqrt{{x - {c}}} = {result}$.\n\n"
-                       f"2. Square both sides: $(\\sqrt{{x - {c}}})^2 = {result}^2$.\n\n"
-                       f"3. This simplifies to: $x - {c} = {result**2}$.\n\n"
-                       f"4. Add {c} to both sides: $x = {result**2} + {c} = {x_val}$.")
+        answer = str(x_val); hint = "To solve for x, square both sides of the equation."
+        explanation = (f"1. Given: $\\sqrt{{x - {c}}} = {result}$.\n2. Square both sides: $x - {c} = {result**2}$.\n3. $x = {result**2} + {c} = {x_val}$.")
         options = {answer, str(result + c), str(result**2)}
 
     elif q_type == 'geometry':
-        a, b = random.randint(2, 4), random.randint(5, 7)
+        # --- THIS BLOCK IS REWRITTEN FOR BETTER DISTRACTORS ---
+        a, b = random.randint(2, 5), random.randint(6, 9)
         c_sq = a**2 + b**2
         question = f"A right-angled triangle has shorter sides of length ${a}$ cm and ${b}$ cm. Find the exact length of the hypotenuse in surd form."
         answer = f"$\\sqrt{{{c_sq}}}$"
-        hint = "Use Pythagoras' theorem: $a^2 + b^2 = c^2$. Leave the result under the square root sign."
+        hint = "Use Pythagoras' theorem: $a^2 + b^2 = c^2$. Leave the result in surd form."
         explanation = f"1. By Pythagoras' theorem, $c^2 = a^2 + b^2$.\n2. $c^2 = {a}^2 + {b}^2 = {a**2} + {b**2} = {c_sq}$.\n3. The exact length of the hypotenuse is $c = \\sqrt{{{c_sq}}}$ cm."
-        options = {answer, str(int(math.sqrt(c_sq))), str(a+b)}
+        
+        # Create plausible distractors in the same surd format
+        distractor1 = f"$\\sqrt{{{abs(b**2 - a**2)}}}$" # Common mistake: subtracting instead of adding
+        distractor2 = f"$\\sqrt{{{a+b}}}$"            # Common mistake: adding before squaring
+        distractor3 = f"${a+b}$"                       # Mistake: adding sides (not in surd form, but very common)
+        options = {answer, distractor1, distractor2, distractor3}
 
     return {"question": question, "options": _finalize_options(options), "answer": answer, "hint": hint, "explanation": explanation}
 def _generate_binary_ops_question():
@@ -2446,6 +2436,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
