@@ -791,32 +791,38 @@ def _generate_indices_question():
     elif q_type == 'solve_same_base':
         base = random.randint(2, 5)
         power = random.randint(2, 4)
-        # Equation: base^(ax+b) = base^power
-        a, b = 2, -1 # From 2x-1
-        
-        # Ensure the answer x = (power-b)/a is a nice number
+        a, b = 2, -1
         while (power - b) % a != 0:
             power = random.randint(2, 5)
-            
-        # --- THIS IS THE FIX ---
-        # The question must be generated AFTER the final power is chosen.
         question = f"Solve for the variable $x$: ${base}^{{{a}x {b}}} = {base**power}$"
-        
         answer = str(Fraction(power - b, a))
         hint = "If the bases on both sides of an equation are the same, you can equate the exponents."
         explanation = f"1. The equation is ${base}^{{{a}x {b}}} = {base**power}$.\n2. Since the bases are equal, set the exponents equal: ${a}x {b} = {power}$.\n3. ${a}x = {power-b}$.\n4. $x = \\frac{{{power-b}}}{{{a}}}$."
         options = {answer, str(power), str(power-b)}
 
     elif q_type == 'standard_form':
+        # --- THIS ENTIRE BLOCK IS REWRITTEN FOR CLARITY AND CORRECTNESS ---
         num = round(random.uniform(1.0, 9.9), random.randint(2, 4))
         power = random.randint(3, 6)
-        std_form = f"{num} \\times 10^{{-{power}}}"
+        
+        # Create clean LaTeX strings first
+        correct_latex = f"{num} \\times 10^{{-{power}}}"
+        distractor_latex_1 = f"{num} \\times 10^{{{power}}}"
+        
         decimal_form = f"{num / (10**power):.{power+len(str(num))-2}f}"
+        distractor_plain_2 = f"{decimal_form} \\times 10^1" # This is intentionally not a math format
+
         question = f"A measurement taken by a scientist in Accra is {decimal_form} metres. Express this number in standard form."
-        answer = f"${std_form}$"
+        answer = f"${correct_latex}$"
         hint = "Standard form is written as $A \\times 10^n$, where $1 \\le A < 10$. Count how many places the decimal point must move."
-        explanation = f"To get the number {num} (which is between 1 and 10), we must move the decimal point {power} places to the right. Moving to the right corresponds to a negative exponent.\nThus, the standard form is ${std_form}$."
-        options = {answer, f"${num} \\times 10^{{{power}}}$", f"{decimal_form} \\times 10^1"}
+        explanation = f"To get the number {num} (which is between 1 and 10), we must move the decimal point {power} places to the right. Moving to the right corresponds to a negative exponent.\nThus, the standard form is ${correct_latex}$."
+        
+        # All options are now distinct and correctly formatted strings before being finalized
+        options = {
+            answer, 
+            f"${distractor_latex_1}$",
+            distractor_plain_2
+        }
 
     elif q_type == 'solve_different_base':
         base1, p1, base2, p2 = random.choice([(4, 2, 8, 3), (9, 3, 27, 2), (4, 3, 2, 6)])
@@ -2384,6 +2390,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
