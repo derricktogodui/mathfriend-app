@@ -848,50 +848,83 @@ def _generate_indices_question():
     return {"question": question, "options": _finalize_options(options), "answer": answer, "hint": hint, "explanation": explanation}
 
 def _generate_surds_question():
-    # Subtopics: Simplification, Operations, Rationalization, Equations
-    q_type = random.choice(['simplify', 'operate', 'rationalize', 'equation'])
+    """Generates a multi-subtopic question for Surds with enhanced variety."""
+    # UPGRADED: Expanded list of sub-topics based on your suggestions
+    q_type = random.choice(['identify', 'simplify', 'operate', 'rationalize', 'equation', 'geometry'])
+    question, answer, hint, explanation = "", "", "", ""
+    options = set()
 
-    if q_type == 'simplify':
-        p_sq, n = random.choice([4, 9, 16, 25]), random.choice([2, 3, 5, 7])
+    if q_type == 'identify':
+        surd = random.choice([2, 3, 5, 7, 11])
+        perfect_square = random.choice([4, 9, 16, 25])
+        
+        question = f"Which of the following numbers is a surd?"
+        answer = f"$\\sqrt{{{surd}}}$"
+        hint = "A surd is an irrational number left in root form. A number is not a surd if its root is a whole number."
+        explanation = f"$\\sqrt{{{perfect_square}}} = {int(math.sqrt(perfect_square))}$, which is a rational number.\n$\\sqrt{{{surd}}}$ cannot be simplified to a rational number, so it is a surd."
+        options = {answer, f"$\\sqrt{{{perfect_square}}}$", str(random.randint(2,10))}
+
+    elif q_type == 'simplify':
+        p_sq, n = random.choice([4, 9, 16, 25, 36]), random.choice([2, 3, 5, 7, 10])
         num = p_sq * n
-        question = f"Express $\sqrt{{{num}}}$ in its simplest form."
-        answer = f"${int(math.sqrt(p_sq))}\sqrt{{{n}}}$"
+        question = f"Express $\\sqrt{{{num}}}$ in its simplest surd form."
+        answer = f"${int(math.sqrt(p_sq))}\\sqrt{{{n}}}$"
         hint = f"Find the largest perfect square that is a factor of {num}."
-        explanation = f"1. Find factors of {num}: {num} = {p_sq} × {n}.\n\n2. Split the surd: $\sqrt{{{num}}} = \sqrt{{{p_sq}}} \\times \sqrt{{{n}}}$.\n\n3. Simplify the perfect square: $\sqrt{{{p_sq}}} = {int(math.sqrt(p_sq))}$.\n\n4.  ${answer}$."
-        options = {answer, f"${n}\sqrt{{{p_sq}}}$"}
+        explanation = f"1. Find factors: ${num} = {p_sq} \\times {n}$.\n2. Split the surd: $\\sqrt{{{num}}} = \\sqrt{{{p_sq}}} \\times \\sqrt{{{n}}}$.\n3. Simplify: ${answer}$."
+        options = {answer, f"${n}\\sqrt{{{p_sq}}}$"}
 
     elif q_type == 'operate':
-        c1, c2, base = random.randint(2, 8), random.randint(2, 8), random.choice([2, 3, 5])
-        op, sym, res = random.choice([('add', '+', c1+c2), ('subtract', '-', c1-c2)])
-        question = f"Simplify: ${c1}\sqrt{{{base}}} {sym} {c2}\sqrt{{{base}}}$"
-        answer = f"${res}\sqrt{{{base}}}$"
-        hint = "You can only add or subtract 'like' surds (those with the same number under the root)."
-        explanation = f"Since both terms have $\sqrt{{{base}}}$, we can treat it like a variable (e.g., like 5x + 3x).\n\nFactor out the common surd: $({c1} {sym} {c2})\sqrt{{{base}}} = {res}\sqrt{{{base}}}$."
-        options = {answer, f"${c1+c2}\sqrt{{{base*2}}}$", f"${c1*c2}\sqrt{{{base}}}$"}
+        op_type = random.choice(['add_sub', 'multiply'])
+        if op_type == 'add_sub':
+            base_surd = random.choice([2, 3, 5]); c1, c2 = random.randint(2, 10), random.randint(2, 10)
+            op, sym, res = random.choice([('add', '+', c1+c2), ('subtract', '-', c1-c2)])
+            question = f"Simplify: ${c1}\\sqrt{{{base_surd}}} {sym} {c2}\\sqrt{{{base_surd}}}$"
+            answer = f"${res}\\sqrt{{{base_surd}}}$"
+            hint = "You can only add or subtract 'like' surds."
+            explanation = f"Factor out the common surd: $({c1} {sym} {c2})\\sqrt{{{base_surd}}} = {res}\\sqrt{{{base_surd}}}$."
+            options = {answer, f"${c1+c2}\\sqrt{{{base_surd*2}}}$"}
+        else: # multiply
+            a, b = random.randint(2, 5), random.randint(2, 5)
+            c, d = random.randint(2, 5), random.randint(2, 5)
+            question = f"Expand and simplify: $({a} + \\sqrt{{{b}}})({c} - \\sqrt{{{d}}})$"
+            # (a+sqrt(b))(c-sqrt(d)) = ac - a*sqrt(d) + c*sqrt(b) - sqrt(bd)
+            # To keep it simple for MCQs, let's make b=d
+            d = b
+            question = f"Expand and simplify: $({a} + \\sqrt{{{b}}})({c} - \\sqrt{{{b}}})$"
+            res_term1 = a*c - b
+            res_term2 = c - a
+            answer = f"${res_term1} + {res_term2}\\sqrt{{{b}}}$"
+            hint = "Use the FOIL method to expand the brackets, then collect like terms."
+            explanation = f"$({a} + \\sqrt{{{b}}})({c} - \\sqrt{{{b}}}) = {a*c} - {a}\\sqrt{{{b}}} + {c}\\sqrt{{{b}}} - {b} = {answer}$."
+            options = {answer, f"{a*c+b} + {c+a}\\sqrt{{{b}}}$"}
 
     elif q_type == 'rationalize':
         a, b, c = random.randint(2, 9), random.randint(2, 9), random.choice([2, 3, 5, 7])
         while b*b == c: b = random.randint(2,9)
-        question = f"Rationalize the denominator of $\\frac{{{a}}}{{{b} - \sqrt{{{c}}}}}$"
-        num = f"{a*b} + {a}\sqrt{{{c}}}"
+        question = f"Rationalize the denominator of $\\frac{{{a}}}{{{b} + \\sqrt{{{c}}}}}$"
+        num = f"{a*b} - {a}\\sqrt{{{c}}}"
         den = b**2 - c
         answer = f"$\\frac{{{num}}}{{{den}}}$"
-        hint = f"Multiply the numerator and denominator by the conjugate of the denominator, which is $({b} + \sqrt{{{c}}})$."
-        explanation = f"1. Conjugate of ${b} - \sqrt{{{c}}}$ is ${b} + \sqrt{{{c}}}$.\n\n2. Multiply top and bottom: $\\frac{{{a}}}{{{b} - \sqrt{{{c}}}}} \\times \\frac{{{b} + \sqrt{{{c}}}}}{{{b} + \sqrt{{{c}}}}}$.\n\n3. Numerator: ${a}({b} + \sqrt{{{c}}}) = {num}$.\n\n4. Denominator (using $(x-y)(x+y)=x^2-y^2$): ${b}^2 - (\sqrt{{{c}}})^2 = {b**2} - {c} = {den}$.\n\n5. Final Answer: ${answer}$."
-        options = {answer, f"$\\frac{{{num}}}{{{b-c}}}$", f"$\\frac{{{a}}}{{{den}}}$"}
+        hint = f"Multiply the numerator and denominator by the conjugate of the denominator, which is $({b} - \\sqrt{{{c}}})$."
+        explanation = f"1. Multiply by conjugate: $\\frac{{{a}}}{{{b} + \\sqrt{{{c}}}}} \\times \\frac{{{b} - \\sqrt{{{c}}}}}{{{b} - \\sqrt{{{c}}}}}$.\n2. Numerator: ${a}({b} - \\sqrt{{{c}}}) = {num}$.\n3. Denominator: ${b}^2 - (\\sqrt{{{c}}})^2 = {den}$.\n4. Final Answer: ${answer}$."
+        options = {answer, f"$\\frac{{{num}}}{{{b+c}}}$", f"$\\frac{{{a}}}{{{den}}}$"}
         
     elif q_type == 'equation':
-        x_val = random.randint(3, 20)
-        c = random.randint(1, 5)
-        result = int(math.sqrt(x_val - c))
-        while (x_val - c) < 0 or math.sqrt(x_val-c) != result:
-            x_val = random.randint(3, 20); c = random.randint(1, 5);
-            if (x_val-c) >=0: result = int(math.sqrt(x_val-c))
-        question = f"Solve for x: $\sqrt{{x - {c}}} = {result}$"
+        x_val = random.randint(5, 25); c = random.randint(1, 5)
+        question = f"Solve for x: $\\sqrt{{x - {c}}} = {int(math.sqrt(x_val-c))}$"
         answer = str(x_val)
         hint = "To solve for x, square both sides of the equation to eliminate the square root."
-        explanation = f"1. Given: $\sqrt{{x - {c}}} = {result}$.\n\n2. Square both sides: $(\sqrt{{x - {c}}})^2 = {result}^2$.\n\n3. This simplifies to: $x - {c} = {result**2}$.\n\n4. Add {c} to both sides: $x = {result**2} + {c} = {x_val}$."
-        options = {answer, str(result**2), str(x_val+c)}
+        explanation = f"1. Given: $\\sqrt{{x - {c}}} = {int(math.sqrt(x_val-c))}$.\n2. Square both sides: $x - {c} = {int(math.sqrt(x_val-c))**2}$.\n3. $x - {c} = {x_val-c}$.\n4. $x = {x_val}$."
+        options = {answer, str(int(math.sqrt(x_val-c))**2)}
+
+    elif q_type == 'geometry':
+        a, b = random.randint(2, 4), random.randint(5, 7)
+        c_sq = a**2 + b**2
+        question = f"A right-angled triangle has shorter sides of length ${a}$ cm and ${b}$ cm. Find the exact length of the hypotenuse in surd form."
+        answer = f"$\\sqrt{{{c_sq}}}$"
+        hint = "Use Pythagoras' theorem: $a^2 + b^2 = c^2$. Leave the result under the square root sign."
+        explanation = f"1. By Pythagoras' theorem, $c^2 = a^2 + b^2$.\n2. $c^2 = {a}^2 + {b}^2 = {a**2} + {b**2} = {c_sq}$.\n3. The exact length of the hypotenuse is $c = \\sqrt{{{c_sq}}}$ cm."
+        options = {answer, str(int(math.sqrt(c_sq))), str(a+b)}
 
     return {"question": question, "options": _finalize_options(options), "answer": answer, "hint": hint, "explanation": explanation}
 
@@ -2401,6 +2434,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
