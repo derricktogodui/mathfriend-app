@@ -1324,7 +1324,6 @@ def _generate_shapes_question():
     return {"question": question, "options": _finalize_options(options), "answer": answer, "hint": hint, "explanation": explanation}
 def _generate_algebra_basics_question():
     """Generates a multi-subtopic question for Algebra Basics with enhanced variety."""
-    # UPGRADED: Expanded list of sub-topics based on your suggestions
     q_type = random.choice(['simplify_expression', 'factorization', 'solve_linear', 'solve_inequality', 'special_product'])
     question, answer, hint, explanation = "", "", "", ""
     options = set()
@@ -1335,9 +1334,27 @@ def _generate_algebra_basics_question():
         # ax + ab - cx + cd => (a-c)x + (ab+cd)
         x_coeff = a - c
         const = a * b + c * d
-        answer = f"${x_coeff}x + {const}$" if x_coeff != 0 else str(const)
+        
+        # --- THIS IS THE FIX ---
+        # Correctly format the final answer string to handle signs
+        if x_coeff == 1:
+            x_part = "x"
+        elif x_coeff == -1:
+            x_part = "-x"
+        elif x_coeff == 0:
+            x_part = ""
+        else:
+            x_part = f"{x_coeff}x"
+
+        if const == 0 and x_part != "":
+            answer = f"${x_part}$"
+        elif const > 0:
+            answer = f"${x_part} + {const}$" if x_part != "" else str(const)
+        else: # const is negative
+            answer = f"${x_part} - {abs(const)}$" if x_part != "" else str(const)
+            
         hint = "First, expand both brackets by multiplying. Then, be careful with the signs and collect like terms."
-        explanation = f"1. Expand brackets: $({a}x + {a*b}) - ({c}x - {c*d})$.\n2. Simplify: ${a}x + {a*b} - {c}x + {c*d}$.\n3. Collect terms: $({a-c})x + ({a*b+c*d}) = {answer}$."
+        explanation = f"1. Expand brackets: $({a}x + {a*b}) - ({c}x - {c*d})$.\n2. Simplify: ${a}x + {a*b} - {c}x + {c*d}$.\n3. Collect terms: $({a-c})x + ({a*b+c*d}) = {x_coeff}x + {const}$."
         options = {answer, f"${a+c}x + {a*b-c*d}$"}
 
     elif q_type == 'factorization':
@@ -1345,8 +1362,8 @@ def _generate_algebra_basics_question():
         if factor_type == 'diff_squares':
             a = random.randint(2, 10)
             b_val = random.randint(2, 5)
-            b = f"{b_val}y" # e.g., 3y
-            question = f"Factorize completely: ${a**2} - ({b_val}y)^2$"
+            b = f"{b_val}y"
+            question = f"Factorize completely: ${a**2} - {b_val**2}y^2$"
             answer = f"$({a} - {b})({a} + {b})$"
             hint = "Recognize this as a difference of two squares: $A^2 - B^2 = (A-B)(A+B)$."
             explanation = f"Here, $A^2 = {a**2}$ so $A={a}$, and $B^2 = {b_val**2}y^2$ so $B={b}$.\nThe factorization is $(A-B)(A+B)$, which gives ${answer}$."
@@ -1355,7 +1372,7 @@ def _generate_algebra_basics_question():
             r1, r2 = random.randint(-5, 5), random.randint(-5, 5)
             while r1 == 0 or r2 == 0: r1, r2 = random.randint(-5, 5), random.randint(-5, 5)
             b, c = r1 + r2, r1 * r2
-            question = f"Factorize the trinomial: $x^2 + {b}x + {c}$"
+            question = f"Factorize the trinomial: $x^2 + ({b})x + ({c})$"
             answer = f"$(x + {r1})(x + {r2})$"
             hint = f"Look for two numbers that multiply to {c} and add to {b}."
             explanation = f"The two numbers are ${r1}$ and ${r2}$, since ${r1} \\times {r2} = {c}$ and ${r1} + {r2} = {b}$.\nTherefore, the factors are $(x + ({r1}))(x + ({r2}))$, which is ${answer}$."
@@ -1389,7 +1406,6 @@ def _generate_algebra_basics_question():
         options = {answer, f"${a**2}{x}^2 + {b**2}$"}
 
     return {"question": question, "options": _finalize_options(options), "answer": answer, "hint": hint, "explanation": explanation}
-
 
 def _generate_linear_algebra_question():
     # Subtopics: Matrix ops, Determinant/Inverse
@@ -2626,6 +2642,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
