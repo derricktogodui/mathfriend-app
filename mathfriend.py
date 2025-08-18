@@ -136,7 +136,7 @@ def create_and_verify_tables():
                                 unlocked_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
                             )'''))
 
-            # --- Expanded list of daily challenges ---
+            # --- Expanded list of daily challenges covering all 18 topics ---
             result = conn.execute(text("SELECT COUNT(*) FROM daily_challenges")).scalar_one()
             if result == 0:
                 print("Populating daily_challenges table for the first time.")
@@ -145,7 +145,7 @@ def create_and_verify_tables():
                     ("Answer 5 questions correctly on any topic.", "Any", 5),
                     ("Complete any quiz with a score of 4 or more.", "Any", 4),
                     
-                    # Specific Topic Challenges
+                    # Original 12 Topic Challenges
                     ("Correctly answer 4 Set theory questions.", "Sets", 4),
                     ("Get 3 correct answers in a Percentages quiz.", "Percentages", 3),
                     ("Solve 4 problems involving Fractions.", "Fractions", 4),
@@ -158,6 +158,8 @@ def create_and_verify_tables():
                     ("Answer 4 questions about Shapes (Geometry).", "Shapes (Geometry)", 4),
                     ("Get 5 correct answers in Algebra Basics.", "Algebra Basics", 5),
                     ("Solve 3 problems in Linear Algebra.", "Linear Algebra", 3),
+                    
+                    # New 6 Advanced Topic Challenges
                     ("Solve 3 logarithmic equations.", "Logarithms", 3),
                     ("Correctly answer 4 probability questions.", "Probability", 4),
                     ("Find the coefficient in 2 binomial expansions.", "Binomial Theorem", 2),
@@ -172,7 +174,6 @@ def create_and_verify_tables():
         print("Database tables created or verified successfully, including expanded gamification tables.")
     except Exception as e:
         st.error(f"Database setup error: {e}")
-
 create_and_verify_tables()
 
 
@@ -2129,6 +2130,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
