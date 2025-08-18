@@ -102,12 +102,33 @@ def create_and_verify_tables():
             result = conn.execute(text("SELECT COUNT(*) FROM daily_challenges")).scalar_one()
             if result == 0:
                 print("Populating daily_challenges table for the first time.")
+                # This list is now expanded to cover all 18 topics
                 challenges = [
+                    # General Challenges
                     ("Answer 5 questions correctly on any topic.", "Any", 5),
-                    ("Get 3 correct answers in a Fractions quiz.", "Fractions", 3),
+                    ("Complete any quiz with a score of 4 or more.", "Any", 4),
+                    
+                    # Original 12 Topic Challenges
+                    ("Correctly answer 4 Set theory questions.", "Sets", 4),
+                    ("Get 3 correct answers in a Percentages quiz.", "Percentages", 3),
+                    ("Solve 4 problems involving Fractions.", "Fractions", 4),
+                    ("Simplify 3 expressions using the laws of Indices.", "Indices", 3),
                     ("Get 3 correct answers in a Surds quiz.", "Surds", 3),
-                    ("Score at least 4 in an Algebra Basics quiz.", "Algebra Basics", 4),
-                    ("Complete any quiz with a score of 5 or more.", "Any", 5)
+                    ("Evaluate 3 Binary Operations correctly.", "Binary Operations", 3),
+                    ("Answer 4 questions on Relations and Functions.", "Relations and Functions", 4),
+                    ("Solve 3 problems on Sequence and Series.", "Sequence and Series", 3),
+                    ("Solve 2 math Word Problems.", "Word Problems", 2),
+                    ("Answer 4 questions about Shapes (Geometry).", "Shapes (Geometry)", 4),
+                    ("Get 5 correct answers in Algebra Basics.", "Algebra Basics", 5),
+                    ("Solve 3 problems in Linear Algebra.", "Linear Algebra", 3),
+                    
+                    # New 6 Advanced Topic Challenges
+                    ("Solve 3 logarithmic equations.", "Logarithms", 3),
+                    ("Correctly answer 4 probability questions.", "Probability", 4),
+                    ("Find the coefficient in 2 binomial expansions.", "Binomial Theorem", 2),
+                    ("Use the Remainder Theorem twice.", "Polynomial Functions", 2),
+                    ("Solve 3 trigonometric equations.", "Trigonometry", 3),
+                    ("Calculate the magnitude of 4 vectors.", "Vectors", 4)
                 ]
                 conn.execute(text("INSERT INTO daily_challenges (description, topic, target_count) VALUES (:description, :topic, :target_count)"), 
                              [{"description": d, "topic": t, "target_count": c} for d, t, c in challenges])
@@ -2072,6 +2093,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
