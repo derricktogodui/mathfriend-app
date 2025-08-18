@@ -99,79 +99,21 @@ def create_and_verify_tables():
                             )'''))
 
             # --- Populate daily_challenges if it's empty ---
-def create_and_verify_tables():
-    """Creates, verifies, and populates necessary database tables."""
-    try:
-        with engine.connect() as conn:
-            # --- Standard Tables ---
-            conn.execute(text('''CREATE TABLE IF NOT EXISTS users (username TEXT PRIMARY KEY, password TEXT)'''))
-            conn.execute(text('''CREATE TABLE IF NOT EXISTS quiz_results
-                         (id SERIAL PRIMARY KEY, username TEXT, topic TEXT, score INTEGER,
-                          questions_answered INTEGER, timestamp TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP)'''))
-            conn.execute(text('''CREATE TABLE IF NOT EXISTS user_profiles
-                         (username TEXT PRIMARY KEY, full_name TEXT, school TEXT, age INTEGER, bio TEXT)'''))
-            conn.execute(text('''CREATE TABLE IF NOT EXISTS user_status
-                         (username TEXT PRIMARY KEY, is_online BOOLEAN, last_seen TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP)'''))
-            
-            # --- Gamification Tables ---
-            conn.execute(text('''CREATE TABLE IF NOT EXISTS daily_challenges (
-                                id SERIAL PRIMARY KEY,
-                                description TEXT NOT NULL,
-                                topic TEXT NOT NULL,
-                                target_count INTEGER NOT NULL
-                            )'''))
-            conn.execute(text('''CREATE TABLE IF NOT EXISTS user_daily_progress (
-                                username TEXT NOT NULL,
-                                challenge_date DATE NOT NULL,
-                                challenge_id INTEGER REFERENCES daily_challenges(id),
-                                progress_count INTEGER DEFAULT 0,
-                                is_completed BOOLEAN DEFAULT FALSE,
-                                PRIMARY KEY (username, challenge_date)
-                            )'''))
-            conn.execute(text('''CREATE TABLE IF NOT EXISTS user_achievements (
-                                id SERIAL PRIMARY KEY,
-                                username TEXT NOT NULL,
-                                achievement_name TEXT NOT NULL,
-                                badge_icon TEXT,
-                                unlocked_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-                            )'''))
-
-            # --- Expanded list of daily challenges covering all 18 topics ---
             result = conn.execute(text("SELECT COUNT(*) FROM daily_challenges")).scalar_one()
             if result == 0:
                 print("Populating daily_challenges table for the first time.")
                 challenges = [
-                    # General Challenges
                     ("Answer 5 questions correctly on any topic.", "Any", 5),
-                    ("Complete any quiz with a score of 4 or more.", "Any", 4),
-                    
-                    # Original 12 Topic Challenges
-                    ("Correctly answer 4 Set theory questions.", "Sets", 4),
-                    ("Get 3 correct answers in a Percentages quiz.", "Percentages", 3),
-                    ("Solve 4 problems involving Fractions.", "Fractions", 4),
-                    ("Simplify 3 expressions using the laws of Indices.", "Indices", 3),
+                    ("Get 3 correct answers in a Fractions quiz.", "Fractions", 3),
                     ("Get 3 correct answers in a Surds quiz.", "Surds", 3),
-                    ("Evaluate 3 Binary Operations correctly.", "Binary Operations", 3),
-                    ("Answer 4 questions on Relations and Functions.", "Relations and Functions", 4),
-                    ("Solve 3 problems on Sequence and Series.", "Sequence and Series", 3),
-                    ("Solve 2 math Word Problems.", "Word Problems", 2),
-                    ("Answer 4 questions about Shapes (Geometry).", "Shapes (Geometry)", 4),
-                    ("Get 5 correct answers in Algebra Basics.", "Algebra Basics", 5),
-                    ("Solve 3 problems in Linear Algebra.", "Linear Algebra", 3),
-                    
-                    # New 6 Advanced Topic Challenges
-                    ("Solve 3 logarithmic equations.", "Logarithms", 3),
-                    ("Correctly answer 4 probability questions.", "Probability", 4),
-                    ("Find the coefficient in 2 binomial expansions.", "Binomial Theorem", 2),
-                    ("Use the Remainder Theorem twice.", "Polynomial Functions", 2),
-                    ("Solve 3 trigonometric equations.", "Trigonometry", 3),
-                    ("Calculate the magnitude of 4 vectors.", "Vectors", 4)
+                    ("Score at least 4 in an Algebra Basics quiz.", "Algebra Basics", 4),
+                    ("Complete any quiz with a score of 5 or more.", "Any", 5)
                 ]
                 conn.execute(text("INSERT INTO daily_challenges (description, topic, target_count) VALUES (:description, :topic, :target_count)"), 
                              [{"description": d, "topic": t, "target_count": c} for d, t, c in challenges])
             
             conn.commit()
-        print("Database tables created or verified successfully, including expanded gamification tables.")
+        print("Database tables created or verified successfully, including Daily Challenge tables.")
     except Exception as e:
         st.error(f"Database setup error: {e}")
 create_and_verify_tables()
@@ -2130,6 +2072,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
