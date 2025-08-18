@@ -1017,16 +1017,41 @@ def _generate_relations_functions_question():
     options = set()
     
     if q_type == 'domain_range':
-        domain_set = set(random.sample(range(-15, 20), k=random.randint(4, 5)))
-        range_set = set(random.sample(range(-15, 20), k=random.randint(4, 5)))
-        relation_pairs = list(zip(domain_set, range_set))
+        # --- THIS ENTIRE BLOCK IS REWRITTEN FOR CORRECTNESS ---
+        domain_list = sorted(list(set(random.sample(range(-15, 20), k=random.randint(4, 5)))))
+        range_list = sorted(list(set(random.sample(range(-15, 20), k=random.randint(4, 5)))))
+        
+        # Ensure domain and range are not identical
+        while set(domain_list) == set(range_list):
+            range_list = sorted(list(set(random.sample(range(-15, 20), k=random.randint(4, 5)))))
+            
+        relation_pairs = list(zip(domain_list, range_list))
+        random.shuffle(relation_pairs)
         relation_str = str(set(relation_pairs)).replace("'", "")
+        
         d_or_r = random.choice(['domain', 'range'])
+        
         question = f"What is the {d_or_r} of the relation $R = {relation_str}$?"
-        answer = str(domain_set if d_or_r == 'domain' else range_set)
+        
+        domain_set_str = str(set(domain_list))
+        range_set_str = str(set(range_list))
+
+        if d_or_r == 'domain':
+            answer = domain_set_str
+            # Plausible distractors
+            distractor1 = range_set_str
+            distractor2 = str(set(domain_list).union(set(range_list)))
+            distractor3 = str(set(domain_list) - {random.choice(domain_list)}) # Domain with one element missing
+        else: # range
+            answer = range_set_str
+            # Plausible distractors
+            distractor1 = domain_set_str
+            distractor2 = str(set(domain_list).union(set(range_list)))
+            distractor3 = str(set(range_list) - {random.choice(range_list)}) # Range with one element missing
+
         hint = "The domain is the set of all unique first elements (x-values). The range is the set of all unique second elements (y-values)."
-        explanation = f"Given the relation as a set of ordered pairs, the domain is the set of all first components, and the range is the set of all second components."
-        options = {answer, str(domain_set.union(range_set))}
+        explanation = f"Given the relation $R = {relation_str}$:\n- The domain (set of all first numbers) is ${domain_set_str}$.\n- The range (set of all second numbers) is ${range_set_str}$."
+        options = {answer, distractor1, distractor2, distractor3}
 
     elif q_type == 'evaluate':
         a, b, x = random.randint(2, 8), random.randint(-10, 10), random.randint(1, 7)
@@ -1063,7 +1088,6 @@ def _generate_relations_functions_question():
         hint = "Check if any x-values or y-values are repeated in the ordered pairs."
         explanation = f"This relation is **{correct_type}** because of how the inputs (first elements) map to the outputs (second elements)."
         options = {"One-to-one", "Many-to-one", "One-to-many"}
-        # Ensure the correct answer is one of the options
         options.add(answer)
 
     elif q_type == 'is_function':
@@ -2502,6 +2526,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
