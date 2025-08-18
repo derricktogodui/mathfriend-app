@@ -1159,38 +1159,75 @@ def _generate_sequence_series_question():
 
 
 def _generate_word_problems_question():
-    # Subtopics: Linear equations, simultaneous, age, consecutive integers
-    q_type = random.choice(['linear', 'age', 'consecutive_integers'])
+    """Generates a multi-subtopic question for Word Problems with enhanced variety."""
+    # UPGRADED: Expanded list of sub-topics based on your suggestions
+    q_type = random.choice(['linear_number', 'age', 'consecutive_integers', 'ratio', 'work_rate'])
+    question, answer, hint, explanation = "", "", "", ""
+    options = set()
 
-    if q_type == 'linear':
-        x, k, m = random.randint(5, 15), random.randint(5, 15), random.randint(2, 5)
+    if q_type == 'linear_number':
+        x, k, m = random.randint(5, 20), random.randint(5, 20), random.randint(2, 5)
         result = m*x + k
         question = f"When {m} times a certain number is increased by {k}, the result is {result}. Find the number."
         answer = str(x)
-        hint = "Let the number be 'n'. Translate the sentence into an equation and solve."
-        explanation = f"1. Let the number be n. The equation is ${m}n + {k} = {result}$.\n\n2. Subtract {k}: ${m}n = {result-k}$.\n\n3. Divide by {m}: $n = {(result-k)/m}$."
+        hint = "Let the number be 'n'. Translate the sentence into an equation and solve for n."
+        explanation = f"1. Let the number be n. The equation is ${m}n + {k} = {result}$.\n2. Subtract {k}: ${m}n = {result-k}$.\n3. Divide by {m}: $n = \\frac{{{result-k}}}{{{m}}} = {x}$."
         options = {answer, str(result-k), str(result/m)}
 
     elif q_type == 'age':
-        ama_age, kofi_age = random.randint(5, 10), random.randint(15, 25)
-        while kofi_age - 2*ama_age <= 0:
-            ama_age, kofi_age = random.randint(5, 10), random.randint(15, 25)
+        ama_age, kofi_age = random.randint(5, 15), random.randint(20, 40)
+        while kofi_age - 2*ama_age <= 0: # Ensure a positive number of years
+            ama_age, kofi_age = random.randint(5, 15), random.randint(20, 40)
         ans_val = kofi_age - 2*ama_age
-        question = f"Ama is {ama_age} years old and Kofi is {kofi_age} years old. In how many years will Kofi be twice as old as Ama?"
+        
+        phrasing = random.choice([
+            f"Ama is {ama_age} years old and her father Kofi is {kofi_age} years old. In how many years will Kofi be twice as old as Ama?",
+            f"A mother in Accra is {kofi_age} and her son is {ama_age}. In how many years will the mother's age be double her son's age?"
+        ])
+        question = phrasing
         answer = str(ans_val)
-        hint = "Let the number of years be 'x'. Set up an equation for their future ages: Kofi's Future Age = 2 * Ama's Future Age."
-        explanation = f"1. Let x be the number of years.\n\n2. In x years, Ama will be {ama_age}+x and Kofi will be {kofi_age}+x.\n\n3. Equation: ${kofi_age}+x = 2({ama_age}+x)$.\n\n4. ${kofi_age}+x = {2*ama_age}+2x$.\n\n5. ${kofi_age - 2*ama_age} = 2x-x \implies x = {ans_val}$."
+        hint = "Let the number of years be 'x'. Set up an equation for their future ages: Father's Future Age = 2 * Child's Future Age."
+        explanation = f"1. Let x be the number of years.\n2. In x years, their ages will be {ama_age}+x and {kofi_age}+x.\n3. Equation: ${kofi_age}+x = 2({ama_age}+x)$.\n4. Solve for x: ${kofi_age}+x = {2*ama_age}+2x \implies x = {kofi_age - 2*ama_age} = {ans_val}$."
         options = {answer, str(kofi_age - ama_age)}
 
     elif q_type == 'consecutive_integers':
-        start, num = random.randint(5, 25), random.choice([2, 3])
-        integers = [start+i for i in range(num)]
+        start, num = random.randint(10, 30), random.choice([2, 3])
+        num_type = random.choice(['integers', 'even integers', 'odd integers'])
+        if num_type == 'integers': integers = [start+i for i in range(num)]
+        elif num_type == 'even integers': integers = [start*2, start*2+2, start*2+4][:num]
+        else: integers = [start*2+1, start*2+3, start*2+5][:num]
         total = sum(integers)
-        question = f"The sum of {num} consecutive integers is {total}. What is the largest of these integers?"
-        answer = str(integers[-1])
-        hint = f"Represent the integers as n, n+1, ... and set their sum equal to {total}."
-        explanation = f"1. Let the integers be n, n+1, ...\n\n2. Equation: {'n + (n+1)' if num==2 else 'n + (n+1) + (n+2)'} = {total}.\n\n3. ${num}n + {1 if num==2 else 3} = {total} \implies {num}n = {total-(1 if num==2 else 3)} \implies n = {start}$.\n\n4. The integers are {integers}. The largest is {answer}."
-        options = {answer, str(start), str(total/num)}
+        
+        question = f"The sum of {num} consecutive {num_type} is {total}. What is the smallest of these integers?"
+        answer = str(integers[0])
+        hint = f"Represent the integers algebraically (e.g., n, n+2 for consecutive even integers). Set their sum equal to {total} and solve for n."
+        explanation = f"1. Let the integers be n, n+2, ...\n2. Equation for the sum: {num}n + ... = {total}.\n3. Solving for n gives the first integer, which is {answer}."
+        options = {answer, str(integers[-1]), str(int(total/num))}
+
+    elif q_type == 'ratio':
+        ratio1, ratio2 = random.randint(2, 5), random.randint(3, 7)
+        total_amount = random.randint(10, 20) * (ratio1 + ratio2)
+        share1 = int((ratio1 / (ratio1+ratio2)) * total_amount)
+        share2 = total_amount - share1
+        
+        question = f"Two students, Yaw and Adwoa, share GHS {total_amount} in the ratio {ratio1}:{ratio2}. How much does Yaw, who gets the first share, receive?"
+        answer = f"GHS {share1}"
+        hint = "First, find the total number of parts in the ratio. Then, divide the total amount by the total parts to find the value of one part."
+        explanation = f"1. Total parts in ratio = {ratio1} + {ratio2} = {ratio1+ratio2}.\n2. Value of one part = GHS {total_amount} / {ratio1+ratio2} = GHS {total_amount/(ratio1+ratio2)}.\n3. Yaw's share = {ratio1} parts = {ratio1} * {total_amount/(ratio1+ratio2)} = GHS {share1}."
+        options = {answer, f"GHS {share2}"}
+        
+    elif q_type == 'work_rate':
+        time_a = random.randint(3, 6) # Time for person A to do the job
+        time_b = time_a * 2          # Time for person B is double
+        # Rate of A = 1/time_a, Rate of B = 1/time_b. Combined rate = 1/a + 1/b = (a+b)/ab
+        # Time together = 1 / combined_rate = ab / (a+b)
+        time_together = (time_a * time_b) / (time_a + time_b)
+        
+        question = f"Worker A can complete a job in {time_a} hours. Worker B can complete the same job in {time_b} hours. How long would it take them to complete the job if they work together?"
+        answer = f"{time_together:.2f} hours"
+        hint = "First, find the rate of work for each person (jobs per hour). Then, add their rates together to find their combined rate."
+        explanation = f"1. Rate of A = $\\frac{{1}}{{{time_a}}}$ jobs/hour.\n2. Rate of B = $\\frac{{1}}{{{time_b}}}$ jobs/hour.\n3. Combined Rate = $\\frac{{1}}{{{time_a}}} + \\frac{{1}}{{{time_b}}} = \\frac{{{time_b+time_a}}}{{{time_a*time_b}}}$ jobs/hour.\n4. Time Together = $\\frac{{1}}{{\\text{{Combined Rate}}}} = \\frac{{{time_a*time_b}}}{{{time_a+time_b}}} = {time_together:.2f}$ hours."
+        options = {answer, f"{ (time_a+time_b)/2 :.2f} hours"}
 
     return {"question": question, "options": _finalize_options(options), "answer": answer, "hint": hint, "explanation": explanation}
 
@@ -2541,6 +2578,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
