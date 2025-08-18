@@ -1102,44 +1102,59 @@ def _generate_relations_functions_question():
     return {"question": question, "options": _finalize_options(options, "set_str"), "answer": answer, "hint": hint, "explanation": explanation}
 
 def _generate_sequence_series_question():
-    # Subtopics: AP term/sum, GP term/sum, Sum to Infinity
-    q_type = random.choice(['ap_term', 'gp_term', 'ap_sum', 'gp_sum_inf'])
-    a = random.randint(2, 6)
+    """Generates a multi-subtopic question for Sequence and Series with enhanced variety."""
+    # UPGRADED: Expanded list of sub-topics based on your suggestions
+    q_type = random.choice(['ap_term', 'gp_term', 'ap_sum', 'gp_sum_inf', 'word_problem'])
+    question, answer, hint, explanation = "", "", "", ""
+    options = set()
+    a = random.randint(2, 10)
 
     if q_type == 'ap_term':
-        d, n = random.randint(3, 8), random.randint(8, 15)
-        seq = ", ".join([str(a + i*d) for i in range(3)])
-        question = f"Find the {n}th term of the arithmetic sequence: {seq}, ..."
+        d, n = random.randint(3, 10), random.randint(10, 25)
+        sequence = ", ".join([str(a + i*d) for i in range(4)])
+        question = f"Find the {n}th term of the arithmetic progression: {sequence}, ..."
         answer = str(a + (n - 1) * d)
         hint = r"Use the AP nth term formula: $a_n = a + (n-1)d$."
-        explanation = f"1. First term $a = {a}$.\n\n2. Common difference $d = {a+d} - {a} = {d}$.\n\n3. $a_{{{n}}} = {a} + ({n}-1)({d}) = {a} + {n-1}*{d} = {answer}$."
+        explanation = f"1. First term $a = {a}$.\n2. Common difference $d = {a+d} - {a} = {d}$.\n3. The {n}th term is $a_{{{n}}} = {a} + ({n}-1)({d}) = {answer}$."
         options = {answer, str(a + n*d)}
     
     elif q_type == 'gp_term':
-        r, n = random.randint(2, 4), random.randint(4, 7)
-        seq = ", ".join([str(a * r**i) for i in range(3)])
-        question = f"Find the {n}th term of the geometric sequence: {seq}, ..."
+        r, n = random.randint(2, 4), random.randint(5, 8)
+        sequence = ", ".join([str(a * r**i) for i in range(3)])
+        question = f"What is the {n}th term of the geometric progression: {sequence}, ...?"
         answer = str(a * r**(n-1))
         hint = r"Use the GP nth term formula: $a_n = ar^{n-1}$."
-        explanation = f"1. First term $a = {a}$.\n\n2. Common ratio $r = {a*r}/{a} = {r}$.\n\n3. $a_{{{n}}} = {a} \\times {r}^{{{n}-1}} = {a} \\times {r**(n-1)} = {answer}$."
+        explanation = f"1. First term $a = {a}$.\n2. Common ratio $r = \\frac{{{a*r}}}{{{a}}} = {r}$.\n3. The {n}th term is $a_{{{n}}} = {a} \\times {r}^{{{n}-1}} = {answer}$."
         options = {answer, str((a*r)**(n-1))}
 
     elif q_type == 'ap_sum':
-        d, n = random.randint(2, 5), random.randint(10, 20)
-        question = f"Find the sum of the first {n} terms of an AP with first term {a} and common difference {d}."
+        d, n = random.randint(2, 7), random.randint(12, 25)
+        question = f"Find the sum of the first {n} terms of an Arithmetic Progression with first term {a} and common difference {d}."
         answer = str(int((n/2) * (2*a + (n-1)*d)))
-        hint = r"Use the AP sum formula: $S_n = \frac{n}{2}(2a + (n-1)d)$."
-        explanation = f"1. $S_{{{n}}} = \\frac{{{n}}}{{2}}(2({a}) + ({n}-1)({d}))$.\n\n2. $S_{{{n}}} = {n/2}({2*a} + {n-1}*{d}) = {n/2}({2*a + (n-1)*d}) = {answer}$."
+        hint = r"Use the sum of an AP formula: $S_n = \frac{n}{2}(2a + (n-1)d)$."
+        explanation = f"$S_{{{n}}} = \\frac{{{n}}}{{2}}(2({a}) + ({n}-1)({d})) = \\frac{{{n}}}{{2}}({2*a + (n-1)*d}) = {answer}$."
         options = {answer, str(n*(a + (n-1)*d))}
 
     elif q_type == 'gp_sum_inf':
-        r = Fraction(1, random.randint(2, 5))
-        question = f"Find the sum to infinity of a GP with first term ${a}$ and common ratio ${_get_fraction_latex_code(r)}$."
+        r = Fraction(random.randint(1,3), random.randint(4, 7))
+        question = f"A geometric series has a first term of ${a}$ and a common ratio of ${_get_fraction_latex_code(r)}$. Calculate its sum to infinity."
         answer = _format_fraction_text(a / (1 - r))
-        hint = r"Use the sum to infinity formula: $S_\infty = \frac{a}{1-r}$, for $|r| < 1$."
-        explanation = f"$S_\\infty = \\frac{{{a}}}{{1 - {r.numerator}/{r.denominator}}} = \\frac{{{a}}}{{{(r.denominator-r.numerator)}/{r.denominator}}} = {a} \\times \\frac{{{r.denominator}}}{{{r.denominator-r.numerator}}} = {_get_fraction_latex_code(a/(1-r))}$."
-        options = {_format_fraction_text(a / (1-r)), _format_fraction_text(a/(1+r))}
-
+        hint = r"Use the sum to infinity formula: $S_\infty = \frac{a}{1-r}$, which is valid for $|r| < 1$."
+        explanation = f"$S_\\infty = \\frac{{{a}}}{{1 - {_get_fraction_latex_code(r)}}} = \\frac{{{a}}}{{{_get_fraction_latex_code(1-r)}}} = {_get_fraction_latex_code(a/(1-r))}$."
+        options = {answer, _format_fraction_text(a/(1+r))}
+        
+    elif q_type == 'word_problem':
+        initial_amount = random.randint(100, 200)
+        depreciation_rate = random.randint(10, 20)
+        years = 3
+        # Value after n years = P * (1 - r)^n
+        final_value = initial_amount * ((1 - depreciation_rate/100)**years)
+        question = f"A farmer in the Ashanti Region buys a machine for GHS {initial_amount}. The machine depreciates in value by {depreciation_rate}% each year. What is its value after {years} years, to two decimal places?"
+        answer = f"GHS {final_value:.2f}"
+        hint = "This is a geometric progression problem where the common ratio 'r' is less than 1. Use the formula for depreciation: Final Value = $P(1 - r)^n$."
+        explanation = f"1. The initial value P = {initial_amount}.\n2. The rate r = {depreciation_rate}% = {depreciation_rate/100}.\n3. The number of years n = {years}.\n4. Final Value = ${initial_amount}(1 - {depreciation_rate/100})^{{{years}}} = {initial_amount}({1-depreciation_rate/100})^{{{years}}} \\approx {final_value:.2f}$."
+        options = {answer, f"GHS {initial_amount * (1 - (depreciation_rate*years)/100):.2f}"} # Simple interest depreciation
+    
     return {"question": question, "options": _finalize_options(options), "answer": answer, "hint": hint, "explanation": explanation}
 
 
@@ -2526,6 +2541,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
