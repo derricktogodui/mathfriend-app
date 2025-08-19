@@ -39,8 +39,7 @@ def initialize_session_state():
         "questions_attempted": 0, # NEW VARIABLE
         "current_streak": 0,
         "incorrect_questions": [],
-        "on_summary_page": False,
-        "seen_message_ids": set()   # 👈 New variable
+        "on_summary_page": False
     }
     for key, value in defaults.items():
         if key not in st.session_state:
@@ -2064,23 +2063,10 @@ def display_blackboard_page():
     channel.create(st.session_state.username)
     state = channel.query(watch=False, state=True, messages={"limit": 50})
     messages = state['messages']
-    # This loop now includes the logic for toast notifications
-    #messages.reverse() # Reverse to process oldest new message first
     for msg in messages:
         user_id = msg["user"].get("id", "Unknown")
         user_name = msg["user"].get("name", user_id)
         is_current_user = (user_id == st.session_state.username)
-
-        # 1. Check if the message is new
-        if msg['id'] not in st.session_state.seen_message_ids:
-            # 2. If it's new and NOT from the current user, show a notification
-            if not is_current_user:
-                st.toast(f"💬 {user_name}: {msg['text']}", icon="📢")
-            
-            # 3. Add the message ID to the set of seen messages
-            st.session_state.seen_message_ids.add(msg['id'])
-
-        # This part is the same as before, for displaying the message in the chat
         with st.chat_message(name="user" if is_current_user else "assistant"):
             if not is_current_user:
                 st.markdown(f"**{user_name}**")
@@ -2670,8 +2656,6 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
-
-
 
 
 
