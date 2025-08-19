@@ -1323,105 +1323,71 @@ def _generate_shapes_question():
         
     return {"question": question, "options": _finalize_options(options), "answer": answer, "hint": hint, "explanation": explanation}
 def _generate_algebra_basics_question():
-    """Generates a multi-subtopic question for Algebra Basics with enhanced variety."""
-    # UPGRADED: Expanded list of sub-topics based on your suggestions
-    q_type = random.choice(['simplify_expression', 'factorization', 'solve_linear', 'solve_inequality', 'special_product', 'algebraic_fractions'])
-    question, answer, hint, explanation = "", "", "", ""
-    options = set()
-
-    if q_type == 'simplify_expression':
-        a, b, c, d = [random.randint(2, 8) for _ in range(4)]
-        question = f"Expand and simplify the expression: ${a}(x + {b}) - {c}(x - {d})$"
-        x_coeff = a - c
-        const = a * b + c * d
+    # Subtopics: Simplification, Solving Equations (linear, quad, simultaneous), Change of Subject
+    q_type = random.choice(['simplify', 'solve_linear', 'change_subject', 'solve_simultaneous', 'solve_quadratic'])
+    
+    if q_type == 'simplify':
+        a, b = random.randint(2, 6), random.randint(2, 6)
+        question = f"Expand and simplify: ${a}(x + {b}) - {a-1}x$"
+        answer = f"x + {a*b}"
+        hint = "First, expand the bracket by multiplying. Then, collect like terms."
+        explanation = f"1. Expand: ${a}(x + {b}) = {a}x + {a*b}$.\n\n2. Full expression: ${a}x + {a*b} - {a-1}x$.\n\n3. Collect x terms: $({a} - {a-1})x = 1x = x$.\n\n4. Final result: $x + {a*b}$."
+        options = {answer, f"{2*a-1}x + {a*b}", f"x - {a*b}"}
         
-        # Correctly format the final answer string to handle signs
-        if x_coeff == 1: x_part = "x"
-        elif x_coeff == -1: x_part = "-x"
-        elif x_coeff == 0: x_part = ""
-        else: x_part = f"{x_coeff}x"
-
-        if const == 0 and x_part != "": answer = f"${x_part}$"
-        elif const > 0: answer = f"${x_part} + {const}$" if x_part != "" else str(const)
-        else: answer = f"${x_part} - {abs(const)}$" if x_part != "" else str(const)
-            
-        hint = "First, expand both brackets by multiplying. Then, be careful with the signs and collect like terms."
-        explanation = f"1. Expand brackets: $({a}x + {a*b}) - ({c}x - {c*d})$.\n2. Simplify: ${a}x + {a*b} - {c}x + {c*d}$.\n3. Collect terms: $({a-c})x + ({a*b+c*d}) = {x_coeff}x + {const}$."
-        options = {answer, f"${a+c}x + {a*b-c*d}$"}
-
-    elif q_type == 'factorization':
-        factor_type = random.choice(['diff_squares', 'trinomial'])
-        if factor_type == 'diff_squares':
-            a = random.randint(2, 10); b_val = random.randint(2, 5); b = f"{b_val}y"
-            question = f"Factorize completely: ${a**2}x^2 - {b_val**2}y^2$"
-            answer = f"$({a}x - {b})({a}x + {b})$"
-            hint = "Recognize this as a difference of two squares: $A^2 - B^2 = (A-B)(A+B)$."
-            explanation = f"Here, $A^2 = {a**2}x^2$ so $A={a}x$, and $B^2 = {b_val**2}y^2$ so $B={b}$.\nThe factorization is $(A-B)(A+B)$, which gives ${answer}$."
-            options = {answer, f"$({a}x - {b})^2$"}
-        else: # trinomial
-            r1, r2 = random.randint(-7, 7), random.randint(-7, 7)
-            while r1 == 0 or r2 == 0 or r1==r2: r1, r2 = random.randint(-7, 7), random.randint(-7, 7)
-            b, c = r1 + r2, r1 * r2
-            question = f"Factorize the trinomial: $x^2 + {b}x + {c}$"
-            answer = f"$(x + {r1})(x + {r2})$"
-            hint = f"Look for two numbers that multiply to {c} and add to {b}."
-            explanation = f"The two numbers are ${r1}$ and ${r2}$, since ${r1} \\times {r2} = {c}$ and ${r1} + {r2} = {b}$.\nTherefore, the factors are $(x + ({r1}))(x + ({r2}))$, which is ${answer}$."
-            options = {answer, f"$(x - {r1})(x - {r2})$"}
-
     elif q_type == 'solve_linear':
-        a, b, x = random.randint(2, 8), random.randint(5, 20), random.randint(2, 10)
+        a, b, x = random.randint(2, 5), random.randint(5, 15), random.randint(2, 8)
         c = a * x + b
-        question = f"Solve for x in the equation: ${a}x + {b} = {c}$"
+        question = f"Solve for x: ${a}x + {b} = {c}$"
         answer = str(x)
-        hint = "Isolate the term with 'x' on one side of the equation, then divide to find x."
-        explanation = f"1. Equation: ${a}x + {b} = {c}$.\n2. Subtract {b} from both sides: ${a}x = {c-b}$.\n3. Divide by {a}: $x = \\frac{{{c-b}}}{{{a}}} = {x}$."
+        hint = "Isolate the x term on one side of the equation, then divide."
+        explanation = f"1. Equation: ${a}x + {b} = {c}$.\n\n2. Subtract {b} from both sides: ${a}x = {c-b}$.\n\n3. Divide by {a}: $x = {(c-b)/a}$."
         options = {answer, str(c-b), str((c+b)/a)}
         
-    elif q_type == 'solve_inequality':
-        a, b, x = random.randint(2, 5), random.randint(10, 20), random.randint(3, 8)
-        c = a*x - b
-        question = f"Find the solution to the inequality: ${a}x - {b} > {c}$"
-        answer = f"$x > {x}$"
-        hint = "Solve this just like a linear equation. Only flip the inequality sign if you multiply or divide by a negative number."
-        explanation = f"1. Inequality: ${a}x - {b} > {c}$.\n2. Add {b} to both sides: ${a}x > {c+b}$.\n3. Divide by {a}: $x > \\frac{{{c+b}}}{{{a}}} = {x}$."
-        options = {answer, f"$x < {x}$", f"$x > {c-b}"}
-        
-    elif q_type == 'special_product':
-        a, b = random.randint(2, 8), random.randint(2, 8)
-        x = 'x'
-        question = f"Expand the expression: $({a}{x} - {b})^2$"
-        answer = f"${a**2}{x}^2 - {2*a*b}{x} + {b**2}$"
-        hint = "Use the formula $(A-B)^2 = A^2 - 2AB + B^2$."
-        explanation = f"Let $A={a}{x}$ and $B={b}$.\nUsing the formula, we get $A^2 - 2AB + B^2 = ({a}{x})^2 - 2({a}{x})({b}) + ({b})^2 = {answer}$."
-        options = {answer, f"${a**2}{x}^2 + {b**2}$"}
-        
-    elif q_type == 'algebraic_fractions':
-        a, b = random.randint(2, 5), random.randint(3, 6)
-        question = f"Simplify the algebraic fraction: $\\frac{{x}}{{{a}}} + \\frac{{x}}{{{b}}}$"
-        # x/a + x/b = (bx + ax) / ab = x(a+b)/ab
-        num = a + b
-        den = a * b
-        common = math.gcd(num, den)
-        num //= common
-        den //= common
-        answer = f"$\\frac{{{num}x}}{{{den}}}$"
-        hint = "To add algebraic fractions, find a common denominator, just like with regular fractions."
-        explanation = f"1. The lowest common multiple of {a} and {b} is {a*b}.\n2. $\\frac{{x}}{{{a}}} + \\frac{{x}}{{{b}}} = \\frac{{{b}x}}{{{a*b}}} + \\frac{{{a}x}}{{{a*b}}}$.\n3. Combine the numerators: $\\frac{{{b}x + {a}x}}{{{a*b}}} = \\frac{{({a+b})x}}{{{a*b}}}$.\n4. Simplify the fraction to get {answer}."
-        options = {answer, f"$\\frac{{2x}}{{{a+b}}}$", f"$\\frac{{x^2}}{{{a*b}}}$"}
+    elif q_type == 'change_subject':
+        var = random.choice(['u', 'a', 't'])
+        question = f"Make '{var}' the subject of the formula $v = u + at$."
+        if var == 'u': answer = "$u = v - at$"; options = {answer, "$u = v + at$"}
+        elif var == 'a': answer = "$a = \\frac{v-u}{t}$"; options = {answer, "$a = v - u - t$"}
+        else: answer = "$t = \\frac{v-u}{a}$"; options = {answer, "$t = v - u - a$"}
+        hint = "Use inverse operations to isolate the desired variable."
+        explanation = f"To make '{var}' the subject, we need to move all other terms to the other side.\n\n- Start with $v = u + at$.\n\n- To isolate {var}, we rearrange the formula to get: {answer}."
+    
+    elif q_type == 'solve_simultaneous':
+        x, y = random.randint(1, 5), random.randint(1, 5)
+        a1, b1 = random.randint(1,3), random.randint(1,3)
+        a2, b2 = random.randint(1,3), random.randint(1,3)
+        while a1*b2 - a2*b1 == 0: a2, b2 = random.randint(1,3), random.randint(1,3)
+        c1 = a1*x + b1*y; c2 = a2*x + b2*y
+        question = f"Solve the simultaneous equations:\n\n$ {a1}x + {b1}y = {c1} $\n\n$ {a2}x + {b2}y = {c2} $"
+        answer = f"x={x}, y={y}"
+        hint = "Use either the substitution or elimination method."
+        explanation = f"Using elimination:\n\n1. Multiply first eq by {a2}, second by {a1}: \n\n  $ {a1*a2}x + {b1*a2}y = {c1*a2} $\n\n  $ {a1*a2}x + {b2*a1}y = {c2*a1} $\n\n2. Subtract them: $({b1*a2} - {b2*a1})y = {c1*a2} - {c2*a1} \implies {b1*a2 - b2*a1}y = {c1*a2 - c2*a1} \implies y={y}$.\n\n3. Substitute y={y} into first eq: ${a1}x + {b1}({y}) = {c1} \implies {a1}x = {c1-b1*y} \implies x={x}$."
+        options = {answer, f"x={y}, y={x}", f"x={x}, y={-y}"}
 
+    elif q_type == 'solve_quadratic':
+        r1, r2 = random.randint(-5, 5), random.randint(-5, 5)
+        while r1 == r2: r2 = random.randint(-5, 5)
+        b = -(r1 + r2); c = r1 * r2; a = 1
+        # To make it look more standard, ensure b and c are written with correct signs
+        b_sign = "+" if b > 0 else "-"
+        c_sign = "+" if c > 0 else "-"
+        b_abs, c_abs = abs(b), abs(c)
+        if b == 0:
+            question = f"Solve the quadratic equation: $x^2 {c_sign} {c_abs} = 0$"
+        else:
+            question = f"Solve the quadratic equation: $x^2 {b_sign} {b_abs}x {c_sign} {c_abs} = 0$"
+        answer = f"x={r1} or x={r2}"
+        hint = "Factorize the quadratic expression or use the quadratic formula."
+        explanation = f"This equation can be factorized by finding two numbers that multiply to {c} and add to {b}. These numbers are {-r1} and {-r2}.\n\nSo, $(x - ({r1}))(x - ({r2})) = 0$.\n\nThe solutions are $x = {r1}$ and $x = {r2}$."
+        options = {answer, f"x={-r1} or x={-r2}", f"x={b} or x={c}"}
+    
     return {"question": question, "options": _finalize_options(options), "answer": answer, "hint": hint, "explanation": explanation}
 
+
 def _generate_linear_algebra_question():
-    """Generates a multi-subtopic question for Linear Algebra with enhanced variety."""
-    # UPGRADED: Expanded list of sub-topics
-    q_type = random.choice(['add_sub', 'scalar_multiply', 'matrix_multiply', 'determinant', 'inverse', 'solve_system'])
-    question, answer, hint, explanation = "", "", "", ""
-    options = set()
-    
-    # UPGRADED: Wider number range for more variety
-    mat_a = np.random.randint(-9, 10, size=(2, 2))
-    mat_b = np.random.randint(-9, 10, size=(2, 2))
-    
+    # Subtopics: Matrix ops, Determinant/Inverse
+    q_type = random.choice(['add_sub', 'multiply', 'determinant', 'inverse'])
+    mat_a = np.random.randint(-5, 10, size=(2, 2)); mat_b = np.random.randint(-5, 10, size=(2, 2))
     def mat_to_latex(m): return f"\\begin{{pmatrix}} {m[0,0]} & {m[0,1]} \\\\ {m[1,0]} & {m[1,1]} \\end{{pmatrix}}"
 
     if q_type == 'add_sub':
@@ -1431,22 +1397,13 @@ def _generate_linear_algebra_question():
         hint = f"To {op} matrices, {op} their corresponding elements."
         explanation = f"You {op} the element in each position. e.g., for the top-left element: ${mat_a[0,0]} {sym} {mat_b[0,0]} = {res_mat[0,0]}$."
         options = {answer, f"${mat_to_latex(np.dot(mat_a, mat_b))}$"}
-
-    elif q_type == 'scalar_multiply':
-        scalar = random.randint(2, 5)
-        question = f"If matrix $A = {mat_to_latex(mat_a)}$, find the matrix ${scalar}A$."
-        res_mat = scalar * mat_a
-        answer = f"${mat_to_latex(res_mat)}$"
-        hint = "To multiply a matrix by a scalar, multiply every element inside the matrix by that scalar."
-        explanation = f"Each element of A is multiplied by {scalar}.\n${scalar} \\times {mat_to_latex(mat_a)} = {mat_to_latex(res_mat)}$."
-        options = {answer, f"${mat_to_latex(mat_a + scalar)}}$"}
-
-    elif q_type == 'matrix_multiply':
+    
+    elif q_type == 'multiply':
         question = f"Find the product $AB$ for $A = {mat_to_latex(mat_a)}$ and $B = {mat_to_latex(mat_b)}$."
         res_mat = np.dot(mat_a, mat_b)
         answer = f"${mat_to_latex(res_mat)}$"
-        hint = "Multiply the rows of the first matrix by the columns of the second matrix."
-        explanation = f"The top-left element of the result is (row 1 of A) ⋅ (col 1 of B) = $({mat_a[0,0]} \\times {mat_b[0,0]}) + ({mat_a[0,1]} \\times {mat_b[1,0]}) = {res_mat[0,0]}$."
+        hint = "Multiply rows of the first matrix by columns of the second matrix."
+        explanation = f"Top-left element of result = (row 1 of A) ⋅ (col 1 of B) = $({mat_a[0,0]} \\times {mat_b[0,0]}) + ({mat_a[0,1]} \\times {mat_b[1,0]}) = {res_mat[0,0]}$."
         options = {answer, f"${mat_to_latex(mat_a+mat_b)}$"}
         
     elif q_type == 'determinant':
@@ -1459,31 +1416,13 @@ def _generate_linear_algebra_question():
     elif q_type == 'inverse':
         det = int(np.linalg.det(mat_a))
         while det == 0:
-            mat_a = np.random.randint(-9, 10, size=(2, 2)); det = int(np.linalg.det(mat_a))
+            mat_a = np.random.randint(-5, 10, size=(2, 2)); det = int(np.linalg.det(mat_a))
         question = f"Find the inverse of matrix $A = {mat_to_latex(mat_a)}$."
         adj_mat = np.array([[mat_a[1,1], -mat_a[0,1]], [-mat_a[1,0], mat_a[0,0]]])
         answer = f"$\\frac{{1}}{{{det}}}{mat_to_latex(adj_mat)}$"
         hint = r"The inverse is $\frac{1}{\det(A)} \begin{pmatrix} d & -b \\ -c & a \end{pmatrix}$."
-        explanation = f"1. Determinant = {det}.\n2. Adjugate matrix (swap a/d, negate b/c) = ${mat_to_latex(adj_mat)}$.\n3. Inverse = $\\frac{{1}}{{\\text{{det}}}} \\times \\text{{Adjugate}} = {answer}$."
+        explanation = f"1. Determinant = {det}.\n\n2. Adjugate matrix: swap a and d, negate b and c = ${mat_to_latex(adj_mat)}$.\n\n3. Inverse = $\\frac{{1}}{{\\text{{determinant}}}} \\times \\text{{adjugate}} = {answer}$."
         options = {answer, f"${mat_to_latex(adj_mat)}$"}
-
-    elif q_type == 'solve_system':
-        x, y = random.randint(1, 5), random.randint(1, 5)
-        # Ensure matrix is invertible
-        det = 0
-        while det == 0:
-            mat_a = np.random.randint(1, 5, size=(2,2))
-            det = int(np.linalg.det(mat_a))
-        
-        sol_vec = np.array([x, y])
-        res_vec = np.dot(mat_a, sol_vec)
-        
-        question = f"Given the matrix equation ${mat_to_latex(mat_a)} \\binom{{x}}{{y}} = \\binom{{{res_vec[0]}}}{{{res_vec[1]}}}$, solve for $x$ and $y$."
-        answer = f"x = {x}, y = {y}"
-        hint = "To solve the system $AX = B$, find the inverse of A ($A^{-1}$) and calculate $X = A^{-1}B$."
-        inv_mat = np.linalg.inv(mat_a)
-        explanation = f"1. Find the inverse of the matrix A, which is $A^{{-1}} = {mat_to_latex(np.round(inv_mat,2))}$.\n2. Multiply $A^{{-1}}$ by the result vector: $\\binom{{x}}{{y}} = {mat_to_latex(np.round(inv_mat,2))} \\binom{{{res_vec[0]}}}{{{res_vec[1]}}} = \\binom{{{x}}}{{{y}}}$."
-        options = {answer, f"x = {y}, y = {x}"}
 
     return {"question": question, "options": _finalize_options(options), "answer": answer, "hint": hint, "explanation": explanation}
 
@@ -2680,6 +2619,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
