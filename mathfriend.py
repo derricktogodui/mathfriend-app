@@ -39,52 +39,12 @@ def initialize_session_state():
         "questions_attempted": 0, # NEW VARIABLE
         "current_streak": 0,
         "incorrect_questions": [],
-        "on_summary_page": False,
-        "seen_message_ids": set(),  # <--- NEW
-        "_last_blackboard_messages": []  # <--- OPTIONAL (for caching)
+        "on_summary_page": False
     }
     for key, value in defaults.items():
         if key not in st.session_state:
             st.session_state[key] = value
 initialize_session_state()
-
-
-def check_new_blackboard_messages():
-    """
-    Polls the 'blackboard' channel, pops a toast for new messages from others,
-    and caches the latest messages in session_state for reuse.
-    """
-    if not st.session_state.get("logged_in"):
-        return
-
-    try:
-        channel = client.channel("messaging", "blackboard")
-        state = channel.query(watch=False, state=True, messages={"limit": 8})
-        messages = state.get("messages", [])
-
-        # Cache for Blackboard page display
-        st.session_state._last_blackboard_messages = messages
-
-        for msg in messages:
-            msg_id = msg.get("id")
-            if not msg_id:
-                continue
-
-            if msg_id in st.session_state.seen_message_ids:
-                continue
-
-            user = msg.get("user", {}) or {}
-            user_id = user.get("id", "Unknown")
-            user_name = user.get("name", user_id)
-            text = msg.get("text", "")
-
-            if user_id != st.session_state.get("username"):
-                st.toast(f"💬 {user_name}: {text}", icon="📢")
-
-            st.session_state.seen_message_ids.add(msg_id)
-
-    except Exception as e:
-        print("Notification check failed:", e)
 
 
 # --- Database Connection ---
@@ -2562,8 +2522,6 @@ def display_profile_page():
 def show_main_app():
     load_css()
     
-     # 🔔 Global notifications for Blackboard messages
-    check_new_blackboard_messages()
     # --- ADDED: Notification Handler for Both Features ---
     # This checks for the daily challenge flag and shows a toast if it's set
     if st.session_state.get('challenge_completed_toast', False):
@@ -2698,7 +2656,6 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
-
 
 
 
