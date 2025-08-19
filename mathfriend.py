@@ -2065,7 +2065,7 @@ def display_blackboard_page():
     state = channel.query(watch=False, state=True, messages={"limit": 50})
     messages = state['messages']
     # This loop now includes the logic for toast notifications
-    messages.reverse() # Reverse to process oldest new message first
+    #messages.reverse() # Reverse to process oldest new message first
     for msg in messages:
         user_id = msg["user"].get("id", "Unknown")
         user_name = msg["user"].get("name", user_id)
@@ -2670,6 +2670,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
