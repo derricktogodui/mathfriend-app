@@ -234,11 +234,9 @@ def save_quiz_result(username, topic, score, questions_answered):
         conn.execute(text("INSERT INTO quiz_results (username, topic, score, questions_answered) VALUES (:username, :topic, :score, :questions_answered)"),
                      {"username": username, "topic": topic, "score": score, "questions_answered": questions_answered})
         conn.commit()
-    # This now calls the umbrella function to update both challenges and achievements
+    # This now calls the umbrella function to update both challenges and achievements.
+    # This is the only call needed.
     update_gamification_progress(username, topic, score)
-    
-    # Call the daily challenge updater
-    update_daily_challenge_progress(username, topic, score)
 @st.cache_data(ttl=300) # Cache for 300 seconds (5 minutes)
 def get_top_scores(topic, time_filter="all"):
     with engine.connect() as conn:
@@ -2656,6 +2654,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
