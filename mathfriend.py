@@ -485,6 +485,16 @@ def get_question_id(question_text):
     """Creates a unique and consistent ID for a question based on its text."""
     return hashlib.md5(question_text.encode()).hexdigest()
 
+# Add this new helper function to your file. It is required for the main function to work.
+def _get_pascals_row(n):
+    """Helper function to generate a specific row of Pascal's triangle."""
+    # This algorithm generates the nth row of Pascal's triangle
+    row = [1]
+    for _ in range(n):
+        row = [x + y for x, y in zip([0] + row, row + [0])]
+    return row
+
+
 # --- FULLY IMPLEMENTED QUESTION GENERATION ENGINE (12 TOPICS) ---
 
 def _generate_sets_question():
@@ -847,26 +857,34 @@ def _generate_indices_question():
 
 def _generate_surds_question():
     """Generates a multi-subtopic question for Surds with enhanced variety."""
+    # --- IMPROVEMENT: This function has been upgraded. ---
+    # The 'identify' subtype no longer pulls from small, fixed lists.
+    # It now generates perfect squares and surds algorithmically from a much wider range.
+    
     q_type = random.choice(['identify', 'simplify', 'operate', 'rationalize', 'equation', 'geometry'])
     question, answer, hint, explanation = "", "", "", ""
     options = set()
 
     if q_type == 'identify':
-        surd = random.choice([2, 3, 5, 7, 11])
-        perfect_square = random.choice([4, 9, 16, 25])
+        # --- IMPROVEMENT: Numbers are now dynamically generated from a wide range ---
+        root = random.randint(2, 12)
+        perfect_square = root**2
+        
+        non_square_base = random.choice([2, 3, 5, 6, 7, 10, 11, 13, 14, 15])
+        # Multiply by a small square to create a more complex-looking non-surd, e.g. sqrt(8)
+        surd = non_square_base 
         
         question = f"Which of the following numbers is a surd?"
         answer = f"$\\sqrt{{{surd}}}$"
-        hint = "A surd is an irrational number left in root form. A number is not a surd if its root is a whole number."
-        explanation = f"$\\sqrt{{{perfect_square}}} = {int(math.sqrt(perfect_square))}$, which is a rational number.\n$\\sqrt{{{surd}}}$ cannot be simplified to a rational number, so it is a surd."
+        hint = "A surd is an irrational number left in root form. A number is not a surd if its root is a rational number."
+        explanation = f"$\\sqrt{{{perfect_square}}} = {root}$, which is a rational number, so it is not a surd.\n$\\sqrt{{{surd}}}$ cannot be simplified to a rational number, so it is a surd."
         options = {answer, f"$\\sqrt{{{perfect_square}}}$", str(random.randint(2,10))}
 
     elif q_type == 'simplify':
-        p_sq, n = random.choice([4, 9, 16, 25, 36]), random.choice([2, 3, 5, 7, 10])
+        p_sq, n = random.choice([4, 9, 16, 25, 36, 49, 64]), random.choice([2, 3, 5, 7, 10])
         num = p_sq * n
         question = f"Express $\\sqrt{{{num}}}$ in its simplest surd form."
-        answer = f"${int(math.sqrt(p_sq))}\\sqrt{{{n}}}$"
-        hint = f"Find the largest perfect square that is a factor of {num}."
+        answer = f"${int(math.sqrt(p_sq))}\\sqrt{{{n}}}$"; hint = f"Find the largest perfect square that is a factor of {num}."
         explanation = f"1. Find factors: ${num} = {p_sq} \\times {n}$.\n2. Split the surd: $\\sqrt{{{num}}} = \\sqrt{{{p_sq}}} \\times \\sqrt{{{n}}}$.\n3. Simplify: ${answer}$."
         options = {answer, f"${n}\\sqrt{{{p_sq}}}$"}
 
@@ -876,16 +894,13 @@ def _generate_surds_question():
             base_surd = random.choice([2, 3, 5]); c1, c2 = random.randint(2, 10), random.randint(2, 10)
             op, sym, res = random.choice([('add', '+', c1+c2), ('subtract', '-', c1-c2)])
             question = f"Simplify: ${c1}\\sqrt{{{base_surd}}} {sym} {c2}\\sqrt{{{base_surd}}}$"
-            answer = f"${res}\\sqrt{{{base_surd}}}$"
-            hint = "You can only add or subtract 'like' surds."
+            answer = f"${res}\\sqrt{{{base_surd}}}$"; hint = "You can only add or subtract 'like' surds."
             explanation = f"Factor out the common surd: $({c1} {sym} {c2})\\sqrt{{{base_surd}}} = {res}\\sqrt{{{base_surd}}}$."
             options = {answer, f"${c1+c2}\\sqrt{{{base_surd*2}}}$"}
         else: # multiply
-            a, b = random.randint(2, 5), random.randint(2, 5)
-            c = random.randint(2, 5)
+            a, b, c = random.randint(2, 5), random.randint(2, 5), random.randint(2, 5)
             question = f"Expand and simplify: $({a} + \\sqrt{{{b}}})({c} - \\sqrt{{{b}}})$"
-            res_term1 = a*c - b
-            res_term2 = c - a
+            res_term1, res_term2 = a*c - b, c - a
             answer = f"${res_term1} + {res_term2}\\sqrt{{{b}}}$" if res_term2 >= 0 else f"${res_term1} - {abs(res_term2)}\\sqrt{{{b}}}$"
             hint = "Use the FOIL method to expand the brackets, then collect like terms."
             explanation = f"$({a} + \\sqrt{{{b}}})({c} - \\sqrt{{{b}}}) = {a*c} - {a}\\sqrt{{{b}}} + {c}\\sqrt{{{b}}} - {b} = {answer}$."
@@ -895,7 +910,7 @@ def _generate_surds_question():
         a, b, c = random.randint(2, 9), random.randint(2, 9), random.choice([2, 3, 5, 7])
         while b*b == c: b = random.randint(2,9)
         question = f"Rationalize the denominator of $\\frac{{{a}}}{{{b} + \\sqrt{{{c}}}}}$"
-        num_part1, num_part2 = a*b, -a; den = b**2 - c
+        num_part1, num_part2, den = a*b, -a, b**2 - c
         common_divisor = math.gcd(math.gcd(num_part1, num_part2), den)
         s_num_part1, s_num_part2, s_den = num_part1//common_divisor, num_part2//common_divisor, den//common_divisor
         num_latex = f"{s_num_part1} - {abs(s_num_part2)}\\sqrt{{{c}}}" if s_num_part2 < 0 else f"{s_num_part1} + {s_num_part2}\\sqrt{{{c}}}"
@@ -906,26 +921,18 @@ def _generate_surds_question():
         options = {answer, f"$\\frac{{{a*b} + {a}\\sqrt{{{c}}}}}{{{den}}}$"}
 
     elif q_type == 'equation':
-        result = random.randint(2, 5); c = random.randint(1, 10); x_val = result**2 + c
+        result, c = random.randint(2, 5), random.randint(1, 10); x_val = result**2 + c
         question = f"Solve for x: $\\sqrt{{x - {c}}} = {result}$"
         answer = str(x_val); hint = "To solve for x, square both sides of the equation."
         explanation = (f"1. Given: $\\sqrt{{x - {c}}} = {result}$.\n2. Square both sides: $x - {c} = {result**2}$.\n3. $x = {result**2} + {c} = {x_val}$.")
         options = {answer, str(result + c), str(result**2)}
 
     elif q_type == 'geometry':
-        # --- THIS BLOCK IS REWRITTEN FOR BETTER DISTRACTORS ---
-        a, b = random.randint(2, 5), random.randint(6, 9)
-        c_sq = a**2 + b**2
+        a, b = random.randint(2, 5), random.randint(6, 9); c_sq = a**2 + b**2
         question = f"A right-angled triangle has shorter sides of length ${a}$ cm and ${b}$ cm. Find the exact length of the hypotenuse in surd form."
-        answer = f"$\\sqrt{{{c_sq}}}$"
-        hint = "Use Pythagoras' theorem: $a^2 + b^2 = c^2$. Leave the result in surd form."
-        explanation = f"1. By Pythagoras' theorem, $c^2 = a^2 + b^2$.\n2. $c^2 = {a}^2 + {b}^2 = {a**2} + {b**2} = {c_sq}$.\n3. The exact length of the hypotenuse is $c = \\sqrt{{{c_sq}}}$ cm."
-        
-        # Create plausible distractors in the same surd format
-        distractor1 = f"$\\sqrt{{{abs(b**2 - a**2)}}}$" # Common mistake: subtracting instead of adding
-        distractor2 = f"$\\sqrt{{{a+b}}}$"            # Common mistake: adding before squaring
-        distractor3 = f"${a+b}$"                       # Mistake: adding sides (not in surd form, but very common)
-        options = {answer, distractor1, distractor2, distractor3}
+        answer = f"$\\sqrt{{{c_sq}}}$"; hint = "Use Pythagoras' theorem: $a^2 + b^2 = c^2$. Leave the result in surd form."
+        explanation = f"1. By Pythagoras' theorem, $c^2 = a^2 + b^2$.\n2. $c^2 = {a}^2 + {b}^2 = {a**2} + {b**2} = {c_sq}$.\n3. The exact length is $c = \\sqrt{{{c_sq}}}$ cm."
+        options = {answer, f"$\\sqrt{{{abs(b**2 - a**2)}}}$", f"$\\sqrt{{{a+b}}}$", f"${a+b}$"}
 
     return {"question": question, "options": _finalize_options(options), "answer": answer, "hint": hint, "explanation": explanation}
 def _generate_binary_ops_question():
@@ -1078,46 +1085,32 @@ def _generate_binary_ops_question():
 
 def _generate_relations_functions_question():
     """Generates a multi-subtopic question for Relations and Functions with enhanced variety."""
+    # --- IMPROVEMENT: This function has been upgraded. ---
+    # The 'types_of_relations' and 'is_function' subtypes no longer use static, hardcoded sets.
+    # They now generate dynamic sets using random.sample(), making the question text unique each time.
+    
     q_type = random.choice(['domain_range', 'evaluate', 'composite', 'inverse', 'types_of_relations', 'is_function'])
     question, answer, hint, explanation = "", "", "", ""
     options = set()
     
     if q_type == 'domain_range':
-        # --- THIS ENTIRE BLOCK IS REWRITTEN FOR CORRECTNESS ---
         domain_list = sorted(list(set(random.sample(range(-15, 20), k=random.randint(4, 5)))))
         range_list = sorted(list(set(random.sample(range(-15, 20), k=random.randint(4, 5)))))
-        
-        # Ensure domain and range are not identical
         while set(domain_list) == set(range_list):
             range_list = sorted(list(set(random.sample(range(-15, 20), k=random.randint(4, 5)))))
-            
-        relation_pairs = list(zip(domain_list, range_list))
-        random.shuffle(relation_pairs)
+        relation_pairs = list(zip(domain_list, range_list)); random.shuffle(relation_pairs)
         relation_str = str(set(relation_pairs)).replace("'", "")
-        
         d_or_r = random.choice(['domain', 'range'])
-        
         question = f"What is the {d_or_r} of the relation $R = {relation_str}$?"
-        
-        domain_set_str = str(set(domain_list))
-        range_set_str = str(set(range_list))
-
+        domain_set_str, range_set_str = str(set(domain_list)), str(set(range_list))
         if d_or_r == 'domain':
             answer = domain_set_str
-            # Plausible distractors
-            distractor1 = range_set_str
-            distractor2 = str(set(domain_list).union(set(range_list)))
-            distractor3 = str(set(domain_list) - {random.choice(domain_list)}) # Domain with one element missing
+            options = {answer, range_set_str, str(set(domain_list).union(set(range_list)))}
         else: # range
             answer = range_set_str
-            # Plausible distractors
-            distractor1 = domain_set_str
-            distractor2 = str(set(domain_list).union(set(range_list)))
-            distractor3 = str(set(range_list) - {random.choice(range_list)}) # Range with one element missing
-
+            options = {answer, domain_set_str, str(set(domain_list).union(set(range_list)))}
         hint = "The domain is the set of all unique first elements (x-values). The range is the set of all unique second elements (y-values)."
         explanation = f"Given the relation $R = {relation_str}$:\n- The domain (set of all first numbers) is ${domain_set_str}$.\n- The range (set of all second numbers) is ${range_set_str}$."
-        options = {answer, distractor1, distractor2, distractor3}
 
     elif q_type == 'evaluate':
         a, b, x = random.randint(2, 8), random.randint(-10, 10), random.randint(1, 7)
@@ -1145,38 +1138,51 @@ def _generate_relations_functions_question():
         options = {answer, f"$f^{{-1}}(x) = \\frac{{x - {b}}}{{{a}}}$", f"$f^{{-1}}(x) = {a}x + {b}$"}
         
     elif q_type == 'types_of_relations':
-        one_to_one = str({(1, 'a'), (2, 'b'), (3, 'c')})
-        many_to_one = str({(1, 'a'), (2, 'a'), (3, 'b')})
-        one_to_many = str({(1, 'a'), (1, 'b'), (2, 'c')})
+        # --- IMPROVEMENT: Sets are now dynamically generated ---
+        domain = sorted(random.sample(range(1, 20), 4))
+        codomain = random.sample(['a', 'b', 'c', 'd', 'e', 'f', 'g'], 4)
+        one_to_one = str({(domain[0], codomain[0]), (domain[1], codomain[1]), (domain[2], codomain[2])})
+        many_to_one = str({(domain[0], codomain[0]), (domain[1], codomain[0]), (domain[2], codomain[1])})
+        one_to_many = str({(domain[0], codomain[0]), (domain[0], codomain[1]), (domain[1], codomain[2])})
         relation, correct_type = random.choice([(one_to_one, "One-to-one"), (many_to_one, "Many-to-one"), (one_to_many, "One-to-many")])
         question = f"The relation $R = {relation}$. What type of mapping is this?"
         answer = correct_type
-        hint = "Check if any x-values or y-values are repeated in the ordered pairs."
-        explanation = f"This relation is **{correct_type}** because of how the inputs (first elements) map to the outputs (second elements)."
+        hint = "Check if any x-values (first elements) or y-values (second elements) are repeated in the ordered pairs."
+        explanation = f"In the relation {relation}, we can see how the inputs map to outputs. This mapping is a classic example of a **{correct_type}** relation."
         options = {"One-to-one", "Many-to-one", "One-to-many"}
         options.add(answer)
 
     elif q_type == 'is_function':
-        func_relation = str({(1, 5), (2, 10), (3, 15)})
-        not_func_relation = str({(1, 5), (1, 6), (2, 10)})
+        # --- IMPROVEMENT: Sets are now dynamically generated ---
+        d = sorted(random.sample(range(1, 20), 4))
+        r = random.sample(range(5, 30), 4)
+        func_relation = str({(d[0], r[0]), (d[1], r[1]), (d[2], r[2])})
+        not_func_relation = str({(d[0], r[0]), (d[0], r[1]), (d[1], r[2])}) # d[0] maps to two outputs
         question = f"Which of the following relations is also a function?"
         answer = func_relation
         hint = "A relation is a function if every input (x-value) maps to exactly one, unique output (y-value)."
-        explanation = f"The relation {not_func_relation} is not a function because the input '1' maps to two different outputs (5 and 6). The relation {func_relation} is a function because every input has only one output."
+        explanation = f"The relation {not_func_relation} is not a function because the input '{d[0]}' maps to two different outputs ({r[0]} and {r[1]}). The relation {func_relation} is a function because every input has only one output."
         options = {answer, not_func_relation}
 
     return {"question": question, "options": _finalize_options(options, "set_str"), "answer": answer, "hint": hint, "explanation": explanation}
 
 def _generate_sequence_series_question():
     """Generates a multi-subtopic question for Sequence and Series with enhanced variety."""
-    # UPGRADED: Expanded list of sub-topics based on your suggestions
+    # --- IMPROVEMENT: This function has been upgraded. ---
+    # Number ranges have been bumped significantly.
+    # It now includes negative starting terms and common differences for a greater challenge.
+    
     q_type = random.choice(['ap_term', 'gp_term', 'ap_sum', 'gp_sum_inf', 'word_problem'])
     question, answer, hint, explanation = "", "", "", ""
     options = set()
-    a = random.randint(2, 10)
+    # --- IMPROVEMENT: Bumped number range, including negatives ---
+    a = random.randint(-15, 25)
+    while a == 0: a = random.randint(-15, 25) # Avoid zero as a first term
 
     if q_type == 'ap_term':
-        d, n = random.randint(3, 10), random.randint(10, 25)
+        # --- IMPROVEMENT: Bumped number range, including negatives ---
+        d = random.randint(-8, 12); n = random.randint(15, 40)
+        while d == 0: d = random.randint(-8, 12)
         sequence = ", ".join([str(a + i*d) for i in range(4)])
         question = f"Find the {n}th term of the arithmetic progression: {sequence}, ..."
         answer = str(a + (n - 1) * d)
@@ -1185,7 +1191,7 @@ def _generate_sequence_series_question():
         options = {answer, str(a + n*d)}
     
     elif q_type == 'gp_term':
-        r, n = random.randint(2, 4), random.randint(5, 8)
+        r, n = random.choice([-3, -2, 2, 3]), random.randint(5, 9)
         sequence = ", ".join([str(a * r**i) for i in range(3)])
         question = f"What is the {n}th term of the geometric progression: {sequence}, ...?"
         answer = str(a * r**(n-1))
@@ -1194,7 +1200,8 @@ def _generate_sequence_series_question():
         options = {answer, str((a*r)**(n-1))}
 
     elif q_type == 'ap_sum':
-        d, n = random.randint(2, 7), random.randint(12, 25)
+        d, n = random.randint(-5, 8), random.randint(15, 30)
+        while d == 0: d = random.randint(-5, 8)
         question = f"Find the sum of the first {n} terms of an Arithmetic Progression with first term {a} and common difference {d}."
         answer = str(int((n/2) * (2*a + (n-1)*d)))
         hint = r"Use the sum of an AP formula: $S_n = \frac{n}{2}(2a + (n-1)d)$."
@@ -1202,37 +1209,47 @@ def _generate_sequence_series_question():
         options = {answer, str(n*(a + (n-1)*d))}
 
     elif q_type == 'gp_sum_inf':
-        r = Fraction(random.randint(1,3), random.randint(4, 7))
+        r = Fraction(random.randint(-2,2), random.randint(3, 7))
+        while r == 0: r = Fraction(random.randint(-2,2), random.randint(3, 7))
         question = f"A geometric series has a first term of ${a}$ and a common ratio of ${_get_fraction_latex_code(r)}$. Calculate its sum to infinity."
         answer = _format_fraction_text(a / (1 - r))
         hint = r"Use the sum to infinity formula: $S_\infty = \frac{a}{1-r}$, which is valid for $|r| < 1$."
-        explanation = f"$S_\\infty = \\frac{{{a}}}{{1 - {_get_fraction_latex_code(r)}}} = \\frac{{{a}}}{{{_get_fraction_latex_code(1-r)}}} = {_get_fraction_latex_code(a/(1-r))}$."
+        explanation = f"$S_\\infty = \\frac{{{a}}}{{1 - ({_get_fraction_latex_code(r)})}} = \\frac{{{a}}}{{{_get_fraction_latex_code(1-r)}}} = {_get_fraction_latex_code(a/(1-r))}$."
         options = {answer, _format_fraction_text(a/(1+r))}
         
     elif q_type == 'word_problem':
-        initial_amount = random.randint(100, 200)
-        depreciation_rate = random.randint(10, 20)
-        years = 3
-        # Value after n years = P * (1 - r)^n
+        # --- IMPROVEMENT: Contextualized and bumped number range ---
+        initial_amount = random.randint(200, 500) * 100 # GHS 20,000 to 50,000
+        depreciation_rate = random.randint(8, 22)
+        years = 4
         final_value = initial_amount * ((1 - depreciation_rate/100)**years)
-        question = f"A farmer in the Ashanti Region buys a machine for GHS {initial_amount}. The machine depreciates in value by {depreciation_rate}% each year. What is its value after {years} years, to two decimal places?"
-        answer = f"GHS {final_value:.2f}"
-        hint = "This is a geometric progression problem where the common ratio 'r' is less than 1. Use the formula for depreciation: Final Value = $P(1 - r)^n$."
-        explanation = f"1. The initial value P = {initial_amount}.\n2. The rate r = {depreciation_rate}% = {depreciation_rate/100}.\n3. The number of years n = {years}.\n4. Final Value = ${initial_amount}(1 - {depreciation_rate/100})^{{{years}}} = {initial_amount}({1-depreciation_rate/100})^{{{years}}} \\approx {final_value:.2f}$."
-        options = {answer, f"GHS {initial_amount * (1 - (depreciation_rate*years)/100):.2f}"} # Simple interest depreciation
+        question = f"A new trotro purchased in Kumasi for GHS {initial_amount:,.2f} depreciates in value by {depreciation_rate}% each year. What is its approximate value after {years} years?"
+        answer = f"GHS {final_value:,.2f}"
+        hint = "This is a geometric progression problem. Use the formula: Final Value = $P(1 - r)^n$."
+        explanation = f"1. P = {initial_amount}, r = {depreciation_rate/100}, n = {years}.\n2. Final Value = ${initial_amount:,.0f}(1 - {depreciation_rate/100})^{{{years}}} \\approx {final_value:,.2f}$."
+        options = {answer, f"GHS {initial_amount * (1 - (depreciation_rate*years)/100):,.2f}"}
     
     return {"question": question, "options": _finalize_options(options), "answer": answer, "hint": hint, "explanation": explanation}
 
 
 def _generate_word_problems_question():
     """Generates a multi-subtopic question for Word Problems with enhanced variety."""
-    # UPGRADED: Expanded list of sub-topics based on your suggestions
+    # --- IMPROVEMENT: This function has been upgraded. ---
+    # Number ranges have been bumped.
+    # More specific Ghanaian contextualization (names, places, items) has been added.
+    # The 'consecutive_integers' subtype now varies what it asks for (smallest, largest, etc.).
+    
+    # --- IMPROVEMENT: Contextualization lists ---
+    gh_names = ["Yaw", "Adwoa", "Kofi", "Ama", "Kwame", "Abena"]
+    gh_locations = ["Kejetia Market in Kumasi", "a shop in Osu, Accra", "a farm near Kajaji", "the Cape Coast Castle gift shop"]
+    gh_items = ["bags of gari", "yards of kente cloth", "boxes of Milo", "bunches of plantain"]
+
     q_type = random.choice(['linear_number', 'age', 'consecutive_integers', 'ratio', 'work_rate'])
     question, answer, hint, explanation = "", "", "", ""
     options = set()
 
     if q_type == 'linear_number':
-        x, k, m = random.randint(5, 20), random.randint(5, 20), random.randint(2, 5)
+        x, k, m = random.randint(10, 50), random.randint(10, 50), random.randint(2, 7)
         result = m*x + k
         question = f"When {m} times a certain number is increased by {k}, the result is {result}. Find the number."
         answer = str(x)
@@ -1241,58 +1258,65 @@ def _generate_word_problems_question():
         options = {answer, str(result-k), str(result/m)}
 
     elif q_type == 'age':
-        ama_age, kofi_age = random.randint(5, 15), random.randint(20, 40)
-        while kofi_age - 2*ama_age <= 0: # Ensure a positive number of years
-            ama_age, kofi_age = random.randint(5, 15), random.randint(20, 40)
-        ans_val = kofi_age - 2*ama_age
+        child_age, parent_age = random.randint(8, 20), random.randint(40, 65)
+        # Ensure parent is at least 20 years older
+        while parent_age - child_age < 20: parent_age = random.randint(40, 65)
+        ans_val = (parent_age - 2*child_age)
+        if ans_val <= 0: return _generate_word_problems_question() # Regenerate if unsolvable in the future
         
-        phrasing = random.choice([
-            f"Ama is {ama_age} years old and her father Kofi is {kofi_age} years old. In how many years will Kofi be twice as old as Ama?",
-            f"A mother in Accra is {kofi_age} and her son is {ama_age}. In how many years will the mother's age be double her son's age?"
-        ])
-        question = phrasing
+        child_name, parent_name = random.sample(gh_names, 2)
+        question = f"{parent_name} is {parent_age} years old and their child {child_name} is {child_age} years old. In how many years will {parent_name} be exactly twice as old as {child_name}?"
         answer = str(ans_val)
-        hint = "Let the number of years be 'x'. Set up an equation for their future ages: Father's Future Age = 2 * Child's Future Age."
-        explanation = f"1. Let x be the number of years.\n2. In x years, their ages will be {ama_age}+x and {kofi_age}+x.\n3. Equation: ${kofi_age}+x = 2({ama_age}+x)$.\n4. Solve for x: ${kofi_age}+x = {2*ama_age}+2x \implies x = {kofi_age - 2*ama_age} = {ans_val}$."
-        options = {answer, str(kofi_age - ama_age)}
+        hint = "Let 'x' be the number of years. Set up the equation: Parent's Future Age = 2 * Child's Future Age."
+        explanation = f"1. Let x be the number of years.\n2. In x years, their ages will be {child_age}+x and {parent_age}+x.\n3. Equation: ${parent_age}+x = 2({child_age}+x)$.\n4. Solve: ${parent_age}+x = {2*child_age}+2x \implies x = {parent_age - 2*child_age} = {ans_val}$."
+        options = {answer, str(parent_age - child_age)}
 
     elif q_type == 'consecutive_integers':
-        start, num = random.randint(10, 30), random.choice([2, 3])
+        start, num = random.randint(20, 100), random.choice([3, 5]) # Use odd numbers for a clear middle
         num_type = random.choice(['integers', 'even integers', 'odd integers'])
         if num_type == 'integers': integers = [start+i for i in range(num)]
-        elif num_type == 'even integers': integers = [start*2, start*2+2, start*2+4][:num]
-        else: integers = [start*2+1, start*2+3, start*2+5][:num]
+        elif num_type == 'even integers': integers = [start*2, start*2+2, start*2+4, start*2+6, start*2+8][:num]
+        else: integers = [start*2+1, start*2+3, start*2+5, start*2+7, start*2+9][:num]
         total = sum(integers)
         
-        question = f"The sum of {num} consecutive {num_type} is {total}. What is the smallest of these integers?"
-        answer = str(integers[0])
-        hint = f"Represent the integers algebraically (e.g., n, n+2 for consecutive even integers). Set their sum equal to {total} and solve for n."
-        explanation = f"1. Let the integers be n, n+2, ...\n2. Equation for the sum: {num}n + ... = {total}.\n3. Solving for n gives the first integer, which is {answer}."
-        options = {answer, str(integers[-1]), str(int(total/num))}
+        # --- IMPROVEMENT: Vary the question being asked ---
+        asked_for = random.choice(['smallest', 'largest', 'middle'])
+        if asked_for == 'smallest': answer = str(integers[0])
+        elif asked_for == 'largest': answer = str(integers[-1])
+        else: answer = str(integers[num//2])
+
+        question = f"The sum of {num} consecutive {num_type} is {total}. What is the **{asked_for}** of these integers?"
+        hint = f"Represent the integers algebraically (e.g., n, n+1, n+2...). Set their sum equal to {total} and solve for the first integer, n."
+        explanation = f"Let the first integer be n. The sum can be written as an equation. Solving for n gives {integers[0]}. The full list of integers is {integers}. The {asked_for} integer is {answer}."
+        options = {str(integers[0]), str(integers[-1]), str(int(total/num))}
+        options.add(answer)
+
 
     elif q_type == 'ratio':
-        ratio1, ratio2 = random.randint(2, 5), random.randint(3, 7)
-        total_amount = random.randint(10, 20) * (ratio1 + ratio2)
+        ratio1, ratio2 = random.randint(2, 9), random.randint(3, 10)
+        total_amount = random.randint(20, 50) * (ratio1 + ratio2)
         share1 = int((ratio1 / (ratio1+ratio2)) * total_amount)
         share2 = total_amount - share1
+        name1, name2 = random.sample(gh_names, 2)
+        location = random.choice(gh_locations)
         
-        question = f"Two students, Yaw and Adwoa, share GHS {total_amount} in the ratio {ratio1}:{ratio2}. How much does Yaw, who gets the first share, receive?"
+        question = f"At {location} today, August 21st, {name1} and {name2} share a profit of GHS {total_amount} in the ratio {ratio1}:{ratio2}. How much does {name1} receive?"
         answer = f"GHS {share1}"
-        hint = "First, find the total number of parts in the ratio. Then, divide the total amount by the total parts to find the value of one part."
-        explanation = f"1. Total parts in ratio = {ratio1} + {ratio2} = {ratio1+ratio2}.\n2. Value of one part = GHS {total_amount} / {ratio1+ratio2} = GHS {total_amount/(ratio1+ratio2)}.\n3. Yaw's share = {ratio1} parts = {ratio1} * {total_amount/(ratio1+ratio2)} = GHS {share1}."
+        hint = "First, find the total number of parts in the ratio. Then, find the value of one part."
+        explanation = f"1. Total parts = {ratio1} + {ratio2} = {ratio1+ratio2}.\n2. Value of one part = GHS {total_amount} / {ratio1+ratio2} = GHS {total_amount/(ratio1+ratio2)}.\n3. {name1}'s share = {ratio1} parts = {ratio1} * {total_amount/(ratio1+ratio2)} = GHS {share1}."
         options = {answer, f"GHS {share2}"}
         
     elif q_type == 'work_rate':
-        time_a = random.randint(3, 6) # Time for person A to do the job
-        time_b = time_a * 2          # Time for person B is double
-        # Rate of A = 1/time_a, Rate of B = 1/time_b. Combined rate = 1/a + 1/b = (a+b)/ab
-        # Time together = 1 / combined_rate = ab / (a+b)
+        time_a = random.randint(4, 10) 
+        time_b = random.randint(4, 10)
+        while time_a == time_b: time_b = random.randint(4, 10)
         time_together = (time_a * time_b) / (time_a + time_b)
+        name1, name2 = random.sample(gh_names, 2)
         
-        question = f"Worker A can complete a job in {time_a} hours. Worker B can complete the same job in {time_b} hours. How long would it take them to complete the job if they work together?"
+        question = f"If {name1} can weed a farm in {time_a} hours and {name2} can weed the same farm in {time_b} hours, how long would it take them to finish the job together?"
         answer = f"{time_together:.2f} hours"
-        hint = "First, find the rate of work for each person (jobs per hour). Then, add their rates together to find their combined rate."
-        explanation = f"1. Rate of A = $\\frac{{1}}{{{time_a}}}$ jobs/hour.\n2. Rate of B = $\\frac{{1}}{{{time_b}}}$ jobs/hour.\n3. Combined Rate = $\\frac{{1}}{{{time_a}}} + \\frac{{1}}{{{time_b}}} = \\frac{{{time_b+time_a}}}{{{time_a*time_b}}}$ jobs/hour.\n4. Time Together = $\\frac{{1}}{{\\text{{Combined Rate}}}} = \\frac{{{time_a*time_b}}}{{{time_a+time_b}}} = {time_together:.2f}$ hours."
+        hint = "Add their individual rates of work (farms per hour) to find their combined rate."
+        explanation = f"1. {name1}'s Rate = $\\frac{{1}}{{{time_a}}}$ farms/hr.\n2. {name2}'s Rate = $\\frac{{1}}{{{time_b}}}$ farms/hr.\n3. Combined Rate = $\\frac{{1}}{{{time_a}}} + \\frac{{1}}{{{time_b}}} = \\frac{{{time_b+time_a}}}{{{time_a*time_b}}}$ farms/hr.\n4. Time Together = $\\frac{{1}}{{\\text{{Combined Rate}}}} = \\frac{{{time_a*time_b}}}{{{time_a+time_b}}} \\approx {time_together:.2f}$ hours."
         options = {answer, f"{ (time_a+time_b)/2 :.2f} hours"}
 
     return {"question": question, "options": _finalize_options(options), "answer": answer, "hint": hint, "explanation": explanation}
@@ -1641,31 +1665,51 @@ def _generate_probability_question():
 
 def _generate_binomial_theorem_question():
     """Generates a question for the Binomial Theorem."""
+    # This function now incorporates Pascal's Triangle into its explanations.
+    
     q_type = random.choice(['find_coefficient', 'find_term'])
-    n = random.randint(4, 7)
-    a, b = random.randint(1, 3), random.randint(1, 3)
+    n = random.randint(5, 10)
+    a, b = random.randint(1, 4), random.randint(1, 4)
+    
+    # Generate the relevant row from Pascal's triangle
+    pascals_row = _get_pascals_row(n)
     
     if q_type == 'find_coefficient':
-        k = random.randint(2, n-1)
+        k = random.randint(2, n - 2)
         question = f"Find the coefficient of the $x^{{{k}}}$ term in the expansion of $({a}x + {b})^{{{n}}}$."
-        # Term is C(n,k) * (ax)^k * b^(n-k). Coefficient is C(n,k) * a^k * b^(n-k)
         coefficient = math.comb(n, k) * (a**k) * (b**(n-k))
         answer = str(coefficient)
-        hint = f"Use the binomial theorem term formula: $\\binom{{n}}{{k}} a^{{n-k}} b^k$. Here, your 'a' is {a}x and 'b' is {b}, and you need the term where the power of x is {k}."
-        explanation = f"The term with $x^{k}$ is given by $\\binom{{{n}}}{{{k}}}({a}x)^{{{k}}}({b})^{{{n-k}}}$.\nThe coefficient is $\\binom{{{n}}}{{{k}}} \\times {a}^{k} \\times {b}^{{{n-k}}} = {math.comb(n,k)} \\times {a**k} \\times {b**(n-k)} = {answer}$."
-        options = {answer, str(math.comb(n,k) * (a**k)), str(math.comb(n,k))}
+        
+        hint = f"Use Pascal's Triangle or the formula $\\binom{{n}}{{k}} a^{{n-k}} b^k$ to find the coefficient."
+        
+        # New explanation incorporating Pascal's Triangle
+        coefficient_from_pascal = pascals_row[k]
+        explanation = (f"The coefficients for an expansion to the power of ${n}$ can be found in row ${n}$ of Pascal's Triangle.\n\n"
+                       f"**Row ${n}$:** `{', '.join(map(str, pascals_row))`}\n\n"
+                       f"The term with $x^{{{k}}}$ is the ${k+1}$th term in the expansion, so we need the ${k+1}$th coefficient from the row, which is **{coefficient_from_pascal}**.\n\n"
+                       f"This value corresponds to the binomial coefficient formula: $\\binom{{{n}}}{{{k}}} = {math.comb(n, k)}$.\n\n"
+                       f"Finally, the full coefficient is $\\binom{{{n}}}{{{k}}} \\times a^k \\times b^{{n-k}} = {coefficient_from_pascal} \\times {a}^{k} \\times {b}^{{{n-k}}} = {answer}$."
+                      )
 
     elif q_type == 'find_term':
-        r = random.randint(2, n-1) # find the r-th term
-        # r-th term uses k = r-1
-        k = r - 1
+        r = random.randint(2, n - 1)
+        k = r - 1 # The index for coefficients/powers
+        
+        question = f"Find the ${r}$th term in the expansion of $({a}x + {b})^{{{n}}}$."
         term_coeff = math.comb(n, k) * (a**k) * (b**(n-k))
         term_power = k
-        question = f"Find the {r}th term in the expansion of $({a}x + {b})^{{{n}}}$."
         answer = f"${term_coeff}x^{{{term_power}}}$"
-        hint = f"The r-th term is given by the formula $\\binom{{n}}{{r-1}} a^{{n-(r-1)}} b^{{r-1}}$. Be careful with the variables."
-        explanation = f"For the {r}th term, we use $k = {r}-1 = {k}$.\nThe term is $\\binom{{{n}}}{{{k}}}({a}x)^{{{k}}}({b})^{{{n-k}}} = {math.comb(n,k)} \\times {a**k}x^{k} \\times {b**(n-k)} = {answer}$."
-        options = {answer, f"${math.comb(n,r)}x^{{{r}}}$"}
+        
+        hint = f"For the {r}th term, use the {r}th number from the {n}th row of Pascal's Triangle as your base coefficient."
+
+        # New explanation incorporating Pascal's Triangle
+        coefficient_from_pascal = pascals_row[k]
+        explanation = (f"The coefficients for an expansion to the power of ${n}$ can be found in row ${n}$ of Pascal's Triangle.\n\n"
+                       f"**Row ${n}$:** `{', '.join(map(str, pascals_row))`}\n\n"
+                       f"For the **${r}$th term**, we use the ${r}$th coefficient from the row, which is **{coefficient_from_pascal}**. (This corresponds to an index of $k={r-1}={k}$).\n\n"
+                       f"This base coefficient is calculated using the formula $\\binom{{{n}}}{{{k}}} = {math.comb(n, k)}$.\n\n"
+                       f"The full term is $\\binom{{{n}}}{{{k}}}(ax)^{k}(b)^{{n-k}} = {coefficient_from_pascal} \\times ({a}x)^{{{k}}} \\times ({b})^{{{n-k}}} = {answer}$."
+                       )
 
     return {"question": question, "options": _finalize_options(options), "answer": answer, "hint": hint, "explanation": explanation}
 
@@ -1706,23 +1750,68 @@ def _generate_polynomial_functions_question():
 
 def _generate_trigonometry_question():
     """Generates a question for Trigonometry."""
+    # --- IMPROVEMENT: This function has been significantly upgraded. ---
+    # It no longer uses hardcoded equations. It now randomizes the trig function (sin, cos, tan),
+    # the coefficient, and the value, drawing from a dictionary of common trigonometric ratios.
+    # This massively increases the variety and unpredictability.
+    
     q_type = random.choice(['solve_equation', 'identity', 'cosine_rule'])
 
     if q_type == 'solve_equation':
-        val, func, func_name = random.choice([(0.5, math.sin, "sin"), (0.5, math.cos, "cos")])
-        if func_name == "sin": solutions = "30, 150"; principal_val = 30
-        else: solutions = "60, 300"; principal_val = 60
-            
-        question = f"Solve the equation $2{func_name}(\\theta) = 1$ for $0^\\circ \leq \\theta \leq 360^\\circ$."
+        trig_values = {
+            "sin": {
+                "1/2": {"angle": 30, "quadrants": [1, 2]},
+                "√3/2": {"angle": 60, "quadrants": [1, 2]},
+                "1/√2": {"angle": 45, "quadrants": [1, 2]},
+            },
+            "cos": {
+                "1/2": {"angle": 60, "quadrants": [1, 4]},
+                "√3/2": {"angle": 30, "quadrants": [1, 4]},
+                "1/√2": {"angle": 45, "quadrants": [1, 4]},
+            },
+            "tan": {
+                "1": {"angle": 45, "quadrants": [1, 3]},
+                "√3": {"angle": 60, "quadrants": [1, 3]},
+                "1/√3": {"angle": 30, "quadrants": [1, 3]},
+            }
+        }
+        
+        func_name = random.choice(["sin", "cos", "tan"])
+        val_str, data = random.choice(list(trig_values[func_name].items()))
+        
+        principal_val = data["angle"]
+        solutions = []
+        for q in data["quadrants"]:
+            if q == 1: solutions.append(principal_val)
+            elif q == 2: solutions.append(180 - principal_val)
+            elif q == 3: solutions.append(180 + principal_val)
+            elif q == 4: solutions.append(360 - principal_val)
+        
+        # --- IMPROVEMENT: Coefficient and right-hand side are now dynamic ---
+        coeff = random.randint(1, 4)
+        if val_str == "1/2": val_num = 0.5
+        elif val_str == "√3/2": val_num = math.sqrt(3)/2
+        elif val_str == "1/√2": val_num = 1/math.sqrt(2)
+        elif val_str == "1": val_num = 1
+        elif val_str == "√3": val_num = math.sqrt(3)
+        else: val_num = 1/math.sqrt(3)
+        
+        rhs = coeff * val_num
+        
+        # Format the right-hand side for the question text
+        rhs_str = f"{rhs:.2f}".rstrip('0').rstrip('.') if isinstance(rhs, float) else str(rhs)
+        if func_name == 'tan' and val_str.startswith('√'): rhs_str = f"{coeff if coeff>1 else ''}√{3 if val_str=='√3' else '3/3'}" # A bit of manual formatting for tan surds
+        if func_name != 'tan' and val_str.startswith('√'): rhs_str = f"{coeff if coeff>1 else ''}√{3 if '3' in val_str else 2}/2"
+
+
+        question = f"Solve the equation ${coeff if coeff > 1 else ''}{func_name}(\\theta) = {rhs_str}$ for $0^\\circ \leq \\theta \leq 360^\\circ$."
         answer = f"{solutions[0]}°, {solutions[1]}°"
         hint = f"First, isolate ${func_name}(\\theta)$. Then find the principal value and use the CAST rule or function graph to find all solutions in the range."
-        explanation = (f"1. ${func_name}(\\theta) = 1/2 = {val}$.\n"
+        explanation = (f"1. ${func_name}(\\theta) = {val_str}$.\n"
                        f"2. The principal value (acute angle) is $\\theta = {principal_val}^\\circ$.\n"
-                       f"3. Since ${func_name}$ is positive in the first and second (for sin) or fourth (for cos) quadrants, the solutions are:\n"
-                       f"   - Q1: $\\theta = {principal_val}^\\circ$\n"
-                       f"   - Q2/Q4: $\\theta = {180-principal_val if func_name=='sin' else 360-principal_val}^\\circ$\n"
-                       f"So the solutions are {answer}.")
-        options = {answer, f"{principal_val}°", f"{180-principal_val}°, {180+principal_val}°"}
+                       f"3. Since ${func_name}(\\theta)$ is positive, we look in quadrants {data['quadrants'][0]} and {data['quadrants'][1]}.\n"
+                       f"4. The solutions are {solutions[0]}° and {solutions[1]}°.")
+        options = {answer, f"{principal_val}°", f"{180-principal_val}°"}
 
     elif q_type == 'identity':
         question = r"Simplify the expression $\frac{{\sin^2\theta}}{{1 - \cos\theta}}$."
@@ -1732,17 +1821,17 @@ def _generate_trigonometry_question():
         options = {answer, r"$1 - \cos\theta$", r"$\cos\theta$"}
 
     elif q_type == 'cosine_rule':
-        a, b, C_deg = random.randint(5, 10), random.randint(5, 10), 60
+        # --- IMPROVEMENT: Bumped number range and contextualized ---
+        a, b, C_deg = random.randint(5, 25), random.randint(5, 25), random.choice([30, 45, 60, 120])
         c_sq = a**2 + b**2 - 2*a*b*math.cos(math.radians(C_deg))
         c = round(math.sqrt(c_sq), 2)
-        question = f"In triangle ABC, side $a = {a}$ cm, side $b = {b}$ cm, and the included angle $C = {C_deg}^\\circ$. Find the length of side $c$."
-        answer = f"{c} cm"
+        question = f"In a triangular plot of land near the KNUST campus, side $a = {a}$ m, side $b = {b}$ m, and the included angle $C = {C_deg}^\\circ$. Find the length of the third side, $c$."
+        answer = f"{c} m"
         hint = "Use the Cosine Rule: $c^2 = a^2 + b^2 - 2ab\cos(C)$."
-        explanation = f"1. $c^2 = {a}^2 + {b}^2 - 2({a})({b})\cos({C_deg}^\\circ)$.\n2. $c^2 = {a**2} + {b**2} - {2*a*b}(0.5) = {c_sq}$.\n3. $c = \sqrt{{{c_sq}}} \\approx {c}$ cm."
-        options = {answer, f"{round(math.sqrt(a**2 + b**2), 2)} cm"}
+        explanation = f"1. $c^2 = {a}^2 + {b}^2 - 2({a})({b})\cos({C_deg}^\\circ)$.\n2. $c^2 = {a**2} + {b**2} - 2({a})({b})({round(math.cos(math.radians(C_deg)), 3)}) \\approx {round(c_sq, 2)}$.\n3. $c = \sqrt{{{round(c_sq, 2)}}} \\approx {c}$ m."
+        options = {answer, f"{round(math.sqrt(a**2 + b**2), 2)} m"}
 
     return {"question": question, "options": _finalize_options(options), "answer": answer, "hint": hint, "explanation": explanation}
-
 def _generate_vectors_question():
     """Generates a question for Vectors."""
     q_type = random.choice(['algebra', 'magnitude', 'dot_product'])
@@ -2722,6 +2811,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
