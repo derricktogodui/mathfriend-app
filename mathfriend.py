@@ -857,21 +857,17 @@ def _generate_indices_question():
 
 def _generate_surds_question():
     """Generates a multi-subtopic question for Surds with enhanced variety."""
-    # --- IMPROVEMENT: This function has been upgraded. ---
-    # The 'identify' subtype no longer pulls from small, fixed lists.
-    # It now generates perfect squares and surds algorithmically from a much wider range.
+    # --- FIX: This function has been corrected to prevent distractors from using perfect squares. ---
     
     q_type = random.choice(['identify', 'simplify', 'operate', 'rationalize', 'equation', 'geometry'])
     question, answer, hint, explanation = "", "", "", ""
     options = set()
 
     if q_type == 'identify':
-        # --- IMPROVEMENT: Numbers are now dynamically generated from a wide range ---
         root = random.randint(2, 12)
         perfect_square = root**2
         
         non_square_base = random.choice([2, 3, 5, 6, 7, 10, 11, 13, 14, 15])
-        # Multiply by a small square to create a more complex-looking non-surd, e.g. sqrt(8)
         surd = non_square_base 
         
         question = f"Which of the following numbers is a surd?"
@@ -884,21 +880,33 @@ def _generate_surds_question():
         p_sq, n = random.choice([4, 9, 16, 25, 36, 49, 64]), random.choice([2, 3, 5, 7, 10])
         num = p_sq * n
         question = f"Express $\\sqrt{{{num}}}$ in its simplest surd form."
-        answer = f"${int(math.sqrt(p_sq))}\\sqrt{{{n}}}$"; hint = f"Find the largest perfect square that is a factor of {num}."
+        answer = f"${int(math.sqrt(p_sq))}\\sqrt{{{n}}}$"
+        hint = f"Find the largest perfect square that is a factor of {num}."
         explanation = f"1. Find factors: ${num} = {p_sq} \\times {n}$.\n2. Split the surd: $\\sqrt{{{num}}} = \\sqrt{{{p_sq}}} \\times \\sqrt{{{n}}}$.\n3. Simplify: ${answer}$."
         options = {answer, f"${n}\\sqrt{{{p_sq}}}$"}
 
     elif q_type == 'operate':
         op_type = random.choice(['add_sub', 'multiply'])
         if op_type == 'add_sub':
-            base_surd = random.choice([2, 3, 5]); c1, c2 = random.randint(2, 10), random.randint(2, 10)
+            base_surd = random.choice([2, 3, 5])
+            c1, c2 = random.randint(2, 10), random.randint(2, 10)
             op, sym, res = random.choice([('add', '+', c1+c2), ('subtract', '-', c1-c2)])
             question = f"Simplify: ${c1}\\sqrt{{{base_surd}}} {sym} {c2}\\sqrt{{{base_surd}}}$"
-            answer = f"${res}\\sqrt{{{base_surd}}}$"; hint = "You can only add or subtract 'like' surds."
+            answer = f"${res}\\sqrt{{{base_surd}}}$"
+            hint = "You can only add or subtract 'like' surds."
             explanation = f"Factor out the common surd: $({c1} {sym} {c2})\\sqrt{{{base_surd}}} = {res}\\sqrt{{{base_surd}}}$."
-            options = {answer, f"${c1+c2}\\sqrt{{{base_surd*2}}}$"}
+            
+            # --- FIX IS HERE: The distractor logic is changed to be more robust ---
+            # This distractor represents a common mistake (multiplying coefficients instead of adding/subtracting).
+            # It no longer creates the perfect square issue.
+            distractor = f"${c1*c2}\\sqrt{{{base_surd}}}$"
+            options = {answer, distractor}
+
         else: # multiply
-            a, b, c = random.randint(2, 5), random.randint(2, 5), random.randint(2, 5)
+            a = random.randint(2, 5)
+            b = random.choice([2, 3, 5, 6, 7]) # This prevents b from being a perfect square
+            c = random.randint(2, 5)
+            
             question = f"Expand and simplify: $({a} + \\sqrt{{{b}}})({c} - \\sqrt{{{b}}})$"
             res_term1, res_term2 = a*c - b, c - a
             answer = f"${res_term1} + {res_term2}\\sqrt{{{b}}}$" if res_term2 >= 0 else f"${res_term1} - {abs(res_term2)}\\sqrt{{{b}}}$"
@@ -921,16 +929,20 @@ def _generate_surds_question():
         options = {answer, f"$\\frac{{{a*b} + {a}\\sqrt{{{c}}}}}{{{den}}}$"}
 
     elif q_type == 'equation':
-        result, c = random.randint(2, 5), random.randint(1, 10); x_val = result**2 + c
+        result, c = random.randint(2, 5), random.randint(1, 10)
+        x_val = result**2 + c
         question = f"Solve for x: $\\sqrt{{x - {c}}} = {result}$"
-        answer = str(x_val); hint = "To solve for x, square both sides of the equation."
+        answer = str(x_val)
+        hint = "To solve for x, square both sides of the equation."
         explanation = (f"1. Given: $\\sqrt{{x - {c}}} = {result}$.\n2. Square both sides: $x - {c} = {result**2}$.\n3. $x = {result**2} + {c} = {x_val}$.")
         options = {answer, str(result + c), str(result**2)}
 
     elif q_type == 'geometry':
-        a, b = random.randint(2, 5), random.randint(6, 9); c_sq = a**2 + b**2
+        a, b = random.randint(2, 5), random.randint(6, 9)
+        c_sq = a**2 + b**2
         question = f"A right-angled triangle has shorter sides of length ${a}$ cm and ${b}$ cm. Find the exact length of the hypotenuse in surd form."
-        answer = f"$\\sqrt{{{c_sq}}}$"; hint = "Use Pythagoras' theorem: $a^2 + b^2 = c^2$. Leave the result in surd form."
+        answer = f"$\\sqrt{{{c_sq}}}$"
+        hint = "Use Pythagoras' theorem: $a^2 + b^2 = c^2$. Leave the result in surd form."
         explanation = f"1. By Pythagoras' theorem, $c^2 = a^2 + b^2$.\n2. $c^2 = {a}^2 + {b}^2 = {a**2} + {b**2} = {c_sq}$.\n3. The exact length is $c = \\sqrt{{{c_sq}}}$ cm."
         options = {answer, f"$\\sqrt{{{abs(b**2 - a**2)}}}$", f"$\\sqrt{{{a+b}}}$", f"${a+b}$"}
 
@@ -2833,6 +2845,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
