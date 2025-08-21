@@ -930,82 +930,150 @@ def _generate_surds_question():
     return {"question": question, "options": _finalize_options(options), "answer": answer, "hint": hint, "explanation": explanation}
 def _generate_binary_ops_question():
     """Generates a multi-subtopic question for Binary Operations with enhanced variety."""
-    # UPGRADED: Expanded list of sub-topics based on your suggestions
-    q_type = random.choice(['evaluate', 'table_read', 'identity_inverse', 'properties'])
+    # --- IMPROVEMENT: This entire function has been overhauled for more variety and challenge ---
+    # Number ranges have been increased.
+    # New properties like Associativity and Closure have been added.
+    # Cayley tables are now fully randomized.
+    
+    q_type = random.choice(['evaluate', 'table_read', 'identity_inverse', 'properties_commutative', 'properties_associative', 'properties_closure'])
     question, answer, hint, explanation = "", "", "", ""
     options = set()
 
     if q_type == 'evaluate':
-        a, b = random.randint(2, 9), random.randint(2, 9)
-        c = random.randint(2, 5)
+        # --- IMPROVEMENT: Bumped number range and added variety to operation definitions ---
+        a, b = random.randint(-10, 15), random.randint(-10, 15)
+        c, d = random.randint(2, 8), random.randint(2, 8)
+        
+        # Ensures non-zero values for variety
+        while a == 0 or b == 0:
+             a, b = random.randint(-10, 15), random.randint(-10, 15)
+
         op_def, op_func, op_sym = random.choice([
-            (f"p \\ast q = p + q + {c}pq", lambda x, y: x + y + c*x*y, r"\ast"),
-            (f"x \\oplus y = x^2 - {c}y", lambda x, y: x**2 - c*y, r"\oplus"),
-            (f"m \\nabla n = m + n - {c}", lambda x, y: x + y - c, r"\nabla"),
+            (f"p \\ast q = pq - ({c})p + ({d})q", lambda x, y: x*y - c*x + d*y, r"\ast"),
+            (f"x \\oplus y = x^2 - y^2 + {c}xy", lambda x, y: x**2 - y**2 + c*x*y, r"\oplus"),
+            (f"m \\nabla n = m + n - ({c})", lambda x, y: x + y - c, r"\nabla"),
+            (f"a \\boxdot b = {d}a - {c}b", lambda x, y: d*x - c*y, r"\boxdot"),
         ])
-        question = f"A binary operation is defined on the set of real numbers by ${op_def}$. Evaluate $({a} {op_sym} {b})$."
+        
+        question = f"A binary operation {op_sym} is defined on the set of real numbers by ${op_def}$. Evaluate $({a} {op_sym} {b})$."
         answer = str(op_func(a, b))
-        hint = "Substitute the first value for the first variable and the second value for the second variable in the definition."
-        explanation = f"1. The definition is ${op_def}$.\n2. We substitute a={a} and b={b}.\n3. The calculation becomes: {op_func(a,b)}."
+        hint = "Carefully substitute the first value for the first variable (e.g., p, x, m, a) and the second value for the second variable (e.g., q, y, n, b)."
+        explanation = f"1. The definition is ${op_def}$.\n2. We substitute the first variable with {a} and the second with {b}.\n3. The calculation is: ${op_func(a,b)}$."
         options = {answer, str(op_func(b, a))}
 
     elif q_type == 'identity_inverse':
-        # Using a standard definition for this type a*b = a+b-k
-        k = random.randint(2, 5)
+        # --- IMPROVEMENT: Bumped number range ---
+        k = random.randint(5, 20)
         identity_element = k
-        element = random.randint(k+1, 12)
-        # a * inv = e => a + inv - k = k => inv = 2k - a
-        inverse_element = 2*k - element
+        element = random.randint(k + 1, k + 15)
+        # For a*b = a+b-k, the inverse of 'a' is '2k-a'
+        inverse_element = 2 * k - element
         
-        question = f"For the binary operation $a \\ast b = a+b-{k}$ on the set of real numbers, what is the inverse of the element ${element}$?"
+        question = f"For the binary operation $a \\ast b = a+b-{k}$ on the set of real numbers, find the inverse of the element ${element}$."
         answer = str(inverse_element)
-        hint = f"First, confirm the identity element 'e' by solving $a \\ast e = a$. Then, find the inverse 'inv' by solving ${element} \\ast inv = e$."
-        explanation = f"1. Find identity (e): $a+e-{k}=a \implies e={k}$.\n2. Let the inverse of {element} be $inv$.\n3. The formula is ${element} \\ast inv = {identity_element}$.\n4. Using the definition: ${element} + inv - {k} = {identity_element}$.\n5. $inv = {identity_element} + {k} - {element} = {2*k - element}$."
-        options = {answer, str(-element), str(element-k)}
-
-    elif q_type == 'properties':
-        op_def_c, sym_c = (r"a \Delta b = a + b + ab", r"\Delta") # Commutative
-        op_def_nc, sym_nc = (r"a \circ b = 2a - b", r"\circ") # Not commutative
-        chosen_op, chosen_sym, is_comm = random.choice([(op_def_c, sym_c, True), (op_def_nc, sym_nc, False)])
-        
-        question = f"Is the binary operation ${chosen_op}$ defined on the set of real numbers a commutative operation?"
-        answer = "Yes" if is_comm else "No"
-        hint = "A binary operation * is commutative if $a * b = b * a$ for all values."
-        explanation = f"To check for commutativity, we test if $a {chosen_sym} b = b {chosen_sym} a$.\nFor ${chosen_op}$: $a {chosen_sym} b = {chosen_op.split('=')[1].strip()}$.\nAnd $b {chosen_sym} a = {chosen_op.split('=')[1].strip().replace('a','B').replace('b','A').upper().replace('A','a').replace('B','b')}$.\nSince these are {'' if is_comm else 'not '}equal, the operation is {'' if is_comm else 'not '}commutative."
-        options = {"Yes", "No"}
+        hint = f"First, find the identity element 'e' by solving $a \\ast e = a$. Then, find the inverse 'inv' by solving ${element} \\ast inv = e$."
+        explanation = f"1. Find identity element (e): $a+e-{k}=a \implies e={k}$.\n2. Let the inverse of {element} be $inv$.\n3. The formula is ${element} \\ast inv = e$, which means ${element} + inv - {k} = {k}$.\n4. Solving for the inverse: $inv = {k} + {k} - {element} = {2*k - element}$."
+        options = {answer, str(-element), str(k - element)}
 
     elif q_type == 'table_read':
+        # --- IMPROVEMENT: Cayley table numbers change every time ---
         s = [1, 2, 3, 4]
-        op_sym = random.choice(["$\\oplus$", "$\\otimes$"])
-        table_md = f"| {op_sym} | 1 | 2 | 3 | 4 |\n|---|---|---|---|---|\n"
+        op_sym = random.choice(["$\\oplus$", "$\\otimes$", "$\\boxplus$"])
+        k = random.randint(1, 4)
+        operations = [
+            {'rule': lambda r, c: (r + c) % 4, 'name': 'addition'},
+            {'rule': lambda r, c: (r * c) % 4, 'name': 'multiplication'},
+            {'rule': lambda r, c: (r + c + k) % 4, 'name': f'addition with constant {k}'},
+            {'rule': lambda r, c: (r * c + 1) % 4, 'name': 'multiplication plus one'}
+        ]
+        chosen_op_rule = random.choice(operations)['rule']
+
         results = {}
-        # Operation: (row + col) mod 4, with 0 replaced by 4 for closure in {1,2,3,4}
         for row in s:
-            table_md += f"| **{row}** |"
             for col in s:
-                res = (row + col) % 4
-                if res == 0: res = 4 
-                table_md += f" {res} |"
+                res = chosen_op_rule(row, col)
+                if res == 0: res = 4
                 results[(row, col)] = res
+
+        identity_element = "None exists"
+        for e in s:
+            is_identity = True
+            for a in s:
+                if results.get((e, a)) != a or results.get((a, e)) != a:
+                    is_identity = False; break
+            if is_identity:
+                identity_element = str(e); break
+
+        table_md = f"| {op_sym} | 1 | 2 | 3 | 4 |\n|---|---|---|---|---|\n"
+        for row in s:
+            table_md += f"| **{row}** |";
+            for col in s: table_md += f" {results.get((row, col))} |"
             table_md += "\n"
         
         sub_q = random.choice(['evaluate', 'identity'])
         if sub_q == 'evaluate':
             a, b = random.choice(s), random.choice(s)
-            question = f"The operation {op_sym} is defined on the set $\\{{1, 2, 3, 4\\}}$ by the Cayley table below. Find the value of $({a} {op_sym} {b})$.\n\n{table_md}"
-            answer = str(results[(a,b)])
-            hint = "To find a * b from the table, locate the row for 'a' and the column for 'b'. The cell where they intersect is the answer."
-            explanation = f"1. Find the row labeled **{a}**.\n2. Find the column labeled **{b}**.\n3. The value in the cell where this row and column meet is **{answer}**."
-            options = {answer, str(results.get((b,a))), str(random.choice(s))}
+            question = f"The operation {op_sym} is defined by the random Cayley table below. Find the value of $({a} {op_sym} {b})$.\n\n{table_md}"
+            answer = str(results.get((a,b)))
+            hint = "Locate the row for the first element and the column for the second. The answer is where they intersect."
+            explanation = f"Find the row labeled **{a}** and the column labeled **{b}**. The value in the cell where they meet is **{answer}**."
+            options = {answer, str(results.get((b,a)))}
         else: # identity
-            # The identity 'e' is the element whose row and column are identical to the header row/column
-            identity_element = 4 # For (a+b)%4 on {1,2,3,4}
-            question = f"The operation {op_sym} is defined on the set $\\{{1, 2, 3, 4\\}}$ by the Cayley table below. What is the identity element?\n\n{table_md}"
-            answer = str(identity_element)
-            hint = "The identity element 'e' is the element where the row for 'e' and the column for 'e' are identical to the header row and column."
-            explanation = f"Look for the row in the table that reads '1 2 3 4'. The label for that row is the identity element, which is **{identity_element}**. Similarly, the column for **{identity_element}** also reads '1 2 3 4'."
-            options = {answer, "1", "2", "3"}
+            question = f"The operation {op_sym} is defined by the random Cayley table below. What is the identity element?\n\n{table_md}"
+            answer = identity_element
+            hint = "The identity element 'e' is the element whose row and column in the table are identical to the headers."
+            explanation = f"An identity element 'e' must satisfy a*e=a and e*a=a for all 'a'. For this table, the identity element is **{answer}**."
+            options = {"1", "2", "3", "4", "None exists"}; options.add(answer)
+    
+    # --- NEW: Expanded Properties Section ---
+    elif q_type == 'properties_commutative':
+        op_sym = random.choice([r"\Delta", r"\circ", r"\star"])
+        a_coeff, b_coeff, const = [random.randint(1, 8) for _ in range(3)]
+        op_def = f"a {op_sym} b = {a_coeff}a + {b_coeff}b + {const}ab"
+        is_comm = (a_coeff == b_coeff)
+        question = f"Is the binary operation ${op_def}$ commutative on the set of real numbers?"
+        answer = "Yes" if is_comm else "No"
+        hint = "An operation * is commutative if $a * b = b * a$. Compare the coefficients of 'a' and 'b' in the definition."
+        explanation = f"$a {op_sym} b = {a_coeff}a + {b_coeff}b + {const}ab$. $b {op_sym} a = {a_coeff}b + {b_coeff}a + {const}ba$. These are only equal if {a_coeff}a + {b_coeff}b = {a_coeff}b + {b_coeff}a$, which requires {a_coeff} = {b_coeff}. This is {is_comm}."
+        options = {"Yes", "No"}
+
+    elif q_type == 'properties_associative':
+        op_sym = random.choice([r"\Delta", r"\circ", r"\star"])
+        # Pre-defined templates of associative and non-associative operations
+        templates = [
+            (f"a {op_sym} b = a + b + {random.randint(2,10)}", "Yes"), # Associative
+            (f"a {op_sym} b = a + b + ab", "Yes"), # Associative
+            (f"a {op_sym} b = a + {random.randint(2,5)}b", "No"), # Not associative
+            (f"a {op_sym} b = a^2 + b", "No") # Not associative
+        ]
+        op_def, answer = random.choice(templates)
+        question = f"Is the binary operation ${op_def}$ associative on the set of real numbers?"
+        hint = "An operation * is associative if $(a * b) * c = a * (b * c)$. Test this with the given rule."
+        explanation = f"To test for associativity, we must check if $(a {op_sym} b) {op_sym} c$ is equal to $a {op_sym} (b {op_sym} c)$. For the operation ${op_def}$, this property is found to be **{answer.lower()}**."
+        options = {"Yes", "No"}
+
+    elif q_type == 'properties_closure':
+        op_sym = random.choice([r"\ast", r"\otimes"])
+        sets = [
+            ("the set of Even Integers", lambda n: n % 2 == 0),
+            ("the set of Odd Integers", lambda n: n % 2 != 0),
+            (f"the set $\\{{0, 1, 2, 3\\}}$ with operations modulo 4", lambda n: n in [0,1,2,3])
+        ]
+        set_name, set_checker_fn = random.choice(sets)
         
+        # Select an operation that will either pass or fail closure for that set
+        if "Odd" in set_name:
+            op_def, answer = random.choice([(f"a {op_sym} b = ab", "Yes"), (f"a {op_sym} b = a + b", "No")])
+            counter_example = "For example, $3, 5$ are odd, but $3 {op_sym} 5 = {3+5 if 'a+b' in op_def else 3*5}$, which is {'even, so the set is not closed.' if 'a+b' in op_def else 'odd, so the set is closed.'}"
+        else: # Even or Modulo set
+             op_def, answer = random.choice([(f"a {op_sym} b = a + b", "Yes"), (f"a {op_sym} b = ab + 1", "No")])
+             counter_example = "For example, $2, 4$ are even, but $2 {op_sym} 4 = {2*4+1 if 'ab+1' in op_def else 2+4}$, which is {'odd, so the set is not closed.' if 'ab+1' in op_def else 'even, so the set is closed.'}"
+
+        question = f"Is the operation ${op_def}$ closed on {set_name}?"
+        hint = "A set is closed under an operation if performing the operation on any two elements of the set results in an element that is also in the set."
+        explanation = f"We need to check if taking any two elements from {set_name} and applying the operation {op_sym} gives a result that is also in the set. {counter_example}"
+        options = {"Yes", "No"}
+
     return {"question": question, "options": _finalize_options(options), "answer": answer, "hint": hint, "explanation": explanation}
 
 def _generate_relations_functions_question():
@@ -2654,6 +2722,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
