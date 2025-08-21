@@ -1085,8 +1085,8 @@ def _generate_binary_ops_question():
 
 def _generate_relations_functions_question():
     """Generates a multi-subtopic question for Relations and Functions with enhanced variety."""
-    # --- FIX: This function has been corrected to handle domain/range generation properly. ---
-    # It now derives the domain and range from the zipped pairs to avoid length mismatches.
+    # --- FIX: The final return statement has been corrected to generate proper integer options ---
+    # This prevents the "obvious answer" problem by ensuring all options have the same format.
     
     q_type = random.choice(['domain_range', 'evaluate', 'composite', 'inverse', 'types_of_relations', 'is_function'])
     question, answer, hint, explanation = "", "", "", ""
@@ -1106,14 +1106,13 @@ def _generate_relations_functions_question():
         random.shuffle(relation_pairs)
         relation_str = str(set(relation_pairs)).replace("'", "")
         
-        # --- FIX IS HERE: Derive the TRUE domain and range from the actual pairs used ---
+        # Derive the TRUE domain and range from the actual pairs used
         actual_domain = set(pair[0] for pair in relation_pairs)
         actual_range = set(pair[1] for pair in relation_pairs)
         
         d_or_r = random.choice(['domain', 'range'])
         question = f"What is the {d_or_r} of the relation $R = {relation_str}$?"
         
-        # Use the actual, correct sets for the answer and explanation
         domain_set_str = str(actual_domain)
         range_set_str = str(actual_range)
 
@@ -1127,6 +1126,8 @@ def _generate_relations_functions_question():
         hint = "The domain is the set of all unique first elements (x-values). The range is the set of all unique second elements (y-values)."
         explanation = f"Given the relation $R = {relation_str}$:\n- The domain (set of all first numbers) is ${domain_set_str}$.\n- The range (set of all second numbers) is ${range_set_str}$."
         options = {answer, *distractors}
+        # For this specific sub-topic, we must override the final call to use "set_str"
+        return {"question": question, "options": _finalize_options(options, "set_str"), "answer": answer, "hint": hint, "explanation": explanation}
 
     elif q_type == 'evaluate':
         a, b, x = random.randint(2, 8), random.randint(-10, 10), random.randint(1, 7)
@@ -1178,7 +1179,9 @@ def _generate_relations_functions_question():
         explanation = f"The relation {not_func_relation} is not a function because the input '{d[0]}' maps to two different outputs ({r[0]} and {r[1]}). The relation {func_relation} is a function because every input has only one output."
         options = {answer, not_func_relation}
 
-    return {"question": question, "options": _finalize_options(options, "set_str"), "answer": answer, "hint": hint, "explanation": explanation}
+    # --- FIX IS HERE: The default is now to generate integer-based options ---
+    # The 'domain_range' sub-topic now has its own specific return statement to handle sets correctly.
+    return {"question": question, "options": _finalize_options(options), "answer": answer, "hint": hint, "explanation": explanation}
 
 def _generate_sequence_series_question():
     """Generates a multi-subtopic question for Sequence and Series with enhanced variety."""
@@ -2830,6 +2833,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
