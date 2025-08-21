@@ -1663,9 +1663,12 @@ def _generate_probability_question():
 
     return {"question": question, "options": _finalize_options(options, "fraction"), "answer": answer, "hint": hint, "explanation": explanation}
 
+# Replace your existing _generate_binomial_theorem_question function
+# with this corrected version.
+
 def _generate_binomial_theorem_question():
     """Generates a question for the Binomial Theorem."""
-    # This function now incorporates Pascal's Triangle into its explanations.
+    # This version fixes a SyntaxError in the f-string formatting.
     
     q_type = random.choice(['find_coefficient', 'find_term'])
     n = random.randint(5, 10)
@@ -1685,7 +1688,8 @@ def _generate_binomial_theorem_question():
         # New explanation incorporating Pascal's Triangle
         coefficient_from_pascal = pascals_row[k]
         explanation = (f"The coefficients for an expansion to the power of ${n}$ can be found in row ${n}$ of Pascal's Triangle.\n\n"
-                       f"**Row ${n}$:** `{', '.join(map(str, pascals_row))`}\n\n"
+                       # --- SYNTAX FIX IS HERE ---
+                       f"**Row ${n}$:** `{', '.join(map(str, pascals_row))}`\n\n"
                        f"The term with $x^{{{k}}}$ is the ${k+1}$th term in the expansion, so we need the ${k+1}$th coefficient from the row, which is **{coefficient_from_pascal}**.\n\n"
                        f"This value corresponds to the binomial coefficient formula: $\\binom{{{n}}}{{{k}}} = {math.comb(n, k)}$.\n\n"
                        f"Finally, the full coefficient is $\\binom{{{n}}}{{{k}}} \\times a^k \\times b^{{n-k}} = {coefficient_from_pascal} \\times {a}^{k} \\times {b}^{{{n-k}}} = {answer}$."
@@ -1705,7 +1709,8 @@ def _generate_binomial_theorem_question():
         # New explanation incorporating Pascal's Triangle
         coefficient_from_pascal = pascals_row[k]
         explanation = (f"The coefficients for an expansion to the power of ${n}$ can be found in row ${n}$ of Pascal's Triangle.\n\n"
-                       f"**Row ${n}$:** `{', '.join(map(str, pascals_row))`}\n\n"
+                       # --- SYNTAX FIX IS HERE ---
+                       f"**Row ${n}$:** `{', '.join(map(str, pascals_row))}`\n\n"
                        f"For the **${r}$th term**, we use the ${r}$th coefficient from the row, which is **{coefficient_from_pascal}**. (This corresponds to an index of $k={r-1}={k}$).\n\n"
                        f"This base coefficient is calculated using the formula $\\binom{{{n}}}{{{k}}} = {math.comb(n, k)}$.\n\n"
                        f"The full term is $\\binom{{{n}}}{{{k}}}(ax)^{k}(b)^{{n-k}} = {coefficient_from_pascal} \\times ({a}x)^{{{k}}} \\times ({b})^{{{n-k}}} = {answer}$."
@@ -2811,6 +2816,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
