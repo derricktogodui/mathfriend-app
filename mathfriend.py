@@ -485,10 +485,8 @@ def get_question_id(question_text):
     """Creates a unique and consistent ID for a question based on its text."""
     return hashlib.md5(question_text.encode()).hexdigest()
 
-# Add this new helper function to your file. It is required for the main function to work.
 def _get_pascals_row(n):
     """Helper function to generate a specific row of Pascal's triangle."""
-    # This algorithm generates the nth row of Pascal's triangle
     row = [1]
     for _ in range(n):
         row = [x + y for x, y in zip([0] + row, row + [0])]
@@ -1692,18 +1690,19 @@ def _generate_probability_question():
 
     return {"question": question, "options": _finalize_options(options, "fraction"), "answer": answer, "hint": hint, "explanation": explanation}
 
-# Replace your existing _generate_binomial_theorem_question function
-# with this corrected version.
-
 def _generate_binomial_theorem_question():
     """Generates a question for the Binomial Theorem."""
-    # This version fixes a SyntaxError in the f-string formatting.
+    # --- FIX: This function has been corrected to fix a NameError. ---
+    # The 'options' variable is now correctly initialized and populated.
     
     q_type = random.choice(['find_coefficient', 'find_term'])
     n = random.randint(5, 10)
     a, b = random.randint(1, 4), random.randint(1, 4)
     
-    # Generate the relevant row from Pascal's triangle
+    # --- FIX: Initialize the 'options' variable ---
+    question, answer, hint, explanation = "", "", "", ""
+    options = set()
+    
     pascals_row = _get_pascals_row(n)
     
     if q_type == 'find_coefficient':
@@ -1711,13 +1710,15 @@ def _generate_binomial_theorem_question():
         question = f"Find the coefficient of the $x^{{{k}}}$ term in the expansion of $({a}x + {b})^{{{n}}}$."
         coefficient = math.comb(n, k) * (a**k) * (b**(n-k))
         answer = str(coefficient)
-        
         hint = f"Use Pascal's Triangle or the formula $\\binom{{n}}{{k}} a^{{n-k}} b^k$ to find the coefficient."
         
-        # New explanation incorporating Pascal's Triangle
+        # --- FIX: Populate the 'options' set ---
+        distractor1 = str(math.comb(n, k) * (a**k)) # Common mistake: forgetting the b term
+        distractor2 = str(math.comb(n, k)) # Common mistake: forgetting both coefficients
+        options = {answer, distractor1, distractor2}
+
         coefficient_from_pascal = pascals_row[k]
         explanation = (f"The coefficients for an expansion to the power of ${n}$ can be found in row ${n}$ of Pascal's Triangle.\n\n"
-                       # --- SYNTAX FIX IS HERE ---
                        f"**Row ${n}$:** `{', '.join(map(str, pascals_row))}`\n\n"
                        f"The term with $x^{{{k}}}$ is the ${k+1}$th term in the expansion, so we need the ${k+1}$th coefficient from the row, which is **{coefficient_from_pascal}**.\n\n"
                        f"This value corresponds to the binomial coefficient formula: $\\binom{{{n}}}{{{k}}} = {math.comb(n, k)}$.\n\n"
@@ -1726,19 +1727,22 @@ def _generate_binomial_theorem_question():
 
     elif q_type == 'find_term':
         r = random.randint(2, n - 1)
-        k = r - 1 # The index for coefficients/powers
+        k = r - 1
         
         question = f"Find the ${r}$th term in the expansion of $({a}x + {b})^{{{n}}}$."
         term_coeff = math.comb(n, k) * (a**k) * (b**(n-k))
         term_power = k
         answer = f"${term_coeff}x^{{{term_power}}}$"
-        
         hint = f"For the {r}th term, use the {r}th number from the {n}th row of Pascal's Triangle as your base coefficient."
+        
+        # --- FIX: Populate the 'options' set ---
+        # Common mistake: using r instead of k=r-1 for the calculation
+        distractor_coeff = math.comb(n, r) * (a**r) * (b**(n-r)) if r < n else math.comb(n, k) * (a**k)
+        distractor = f"${distractor_coeff}x^{{{r}}}$"
+        options = {answer, distractor}
 
-        # New explanation incorporating Pascal's Triangle
         coefficient_from_pascal = pascals_row[k]
         explanation = (f"The coefficients for an expansion to the power of ${n}$ can be found in row ${n}$ of Pascal's Triangle.\n\n"
-                       # --- SYNTAX FIX IS HERE ---
                        f"**Row ${n}$:** `{', '.join(map(str, pascals_row))}`\n\n"
                        f"For the **${r}$th term**, we use the ${r}$th coefficient from the row, which is **{coefficient_from_pascal}**. (This corresponds to an index of $k={r-1}={k}$).\n\n"
                        f"This base coefficient is calculated using the formula $\\binom{{{n}}}{{{k}}} = {math.comb(n, k)}$.\n\n"
@@ -2845,6 +2849,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
