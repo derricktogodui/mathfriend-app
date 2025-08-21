@@ -1085,32 +1085,48 @@ def _generate_binary_ops_question():
 
 def _generate_relations_functions_question():
     """Generates a multi-subtopic question for Relations and Functions with enhanced variety."""
-    # --- IMPROVEMENT: This function has been upgraded. ---
-    # The 'types_of_relations' and 'is_function' subtypes no longer use static, hardcoded sets.
-    # They now generate dynamic sets using random.sample(), making the question text unique each time.
+    # --- FIX: This function has been corrected to handle domain/range generation properly. ---
+    # It now derives the domain and range from the zipped pairs to avoid length mismatches.
     
     q_type = random.choice(['domain_range', 'evaluate', 'composite', 'inverse', 'types_of_relations', 'is_function'])
     question, answer, hint, explanation = "", "", "", ""
     options = set()
     
     if q_type == 'domain_range':
-        domain_list = sorted(list(set(random.sample(range(-15, 20), k=random.randint(4, 5)))))
-        range_list = sorted(list(set(random.sample(range(-15, 20), k=random.randint(4, 5)))))
+        # Generate lists that might have different lengths
+        domain_list = sorted(list(set(random.sample(range(-20, 20), k=random.randint(4, 5)))))
+        range_list = sorted(list(set(random.sample(range(-20, 20), k=random.randint(4, 5)))))
+
+        # Ensure domain and range sets are not identical
         while set(domain_list) == set(range_list):
-            range_list = sorted(list(set(random.sample(range(-15, 20), k=random.randint(4, 5)))))
-        relation_pairs = list(zip(domain_list, range_list)); random.shuffle(relation_pairs)
+            range_list = sorted(list(set(random.sample(range(-20, 20), k=random.randint(4, 5)))))
+            
+        # Create the relation using zip(), which truncates to the shorter list
+        relation_pairs = list(zip(domain_list, range_list))
+        random.shuffle(relation_pairs)
         relation_str = str(set(relation_pairs)).replace("'", "")
+        
+        # --- FIX IS HERE: Derive the TRUE domain and range from the actual pairs used ---
+        actual_domain = set(pair[0] for pair in relation_pairs)
+        actual_range = set(pair[1] for pair in relation_pairs)
+        
         d_or_r = random.choice(['domain', 'range'])
         question = f"What is the {d_or_r} of the relation $R = {relation_str}$?"
-        domain_set_str, range_set_str = str(set(domain_list)), str(set(range_list))
+        
+        # Use the actual, correct sets for the answer and explanation
+        domain_set_str = str(actual_domain)
+        range_set_str = str(actual_range)
+
         if d_or_r == 'domain':
             answer = domain_set_str
-            options = {answer, range_set_str, str(set(domain_list).union(set(range_list)))}
+            distractors = {range_set_str, str(actual_domain.union(actual_range))}
         else: # range
             answer = range_set_str
-            options = {answer, domain_set_str, str(set(domain_list).union(set(range_list)))}
+            distractors = {domain_set_str, str(actual_domain.union(actual_range))}
+
         hint = "The domain is the set of all unique first elements (x-values). The range is the set of all unique second elements (y-values)."
         explanation = f"Given the relation $R = {relation_str}$:\n- The domain (set of all first numbers) is ${domain_set_str}$.\n- The range (set of all second numbers) is ${range_set_str}$."
+        options = {answer, *distractors}
 
     elif q_type == 'evaluate':
         a, b, x = random.randint(2, 8), random.randint(-10, 10), random.randint(1, 7)
@@ -1138,7 +1154,6 @@ def _generate_relations_functions_question():
         options = {answer, f"$f^{{-1}}(x) = \\frac{{x - {b}}}{{{a}}}$", f"$f^{{-1}}(x) = {a}x + {b}$"}
         
     elif q_type == 'types_of_relations':
-        # --- IMPROVEMENT: Sets are now dynamically generated ---
         domain = sorted(random.sample(range(1, 20), 4))
         codomain = random.sample(['a', 'b', 'c', 'd', 'e', 'f', 'g'], 4)
         one_to_one = str({(domain[0], codomain[0]), (domain[1], codomain[1]), (domain[2], codomain[2])})
@@ -1153,11 +1168,10 @@ def _generate_relations_functions_question():
         options.add(answer)
 
     elif q_type == 'is_function':
-        # --- IMPROVEMENT: Sets are now dynamically generated ---
         d = sorted(random.sample(range(1, 20), 4))
         r = random.sample(range(5, 30), 4)
         func_relation = str({(d[0], r[0]), (d[1], r[1]), (d[2], r[2])})
-        not_func_relation = str({(d[0], r[0]), (d[0], r[1]), (d[1], r[2])}) # d[0] maps to two outputs
+        not_func_relation = str({(d[0], r[0]), (d[0], r[1]), (d[1], r[2])})
         question = f"Which of the following relations is also a function?"
         answer = func_relation
         hint = "A relation is a function if every input (x-value) maps to exactly one, unique output (y-value)."
@@ -2816,6 +2830,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
