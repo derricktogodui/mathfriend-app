@@ -1806,6 +1806,166 @@ def _generate_polynomial_functions_question():
 
     return {"question": question, "options": _finalize_options(options), "answer": answer, "hint": hint, "explanation": explanation}
 
+# Helper functions for formatting and polynomial math
+def _poly_to_str(coeffs, var='x'):
+    """Converts a list of coefficients like [1, -2, 3] to a string 'x^2 - 2x + 3'."""
+    parts = []
+    for i, c in enumerate(coeffs):
+        if c == 0: continue
+        power = len(coeffs) - 1 - i
+        
+        # Coefficient string
+        if abs(c) == 1 and power != 0:
+            c_str = "" if c > 0 else "-"
+        else:
+            c_str = str(c)
+            
+        # Variable and power string
+        if power == 0:
+            var_str = ""
+        elif power == 1:
+            var_str = var
+        else:
+            var_str = f"{var}^{{{power}}}"
+            
+        parts.append(f"{c_str}{var_str}")
+        
+    return " + ".join(parts).replace("+ -", "- ")
+
+def _poly_long_division(N, D):
+    """Performs long division for N(x) / D(x) where D(x) is linear (x-r)."""
+    if len(D) != 2 or D[0] != 1: return None, None # Only handles x-r form
+    if len(N) != 3: return None, None # Only handles quadratic numerator
+    
+    a, b, c = N
+    r = -D[1]
+    
+    # From synthetic division
+    q_c1 = a
+    q_c2 = b + a * r
+    remainder = c + q_c2 * r
+    
+    return [q_c1, q_c2], [remainder]
+
+
+def _generate_rational_functions_question():
+    """Generates a multi-subtopic question for Rational Functions."""
+
+    q_type = random.choice([
+        'domain', 'vertical_asymptotes', 'horizontal_asymptotes', 
+        'slant_asymptotes', 'find_holes', 'simplify_expression', 'solve_equation'
+    ])
+    question, answer, hint, explanation = "", "", "", ""
+    options = set()
+
+    if q_type in ['domain', 'vertical_asymptotes']:
+        r1, r2 = random.sample(range(-5, 6), 2)
+        n_r = r1 + 1 if r1 != r2 -1 else r1 + 2 # Ensure numerator root is different
+        
+        num_poly = [1, -n_r] # (x - n_r)
+        den_poly = [1, -(r1+r2), r1*r2] # (x - r1)(x - r2)
+        
+        func_str = f"f(x) = \\frac{{{_poly_to_str(num_poly)}}}{{{_poly_to_str(den_poly)}}}"
+        
+        if q_type == 'domain':
+            question = f"Find the domain of the function: ${func_str}$"
+            answer = f"All real numbers except $x={r1}$ and $x={r2}$"
+            hint = "The domain includes all real numbers except for the values of x that make the denominator equal to zero."
+            explanation = f"1. Set the denominator to zero: ${_poly_to_str(den_poly)} = 0$.\n\n2. Factor the denominator: $(x - {r1})(x - {r2}) = 0$.\n\n3. The values that make the denominator zero are $x={r1}$ and $x={r2}$. The function is undefined at these points."
+            options = {answer, f"All real numbers except $x={n_r}$"}
+        else: # vertical_asymptotes
+            question = f"Find the equations of the vertical asymptotes for the function: ${func_str}$"
+            answer = f"$x={r1}, x={r2}$"
+            hint = "Vertical asymptotes occur at the x-values where the denominator is zero, provided the factors don't cancel with the numerator."
+            explanation = f"1. Simplify the function. No factors cancel.\n\n2. Set the denominator to zero: $(x - {r1})(x - {r2}) = 0$.\n\n3. The vertical asymptotes are the lines $x={r1}$ and $x={r2}$."
+            options = {answer, f"$y={r1}, y={r2}$", f"$x={n_r}$"}
+
+    elif q_type == 'horizontal_asymptotes':
+        case = random.choice(['top_less', 'equal', 'top_greater'])
+        if case == 'top_less':
+            num_poly = [random.randint(1, 5)]
+            den_poly = [random.randint(1, 3), random.randint(1, 5), random.randint(1, 5)]
+            answer = "$y=0$"
+            hint = "Compare the degree of the numerator and the denominator. If the denominator's degree is greater, the horizontal asymptote is y=0."
+        elif case == 'equal':
+            c1, c2 = random.randint(1, 6), random.randint(1, 6)
+            num_poly = [c1, random.randint(1, 5)]
+            den_poly = [c2, random.randint(1, 5)]
+            ha = Fraction(c1, c2)
+            answer = f"$y = {_get_fraction_latex_code(ha)}$"
+            hint = "If the degrees are equal, the horizontal asymptote is the ratio of the leading coefficients."
+        else: # top_greater
+            num_poly = [random.randint(1, 3), random.randint(1, 5), random.randint(1, 5)]
+            den_poly = [random.randint(1, 5), random.randint(1, 5)]
+            answer = "None"
+            hint = "If the degree of the numerator is greater than the degree of the denominator, there is no horizontal asymptote."
+        
+        func_str = f"f(x) = \\frac{{{_poly_to_str(num_poly)}}}{{{_poly_to_str(den_poly)}}}"
+        question = f"Find the equation of the horizontal asymptote for the function: ${func_str}$"
+        explanation = f"We compare the degree of the numerator (top) and the denominator (bottom).\n\nIn this case, {hint} Therefore, the horizontal asymptote is **{answer}**."
+        options = {"$y=0$", "$y=1$", "None", answer}
+
+    elif q_type == 'slant_asymptotes':
+        r1 = random.randint(-4, 4)
+        a, b = random.randint(1, 3), random.randint(-3, 3)
+        k = random.randint(1, 5) # Remainder
+        
+        den_poly = [1, -r1] # (x - r1)
+        quotient_poly = [a, b] # ax + b
+        
+        # N(x) = (x-r1)(ax+b) + k = ax^2 + (b-ar1)x - br1 + k
+        num_poly = [a, b - a*r1, -b*r1 + k]
+        
+        func_str = f"f(x) = \\frac{{{_poly_to_str(num_poly)}}}{{{_poly_to_str(den_poly)}}}"
+        question = f"Find the equation of the slant (oblique) asymptote for the function: ${func_str}$"
+        answer = f"$y = {_poly_to_str(quotient_poly)}$"
+        hint = "A slant asymptote exists when the degree of the numerator is exactly one greater than the denominator. Use polynomial long division to find it."
+        explanation = f"To find the slant asymptote, we divide the numerator by the denominator.\n\n$({_poly_to_str(num_poly)}) \\div ({_poly_to_str(den_poly)})$ gives a quotient of $({_poly_to_str(quotient_poly)})$ and a remainder of ${k}$.\n\nThe slant asymptote is the quotient: **{answer}**."
+        options = {answer, f"$y = {_poly_to_str([a,b+1])}$"}
+
+    elif q_type in ['find_holes', 'simplify_expression']:
+        hole_root, num_root, den_root = random.sample(range(-5, 6), 3)
+        
+        # Numerator: (x - hole_root)(x - num_root)
+        num_poly = [1, -(hole_root + num_root), hole_root * num_root]
+        # Denominator: (x - hole_root)(x - den_root)
+        den_poly = [1, -(hole_root + den_root), hole_root * den_root]
+        
+        func_str = f"f(x) = \\frac{{{_poly_to_str(num_poly)}}}{{{_poly_to_str(den_poly)}}}"
+        simplified_func_str = f"g(x) = \\frac{{x - {num_root}}}{{x - {den_root}}}"
+        
+        if q_type == 'find_holes':
+            # y-coord of hole = simplified function evaluated at hole_root
+            y_hole = Fraction(hole_root - num_root, hole_root - den_root)
+            question = f"Find the coordinates of the hole (removable discontinuity) in the graph of the function: ${func_str}$"
+            answer = f"$({hole_root}, {_get_fraction_latex_code(y_hole)})$"
+            hint = "Factor the numerator and denominator. The cancelled factor gives the x-coordinate of the hole. Plug this x-value into the simplified function to find the y-coordinate."
+            explanation = f"1. Factor the expression: $f(x) = \\frac{{(x - {hole_root})(x - {num_root})}}{{(x - {hole_root})(x - {den_root})}}$.\n\n2. The common factor $(x-{hole_root})$ cancels, indicating a hole at $x={hole_root}$.\n\n3. The simplified function is ${simplified_func_str}$.\n\n4. To find the y-coordinate, evaluate $g({hole_root}) = \\frac{{{hole_root} - {num_root}}}{{{hole_root} - {den_root}}} = {_get_fraction_latex_code(y_hole)}$. The hole is at **{answer}**."
+            options = {answer, f"$x = {hole_root}$", f"$x = {den_root}$"}
+        else: # simplify_expression
+            question = f"Simplify the rational expression completely: ${func_str}$"
+            answer = f"$\\frac{{x - {num_root}}}{{x - {den_root}}}$"
+            hint = "Factor both the numerator and the denominator, then cancel any common factors."
+            explanation = f"1. Factored form: $f(x) = \\frac{{(x - {hole_root})(x - {num_root})}}{{(x - {hole_root})(x - {den_root})}}$.\n\n2. Cancel the common factor $(x - {hole_root})$.\n\n3. The simplified expression is **{answer}**."
+            options = {answer, f"$\\frac{{x - {hole_root}}}{{x - {den_root}}}$"}
+
+    elif q_type == 'solve_equation':
+        b, c, x_sol = random.sample(range(-5, 6), 3)
+        while x_sol == b: # Ensure solution is not extraneous
+            x_sol = random.randint(-5, 6)
+        
+        # a / (x-b) = c  => a = c(x-b)
+        a = c * (x_sol - b)
+        if a==0 or c==0: return _generate_rational_functions_question() # Regenerate if trivial
+        
+        question = f"Solve for x: $\\frac{{{a}}}{{x - {b}}} = {c}$"
+        answer = str(x_sol)
+        hint = "Multiply both sides by the denominator to eliminate the fraction, then solve the resulting linear equation. Remember to check for extraneous solutions."
+        explanation = f"1. Multiply both sides by $(x - {b})$: ${a} = {c}(x - {b})$.\n\n2. Distribute: ${a} = {c}x - {c*b}$.\n\n3. Solve for x: ${c}x = {a} + {c*b} \\implies x = \\frac{{{a+c*b}}}{{{c}}} = {x_sol}$.\n\n4. Check: The solution $x={x_sol}$ does not make the original denominator zero, so it is valid."
+        options = {answer, str(b), str(x_sol+1)}
+
+    return {"question": question, "options": _finalize_options(options), "answer": answer, "hint": hint, "explanation": explanation}
+
 def _generate_trigonometry_question():
     """Generates a question for Trigonometry."""
     # --- IMPROVEMENT: This function has been significantly upgraded. ---
@@ -2618,6 +2778,7 @@ def generate_question(topic):
         "Probability": _generate_probability_question,
         "Binomial Theorem": _generate_binomial_theorem_question,
         "Polynomial Functions": _generate_polynomial_functions_question,
+        "Rational Functions": _generate_rational_functions_question,
         "Trigonometry": _generate_trigonometry_question,
         "Vectors": _generate_vectors_question,
         "Advanced Combo": _generate_advanced_combo_question,
@@ -3213,6 +3374,13 @@ def display_learning_resources(topic_options):
         - **Remainder Theorem:** The remainder when a polynomial $P(x)$ is divided by $(x-a)$ is equal to $P(a)$.
         - **Factor Theorem:** If $P(a)=0$, then $(x-a)$ is a factor of $P(x)$. This is key to finding the roots of polynomials.
         """,
+        "Rational Functions": """
+        A **Rational Function** is a function that is the ratio of two polynomials, $f(x) = \\frac{{P(x)}}{{Q(x)}}$, where $Q(x) \\neq 0$.
+        - **Domain:** All real numbers except for the x-values that make the denominator, $Q(x)$, equal to zero.
+        - **Vertical Asymptotes:** Occur at the x-values that make the denominator zero (after simplifying).
+        - **Horizontal Asymptotes:** Found by comparing the degrees of the numerator and denominator.
+        - **Holes:** Occur at x-values where a factor is cancelled from both the numerator and denominator.
+        """,
         "Trigonometry": """
         The study of relationships between the angles and sides of triangles.
         - **SOH CAH TOA:** For right-angled triangles.
@@ -3356,6 +3524,7 @@ def show_main_app():
         "Probability",
         "Binomial Theorem",
         "Polynomial Functions",
+        "Rational Functions",
         "Trigonometry",
         "Vectors",
         "Statistics",
@@ -3449,6 +3618,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
