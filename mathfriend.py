@@ -2451,6 +2451,138 @@ def _combo_polynomial_functions():
         ]
     }
 
+def _combo_stats_probability():
+    """ Combo: Statistics (Mean) -> Probability """
+    k = 5
+    data = sorted(random.sample(range(10, 50), k=k))
+    mean_val = sum(data) / len(data)
+    
+    # Count how many numbers are greater than the mean
+    count_greater = sum(1 for x in data if x > mean_val)
+    prob_frac = Fraction(count_greater, len(data))
+
+    stem = f"A student in Kumasi has the following scores in a test: `{data}`."
+    
+    return {
+        "is_multipart": True,
+        "stem": stem,
+        "parts": [
+            {
+                "question": "a) What is the mean of the scores?",
+                "options": _finalize_options({f"{mean_val:.2f}", str(np.median(data))}),
+                "answer": f"{mean_val:.2f}",
+                "hint": "The mean is the sum of the values divided by the count of the values.",
+                "explanation": f"Sum = `{sum(data)}`. Count = `{len(data)}`. Mean = `{sum(data)} / {len(data)} = {mean_val:.2f}`."
+            },
+            {
+                "question": "b) If a score is picked at random, what is the probability that it is greater than the mean calculated in part (a)?",
+                "options": _finalize_options({_format_fraction_text(prob_frac)}, "fraction"),
+                "answer": _format_fraction_text(prob_frac),
+                "hint": "Count how many scores in the original list are greater than the mean, then divide by the total number of scores.",
+                "explanation": f"The scores greater than {mean_val:.2f} are `{[x for x in data if x > mean_val]}`. There are {count_greater} such scores out of a total of {len(data)}. Probability = {_get_fraction_latex_code(prob_frac)}."
+            }
+        ]
+    }
+
+def _combo_calculus_coord_geometry():
+    """ Combo: Calculus (Differentiation) -> Coordinate Geometry (Equation of a line) """
+    a, c = random.randint(2, 5), random.randint(1, 10)
+    x_val = random.randint(1, 4)
+    
+    poly_str = f"{a}x^2 + {c}"
+    deriv_str = f"{2*a}x"
+    
+    # Calculate point on curve
+    y_val = a * x_val**2 + c
+    gradient = 2 * a * x_val
+    
+    # Equation of the tangent line y - y1 = m(x - x1) => y = mx - mx1 + y1
+    c_tangent = y_val - gradient * x_val
+    
+    stem = f"Consider the curve defined by the equation $y = {poly_str}$."
+
+    return {
+        "is_multipart": True,
+        "stem": stem,
+        "parts": [
+            {
+                "question": f"a) Find the gradient of the curve at the point where $x = {x_val}$.",
+                "options": _finalize_options({str(gradient), str(y_val)}),
+                "answer": str(gradient),
+                "hint": "Find the derivative of the function, then substitute the x-value into the derivative.",
+                "explanation": f"1. The derivative is $\\frac{{dy}}{{dx}} = {deriv_str}$.\n\n2. At $x={x_val}$, the gradient is ${2*a}({x_val}) = {gradient}$."
+            },
+            {
+                "question": "b) Using your answer from part (a), find the equation of the tangent line to the curve at this point.",
+                "options": _finalize_options({f"$y = {gradient}x {'+' if c_tangent >= 0 else '-'} {abs(c_tangent)}$"}),
+                "answer": f"$y = {gradient}x {'+' if c_tangent >= 0 else '-'} {abs(c_tangent)}$",
+                "hint": "First, find the y-coordinate of the point. Then use the formula $y - y_1 = m(x - x_1)$.",
+                "explanation": f"1. The gradient $m = {gradient}$.\n\n2. The point is $({x_val}, {y_val})$.\n\n3. The equation is $y - {y_val} = {gradient}(x - {x_val})$, which simplifies to $y = {gradient}x - {gradient*x_val} + {y_val}$, or $y = {gradient}x {'+' if c_tangent >= 0 else '-'} {abs(c_tangent)}$."
+            }
+        ]
+    }
+
+def _combo_number_bases_modulo():
+    """ Combo: Number Bases (Conversion) -> Modulo Arithmetic """
+    base = random.choice([2, 3, 4, 5])
+    num_base10 = random.randint(20, 100)
+    num_other_base = np.base_repr(num_base10, base=base)
+    mod_n = random.randint(3, 9)
+    result_mod = num_base10 % mod_n
+
+    stem = f"Consider the number ${num_other_base}_{{{base}}}$."
+    
+    return {
+        "is_multipart": True,
+        "stem": stem,
+        "parts": [
+            {
+                "question": f"a) Convert the number from base {base} to base 10.",
+                "options": _finalize_options({str(num_base10)}),
+                "answer": str(num_base10),
+                "hint": "Multiply each digit by the base raised to the power of its position, starting from 0 on the right.",
+                "explanation": f"Converting ${num_other_base}_{{{base}}}$ to base 10 results in the number **{num_base10}**."
+            },
+            {
+                "question": f"b) Using your base 10 answer from part (a), calculate its value modulo {mod_n}.",
+                "options": _finalize_options({str(result_mod)}),
+                "answer": str(result_mod),
+                "hint": f"Find the remainder when {num_base10} is divided by {mod_n}.",
+                "explanation": f"We need to calculate ${num_base10} \\pmod{{{mod_n}}}$.\n\n${num_base10} \\div {mod_n} = {num_base10 // mod_n}$ with a remainder of **{result_mod}**."
+            }
+        ]
+    }
+
+def _combo_coord_geometry_algebra():
+    """ Combo: Coordinate Geometry (Distance) -> Algebra (Area) """
+    x1, y1, x2, y2 = 1, 2, 4, 6 # Use a pythagorean triple base (3,4,5) for a clean integer distance
+    dist = 5
+    area = dist**2
+
+    stem = f"Two points on a grid are A$({x1}, {y1})$ and B$({x2}, {y2})$."
+    
+    return {
+        "is_multipart": True,
+        "stem": stem,
+        "parts": [
+            {
+                "question": "a) Find the distance between points A and B.",
+                "options": _finalize_options({str(dist)}),
+                "answer": str(dist),
+                "hint": "Use the distance formula: $d = \\sqrt{{(x_2 - x_1)^2 + (y_2 - y_1)^2}}$." ,
+                "explanation": f"$d = \\sqrt{{({x2} - {x1})^2 + ({y2} - {y1})^2}} = \\sqrt{{3^2 + 4^2}} = \\sqrt{{25}} = 5$."
+            },
+            {
+                "question": "b) If the distance calculated in part (a) represents the side length of a square, what is the area of the square?",
+                "options": _finalize_options({str(area)}),
+                "answer": str(area),
+                "hint": "The area of a square is the side length squared.",
+                "explanation": f"The side length is {dist}. Area = $side^2 = {dist}^2 = {area}$."
+            }
+        ]
+    }
+
+
 def _generate_advanced_combo_question():
     """Randomly selects and runs one of the curated advanced combo generators."""
     
@@ -2461,6 +2593,10 @@ def _generate_advanced_combo_question():
         _combo_trig_vectors,
         _combo_prob_binomial,
         _combo_polynomial_functions,
+        _combo_stats_probability,
+        _combo_calculus_coord_geometry,
+        _combo_number_bases_modulo,
+        _combo_coord_geometry_algebra,
     ]
     
     # Pick one of the functions from the list and execute it
@@ -3313,6 +3449,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
