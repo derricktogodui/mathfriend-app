@@ -146,7 +146,13 @@ def create_and_verify_tables():
                     ("Find the coefficient in 2 binomial expansions.", "Binomial Theorem", 2),
                     ("Use the Remainder Theorem twice.", "Polynomial Functions", 2),
                     ("Solve 3 trigonometric equations.", "Trigonometry", 3),
-                    ("Calculate the magnitude of 4 vectors.", "Vectors", 4)
+                    ("Calculate the magnitude of 4 vectors.", "Vectors", 4),
+                    # --- ADD THE NEW CHALLENGES FOR YOUR NEW TOPICS HERE ---
+                    ("Solve 4 problems correctly in Statistics.", "Statistics", 4),
+                    ("Find the distance between two points 3 times.", "Coordinate Geometry", 3),
+                    ("Find the derivative of 3 functions.", "Introduction to Calculus", 3),
+                    ("Convert 4 numbers to a different base.", "Number Bases", 4),
+                    ("Solve 3 modulo arithmetic problems.", "Modulo Arithmetic", 3),
                 ]
                 conn.execute(text("INSERT INTO daily_challenges (description, topic, target_count) VALUES (:description, :topic, :target_count)"), 
                              [{"description": d, "topic": t, "target_count": c} for d, t, c in challenges])
@@ -1928,6 +1934,405 @@ def _generate_vectors_question():
 
     return {"question": question, "options": _finalize_options(options), "answer": answer, "hint": hint, "explanation": explanation}
 
+# --- PASTE THE 5 NEW TOPIC GENERATORS HERE ---
+
+def _generate_statistics_question():
+    """Generates a multi-subtopic question for Statistics."""
+    
+    q_type = random.choice(['mean', 'median', 'mode', 'range', 'frequency_tables', 'std_dev'])
+    question, answer, hint, explanation = "", "", "", ""
+    options = set()
+    
+    if q_type == 'mean':
+        k = random.randint(5, 7)
+        data = sorted(random.sample(range(5, 100), k=k))
+        mean_val = sum(data) / len(data)
+        question = f"A student in Accra recorded the following scores on their quizzes: `{data}`. What is the mean score, rounded to one decimal place?"
+        answer = f"{mean_val:.1f}"
+        hint = "The mean is the sum of all values divided by the number of values."
+        explanation = f"1. Sum of values: `{'+'.join(map(str, data))} = {sum(data)}`\n\n2. Number of values: `{len(data)}`\n\n3. Mean = `Sum / Count = {sum(data)} / {len(data)} \\approx {answer}`."
+        options = {answer, f"{np.median(data):.1f}"}
+
+    elif q_type == 'median':
+        k = random.choice([5, 6]) # Odd or even number of items
+        data = sorted(random.sample(range(5, 100), k=k))
+        median_val = np.median(data)
+        question = f"Find the median of the following dataset: `{data}`"
+        answer = str(median_val)
+        hint = "First, sort the data. The median is the middle value. If there are two middle values, it's their average."
+        explanation = f"1. The sorted dataset is `{data}`.\n\n2. Since there are {k} values, the median is the middle value. The calculated median is **{answer}**."
+        options = {answer, f"{sum(data)/len(data):.1f}"}
+
+    elif q_type == 'mode':
+        k = random.randint(4, 5)
+        base_data = random.sample(range(10, 50), k=k)
+        mode_val = random.choice(base_data)
+        data = base_data + [mode_val, mode_val] # Ensure a clear mode
+        random.shuffle(data)
+        question = f"What is the mode of the following set of numbers representing daily sales at a stall in Kejetia Market? `{data}`"
+        answer = str(mode_val)
+        hint = "The mode is the number that appears most frequently in a data set."
+        explanation = f"By counting the occurrences of each number in `{sorted(data)}`, we can see that **{answer}** appears most often."
+        options = {answer, str(int(np.mean(data))), str(np.median(data))}
+
+    elif q_type == 'range':
+        k = random.randint(5, 7)
+        data = random.sample(range(10, 150), k=k)
+        range_val = max(data) - min(data)
+        question = f"Calculate the range of the following daily temperatures recorded in Kumasi: `{data}`"
+        answer = str(range_val)
+        hint = "The range is the difference between the highest and lowest values in the dataset."
+        explanation = f"1. The highest value is `{max(data)}`.\n\n2. The lowest value is `{min(data)}`.\n\n3. Range = Highest - Lowest = `{max(data)} - {min(data)} = {answer}`."
+        options = {answer, str(max(data) + min(data))}
+
+    elif q_type == 'frequency_tables':
+        scores = [1, 2, 3, 4, 5]
+        freqs = [random.randint(2, 10) for _ in range(5)]
+        table_md = "| Score (x) | Frequency (f) |\n|---|---|\n"
+        for s, f in zip(scores, freqs):
+            table_md += f"| {s} | {f} |\n"
+        
+        total_items = sum(freqs)
+        total_sum = sum(s * f for s, f in zip(scores, freqs))
+        mean_val = total_sum / total_items
+
+        question = f"The table below shows the results of a quiz. What is the mean score?\n\n{table_md}"
+        answer = f"{mean_val:.2f}"
+        hint = "To find the mean from a frequency table, calculate the sum of (score × frequency) and divide by the total frequency."
+        explanation = f"1. Calculate `fx` for each row and sum them: `Total Sum = {total_sum}`.\n\n2. Sum the frequencies: `Total Frequency = {total_items}`.\n\n3. Mean = `Total Sum / Total Frequency = {total_sum} / {total_items} \\approx {answer}`."
+        options = {answer, f"{total_items/len(scores):.2f}"}
+
+    elif q_type == 'std_dev':
+        k = random.randint(4, 5)
+        data = random.sample(range(10, 30), k=k)
+        std_dev_val = np.std(data)
+        question = f"Calculate the population standard deviation of the following small dataset: `{data}`. Round to two decimal places."
+        answer = f"{std_dev_val:.2f}"
+        hint = "Find the mean, then the squared differences from the mean, then the average of those, and finally the square root."
+        mean_val = np.mean(data)
+        explanation = f"1. Mean (`μ`) = `{mean_val:.2f}`.\n\n2. Variance (`σ²`) = Average of squared differences from the mean ≈ `{np.var(data):.2f}`.\n\n3. Standard Deviation (`σ`) = `√Variance` ≈ `{answer}`."
+        options = {answer, f"{np.var(data):.2f}"}
+
+    return {"question": question, "options": _finalize_options(options), "answer": answer, "hint": hint, "explanation": explanation}
+
+
+def _generate_coordinate_geometry_question():
+    """Generates a multi-subtopic question for Coordinate Geometry."""
+
+    q_type = random.choice(['distance', 'midpoint', 'gradient', 'equation_point_slope', 'equation_two_points', 'parallel_perpendicular'])
+    question, answer, hint, explanation = "", "", "", ""
+    options = set()
+
+    x1, y1, x2, y2 = [random.randint(-10, 10) for _ in range(4)]
+    while x1 == x2 and y1 == y2: # Ensure points are distinct
+        x2, y2 = random.randint(-10, 10), random.randint(-10, 10)
+
+    if q_type == 'distance':
+        dist_sq = (x2 - x1)**2 + (y2 - y1)**2
+        dist = math.sqrt(dist_sq)
+        question = f"Find the distance between point A$({x1}, {y1})$ and point B$({x2}, {y2})$."
+        # Check if the distance is a perfect integer
+        if dist == int(dist):
+            answer = str(int(dist))
+        else:
+            answer = f"$\\sqrt{{{dist_sq}}}$" # Leave as a simplified surd
+        hint = "Use the distance formula: $d = \\sqrt{{(x_2 - x_1)^2 + (y_2 - y_1)^2}}$."
+        explanation = f"Using the distance formula:\n\n$d = \\sqrt{{({x2} - {x1})^2 + ({y2} - {y1})^2}} = \\sqrt{{({x2-x1})^2 + ({y2-y1})^2}} = \\sqrt{{{dist_sq}}}$."
+        if dist != int(dist): explanation += f" This is the exact distance in surd form."
+        else: explanation += f" = {int(dist)}"
+        options = {answer, str(round(dist, 2))}
+
+    elif q_type == 'midpoint':
+        mid_x = (x1 + x2) / 2
+        mid_y = (y1 + y2) / 2
+        question = f"Find the midpoint of the line segment connecting A$({x1}, {y1})$ and B$({x2}, {y2})$."
+        answer = f"({mid_x:.1f}, {mid_y:.1f})".replace(".0", "")
+        hint = "The midpoint is the average of the x-coordinates and the average of the y-coordinates."
+        explanation = f"Midpoint = $(\\frac{{x_1+x_2}}{{2}}, \\frac{{y_1+y_2}}{{2}}) = (\\frac{{{x1}+{x2}}}{{2}}, \\frac{{{y1}+{y2}}}{{2}}) = ({answer})$."
+        options = {answer, f"({(x2-x1)/2}, {(y2-y1)/2})"}
+
+    elif q_type == 'gradient':
+        question = f"Find the gradient (slope) of the line passing through A$({x1}, {y1})$ and B$({x2}, {y2})$."
+        if x1 == x2:
+            answer = "Undefined"
+            explanation = "The x-coordinates are the same, which means this is a vertical line. The gradient of a vertical line is undefined."
+            options = {answer, "0"}
+        else:
+            grad = Fraction(y2 - y1, x2 - x1)
+            answer = _format_fraction_text(grad)
+            explanation = f"Gradient $m = \\frac{{y_2-y_1}}{{x_2-x_1}} = \\frac{{{y2}-({y1})}}{{{x2}-({x1})}} = \\frac{{{y2-y1}}}{{{x2-x1}}} = {_get_fraction_latex_code(grad)}$."
+            options = {answer, _format_fraction_text(Fraction(x2-x1, y2-y1))}
+        hint = "Use the gradient formula: $m = \\frac{{y_2-y_1}}{{x_2-x_1}}$."
+        
+    elif q_type == 'equation_point_slope':
+        m_num, m_den = random.randint(-5, 5), random.randint(1, 3)
+        while m_num == 0: m_num = random.randint(-5, 5)
+        m = Fraction(m_num, m_den)
+        c = y1 - m*x1
+        question = f"Find the equation of the line that passes through the point $({x1}, {y1})$ and has a gradient of ${_get_fraction_latex_code(m)}$."
+        answer = f"$y = {_get_fraction_latex_code(m)}x {'+' if c >= 0 else '-'} {_get_fraction_latex_code(abs(c))}$"
+        hint = "Use the formula $y - y_1 = m(x - x_1)$ and rearrange to $y = mx + c$ form."
+        explanation = f"1. Start with $y - y_1 = m(x - x_1)$.\n\n2. Substitute values: $y - ({y1}) = {_get_fraction_latex_code(m)}(x - ({x1}))$.\n\n3. Simplify to find the y-intercept 'c': $c = y_1 - m \\times x_1 = {y1} - {_get_fraction_latex_code(m)} \\times {x1} = {_get_fraction_latex_code(c)}$.\n\n4. Final equation: {answer}."
+        options = {answer, f"$y = {-1/m}x + {c}$"}
+
+    elif q_type == 'equation_two_points':
+        question = f"Find the equation of the line that passes through the points A$({x1}, {y1})$ and B$({x2}, {y2})$."
+        if x1 == x2:
+            answer = f"$x = {x1}$"
+            explanation = "Since the x-coordinates are the same, this is a vertical line with the equation $x = {x1}$."
+        else:
+            m = Fraction(y2 - y1, x2 - x1)
+            c = y1 - m*x1
+            answer = f"$y = {_get_fraction_latex_code(m)}x {'+' if c >= 0 else '-'} {_get_fraction_latex_code(abs(c))}$"
+            explanation = f"1. First, find the gradient: $m = \\frac{{{y2-y1}}}{{{x2-x1}}} = {_get_fraction_latex_code(m)}$.\n\n2. Use $y - y_1 = m(x - x_1)$ to find the equation: $y - ({y1}) = {_get_fraction_latex_code(m)}(x - ({x1}))$.\n\n3. Simplify to $y=mx+c$ form: {answer}."
+        hint = "First, calculate the gradient between the two points, then use the point-slope formula $y - y_1 = m(x - x_1)$."
+        options = {answer}
+
+    elif q_type == 'parallel_perpendicular':
+        m1 = Fraction(random.randint(-3, 3), random.randint(1, 2))
+        c1 = random.randint(-5, 5)
+        line1_eq = f"$y = {_get_fraction_latex_code(m1)}x {'+' if c1 >= 0 else '-'} {_get_fraction_latex_code(abs(c1))}$"
+        
+        relationship, line2_eq = random.choice([
+            ("Parallel", f"$y = {_get_fraction_latex_code(m1)}x + {c1+2}$"),
+            ("Perpendicular", f"$y = {_get_fraction_latex_code(-1/m1)}x + {c1-1}$" if m1 != 0 else f"$x = {c1}$"),
+            ("Neither", f"$y = {_get_fraction_latex_code(m1+1)}x + {c1}$")
+        ])
+        question = f"What is the relationship between the lines {line1_eq} and {line2_eq}?"
+        answer = relationship
+        hint = "Compare the gradients of the two lines. Parallel lines have equal gradients. For perpendicular lines, the product of their gradients is -1."
+        explanation = f"The gradient of the first line is $m_1 = {_get_fraction_latex_code(m1)}$. The gradient of the second line is $m_2 = ...$. Based on the relationship between these gradients, the lines are **{answer}**."
+        options = {"Parallel", "Perpendicular", "Neither"}
+        options.add(answer)
+
+    return {"question": question, "options": _finalize_options(options), "answer": answer, "hint": hint, "explanation": explanation}
+
+
+def _generate_calculus_question():
+    """Generates a multi-subtopic question for Introduction to Calculus."""
+    
+    q_type = random.choice(['limits_substitution', 'diff_power_rule', 'gradient_of_curve', 'indefinite_integration', 'find_constant_c', 'definite_integration'])
+    question, answer, hint, explanation = "", "", "", ""
+    options = set()
+
+    # Helper to create a polynomial string
+    def poly_to_str(coeffs):
+        s = []
+        for i, c in enumerate(coeffs):
+            if c == 0: continue
+            power = len(coeffs) - 1 - i
+            if power == 0: s.append(str(c)); continue
+            if abs(c) == 1 and power > 0: c_str = "" if c == 1 else "-"
+            else: c_str = str(c)
+            if power == 1: s.append(f"{c_str}x")
+            else: s.append(f"{c_str}x^{{{power}}}")
+        return " + ".join(s).replace("+ -", "- ")
+
+    if q_type == 'limits_substitution':
+        coeffs = [random.randint(1, 5), random.randint(-5, 5), random.randint(-5, 5)]
+        poly_str = poly_to_str(coeffs)
+        x_val = random.randint(-3, 3)
+        limit_val = coeffs[0]*x_val**2 + coeffs[1]*x_val + coeffs[2]
+        question = f"Evaluate the limit: $\\lim_{{x \\to {x_val}}} ({poly_str})$"
+        answer = str(limit_val)
+        hint = "Since this is a polynomial, you can find the limit by direct substitution."
+        explanation = f"Substitute $x = {x_val}$ into the expression:\n\n$({coeffs[0]})({x_val})^2 + ({coeffs[1]})({x_val}) + ({coeffs[2]}) = {limit_val}$."
+        options = {answer, str(limit_val+1), str(limit_val-1)}
+
+    elif q_type == 'diff_power_rule':
+        coeffs = [random.randint(2, 6), random.randint(-5, 5), random.randint(2, 10)]
+        poly_str = poly_to_str(coeffs)
+        deriv_coeffs = [coeffs[0]*2, coeffs[1]]
+        deriv_str = poly_to_str(deriv_coeffs)
+        question = f"Find the derivative of $f(x) = {poly_str}$ with respect to x."
+        answer = f"${deriv_str}$"
+        hint = "Apply the power rule, $\\frac{{d}}{{dx}}(ax^n) = anx^{{n-1}}$, to each term."
+        explanation = f"Differentiating term by term:\n\n$\\frac{{d}}{{dx}}({coeffs[0]}x^2) = {coeffs[0]*2}x$\n\n$\\frac{{d}}{{dx}}({coeffs[1]}x) = {coeffs[1]}$\n\n$\\frac{{d}}{{dx}}({coeffs[2]}) = 0$\n\nThe derivative is ${answer}$."
+        options = {answer, f"${poly_to_str(coeffs)}$"}
+
+    elif q_type == 'gradient_of_curve':
+        coeffs = [random.randint(2, 5), random.randint(-5, 5)]
+        poly_str = poly_to_str(coeffs) + f" + {random.randint(1,10)}"
+        x_val = random.randint(1, 4)
+        gradient_val = coeffs[0]*2*x_val + coeffs[1]
+        question = f"Find the gradient of the curve $y = {poly_str}$ at the point where $x={x_val}$."
+        answer = str(gradient_val)
+        hint = "First, find the derivative of the function (the gradient function), then substitute the given x-value into the derivative."
+        explanation = f"1. Find the derivative: $\\frac{{dy}}{{dx}} = {poly_to_str([coeffs[0]*2, coeffs[1]])}$.\n\n2. Substitute $x={x_val}$ into the derivative: ${coeffs[0]*2}({x_val}) + ({coeffs[1]}) = {gradient_val}$."
+        options = {answer, str(gradient_val + x_val)}
+
+    elif q_type == 'indefinite_integration':
+        deriv_coeffs = [random.randint(2, 6) * 2, random.randint(2, 10)]
+        deriv_str = poly_to_str(deriv_coeffs)
+        orig_coeffs = [deriv_coeffs[0]//2, deriv_coeffs[1]]
+        orig_str = poly_to_str(orig_coeffs)
+        question = f"Find the indefinite integral of $\\int ({deriv_str}) \\,dx$."
+        answer = f"${orig_str} + C$"
+        hint = "Apply the reverse power rule, $\\int ax^n \\,dx = \\frac{{a}}{{n+1}}x^{{n+1}} + C$, to each term."
+        explanation = f"Integrating term by term:\n\n$\\int {deriv_coeffs[0]}x \\,dx = {orig_coeffs[0]}x^2$\n\n$\\int {deriv_coeffs[1]} \\,dx = {orig_coeffs[1]}x$\n\nRemember to add the constant of integration, C."
+        options = {answer, f"${deriv_str} + C$"}
+
+    elif q_type == 'find_constant_c':
+        deriv_coeffs = [random.randint(1, 4) * 2, random.randint(-5, 5)]
+        deriv_str = poly_to_str(deriv_coeffs)
+        px, py = random.randint(1, 3), random.randint(5, 20)
+        integral_val_at_px = (deriv_coeffs[0]//2)*px**2 + deriv_coeffs[1]*px
+        const_c = py - integral_val_at_px
+        orig_str = f"{poly_to_str([deriv_coeffs[0]//2, deriv_coeffs[1]])} {'+' if const_c >= 0 else '-'} {abs(const_c)}"
+        question = f"Given that $\\frac{{dy}}{{dx}} = {deriv_str}$ and the curve passes through the point $({px}, {py})$, find the equation of the curve."
+        answer = f"$y = {orig_str}$"
+        hint = "First, integrate the derivative to get the general form of the equation. Then, substitute the coordinates of the given point to solve for the constant of integration, C."
+        explanation = f"1. Integrate: $y = \\int ({deriv_str}) \\,dx = {poly_to_str([deriv_coeffs[0]//2, deriv_coeffs[1]])} + C$.\n\n2. Substitute the point $({px}, {py})$: ${py} = {poly_to_str([deriv_coeffs[0]//2, deriv_coeffs[1]]).replace('x', f'({px})')} + C$.\n\n3. Solve for C: ${py} = {integral_val_at_px} + C \\implies C = {const_c}$.\n\n4. The final equation is {answer}."
+        options = {answer, f"$y = {poly_to_str([deriv_coeffs[0]//2, deriv_coeffs[1]])}$"}
+
+    elif q_type == 'definite_integration':
+        coeffs = [random.randint(1, 4) * 2, random.randint(2, 8)]
+        poly_str = poly_to_str(coeffs)
+        a, b = random.randint(1, 3), random.randint(4, 5)
+        integral_coeffs = [coeffs[0]//2, coeffs[1]]
+        F_b = integral_coeffs[0]*b**2 + integral_coeffs[1]*b
+        F_a = integral_coeffs[0]*a**2 + integral_coeffs[1]*a
+        result = F_b - F_a
+        question = f"Evaluate the definite integral: $\\int_{{{a}}}^{{{b}}} ({poly_str}) \\,dx$."
+        answer = str(result)
+        hint = "Integrate the function, then evaluate it at the upper limit and subtract the value at the lower limit."
+        explanation = f"1. The integral is $F(x) = {poly_to_str(integral_coeffs)}$.\n\n2. Evaluate at the limits: $F({b}) - F({a})$.\n\n3. $F({b}) = {F_b}$ and $F({a}) = {F_a}$.\n\n4. Result = ${F_b} - {F_a} = {result}$."
+        options = {answer, str(F_b+F_a)}
+
+    return {"question": question, "options": _finalize_options(options), "answer": answer, "hint": hint, "explanation": explanation}
+
+
+def _generate_number_bases_question():
+    """Generates a multi-subtopic question for Number Bases."""
+
+    q_type = random.choice(['to_base_10', 'from_base_10', 'addition', 'subtraction', 'multiplication'])
+    question, answer, hint, explanation = "", "", "", ""
+    options = set()
+
+    base = random.choice([2, 3, 4, 5, 8])
+
+    if q_type == 'to_base_10':
+        num_base10 = random.randint(10, 100)
+        num_other_base = np.base_repr(num_base10, base)
+        question = f"Convert the number ${num_other_base}_{{{base}}}$ to base 10."
+        answer = str(num_base10)
+        hint = f"Multiply each digit by the base raised to the power of its position (starting from 0 on the right)."
+        exp_parts = []
+        for i, digit in enumerate(reversed(num_other_base)):
+            exp_parts.append(f"({digit} \\times {base}^{i})")
+        explanation = f"To convert ${num_other_base}_{{{base}}}$ to base 10:\n\n{' + '.join(exp_parts)} = {num_base10}$."
+        options = {answer, str(int(num_other_base, base=16)) if base < 16 else str(num_base10+base)}
+
+    elif q_type == 'from_base_10':
+        num_base10 = random.randint(20, 150)
+        num_other_base = np.base_repr(num_base10, base)
+        question = f"Convert the number ${num_base10}_{{10}}$ to base {base}."
+        answer = str(num_other_base)
+        hint = "Use repeated division by the target base, and read the remainders from bottom to top."
+        explanation = f"We repeatedly divide {num_base10} by {base}:\n\n- ${num_base10} \\div {base} = ...$ remainder ...\n- ... and so on.\n\nReading the remainders upwards gives the answer: **{answer}**."
+        options = {answer, str(num_base10*base)}
+        
+    else: # Arithmetic
+        n1 = random.randint(10, 50)
+        n2 = random.randint(10, 50)
+        n1_base = np.base_repr(n1, base)
+        n2_base = np.base_repr(n2, base)
+        
+        if q_type == 'addition':
+            result_10 = n1 + n2
+            question = f"Calculate the sum in base {base}: ${n1_base}_{{{base}}} + {n2_base}_{{{base}}}$"
+        elif q_type == 'subtraction':
+            # Ensure result is positive
+            if n1 < n2: n1, n2 = n2, n1
+            n1_base, n2_base = np.base_repr(n1, base), np.base_repr(n2, base)
+            result_10 = n1 - n2
+            question = f"Calculate the difference in base {base}: ${n1_base}_{{{base}}} - {n2_base}_{{{base}}}$"
+        else: # multiplication
+            n1, n2 = random.randint(5, 12), random.randint(5, 12)
+            n1_base, n2_base = np.base_repr(n1, base), np.base_repr(n2, base)
+            result_10 = n1 * n2
+            question = f"Calculate the product in base {base}: ${n1_base}_{{{base}}} \\times {n2_base}_{{{base}}}$"
+        
+        answer = np.base_repr(result_10, base)
+        hint = "The easiest method is to convert both numbers to base 10, perform the operation, then convert the result back to the target base."
+        explanation = f"1. Convert to base 10: ${n1_base}_{{{base}}} = {n1}_{{10}}$ and ${n2_base}_{{{base}}} = {n2}_{{10}}$.\n\n2. Perform the operation in base 10: ${n1} {'+' if q_type=='addition' else '-' if q_type=='subtraction' else '×'} {n2} = {result_10}$.\n\n3. Convert the result back to base {base}: ${result_10}_{{10}} = {answer}_{{{base}}}$."
+        options = {answer, np.base_repr(result_10 + base, base)}
+
+    return {"question": question, "options": _finalize_options(options), "answer": answer, "hint": hint, "explanation": explanation}
+
+
+def _generate_modulo_arithmetic_question():
+    """Generates a multi-subtopic question for Modulo Arithmetic."""
+
+    q_type = random.choice(['find_remainder', 'congruence', 'solve_linear', 'clock_arithmetic', 'day_of_week'])
+    question, answer, hint, explanation = "", "", "", ""
+    options = set()
+
+    if q_type == 'find_remainder':
+        n = random.randint(3, 12)
+        a = random.randint(n + 1, n * 10)
+        rem = a % n
+        question = f"Find the remainder when ${a}$ is divided by ${n}$. (i.e., find ${a} \\pmod {n}$)"
+        answer = str(rem)
+        hint = "This is asking for the value of the 'modulo' operation."
+        explanation = f"To find the remainder, we see how many times ${n}$ fits into ${a}$ completely, and what is left over.\n\n${a} = {n} \\times {a//n} + {rem}$.\n\nThe remainder is **{rem}**."
+        options = {answer, str(a//n)}
+
+    elif q_type == 'congruence':
+        n = random.randint(3, 9)
+        is_true = random.choice([True, False])
+        if is_true:
+            rem = random.randint(0, n - 1)
+            a = n * random.randint(2, 5) + rem
+            b = n * random.randint(1, 4) + rem
+            while a == b: b = n * random.randint(1, 4) + rem
+            answer = "True"
+        else:
+            rem1, rem2 = random.sample(range(n), 2)
+            a = n * random.randint(2, 5) + rem1
+            b = n * random.randint(1, 4) + rem2
+            answer = "False"
+        question = f"Is the following congruence relation true or false? ${a} \\equiv {b} \\pmod {n}$"
+        hint = f"The relation $a \\equiv b \\pmod n$ is true if and only if $(a - b)$ is a multiple of $n$."
+        explanation = f"We check if $(a - b)$ is divisible by ${n}$.\n\n${a} - {b} = {a-b}$.\n\nIs {a-b} divisible by {n}? The answer is **{answer.lower()}**."
+        options = {"True", "False"}
+    
+    elif q_type == 'solve_linear':
+        n = random.choice([3, 5, 7, 11]) # Prime modulus for simplicity
+        a = random.randint(2, n - 1)
+        x = random.randint(1, n - 1)
+        b = (a * x) % n
+        question = f"Find the value of $x$ in the congruence: ${a}x \\equiv {b} \\pmod {n}$, where $x$ is an integer from 1 to {n-1}."
+        answer = str(x)
+        hint = f"Test the integer values from 1 to {n-1} for $x$ to see which one satisfies the equation."
+        explanation = f"We are looking for an integer $x$ such that ${a}x$ has the same remainder as ${b}$ when divided by ${n}$. By testing values:\n\n- ${a}({x}) = {a*x}$\n- ${a*x} \\pmod {n} = {b}$\n\nSo, $x={answer}$ is the solution."
+        options = {answer, str((b-a)%n), str((b+a)%n)}
+
+    elif q_type == 'clock_arithmetic':
+        current_time = random.randint(1, 12)
+        hours_passed = random.randint(15, 100)
+        final_time = (current_time + hours_passed) % 12
+        if final_time == 0: final_time = 12
+        question = f"A student in Accra looks at a 12-hour clock. It is currently {current_time} o'clock. What time will it be in {hours_passed} hours?"
+        answer = f"{final_time} o'clock"
+        hint = "This problem can be solved using modulo 12."
+        explanation = f"We can calculate this using modulo arithmetic:\n\n$({current_time} + {hours_passed}) \\pmod{{12}}$\n\n$({current_time + hours_passed}) \\pmod{{12}} = {(current_time+hours_passed)%12}$.\n\nA remainder of 0 corresponds to 12 o'clock. So the time will be **{answer}**."
+        options = {answer, f"{(current_time+hours_passed)%12} o'clock", f"{abs(current_time-hours_passed)%12} o'clock"}
+
+    elif q_type == 'day_of_week':
+        days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+        start_day_index = random.randint(0, 6)
+        days_passed = random.randint(20, 200)
+        final_day_index = (start_day_index + days_passed) % 7
+        question = f"Today is {days[start_day_index]}. What day of the week will it be in {days_passed} days?"
+        answer = days[final_day_index]
+        hint = "Use modulo 7 to solve this problem. Assign a number to each day of the week (e.g., Monday=0)."
+        explanation = f"We can model the days of the week with numbers 0 through 6.\n\nLet {days[start_day_index]} be {start_day_index}.\n\nWe calculate $({start_day_index} + {days_passed}) \\pmod 7$.\n\n$({start_day_index + days_passed}) \\pmod 7 = {final_day_index}$.\n\nThe number {final_day_index} corresponds to **{answer}**."
+        options = {*days}
+        options.add(answer)
+
+    return {"question": question, "options": _finalize_options(options), "answer": answer, "hint": hint, "explanation": explanation}
+
 # --- ADVANCED COMBO HELPER FUNCTIONS ---
 
 def _combo_geometry_algebra():
@@ -2080,6 +2485,12 @@ def generate_question(topic):
         "Trigonometry": _generate_trigonometry_question,
         "Vectors": _generate_vectors_question,
         "Advanced Combo": _generate_advanced_combo_question,
+        # --- ADD THE NEW TOPICS HERE ---
+        "Statistics": _generate_statistics_question,
+        "Coordinate Geometry": _generate_coordinate_geometry_question,
+        "Introduction to Calculus": _generate_calculus_question,
+        "Number Bases": _generate_number_bases_question,
+        "Modulo Arithmetic": _generate_modulo_arithmetic_question,
     }
     
     generator_func = generators.get(topic)
@@ -2679,6 +3090,40 @@ def display_learning_resources(topic_options):
         - **Magnitude:** The length of $\mathbf{v} = x\mathbf{i} + y\mathbf{j}$ is $|\mathbf{v}| = \\sqrt{x^2 + y^2}$.
         - **Scalar (Dot) Product:** $\mathbf{a} \cdot \mathbf{b} = a_1b_1 + a_2b_2$.
         - **Angle Between Vectors:** $\cos\\theta = \\frac{{\mathbf{a} \cdot \mathbf{b}}}{{|\mathbf{a}| |\mathbf{b}|}}$.
+        """,
+         # --- ADD THE NEW TOPICS CONTENT HERE ---
+        "Statistics": """
+        **Statistics** deals with collecting, analyzing, and interpreting data.
+        - **Mean:** The average of a dataset. Calculated as $\\frac{{\\sum x}}{{n}}$.
+        - **Median:** The middle value in a sorted dataset.
+        - **Mode:** The value that appears most frequently in a dataset.
+        - **Range:** The difference between the highest and lowest values.
+        """,
+        "Coordinate Geometry": """
+        **Coordinate Geometry** uses coordinates to study geometric shapes.
+        - **Distance Formula:** The distance between $(x_1, y_1)$ and $(x_2, y_2)$ is $d = \\sqrt{{(x_2 - x_1)^2 + (y_2 - y_1)^2}}$.
+        - **Midpoint Formula:** The midpoint is $(\\frac{{x_1+x_2}}{{2}}, \\frac{{y_1+y_2}}{{2}})$.
+        - **Gradient (Slope):** The steepness of a line, $m = \\frac{{y_2-y_1}}{{x_2-x_1}}$.
+        """,
+        "Introduction to Calculus": """
+        **Calculus** is the study of continuous change.
+        - **Derivative:** Represents the instantaneous rate of change or the slope of a curve.
+            - **Power Rule:** The derivative of $ax^n$ is $anx^{{n-1}}$.
+        - **Integral:** Represents the area under a curve.
+            - **Power Rule (Integration):** The integral of $ax^n$ is $\\frac{{a}}{{n+1}}x^{{n+1}} + C$.
+        """,
+        "Number Bases": """
+        **Number Bases** are systems for representing numbers using a specific set of digits.
+        - **Base 10 (Decimal):** Uses digits 0-9.
+        - **Base 2 (Binary):** Uses digits 0-1.
+        - **Conversion to Base 10:** To convert $123_5$, calculate $(1 \\times 5^2) + (2 \\times 5^1) + (3 \\times 5^0)$.
+        - **Conversion from Base 10:** Use repeated division by the target base and record the remainders.
+        """,
+        "Modulo Arithmetic": """
+        **Modulo Arithmetic** deals with remainders after division.
+        - **Congruence:** $a \\equiv b \\pmod n$ means that $a$ and $b$ have the same remainder when divided by $n$.
+        - **Calculation:** $27 \\pmod 4 = 3$, because 27 divided by 4 is 6 with a remainder of 3.
+        - **Applications:** Used in clock arithmetic and cryptography.
         """
     }
 
@@ -2777,6 +3222,11 @@ def show_main_app():
         "Polynomial Functions",
         "Trigonometry",
         "Vectors",
+        "Statistics",
+        "Coordinate Geometry",
+        "Introduction to Calculus",
+        "Number Bases",
+        "Modulo Arithmetic",
         "Advanced Combo"
     ]
     
@@ -2863,6 +3313,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
