@@ -261,6 +261,25 @@ def get_top_scores(topic, time_filter="all"):
         result = conn.execute(query, {"topic": topic})
         return result.fetchall()
 
+@st.cache_data(ttl=300) # Cache for 5 minutes
+def get_overall_top_scores(time_filter="all"):
+    """Fetches the top 10 users based on the sum of all their correct answers."""
+    with engine.connect() as conn:
+        time_clause = ""
+        if time_filter == "week": time_clause = "WHERE timestamp >= NOW() - INTERVAL '7 days'"
+        elif time_filter == "month": time_clause = "WHERE timestamp >= NOW() - INTERVAL '30 days'"
+        
+        query = text(f"""
+            SELECT username, SUM(score) as total_score
+            FROM quiz_results
+            {time_clause}
+            GROUP BY username
+            ORDER BY total_score DESC
+            LIMIT 10;
+        """)
+        result = conn.execute(query)
+        return result.fetchall()
+
 @st.cache_data(ttl=60) # Cache for 60 seconds
 def get_user_stats(username):
     with engine.connect() as conn:
@@ -3208,51 +3227,80 @@ def display_quiz_summary():
             if 'result_saved' in st.session_state: del st.session_state['result_saved']
             st.rerun()
 
+# Replace your entire display_leaderboard function with this one.
+
 def display_leaderboard(topic_options):
     st.header("🏆 Global Leaderboard")
+    
+    # --- CHANGE 1: Create a new list with "Overall Performance" at the beginning ---
+    leaderboard_options = ["🏆 Overall Performance"] + topic_options
+    
     col1, col2 = st.columns([2, 3])
     with col1:
-        leaderboard_topic = st.selectbox("Select a topic:", topic_options, label_visibility="collapsed")
+        # --- CHANGE 2: Set index=0 to make the first item the default ---
+        leaderboard_topic = st.selectbox("Select a category:", leaderboard_options, index=0)
     with col2:
         time_filter_option = st.radio("Filter by time:",["This Week", "This Month", "All Time"],index=2,horizontal=True,label_visibility="collapsed")
+    
     time_filter_map = {"This Week": "week", "This Month": "month", "All Time": "all"}
     time_filter = time_filter_map[time_filter_option]
-    col1, col2 = st.columns(2)
-    with col1:
-        user_rank = get_user_rank(st.session_state.username, leaderboard_topic, time_filter)
-        st.metric(label=f"Your Rank ({time_filter_option})", value=f"#{user_rank}")
-    with col2:
-        total_players = get_total_players(leaderboard_topic, time_filter)
-        st.metric(label=f"Total Players ({time_filter_option})", value=total_players)
-    st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
-    st.subheader(f"Top 10 for {leaderboard_topic} ({time_filter_option})")
-    top_scores = get_top_scores(leaderboard_topic, time_filter)
-    if top_scores:
-        leaderboard_data = []
-        for r, (u, s, t) in enumerate(top_scores, 1):
-            rank_display = str(r)
-            if r == 1: rank_display = "🥇"
-            elif r == 2: rank_display = "🥈"
-            elif r == 3: rank_display = "🥉"
-            username_display = u
-            if u == st.session_state.username:
-                username_display = f"{u} (You)"
-            leaderboard_data.append({
-                "Rank": rank_display, "Username": username_display, "Score": f"{s}/{t}",
-                "Accuracy": (s/t)*100 if t > 0 else 0
-            })
-        df = pd.DataFrame(leaderboard_data)
-        def highlight_user(row):
-            if "(You)" in row.Username:
-                return ['background-color: #e6f7ff; font-weight: bold; color: #000000;'] * len(row)
-            return [''] * len(row)
-        st.dataframe(
-            df.style.apply(highlight_user, axis=1).format({'Accuracy': "{:.1f}%"}).hide(axis="index"), 
-            use_container_width=True
-        )
-    else:
-        st.info(f"No scores recorded for **{leaderboard_topic}** in this time period. Be the first!")
 
+    # --- This 'if/else' block now handles both Overall and Topic-specific views ---
+    if leaderboard_topic == "🏆 Overall Performance":
+        st.subheader(f"Top 10 Overall Performers ({time_filter_option})")
+        st.caption("Ranked by total number of correct answers across all topics.")
+        
+        # This part calls the get_overall_top_scores() function you added previously
+        top_scores = get_overall_top_scores(time_filter)
+        if top_scores:
+            leaderboard_data = []
+            for r, (username, total_score) in enumerate(top_scores, 1):
+                rank_display = "🥇" if r == 1 else "🥈" if r == 2 else "🥉" if r == 3 else str(r)
+                username_display = f"{username} (You)" if username == st.session_state.username else username
+                leaderboard_data.append({
+                    "Rank": rank_display, 
+                    "Username": username_display, 
+                    "Total Correct Answers": total_score
+                })
+            df = pd.DataFrame(leaderboard_data)
+            st.dataframe(df.style.hide(axis="index"), use_container_width=True)
+        else:
+            st.info(f"No scores recorded in this time period. Be the first!")
+
+    else: # This block is your original code for the topic-specific leaderboards
+        st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
+        st.subheader(f"Top 10 for {leaderboard_topic} ({time_filter_option})")
+        st.caption("Ranked by highest accuracy score.")
+        
+        col1_inner, col2_inner = st.columns(2)
+        with col1_inner:
+            user_rank = get_user_rank(st.session_state.username, leaderboard_topic, time_filter)
+            st.metric(label=f"Your Rank in {leaderboard_topic}", value=f"#{user_rank}")
+        with col2_inner:
+            total_players = get_total_players(leaderboard_topic, time_filter)
+            st.metric(label=f"Total Players in {leaderboard_topic}", value=total_players)
+
+        top_scores = get_top_scores(leaderboard_topic, time_filter)
+        if top_scores:
+            leaderboard_data = []
+            for r, (u, s, t) in enumerate(top_scores, 1):
+                rank_display = "🥇" if r == 1 else "🥈" if r == 2 else "🥉" if r == 3 else str(r)
+                username_display = f"{u} (You)" if u == st.session_state.username else u
+                leaderboard_data.append({
+                    "Rank": rank_display, "Username": username_display, "Score": f"{s}/{t}",
+                    "Accuracy": (s/t)*100 if t > 0 else 0
+                })
+            df = pd.DataFrame(leaderboard_data)
+            def highlight_user(row):
+                if "(You)" in row.Username:
+                    return ['background-color: #e6f7ff; font-weight: bold; color: #000000;'] * len(row)
+                return [''] * len(row)
+            st.dataframe(
+                df.style.apply(highlight_user, axis=1).format({'Accuracy': "{:.1f}%"}).hide(axis="index"), 
+                use_container_width=True
+            )
+        else:
+            st.info(f"No scores recorded for **{leaderboard_topic}** in this time period. Be the first!")
 def display_learning_resources(topic_options):
     st.header("📚 Learning Resources")
     st.write("A summary of key concepts and formulas for each topic. Click a topic to expand it.")
@@ -3621,6 +3669,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
