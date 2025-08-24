@@ -444,10 +444,12 @@ def get_online_users(current_user):
 # Add this block of 5 new functions to your Core Backend Functions section
 
 # Replace your existing create_duel function with this one.
+# Replace your existing create_duel function with this one.
 def create_duel(challenger_username, opponent_username, topic):
     """Creates a new duel challenge in the database."""
     with engine.connect() as conn:
-        # --- FIX: Explicitly set last_action_at on creation ---
+        # --- THIS IS THE FIX ---
+        # It now explicitly sets the last_action_at timestamp when a challenge is created.
         query = text("""
             INSERT INTO duels (player1_username, player2_username, topic, status, last_action_at)
             VALUES (:p1, :p2, :topic, 'pending', CURRENT_TIMESTAMP)
@@ -4227,6 +4229,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
