@@ -68,6 +68,8 @@ def get_stream_chat_client():
 
 chat_client = get_stream_chat_client()
 
+# Replace your existing create_and_verify_tables function with this one.
+
 def create_and_verify_tables():
     """Creates, verifies, and populates necessary database tables."""
     try:
@@ -98,7 +100,6 @@ def create_and_verify_tables():
                                 PRIMARY KEY (username, challenge_date)
                             )'''))
 
-            # --- PASTE THE NEW CODE EXACTLY HERE ---
             conn.execute(text('''CREATE TABLE IF NOT EXISTS seen_questions (
                                 id SERIAL PRIMARY KEY,
                                 username TEXT NOT NULL,
@@ -107,7 +108,6 @@ def create_and_verify_tables():
                                 UNIQUE (username, question_id)
                             )'''))
             
-            # ADD THIS BLOCK
             conn.execute(text('''CREATE TABLE IF NOT EXISTS user_achievements (
                                 id SERIAL PRIMARY KEY,
                                 username TEXT NOT NULL,
@@ -116,17 +116,43 @@ def create_and_verify_tables():
                                 unlocked_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
                             )'''))
             
+            # --- NEW: Head-to-Head Duel Tables ---
+            conn.execute(text('''
+                CREATE TABLE IF NOT EXISTS duels (
+                    id SERIAL PRIMARY KEY,
+                    player1_username TEXT NOT NULL,
+                    player2_username TEXT NOT NULL,
+                    topic TEXT NOT NULL,
+                    status TEXT NOT NULL, -- 'pending', 'active', 'player1_win', 'player2_win', 'draw', 'expired'
+                    player1_score INTEGER DEFAULT 0,
+                    player2_score INTEGER DEFAULT 0,
+                    current_question_index INTEGER DEFAULT 0,
+                    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                    last_action_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+                )
+            '''))
+            
+            conn.execute(text('''
+                CREATE TABLE IF NOT EXISTS duel_questions (
+                    id SERIAL PRIMARY KEY,
+                    duel_id INTEGER REFERENCES duels(id) ON DELETE CASCADE,
+                    question_index INTEGER NOT NULL,
+                    question_data_json TEXT NOT NULL, -- Storing the question dictionary as a JSON string
+                    answered_by TEXT, -- Username of the player who answered first
+                    is_correct BOOLEAN,
+                    UNIQUE(duel_id, question_index)
+                )
+            '''))
+            # --- END OF NEW TABLES ---
+            
             # --- Populate daily_challenges if it's empty ---
             result = conn.execute(text("SELECT COUNT(*) FROM daily_challenges")).scalar_one()
             if result == 0:
                 print("Populating daily_challenges table for the first time.")
-                # This list is now expanded to cover all 18 topics
                 challenges = [
-                    # General Challenges
+                    # ... (your existing list of challenges is unchanged)
                     ("Answer 5 questions correctly on any topic.", "Any", 5),
                     ("Complete any quiz with a score of 4 or more.", "Any", 4),
-                    
-                    # Original 12 Topic Challenges
                     ("Correctly answer 4 Set theory questions.", "Sets", 4),
                     ("Get 3 correct answers in a Percentages quiz.", "Percentages", 3),
                     ("Solve 4 problems involving Fractions.", "Fractions", 4),
@@ -139,15 +165,12 @@ def create_and_verify_tables():
                     ("Answer 4 questions about Shapes (Geometry).", "Shapes (Geometry)", 4),
                     ("Get 5 correct answers in Algebra Basics.", "Algebra Basics", 5),
                     ("Solve 3 problems in Linear Algebra.", "Linear Algebra", 3),
-                    
-                    # New 6 Advanced Topic Challenges
                     ("Solve 3 logarithmic equations.", "Logarithms", 3),
                     ("Correctly answer 4 probability questions.", "Probability", 4),
                     ("Find the coefficient in 2 binomial expansions.", "Binomial Theorem", 2),
                     ("Use the Remainder Theorem twice.", "Polynomial Functions", 2),
                     ("Solve 3 trigonometric equations.", "Trigonometry", 3),
                     ("Calculate the magnitude of 4 vectors.", "Vectors", 4),
-                    # --- ADD THE NEW CHALLENGES FOR YOUR NEW TOPICS HERE ---
                     ("Solve 4 problems correctly in Statistics.", "Statistics", 4),
                     ("Find the distance between two points 3 times.", "Coordinate Geometry", 3),
                     ("Find the derivative of 3 functions.", "Introduction to Calculus", 3),
@@ -158,7 +181,7 @@ def create_and_verify_tables():
                              [{"description": d, "topic": t, "target_count": c} for d, t, c in challenges])
             
             conn.commit()
-        print("Database tables created or verified successfully, including Daily Challenge tables.")
+        print("Database tables created or verified successfully, including new Duel tables.")
     except Exception as e:
         st.error(f"Database setup error: {e}")
 create_and_verify_tables()
@@ -3736,6 +3759,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
