@@ -443,12 +443,14 @@ def get_online_users(current_user):
 
 # Add this block of 5 new functions to your Core Backend Functions section
 
+# Replace your existing create_duel function with this one.
 def create_duel(challenger_username, opponent_username, topic):
     """Creates a new duel challenge in the database."""
     with engine.connect() as conn:
+        # --- FIX: Explicitly set last_action_at on creation ---
         query = text("""
-            INSERT INTO duels (player1_username, player2_username, topic, status)
-            VALUES (:p1, :p2, :topic, 'pending')
+            INSERT INTO duels (player1_username, player2_username, topic, status, last_action_at)
+            VALUES (:p1, :p2, :topic, 'pending', CURRENT_TIMESTAMP)
             RETURNING id;
         """)
         result = conn.execute(query, {"p1": challenger_username, "p2": opponent_username, "topic": topic})
@@ -4221,6 +4223,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
