@@ -3251,11 +3251,10 @@ def display_blackboard_page():
         channel.send_message({"text": prompt}, user_id=st.session_state.username)
         st.rerun()
 # Add this new function to your UI Display Functions section
+# Replace your existing display_duel_page function with this corrected version.
+
 def display_duel_page():
     """Renders the real-time head-to-head duel screen."""
-    
-    # Refresh the page every 3 seconds to get the latest game state
-    st_autorefresh(interval=3000, key="duel_game_refresh")
     
     duel_id = st.session_state.get("current_duel_id")
     if not duel_id:
@@ -3268,7 +3267,8 @@ def display_duel_page():
     duel_state = get_duel_state(duel_id)
     if not duel_state:
         st.error("Could not retrieve duel state. The game may have expired.")
-        del st.session_state["current_duel_id"]
+        if "current_duel_id" in st.session_state:
+            del st.session_state["current_duel_id"]
         st.session_state.page = "login"
         time.sleep(2)
         st.rerun()
@@ -3308,39 +3308,47 @@ def display_duel_page():
             st.error(f"😞 You lost the duel against {winner}. Better luck next time!")
         
         if st.button("Return to Blackboard"):
-            del st.session_state["current_duel_id"]
+            if "current_duel_id" in st.session_state:
+                del st.session_state["current_duel_id"]
             st.session_state.page = "login" # Reset to default view
             st.rerun()
         return
 
-    # --- Question Display ---
+    # --- Question Display & Answering Logic ---
     q_data = duel_state.get('question')
+    answered_by = duel_state.get('question_answered_by')
+
     if not q_data:
         st.info("Waiting for questions to load...")
+        # Refresh while waiting
+        st_autorefresh(interval=3000, key="duel_wait_refresh")
         return
         
     st.markdown(q_data["question"], unsafe_allow_html=True)
 
-    # --- Answering Logic ---
-    answered_by = duel_state.get('question_answered_by')
+    # --- THIS IS THE MAIN FIX ---
+    # The page only auto-refreshes AFTER a question has been answered.
     if answered_by:
         is_correct = duel_state.get('question_is_correct')
         if is_correct:
             st.success(f"✅ {answered_by} answered correctly!")
         else:
-            st.error(f"❌ {answered_by} answered incorrectly.")
-        st.info("Moving to the next question...")
+            st.error(f"❌ {answered_by} answered incorrectly. The answer was {q_data['answer']}.")
+        
+        st.info("Waiting for the next question...")
+        # Auto-refresh while in this "waiting" state
+        st_autorefresh(interval=3000, key="duel_game_refresh")
     else:
+        # If no one has answered, the page is STABLE. No auto-refresh.
         with st.form(key=f"duel_form_{current_q_index}"):
             user_choice = st.radio("Select your answer:", q_data["options"], index=None)
             if st.form_submit_button("Submit Answer", type="primary"):
                 if user_choice is not None:
                     is_correct = (str(user_choice) == str(q_data["answer"]))
-                    # This function returns True if we were the first to answer
-                    submitted = submit_duel_answer(duel_id, st.session_state.username, is_correct)
-                    if not submitted:
+                    submitted_first = submit_duel_answer(duel_id, st.session_state.username, is_correct)
+                    if not submitted_first:
                         st.toast("Too slow! Your opponent answered first.", icon="🐢")
-                    st.rerun() # Rerun to show the result
+                    st.rerun()
                 else:
                     st.warning("Please select an answer.")
 
@@ -4021,6 +4029,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
