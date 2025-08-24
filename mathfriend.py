@@ -3377,51 +3377,46 @@ def display_blackboard_page():
 
 # Replace your existing display_math_game_page function with this one.
 def display_math_game_page(topic_options):
-    """Displays the duel lobby with a new, improved two-column layout."""
+    """Displays the duel lobby with a new, improved two-column layout and stable buttons."""
     st.header("⚔️ Math Game Lobby")
-
-    # --- FIX #2: The toggle is now OFF by default ---
+    
     if 'live_lobby_active' not in st.session_state:
         st.session_state.live_lobby_active = False
     
     st.session_state.live_lobby_active = st.toggle(
         "Enable Live Lobby", 
         value=st.session_state.live_lobby_active, 
-        help="Turn this on to see online players and send/receive challenges in real-time."
+        help="Turn this on ONLY to receive challenges from other players in real-time."
     )
 
-    # --- NEW DESIGN: A two-column layout for a better game-like feel ---
     left_col, right_col = st.columns([2, 1])
 
     with right_col:
         st.subheader("Online Players")
-        if not st.session_state.live_lobby_active:
-            st.info("Turn on the 'Live Lobby' toggle to see who is online and to challenge them.")
+        online_users = get_online_users(st.session_state.username)
+        
+        # This list of users is now always visible and the page is stable for clicking.
+        if online_users:
+            with st.container(height=400):
+                for user in online_users:
+                    col1, col2 = st.columns([2, 1])
+                    with col1:
+                        st.markdown(_generate_user_pill_html(user), unsafe_allow_html=True)
+                    with col2:
+                        if st.button("Challenge", key=f"challenge_{user}", use_container_width=True):
+                            st.session_state.challenging_user = user
+                            st.rerun()
         else:
-            online_users = get_online_users(st.session_state.username)
-            if online_users:
-                # This container will scroll if many users are online
-                with st.container(height=400):
-                    for user in online_users:
-                        col1, col2 = st.columns([2, 1])
-                        with col1:
-                            st.markdown(_generate_user_pill_html(user), unsafe_allow_html=True)
-                        with col2:
-                            if st.button("Challenge", key=f"challenge_{user}", use_container_width=True):
-                                st.session_state.challenging_user = user
-                                st.rerun()
-            else:
-                st.markdown("_No other users are currently online._")
+            st.markdown("_No other users are currently online._")
 
     with left_col:
         is_configuring_challenge = 'challenging_user' in st.session_state
-        pending_challenge = get_pending_challenge(st.session_state.username) if st.session_state.live_lobby_active else None
-
-        # The auto-refresh only runs when the lobby is active and there are no open prompts.
-        if st.session_state.live_lobby_active and not is_configuring_challenge and not pending_challenge:
-            # --- FIX #3: Faster 3-second refresh interval ---
+        pending_challenge = None
+        # Only check for pending challenges if the user has opted-in with the toggle.
+        if st.session_state.live_lobby_active:
             st_autorefresh(interval=3000, key="challenge_refresh")
-        
+            pending_challenge = get_pending_challenge(st.session_state.username)
+
         # This logic decides what to show in the main panel
         if is_configuring_challenge:
             opponent = st.session_state.challenging_user
@@ -3463,12 +3458,12 @@ def display_math_game_page(topic_options):
             else:
                 st.subheader("Rules of the Duel")
                 st.markdown("""
-                - **Start a Match:** Turn on the 'Live Lobby' toggle and click 'Challenge' next to an online player's name.
+                - **To Send a Challenge:** Find an online player on the right and click 'Challenge'.
+                - **To Receive Challenges:** You must turn on the 'Enable Live Lobby' toggle above.
                 - **The Quiz:** Both players receive the same 10 questions on the chosen topic.
-                - **Scoring:** The first player to submit a correct answer for a question wins the point.
+                - **Scoring:** The first player to submit a correct answer wins the point.
                 - **Winning:** The player with the most points at the end of 10 questions is the winner!
                 """)
-# Replace your existing display_duel_page function with this corrected version.
 
 def display_duel_page():
     """Renders the real-time head-to-head duel screen."""
@@ -4225,6 +4220,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
