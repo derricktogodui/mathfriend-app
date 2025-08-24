@@ -495,47 +495,18 @@ def get_active_duel_for_player(username):
         row = conn.execute(query, {"username": username}).mappings().first()
         return dict(row) if row else None
 
+# Replace your existing accept_duel function with this one.
 def accept_duel(duel_id, topic):
-    """
-    Activate a pending duel, initialize scores and question index, and generate questions.
-    Done atomically to avoid race conditions between the two players' refresh cycles.
-    """
+    """Instantly marks a duel as 'active' so both players can join."""
     with engine.connect() as conn:
-        with conn.begin():  # start transaction
-            # 1) Set duel to active and fully initialize state
-            updated = conn.execute(text("""
-                UPDATE duels
-                SET status = 'active',
-                    current_question_index = 0,
-                    player1_score = COALESCE(player1_score, 0),
-                    player2_score = COALESCE(player2_score, 0),
-                    last_action_at = CURRENT_TIMESTAMP
-                WHERE id = :duel_id
-                  AND status IN ('pending', 'active')
-                """),
-                {"duel_id": duel_id}
-            )
-            
-            if updated.rowcount == 0:
-                return False
-
-            # 2) Generate the 10 questions
-            questions_to_insert = []
-            for i in range(10):
-                q_data = generate_question(topic)
-                questions_to_insert.append({
-                    "duel_id": duel_id,
-                    "question_index": i,
-                    "question_data_json": json.dumps(q_data),
-                })
-
-            # 3) Insert questions
-            conn.execute(text("""
-                INSERT INTO duel_questions (duel_id, question_index, question_data_json)
-                VALUES (:duel_id, :question_index, :question_data_json)
-            """), questions_to_insert)
-
-            return True
+        update_query = text("""
+            UPDATE duels 
+            SET status = 'active', last_action_at = CURRENT_TIMESTAMP 
+            WHERE id = :duel_id AND status = 'pending';
+        """)
+        conn.execute(update_query, {"duel_id": duel_id})
+        conn.commit()
+    return True
 def get_duel_state(duel_id):
     """Fetches the complete current state of a duel from the database."""
     with engine.connect() as conn:
@@ -3387,6 +3358,7 @@ def display_blackboard_page():
         st.rerun()
 
 # Replace your existing display_math_game_page function with this FINAL version.
+# Replace your existing display_math_game_page function with this one.
 def display_math_game_page(topic_options):
     """Displays the duel lobby with a new, improved two-column layout and stable buttons."""
     st.header("⚔️ Math Game Lobby")
@@ -3404,38 +3376,30 @@ def display_math_game_page(topic_options):
 
     with right_col:
         st.subheader("Online Players")
-        
-        # --- This logic is now stable and does not refresh while you are trying to click ---
         online_users = get_online_users(st.session_state.username)
+        
         if online_users:
             with st.container(height=400):
                 for user in online_users:
-                    # --- NEW, NICER UI ---
-                    # Each player is in their own bordered card for a cleaner look.
                     with st.container(border=True):
-                        # The columns are adjusted for better alignment.
                         c1, c2 = st.columns([3, 1]) 
                         with c1:
                             st.markdown(_generate_user_pill_html(user), unsafe_allow_html=True)
                         with c2:
-                            # This button is now stable and will work on the first click.
                             if st.button("Duel", key=f"challenge_{user}", use_container_width=True):
+                                # This now sets a state to show the topic selector
                                 st.session_state.challenging_user = user
                                 st.rerun()
         else:
             st.markdown("_No other users are currently online._")
 
     with left_col:
-        # --- THIS IS THE KEY FIX FOR THE REFRESH BUG ---
-        # First, we determine if the user needs to interact with a prompt.
         is_configuring_challenge = 'challenging_user' in st.session_state
         pending_challenge = get_pending_challenge(st.session_state.username) if st.session_state.live_lobby_active else None
 
-        # The auto-refresh will ONLY run if the toggle is on AND there are NO open prompts on the screen.
         if st.session_state.live_lobby_active and not is_configuring_challenge and not pending_challenge:
             st_autorefresh(interval=3000, key="challenge_refresh")
         
-        # Now, we build the UI. The page is guaranteed to be stable if either prompt is shown.
         if is_configuring_challenge:
             opponent = st.session_state.challenging_user
             with st.container(border=True):
@@ -3445,9 +3409,14 @@ def display_math_game_page(topic_options):
                 c1, c2 = st.columns(2)
                 if c1.button("✅ Send Challenge", use_container_width=True, type="primary"):
                     duel_id = create_duel(st.session_state.username, opponent, topic)
-                    if duel_id: st.toast(f"Challenge sent to {opponent} on the topic of {topic}!", icon="⚔️")
-                    del st.session_state.challenging_user
-                    st.rerun()
+                    if duel_id:
+                        st.toast(f"Challenge sent to {opponent}!", icon="⚔️")
+                        # --- THIS IS THE KEY FIX ---
+                        # Immediately redirect the challenger to the duel page.
+                        st.session_state.page = "duel"
+                        st.session_state.current_duel_id = duel_id
+                        del st.session_state.challenging_user
+                        st.rerun()
                 if c2.button("❌ Cancel", use_container_width=True):
                     del st.session_state.challenging_user
                     st.rerun()
@@ -3456,7 +3425,7 @@ def display_math_game_page(topic_options):
             with st.container(border=True):
                 challenger, topic, duel_id = pending_challenge['player1_username'], pending_challenge['topic'], pending_challenge['id']
                 st.success(f"⚔️ **Incoming Challenge!**")
-                st.write(f"**{challenger}** has challenged you to a duel on the topic of **{topic}**.")
+                st.write(f"**{challenger}** has challenged you to a duel on **{topic}**.")
                 c1, c2 = st.columns(2)
                 if c1.button("✅ Accept", use_container_width=True, type="primary", key=f"accept_{duel_id}"):
                     accept_duel(duel_id, topic)
@@ -3467,7 +3436,7 @@ def display_math_game_page(topic_options):
                     st.toast("Challenge declined.")
                     st.rerun()
         
-        else: # The default view for the main panel
+        else: 
             active_duel = get_active_duel_for_player(st.session_state.username)
             if active_duel:
                 st.session_state.page = "duel"
@@ -3476,32 +3445,37 @@ def display_math_game_page(topic_options):
             else:
                 st.subheader("How to Play")
                 st.markdown("""
-                - **1. See Players:** The list on the right shows who is online right now.
-                - **2. Send a Challenge:** Click 'Duel' next to a player's name to start a match.
-                - **3. Receive Challenges:** To get invitations from others, turn on the **'Enable Live Lobby'** toggle above.
-                - **4. Win:** The first player to answer a question correctly wins the point!
+                - **1. Send a Challenge:** Find an online player and click 'Duel'.
+                - **2. Wait for Acceptance:** You will be taken to a waiting screen.
+                - **3. Receive Challenges:** To get invitations, turn on the 'Enable Live Lobby' toggle.
+                - **4. Win:** The first player to answer correctly wins the point!
                 """)
+# Replace your existing display_duel_page function with this one.
 def display_duel_page():
     """Renders the real-time head-to-head duel screen."""
-    
     duel_id = st.session_state.get("current_duel_id")
     if not duel_id:
-        st.error("No active duel found. Returning to the lobby.")
-        st.session_state.page = "login"
-        if "challenging_user" in st.session_state: del st.session_state.challenging_user
-        time.sleep(2)
-        st.rerun()
+        st.error("No active duel found."); st.session_state.page = "login"; time.sleep(2); st.rerun()
         return
 
     duel_state = get_duel_state(duel_id)
     if not duel_state:
-        st.error("Could not retrieve duel state. The game may have expired.")
-        if "current_duel_id" in st.session_state: del st.session_state["current_duel_id"]
-        st.session_state.page = "login"
-        time.sleep(2)
-        st.rerun()
+        st.error("Could not retrieve duel state."); del st.session_state["current_duel_id"]
+        st.session_state.page = "login"; time.sleep(2); st.rerun()
         return
 
+    # --- NEW: Logic to handle the "pending" state for the challenger ---
+    if duel_state['status'] == 'pending':
+        st.info(f"⏳ Waiting for {duel_state['player2_username']} to accept your challenge...")
+        st_autorefresh(interval=3000, key="duel_pending_refresh")
+        return # Keep showing this message until the status changes
+
+    # --- Generate questions here, only if they don't exist ---
+    if 'question' not in duel_state:
+        with st.spinner("Opponent accepted! Generating unique questions for your duel..."):
+            generate_and_store_duel_questions(duel_id, duel_state['topic'])
+            st.rerun()
+    
     player1, player2, p1_score, p2_score, current_q_index, status = (
         duel_state['player1_username'], duel_state['player2_username'], duel_state['player1_score'],
         duel_state['player2_score'], duel_state['current_question_index'], duel_state['status']
@@ -3510,29 +3484,22 @@ def display_duel_page():
     st.header(f"⚔️ Duel: {player1} vs. {player2}")
     st.subheader(f"Topic: {duel_state['topic']}")
     
-    score_cols = st.columns(2)
-    with score_cols[0]: st.metric(f"{player1}'s Score", p1_score)
-    with score_cols[1]: st.metric(f"{player2}'s Score", p2_score)
+    score_cols = st.columns(2); score_cols[0].metric(f"{player1}'s Score", p1_score); score_cols[1].metric(f"{player2}'s Score", p2_score)
 
     display_q_number = min(current_q_index + 1, 10)
     st.progress(current_q_index / 10, text=f"Question {display_q_number}/10")
     st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
 
     if status != 'active':
-        # --- FIX: The incorrect st_autorefresh call has been removed from this block ---
         st.balloons()
-        
         winner_username = ""
         if status == 'player1_win': winner_username = player1
         elif status == 'player2_win': winner_username = player2
         
-        if status == 'draw':
-            st.info("🤝 The duel ended in a draw!")
+        if status == 'draw': st.info("🤝 The duel ended in a draw!")
         elif winner_username == st.session_state.username:
-            opponent = player2 if st.session_state.username == player1 else player1
-            st.success(f"🎉 Congratulations, you won the duel against {opponent}!")
-        else:
-            st.error(f"😞 You lost the duel against {winner_username}. Better luck next time!")
+            st.success(f"🎉 Congratulations, you won!")
+        else: st.error(f"😞 You lost against {winner_username}.")
         
         if st.button("Exit Duel"):
             if "current_duel_id" in st.session_state: del st.session_state["current_duel_id"]
@@ -3540,13 +3507,10 @@ def display_duel_page():
             st.rerun()
         return
 
-    q_data = duel_state.get('question')
-    answered_by = duel_state.get('question_answered_by')
+    q_data, answered_by = duel_state.get('question'), duel_state.get('question_answered_by')
 
     if not q_data:
-        st.info("Waiting for questions to load...")
-        st_autorefresh(interval=3000, key="duel_wait_refresh")
-        return
+        st.info("Preparing questions..."); st_autorefresh(interval=2000, key="duel_wait_refresh"); return
         
     st.markdown(q_data["question"], unsafe_allow_html=True)
 
@@ -3563,7 +3527,7 @@ def display_duel_page():
                 if user_choice is not None:
                     is_correct = (str(user_choice) == str(q_data["answer"]))
                     submitted_first = submit_duel_answer(duel_id, st.session_state.username, is_correct)
-                    if not submitted_first: st.toast("Too slow! Your opponent answered first.", icon="🐢")
+                    if not submitted_first: st.toast("Too slow!", icon="🐢")
                     st.rerun()
                 else:
                     st.warning("Please select an answer.")
@@ -4236,6 +4200,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
