@@ -473,12 +473,13 @@ def get_pending_challenge(username):
         return dict(result) if result else None
 
 def get_active_duel_for_player(username):
-    """Checks if a user is part of any duel with 'active' status."""
+    """Checks if a user is part of any duel that is genuinely active (i.e., not finished)."""
     with engine.connect() as conn:
         query = text("""
             SELECT id FROM duels 
             WHERE (player1_username = :username OR player2_username = :username) 
             AND status = 'active'
+            AND current_question_index < 10 -- This new line is the fix
             ORDER BY last_action_at DESC
             LIMIT 1;
         """)
@@ -4206,6 +4207,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
