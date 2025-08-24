@@ -536,6 +536,35 @@ def _generate_pascal_data(n):
     return triangle_str, last_row
 
 
+def _generate_avatar_html(username):
+    """Generates a circular, initial-based avatar as an HTML string."""
+    initial = username[0].upper()
+    # Create a consistent color from the username hash
+    hash_val = int(hashlib.md5(username.encode()).hexdigest(), 16)
+    hue = hash_val % 360
+    # Use HSL for pleasant, consistent colors
+    color = f"hsl({hue}, 70%, 85%)"
+    text_color = f"hsl({hue}, 70%, 25%)"
+    
+    avatar_style = f"""
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        background-color: {color};
+        color: {text_color};
+        font-weight: bold;
+        font-size: 14px;
+        margin-right: -8px; /* Creates the overlap effect */
+        border: 2px solid white;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    """
+    
+    # The 'title' attribute creates the hover-over tooltip with the full name
+    return f'<div style="{avatar_style}" title="{username}">{initial}</div>'
+
 # --- FULLY IMPLEMENTED QUESTION GENERATION ENGINE (12 TOPICS) ---
 
 def _generate_sets_question():
@@ -2984,14 +3013,45 @@ def display_dashboard(username):
 
 def display_blackboard_page():
     st.header("칠판 Blackboard")
-    # --- ADD THIS LINE ---
     st.components.v1.html("<meta http-equiv='refresh' content='15'>", height=0)
     st.info("This is a community space. Ask clear questions, be respectful, and help your fellow students!", icon="👋")
     online_users = get_online_users(st.session_state.username)
+
+    # --- START: UPDATED ONLINE USER DISPLAY ---
+    # This block replaces the simple text list with the new avatar row.
     if online_users:
-        st.markdown(f"**🟢 Online now:** {', '.join(online_users)}")
+        max_avatars = 7  # Show a max of 7 avatars directly
+        avatar_html_list = []
+        for i, user in enumerate(online_users):
+            if i < max_avatars:
+                avatar_html_list.append(_generate_avatar_html(user))
+        
+        avatars_str = "".join(avatar_html_list)
+        
+        # If there are more users than the max, add a "+X more" indicator
+        if len(online_users) > max_avatars:
+            more_count = len(online_users) - max_avatars
+            more_style = """
+                display: inline-flex; align-items: center; justify-content: center;
+                width: 32px; height: 32px; border-radius: 50%;
+                background-color: #e9ecef; color: #495057;
+                font-weight: bold; font-size: 12px; margin-left: 0px;
+                border: 2px solid white; box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            """
+            avatars_str += f'<div style="{more_style}" title="{more_count} more online">+{more_count}</div>'
+
+        # Display the avatars inside a container
+        st.markdown(f"""
+            <div style="display: flex; align-items: center; margin-bottom: 10px;">
+                <span style="margin-right: 10px; font-weight: bold;">🟢 Online:</span>
+                <div style="display: flex;">{avatars_str}</div>
+            </div>
+        """, unsafe_allow_html=True)
+
     else:
         st.markdown("_No other users are currently active._")
+    # --- END: UPDATED ONLINE USER DISPLAY ---
+
     st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
     channel = chat_client.channel("messaging", channel_id="mathfriend-blackboard", data={"name": "MathFriend Blackboard"})
     channel.create(st.session_state.username)
@@ -3680,6 +3740,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
