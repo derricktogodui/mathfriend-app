@@ -507,6 +507,35 @@ def accept_duel(duel_id, topic):
         conn.execute(update_query, {"duel_id": duel_id})
         conn.commit()
     return True
+
+# Add this new helper function right after your accept_duel function
+def generate_and_store_duel_questions(duel_id, topic):
+    """Generates and stores questions for a duel if they don't already exist."""
+    with engine.connect() as conn:
+        with conn.begin(): # Use a transaction
+            # Check if questions already exist to prevent regenerating them on every refresh
+            exists_query = text("SELECT COUNT(*) FROM duel_questions WHERE duel_id = :duel_id")
+            count = conn.execute(exists_query, {"duel_id": duel_id}).scalar_one()
+            if count > 0:
+                return # Questions are already there
+
+            # If no questions exist, generate and insert them
+            questions_to_insert = []
+            for i in range(10):
+                q_data = generate_question(topic)
+                q_data_json = json.dumps(q_data)
+                questions_to_insert.append({
+                    "duel_id": duel_id,
+                    "question_index": i,
+                    "question_data_json": q_data_json
+                })
+            
+            insert_query = text("""
+                INSERT INTO duel_questions (duel_id, question_index, question_data_json)
+                VALUES (:duel_id, :question_index, :question_data_json);
+            """)
+            conn.execute(insert_query, questions_to_insert)
+
 def get_duel_state(duel_id):
     """Fetches the complete current state of a duel from the database."""
     with engine.connect() as conn:
@@ -4200,6 +4229,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
