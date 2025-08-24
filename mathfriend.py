@@ -472,6 +472,19 @@ def get_pending_challenge(username):
         result = conn.execute(query, {"username": username}).mappings().first()
         return dict(result) if result else None
 
+def get_active_duel_for_player(username):
+    """Checks if a user is part of any duel with 'active' status."""
+    with engine.connect() as conn:
+        query = text("""
+            SELECT id FROM duels 
+            WHERE (player1_username = :username OR player2_username = :username) 
+            AND status = 'active'
+            ORDER BY last_action_at DESC
+            LIMIT 1;
+        """)
+        result = conn.execute(query, {"username": username}).mappings().first()
+        return dict(result) if result else None
+
 def accept_duel(duel_id, topic):
     """Marks a duel as 'active' and generates the questions for it."""
     with engine.connect() as conn:
@@ -3183,11 +3196,31 @@ def display_dashboard(username):
 
 # Replace your existing display_blackboard_page function with this new version.
 
+# Replace your existing display_blackboard_page function with this one.
+
 def display_blackboard_page():
     st.header("칠판 Blackboard")
     
-    # We will add st_autorefresh later once this part is confirmed working
-    # st_autorefresh(interval=5000, key="challenge_refresh")
+    # Auto-refresh to check for challenges and game starts
+    st_autorefresh(interval=5000, key="challenge_refresh")
+
+    # --- NEW: Check if the current user is already in an active duel ---
+    # This is the key fix that synchronizes both players.
+    active_duel = get_active_duel_for_player(st.session_state.username)
+    if active_duel:
+        st.session_state.page = "duel"
+        st.session_state.current_duel_id = active_duel['id']
+        st.rerun()
+        return # Stop rendering the rest of the Blackboard page
+
+    # Handle challenge creation (no changes here, but kept for completeness)
+    if 'challenge' in st.query_params:
+        opponent = st.query_params['challenge']
+        topic = st.session_state.get("quiz_topic", "Sets") 
+        duel_id = create_duel(st.session_state.username, opponent, topic)
+        if duel_id:
+            st.toast(f"Challenge sent to {opponent} on the topic of {topic}!", icon="⚔️")
+        st.query_params.clear()
 
     # Check for and display pending challenges for the current user
     pending_challenge = get_pending_challenge(st.session_state.username)
@@ -3207,8 +3240,6 @@ def display_blackboard_page():
 
             if c2.button("❌ Decline", use_container_width=True, key=f"decline_{duel_id}"):
                 st.toast("Challenge declined.")
-                # In a real app, you'd update the duel status to 'declined'. 
-                # For now, a rerun will make it expire shortly.
                 st.rerun()
 
     st.info("This is the community space and duel lobby. Challenge online users to a math battle!", icon="⚔️")
@@ -3216,13 +3247,12 @@ def display_blackboard_page():
 
     if online_users:
         st.subheader("Online Users")
-        # --- FIX #1: Use standard st.button instead of st.link_button ---
         for user in online_users:
             col1, col2 = st.columns([3, 1])
             with col1:
                 st.markdown(_generate_user_pill_html(user), unsafe_allow_html=True)
             with col2:
-                # Use a standard button with a unique key for each user
+                # Use a standard button which is more reliable
                 if st.button(f"Challenge", key=f"challenge_{user}", use_container_width=True):
                     topic = st.session_state.get("quiz_topic", "Sets")
                     duel_id = create_duel(st.session_state.username, user, topic)
@@ -3230,7 +3260,7 @@ def display_blackboard_page():
                         st.toast(f"Challenge sent to {user} on the topic of {topic}!", icon="⚔️")
                     st.rerun()
     else:
-        st.markdown("_No other users are currently active.")
+        st.markdown("_No other users are currently active._")
 
     st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
     
@@ -4029,6 +4059,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
