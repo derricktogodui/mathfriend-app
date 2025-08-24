@@ -3227,17 +3227,15 @@ def display_quiz_summary():
             if 'result_saved' in st.session_state: del st.session_state['result_saved']
             st.rerun()
 
-# Replace your entire display_leaderboard function with this one.
+# Replace your existing display_leaderboard function with this new version.
 
 def display_leaderboard(topic_options):
     st.header("🏆 Global Leaderboard")
     
-    # --- CHANGE 1: Create a new list with "Overall Performance" at the beginning ---
     leaderboard_options = ["🏆 Overall Performance"] + topic_options
     
     col1, col2 = st.columns([2, 3])
     with col1:
-        # --- CHANGE 2: Set index=0 to make the first item the default ---
         leaderboard_topic = st.selectbox("Select a category:", leaderboard_options, index=0)
     with col2:
         time_filter_option = st.radio("Filter by time:",["This Week", "This Month", "All Time"],index=2,horizontal=True,label_visibility="collapsed")
@@ -3245,20 +3243,36 @@ def display_leaderboard(topic_options):
     time_filter_map = {"This Week": "week", "This Month": "month", "All Time": "all"}
     time_filter = time_filter_map[time_filter_option]
 
-    # --- This 'if/else' block now handles both Overall and Topic-specific views ---
     if leaderboard_topic == "🏆 Overall Performance":
         st.subheader(f"Top 10 Overall Performers ({time_filter_option})")
         st.caption("Ranked by total number of correct answers across all topics.")
         
-        # This part calls the get_overall_top_scores() function you added previously
         top_scores = get_overall_top_scores(time_filter)
         if top_scores:
             leaderboard_data = []
+            
+            # --- NEW: The creative and funny list of unique titles ---
+            titles = [
+                "🥇 Math Legend",
+                "🥈 Prime Mathematician",
+                "🥉 Grand Prodigy",
+                "The Destroyer",
+                "Number Ninja",
+                "The Genius",
+                "Math Magician",
+                "The Professor",
+                "The Oracle",
+                "Last Baby"
+            ]
+
             for r, (username, total_score) in enumerate(top_scores, 1):
-                rank_display = "🥇" if r == 1 else "🥈" if r == 2 else "🥉" if r == 3 else str(r)
+                # This line takes the rank number (e.g., 1, 2, 3) and gets the matching title from the list
+                rank_title = titles[r-1]
+
                 username_display = f"{username} (You)" if username == st.session_state.username else username
+                
                 leaderboard_data.append({
-                    "Rank": rank_display, 
+                    "Rank": rank_title,
                     "Username": username_display, 
                     "Total Correct Answers": total_score
                 })
@@ -3267,7 +3281,7 @@ def display_leaderboard(topic_options):
         else:
             st.info(f"No scores recorded in this time period. Be the first!")
 
-    else: # This block is your original code for the topic-specific leaderboards
+    else: # This is the existing logic for topic-specific leaderboards
         st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
         st.subheader(f"Top 10 for {leaderboard_topic} ({time_filter_option})")
         st.caption("Ranked by highest accuracy score.")
@@ -3669,6 +3683,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
