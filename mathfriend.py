@@ -3584,6 +3584,9 @@ def show_login_or_signup_page():
                     st.error("All fields are required.")
                 elif password != confirm_password:
                     st.error("Passwords do not match.")
+                # --- FIX IS HERE: Add validation check for the username format ---
+                elif not re.match("^[a-zA-Z0-9_]+$", username):
+                    st.error("Username is invalid. Please use only letters, numbers, and underscores (_). No spaces are allowed.")
                 elif signup_user(username, password):
                     st.success("Account created! Please log in.")
                     st.session_state.page = "login"
@@ -3618,6 +3621,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
