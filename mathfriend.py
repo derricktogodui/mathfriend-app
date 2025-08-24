@@ -15,6 +15,7 @@ import numpy as np
 import sqlalchemy
 from sqlalchemy import create_engine, text
 import stream_chat
+import json
 
 # --- App Configuration ---
 st.set_page_config(
@@ -438,6 +439,145 @@ def get_online_users(current_user):
         """)
         result = conn.execute(query, {"current_user": current_user})
         return [row[0] for row in result.fetchall()]
+
+# Add this block of 5 new functions to your Core Backend Functions section
+
+def create_duel(challenger_username, opponent_username, topic):
+    """Creates a new duel challenge in the database."""
+    with engine.connect() as conn:
+        query = text("""
+            INSERT INTO duels (player1_username, player2_username, topic, status)
+            VALUES (:p1, :p2, :topic, 'pending')
+            RETURNING id;
+        """)
+        result = conn.execute(query, {"p1": challenger_username, "p2": opponent_username, "topic": topic})
+        conn.commit()
+        duel_id = result.scalar_one_or_none()
+        return duel_id
+
+def get_pending_challenge(username):
+    """Checks if there is an active, recent challenge for a user."""
+    with engine.connect() as conn:
+        # Look for a pending challenge from the last 60 seconds
+        query = text("""
+            SELECT id, player1_username, topic 
+            FROM duels 
+            WHERE player2_username = :username 
+            AND status = 'pending' 
+            AND created_at > NOW() - INTERVAL '60 seconds'
+            ORDER BY created_at DESC
+            LIMIT 1;
+        """)
+        result = conn.execute(query, {"username": username}).mappings().first()
+        return dict(result) if result else None
+
+def accept_duel(duel_id, topic):
+    """Marks a duel as 'active' and generates the questions for it."""
+    with engine.connect() as conn:
+        # 1. Update the duel status to active
+        update_query = text("""
+            UPDATE duels 
+            SET status = 'active', last_action_at = CURRENT_TIMESTAMP 
+            WHERE id = :duel_id;
+        """)
+        conn.execute(update_query, {"duel_id": duel_id})
+
+        # 2. Generate 10 unique questions for this duel
+        questions_to_insert = []
+        for i in range(10): # A duel consists of 10 questions
+            q_data = generate_question(topic)
+            # Convert the entire question dictionary to a JSON string for storage
+            q_data_json = json.dumps(q_data)
+            questions_to_insert.append({
+                "duel_id": duel_id,
+                "question_index": i,
+                "question_data_json": q_data_json
+            })
+        
+        # 3. Insert the questions into the duel_questions table
+        insert_query = text("""
+            INSERT INTO duel_questions (duel_id, question_index, question_data_json)
+            VALUES (:duel_id, :question_index, :question_data_json);
+        """)
+        conn.execute(insert_query, questions_to_insert)
+        conn.commit()
+        return True
+
+def get_duel_state(duel_id):
+    """Fetches the complete current state of a duel from the database."""
+    with engine.connect() as conn:
+        # First, get the main duel state
+        duel_query = text("SELECT * FROM duels WHERE id = :duel_id")
+        duel_state = conn.execute(duel_query, {"duel_id": duel_id}).mappings().first()
+        if not duel_state:
+            return None
+        
+        duel_state = dict(duel_state)
+        
+        # Next, get the current question for this duel
+        question_query = text("""
+            SELECT question_data_json, answered_by, is_correct 
+            FROM duel_questions 
+            WHERE duel_id = :duel_id AND question_index = :q_index
+        """)
+        current_question_data = conn.execute(
+            question_query, 
+            {"duel_id": duel_id, "q_index": duel_state.get('current_question_index', 0)}
+        ).mappings().first()
+        
+        if current_question_data:
+            # Add the question data to the duel state
+            duel_state['question'] = json.loads(current_question_data['question_data_json'])
+            duel_state['question_answered_by'] = current_question_data['answered_by']
+            duel_state['question_is_correct'] = current_question_data['is_correct']
+
+        return duel_state
+
+def submit_duel_answer(duel_id, username, is_correct):
+    """Records a player's answer and updates the duel state."""
+    with engine.connect() as conn:
+        with conn.begin(): # Use a transaction to ensure data integrity
+            # Get the current question index and player usernames
+            duel_info = conn.execute(
+                text("SELECT player1_username, player2_username, current_question_index FROM duels WHERE id = :duel_id"),
+                {"duel_id": duel_id}
+            ).mappings().first()
+
+            if not duel_info: return False
+
+            q_index = duel_info['current_question_index']
+
+            # Attempt to update the question, but only if it hasn't been answered yet
+            update_question_query = text("""
+                UPDATE duel_questions
+                SET answered_by = :username, is_correct = :is_correct
+                WHERE duel_id = :duel_id AND question_index = :q_index AND answered_by IS NULL
+            """)
+            result = conn.execute(update_question_query, {
+                "username": username,
+                "is_correct": is_correct,
+                "duel_id": duel_id,
+                "q_index": q_index
+            })
+
+            # The result.rowcount tells us if the update was successful (i.e., we were the first to answer)
+            if result.rowcount > 0:
+                # If the answer was correct, update the score
+                if is_correct:
+                    score_column = "player1_score" if username == duel_info['player1_username'] else "player2_score"
+                    conn.execute(
+                        text(f"UPDATE duels SET {score_column} = {score_column} + 1 WHERE id = :duel_id"),
+                        {"duel_id": duel_id}
+                    )
+
+                # Move to the next question for both players
+                conn.execute(
+                    text("UPDATE duels SET current_question_index = current_question_index + 1, last_action_at = CURRENT_TIMESTAMP WHERE id = :duel_id"),
+                    {"duel_id": duel_id}
+                )
+                return True # Answer was successfully submitted
+            
+            return False # Someone else answered first
 
 # ADD THESE TWO NEW FUNCTIONS
 
@@ -3040,38 +3180,70 @@ def display_dashboard(username):
         else:
             st.info("Your quiz history is empty. Take a quiz to get started!")
 
+# Replace your existing display_blackboard_page function with this new version.
+
 def display_blackboard_page():
     st.header("칠판 Blackboard")
-    st.components.v1.html("<meta http-equiv='refresh' content='15'>", height=0)
-    st.info("This is a community space. Ask clear questions, be respectful, and help your fellow students!", icon="👋")
+    
+    # --- NEW: Auto-refresh every 5 seconds to check for challenges ---
+    st_autorefresh(interval=5000, key="challenge_refresh")
+
+    # --- NEW: Handle challenge creation ---
+    # Check if a challenge button was clicked via query params
+    if 'challenge' in st.query_params:
+        opponent = st.query_params['challenge']
+        # For simplicity, we'll use the user's last selected quiz topic for the challenge
+        # A more advanced version could show a topic selector here
+        topic = st.session_state.get("quiz_topic", "Sets") 
+        duel_id = create_duel(st.session_state.username, opponent, topic)
+        if duel_id:
+            st.toast(f"Challenge sent to {opponent} on the topic of {topic}!", icon="⚔️")
+        # Clear the query param to prevent re-sending the challenge on refresh
+        st.query_params.clear()
+
+    # --- NEW: Check for and display pending challenges for the current user ---
+    pending_challenge = get_pending_challenge(st.session_state.username)
+    if pending_challenge:
+        with st.container(border=True):
+            challenger = pending_challenge['player1_username']
+            topic = pending_challenge['topic']
+            duel_id = pending_challenge['id']
+            st.info(f"⚔️ **Incoming Challenge!** {challenger} has challenged you to a duel on the topic of **{topic}**.")
+            
+            c1, c2 = st.columns(2)
+            if c1.button("✅ Accept", use_container_width=True, type="primary"):
+                accept_duel(duel_id, topic)
+                # --- NEW: Set session state to move to the duel page ---
+                st.session_state.page = "duel"
+                st.session_state.current_duel_id = duel_id
+                st.rerun()
+
+            if c2.button("❌ Decline", use_container_width=True):
+                # In a full implementation, you might update the duel status to 'declined'
+                # For now, we'll just ignore it and let it expire.
+                st.toast("Challenge declined.")
+                # A simple way to "hide" it is to force a rerun, the challenge will expire shortly
+                st.rerun()
+
+    st.info("This is the community space and duel lobby. Challenge online users to a math battle!", icon="⚔️")
     online_users = get_online_users(st.session_state.username)
 
-    # --- START: NEW AND IMPROVED ONLINE USER DISPLAY ---
-    # This version uses "pills" with avatars and names, and supports horizontal scrolling.
     if online_users:
-        pills_html_list = [_generate_user_pill_html(user) for user in online_users]
-        pills_str = "".join(pills_html_list)
-
-        # Container with horizontal scrolling for many users
-        container_style = """
-            display: flex;
-            align-items: center;
-            width: 100%;
-            overflow-x: auto;
-            white-space: nowrap;
-            padding-bottom: 10px; /* For scrollbar space */
-        """
-        st.markdown(f"""
-            <div style="display: flex; align-items: center; margin-bottom: 10px;">
-                <span style="margin-right: 10px; font-weight: bold;">🟢 Online:</span>
-                <div style="{container_style}">{pills_str}</div>
-            </div>
-        """, unsafe_allow_html=True)
+        st.subheader("Online Users")
+        # Display online users with a challenge button next to each
+        for user in online_users:
+            col1, col2 = st.columns([3, 1])
+            with col1:
+                st.markdown(_generate_user_pill_html(user), unsafe_allow_html=True)
+            with col2:
+                # Use a link styled as a button to set a query parameter
+                st.link_button("Challenge", url=f"?challenge={user}", use_container_width=True)
     else:
         st.markdown("_No other users are currently active._")
-    # --- END: NEW AND IMPROVED ONLINE USER DISPLAY ---
 
     st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
+    
+    # The chat functionality remains the same
     channel = chat_client.channel("messaging", channel_id="mathfriend-blackboard", data={"name": "MathFriend Blackboard"})
     channel.create(st.session_state.username)
     state = channel.query(watch=False, state=True, messages={"limit": 50})
@@ -3087,6 +3259,100 @@ def display_blackboard_page():
     if prompt := st.chat_input("Post your question or comment..."):
         channel.send_message({"text": prompt}, user_id=st.session_state.username)
         st.rerun()
+
+# Add this new function to your UI Display Functions section
+def display_duel_page():
+    """Renders the real-time head-to-head duel screen."""
+    
+    # Refresh the page every 3 seconds to get the latest game state
+    st_autorefresh(interval=3000, key="duel_game_refresh")
+    
+    duel_id = st.session_state.get("current_duel_id")
+    if not duel_id:
+        st.error("No active duel found. Returning to the Blackboard.")
+        st.session_state.page = "login" # Go back to the default page
+        time.sleep(2)
+        st.rerun()
+        return
+
+    duel_state = get_duel_state(duel_id)
+    if not duel_state:
+        st.error("Could not retrieve duel state. The game may have expired.")
+        del st.session_state["current_duel_id"]
+        st.session_state.page = "login"
+        time.sleep(2)
+        st.rerun()
+        return
+
+    player1 = duel_state['player1_username']
+    player2 = duel_state['player2_username']
+    p1_score = duel_state['player1_score']
+    p2_score = duel_state['player2_score']
+    current_q_index = duel_state['current_question_index']
+
+    # --- Scoreboard UI ---
+    st.header(f"⚔️ Duel: {player1} vs. {player2}")
+    st.subheader(f"Topic: {duel_state['topic']}")
+    
+    score_cols = st.columns(2)
+    with score_cols[0]:
+        st.metric(f"{player1}'s Score", p1_score)
+    with score_cols[1]:
+        st.metric(f"{player2}'s Score", p2_score)
+
+    st.progress((current_q_index) / 10, text=f"Question {current_q_index + 1}/10")
+    st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
+
+    # --- Game Over Condition ---
+    if current_q_index >= 10:
+        st.balloons()
+        winner = ""
+        if p1_score > p2_score: winner = player1
+        elif p2_score > p1_score: winner = player2
+        
+        if winner == st.session_state.username:
+            st.success(f"🎉 Congratulations, you won the duel against {player1 if winner==player2 else player2}!")
+        elif winner == "":
+            st.info("🤝 The duel ended in a draw!")
+        else:
+            st.error(f"😞 You lost the duel against {winner}. Better luck next time!")
+        
+        if st.button("Return to Blackboard"):
+            del st.session_state["current_duel_id"]
+            st.session_state.page = "login" # Reset to default view
+            st.rerun()
+        return
+
+    # --- Question Display ---
+    q_data = duel_state.get('question')
+    if not q_data:
+        st.info("Waiting for questions to load...")
+        return
+        
+    st.markdown(q_data["question"], unsafe_allow_html=True)
+
+    # --- Answering Logic ---
+    answered_by = duel_state.get('question_answered_by')
+    if answered_by:
+        is_correct = duel_state.get('question_is_correct')
+        if is_correct:
+            st.success(f"✅ {answered_by} answered correctly!")
+        else:
+            st.error(f"❌ {answered_by} answered incorrectly.")
+        st.info("Moving to the next question...")
+    else:
+        with st.form(key=f"duel_form_{current_q_index}"):
+            user_choice = st.radio("Select your answer:", q_data["options"], index=None)
+            if st.form_submit_button("Submit Answer", type="primary"):
+                if user_choice is not None:
+                    is_correct = (str(user_choice) == str(q_data["answer"]))
+                    # This function returns True if we were the first to answer
+                    submitted = submit_duel_answer(duel_id, st.session_state.username, is_correct)
+                    if not submitted:
+                        st.toast("Too slow! Your opponent answered first.", icon="🐢")
+                    st.rerun() # Rerun to show the result
+                else:
+                    st.warning("Please select an answer.")
 
 def display_quiz_page(topic_options):
     st.header("🧠 Quiz Time!")
@@ -3613,21 +3879,20 @@ def display_profile_page():
             elif change_password(st.session_state.username, current_password, new_password): st.success("Password changed successfully!")
             else: st.error("Incorrect current password")
 
+# Replace your existing show_main_app function with this one.
+
 def show_main_app():
     load_css()
     
     # --- ADDED: Notification Handler for Both Features ---
-    # This checks for the daily challenge flag and shows a toast if it's set
     if st.session_state.get('challenge_completed_toast', False):
         st.toast("🎉 Daily Challenge Completed! Great job!", icon="🎉")
-        del st.session_state.challenge_completed_toast # Reset the flag
-
-    # This checks for the new achievement flag and shows a toast and balloons if it's set
+        del st.session_state.challenge_completed_toast
     if st.session_state.get('achievement_unlocked_toast', False):
         achievement_name = st.session_state.achievement_unlocked_toast
         st.toast(f"🏆 Achievement Unlocked: {achievement_name}!", icon="🏆")
         st.balloons()
-        del st.session_state.achievement_unlocked_toast # Reset the flag
+        del st.session_state.achievement_unlocked_toast
 
     last_update = st.session_state.get("last_status_update", 0)
     if time.time() - last_update > 60:
@@ -3644,50 +3909,59 @@ def show_main_app():
             "📊 Dashboard", "📝 Quiz", "🏆 Leaderboard", "칠판 Blackboard", 
             "👤 Profile", "📚 Learning Resources"
         ]
-        selected_page = st.radio("Menu", page_options, label_visibility="collapsed")
+        # If in a duel, disable the sidebar navigation
+        is_in_duel = st.session_state.get("page") == "duel"
+        selected_page = st.radio("Menu", page_options, label_visibility="collapsed", disabled=is_in_duel)
+        if is_in_duel:
+            st.sidebar.warning("You are in a duel! Finish the game to navigate away.")
+
         st.write("---")
         if st.button("Logout", type="primary", use_container_width=True):
             st.session_state.logged_in = False
-            # ADDED: Ensure achievement flag is cleared on logout
             if 'challenge_completed_toast' in st.session_state: del st.session_state.challenge_completed_toast
             if 'achievement_unlocked_toast' in st.session_state: del st.session_state.achievement_unlocked_toast
             st.rerun()
             
     st.markdown('<div class="main-content">', unsafe_allow_html=True)
-    topic_options = [
-        "Sets", "Percentages", "Fractions", "Indices", "Surds", 
-        "Binary Operations", "Relations and Functions", "Sequence and Series", 
-        "Word Problems", "Shapes (Geometry)", "Algebra Basics", "Linear Algebra",
-        "Logarithms",
-        "Probability",
-        "Binomial Theorem",
-        "Polynomial Functions",
-        "Rational Functions",
-        "Trigonometry",
-        "Vectors",
-        "Statistics",
-        "Coordinate Geometry",
-        "Introduction to Calculus",
-        "Number Bases",
-        "Modulo Arithmetic",
-        "Advanced Combo"
-    ]
     
-    if selected_page == "📊 Dashboard":
-        display_dashboard(st.session_state.username)
-    elif selected_page == "📝 Quiz":
-        display_quiz_page(topic_options)
-    elif selected_page == "🏆 Leaderboard":
-        display_leaderboard(topic_options)
-    elif selected_page == "칠판 Blackboard":
-        display_blackboard_page()
-    elif selected_page == "👤 Profile":
-        display_profile_page()
-    elif selected_page == "📚 Learning Resources":
-        display_learning_resources(topic_options)
+    # --- NEW ROUTER LOGIC ---
+    # If the user is in a duel, show the duel page. Otherwise, show the selected sidebar page.
+    if st.session_state.get("page") == "duel":
+        display_duel_page()
+    else:
+        topic_options = [
+            "Sets", "Percentages", "Fractions", "Indices", "Surds", 
+            "Binary Operations", "Relations and Functions", "Sequence and Series", 
+            "Word Problems", "Shapes (Geometry)", "Algebra Basics", "Linear Algebra",
+            "Logarithms",
+            "Probability",
+            "Binomial Theorem",
+            "Polynomial Functions",
+            "Rational Functions",
+            "Trigonometry",
+            "Vectors",
+            "Statistics",
+            "Coordinate Geometry",
+            "Introduction to Calculus",
+            "Number Bases",
+            "Modulo Arithmetic",
+            "Advanced Combo"
+        ]
+        
+        if selected_page == "📊 Dashboard":
+            display_dashboard(st.session_state.username)
+        elif selected_page == "📝 Quiz":
+            display_quiz_page(topic_options)
+        elif selected_page == "🏆 Leaderboard":
+            display_leaderboard(topic_options)
+        elif selected_page == "칠판 Blackboard":
+            display_blackboard_page()
+        elif selected_page == "👤 Profile":
+            display_profile_page()
+        elif selected_page == "📚 Learning Resources":
+            display_learning_resources(topic_options)
         
     st.markdown('</div>', unsafe_allow_html=True)
-
 def show_login_or_signup_page():
     load_css()
     st.markdown('<div class="login-container">', unsafe_allow_html=True)
@@ -3759,6 +4033,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
