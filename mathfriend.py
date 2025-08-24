@@ -3375,7 +3375,7 @@ def display_blackboard_page():
         channel.send_message({"text": prompt}, user_id=st.session_state.username)
         st.rerun()
 
-# Replace your existing display_math_game_page function with this one.
+# Replace your existing display_math_game_page function with this FINAL version.
 def display_math_game_page(topic_options):
     """Displays the duel lobby with a new, improved two-column layout and stable buttons."""
     st.header("⚔️ Math Game Lobby")
@@ -3386,7 +3386,7 @@ def display_math_game_page(topic_options):
     st.session_state.live_lobby_active = st.toggle(
         "Enable Live Lobby", 
         value=st.session_state.live_lobby_active, 
-        help="Turn this on ONLY to receive challenges from other players in real-time."
+        help="Turn this on to receive challenges from other players in real-time."
     )
 
     left_col, right_col = st.columns([2, 1])
@@ -3395,7 +3395,6 @@ def display_math_game_page(topic_options):
         st.subheader("Online Players")
         online_users = get_online_users(st.session_state.username)
         
-        # This list of users is now always visible and the page is stable for clicking.
         if online_users:
             with st.container(height=400):
                 for user in online_users:
@@ -3410,14 +3409,17 @@ def display_math_game_page(topic_options):
             st.markdown("_No other users are currently online._")
 
     with left_col:
+        # --- THIS IS THE KEY FIX ---
+        # First, we determine if the user needs to interact with a prompt.
         is_configuring_challenge = 'challenging_user' in st.session_state
-        pending_challenge = None
-        # Only check for pending challenges if the user has opted-in with the toggle.
-        if st.session_state.live_lobby_active:
-            st_autorefresh(interval=3000, key="challenge_refresh")
-            pending_challenge = get_pending_challenge(st.session_state.username)
+        # Only check for pending challenges if the lobby is active.
+        pending_challenge = get_pending_challenge(st.session_state.username) if st.session_state.live_lobby_active else None
 
-        # This logic decides what to show in the main panel
+        # The auto-refresh will ONLY run if the toggle is on AND there are NO open prompts on the screen.
+        if st.session_state.live_lobby_active and not is_configuring_challenge and not pending_challenge:
+            st_autorefresh(interval=3000, key="challenge_refresh")
+        
+        # Now, we build the UI. The page is guaranteed to be stable if either prompt is shown.
         if is_configuring_challenge:
             opponent = st.session_state.challenging_user
             with st.container(border=True):
@@ -4220,6 +4222,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
