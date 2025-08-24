@@ -3375,7 +3375,7 @@ def display_blackboard_page():
         channel.send_message({"text": prompt}, user_id=st.session_state.username)
         st.rerun()
 
-# Replace your existing display_math_game_page function with this one.
+# Replace your existing display_math_game_page function with this FINAL version.
 def display_math_game_page(topic_options):
     """Displays the duel lobby with a new, improved two-column layout and stable buttons."""
     st.header("⚔️ Math Game Lobby")
@@ -3409,13 +3409,17 @@ def display_math_game_page(topic_options):
             st.markdown("_No other users are currently online._")
 
     with left_col:
+        # --- THIS IS THE KEY FIX ---
+        # First, we determine if the user needs to interact with a prompt.
         is_configuring_challenge = 'challenging_user' in st.session_state
-        pending_challenge = None
-        
-        if st.session_state.live_lobby_active:
-            st_autorefresh(interval=3000, key="challenge_refresh")
-            pending_challenge = get_pending_challenge(st.session_state.username)
+        # Only check for pending challenges if the lobby is active.
+        pending_challenge = get_pending_challenge(st.session_state.username) if st.session_state.live_lobby_active else None
 
+        # The auto-refresh will ONLY run if the toggle is on AND there are NO open prompts on the screen.
+        if st.session_state.live_lobby_active and not is_configuring_challenge and not pending_challenge:
+            st_autorefresh(interval=3000, key="challenge_refresh")
+        
+        # Now, we build the UI. The page is guaranteed to be stable if either prompt is shown.
         if is_configuring_challenge:
             opponent = st.session_state.challenging_user
             with st.container(border=True):
@@ -3438,22 +3442,16 @@ def display_math_game_page(topic_options):
                 st.success(f"⚔️ **Incoming Challenge!**")
                 st.write(f"**{challenger}** has challenged you to a duel on the topic of **{topic}**.")
                 c1, c2 = st.columns(2)
-
-                # --- THIS IS THE FIX ---
-                # The logic is now wrapped in st.spinner for immediate feedback.
                 if c1.button("✅ Accept", use_container_width=True, type="primary", key=f"accept_{duel_id}"):
-                    with st.spinner("Preparing your duel..."):
-                        accept_duel(duel_id, topic)
-                        st.session_state.page = "duel"
-                        st.session_state.current_duel_id = duel_id
-                        st.rerun()
-                # --- END OF FIX ---
-                
+                    accept_duel(duel_id, topic)
+                    st.session_state.page = "duel"
+                    st.session_state.current_duel_id = duel_id
+                    st.rerun()
                 if c2.button("❌ Decline", use_container_width=True, key=f"decline_{duel_id}"):
                     st.toast("Challenge declined.")
                     st.rerun()
         
-        else: 
+        else: # The default view for the main panel
             active_duel = get_active_duel_for_player(st.session_state.username)
             if active_duel:
                 st.session_state.page = "duel"
@@ -4223,6 +4221,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
