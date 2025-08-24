@@ -16,6 +16,7 @@ import sqlalchemy
 from sqlalchemy import create_engine, text
 import stream_chat
 import json
+from streamlit_autorefresh import st_autorefresh
 
 # --- App Configuration ---
 st.set_page_config(
@@ -4033,6 +4034,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
