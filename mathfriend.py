@@ -3643,13 +3643,13 @@ def show_login_or_signup_page():
     st.markdown('<div class="login-container">', unsafe_allow_html=True)
     if st.session_state.page == "login":
         
-        # --- UPDATED HTML FOR LOGIN TITLE ---
+        # --- THIS IS THE CORRECTED HTML FOR THE NEW DESIGN ---
         st.markdown("""
-            <div class="login-title">🔐 MathFriend Login</div>
-            <div class="login-subtitle">Welcome Back! Ready to learn?</div>
+            <div class="login-title">🔐 MathFriend</div>
+            <div class="login-subtitle">Your personal math learning companion</div>
         """, unsafe_allow_html=True)
-        # --- END OF UPDATE ---
-        
+        # --- END OF CORRECTION ---
+
         with st.form("login_form"):
             username = st.text_input("Username", key="login_user")
             password = st.text_input("Password", type="password", key="login_pass")
@@ -3667,12 +3667,12 @@ def show_login_or_signup_page():
             
     else: # Signup page
     
-        # --- UPDATED HTML FOR SIGNUP TITLE ---
+        # --- THIS IS THE CORRECTED HTML FOR THE NEW DESIGN ---
         st.markdown("""
             <div class="login-title">Create Your Account</div>
             <div class="login-subtitle">Join the MathFriend community!</div>
         """, unsafe_allow_html=True)
-        # --- END OF UPDATE ---
+        # --- END OF CORRECTION ---
 
         with st.form("signup_form"):
             username = st.text_input("Username", key="signup_user")
@@ -3720,6 +3720,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
