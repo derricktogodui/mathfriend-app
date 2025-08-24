@@ -478,55 +478,64 @@ def get_pending_challenge(username):
 
 def get_active_duel_for_player(username):
     """
-    Checks if a user is part of any duel that is genuinely active.
-    A duel is considered active if its status is 'active', it's not finished,
-    and there has been an action in the last 5 minutes.
+    Return the most-recent active duel for this user.
+    Robust against NULL current_question_index on fresh activations.
     """
     with engine.connect() as conn:
         query = text("""
-            SELECT id FROM duels 
-            WHERE (player1_username = :username OR player2_username = :username) 
-            AND status = 'active'
-            AND current_question_index < 10
-            AND last_action_at > NOW() - INTERVAL '5 minutes' -- This new line ignores old/stale games
+            SELECT id
+            FROM duels
+            WHERE (player1_username = :username OR player2_username = :username)
+              AND status = 'active'
+              AND COALESCE(current_question_index, 0) < 10
+              AND last_action_at > NOW() - INTERVAL '5 minutes'
             ORDER BY last_action_at DESC
             LIMIT 1;
         """)
-        result = conn.execute(query, {"username": username}).mappings().first()
-        return dict(result) if result else None
+        row = conn.execute(query, {"username": username}).mappings().first()
+        return dict(row) if row else None
 
 def accept_duel(duel_id, topic):
-    """Marks a duel as 'active' and generates the questions for it."""
+    """
+    Activate a pending duel, initialize scores and question index, and generate questions.
+    Done atomically to avoid race conditions between the two players' refresh cycles.
+    """
     with engine.connect() as conn:
-        # 1. Update the duel status to active
-        update_query = text("""
-            UPDATE duels 
-            SET status = 'active', last_action_at = CURRENT_TIMESTAMP 
-            WHERE id = :duel_id;
-        """)
-        conn.execute(update_query, {"duel_id": duel_id})
+        with conn.begin():  # start transaction
+            # 1) Set duel to active and fully initialize state
+            updated = conn.execute(text("""
+                UPDATE duels
+                SET status = 'active',
+                    current_question_index = 0,
+                    player1_score = COALESCE(player1_score, 0),
+                    player2_score = COALESCE(player2_score, 0),
+                    last_action_at = CURRENT_TIMESTAMP
+                WHERE id = :duel_id
+                  AND status IN ('pending', 'active')
+                """),
+                {"duel_id": duel_id}
+            )
+            
+            if updated.rowcount == 0:
+                return False
 
-        # 2. Generate 10 unique questions for this duel
-        questions_to_insert = []
-        for i in range(10): # A duel consists of 10 questions
-            q_data = generate_question(topic)
-            # Convert the entire question dictionary to a JSON string for storage
-            q_data_json = json.dumps(q_data)
-            questions_to_insert.append({
-                "duel_id": duel_id,
-                "question_index": i,
-                "question_data_json": q_data_json
-            })
-        
-        # 3. Insert the questions into the duel_questions table
-        insert_query = text("""
-            INSERT INTO duel_questions (duel_id, question_index, question_data_json)
-            VALUES (:duel_id, :question_index, :question_data_json);
-        """)
-        conn.execute(insert_query, questions_to_insert)
-        conn.commit()
-        return True
+            # 2) Generate the 10 questions
+            questions_to_insert = []
+            for i in range(10):
+                q_data = generate_question(topic)
+                questions_to_insert.append({
+                    "duel_id": duel_id,
+                    "question_index": i,
+                    "question_data_json": json.dumps(q_data),
+                })
 
+            # 3) Insert questions
+            conn.execute(text("""
+                INSERT INTO duel_questions (duel_id, question_index, question_data_json)
+                VALUES (:duel_id, :question_index, :question_data_json)
+            """), questions_to_insert)
+
+            return True
 def get_duel_state(duel_id):
     """Fetches the complete current state of a duel from the database."""
     with engine.connect() as conn:
@@ -4227,6 +4236,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
