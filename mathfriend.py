@@ -3377,84 +3377,97 @@ def display_blackboard_page():
 
 # Replace your existing display_math_game_page function with this one.
 def display_math_game_page(topic_options):
-    """Displays the duel lobby for challenging other players."""
+    """Displays the duel lobby with a new, improved two-column layout."""
     st.header("⚔️ Math Game Lobby")
-    
+
+    # --- FIX #2: The toggle is now OFF by default ---
     if 'live_lobby_active' not in st.session_state:
-        st.session_state.live_lobby_active = True
+        st.session_state.live_lobby_active = False
     
-    st.session_state.live_lobby_active = st.toggle("Enable Live Lobby", value=st.session_state.live_lobby_active, help="Turn this on to see new challenges in real-time. Turn it off to stop the page from refreshing.")
+    st.session_state.live_lobby_active = st.toggle(
+        "Enable Live Lobby", 
+        value=st.session_state.live_lobby_active, 
+        help="Turn this on to see online players and send/receive challenges in real-time."
+    )
 
-    # --- THIS IS THE KEY FIX ---
-    # First, we check for the states that require user interaction.
-    is_configuring_challenge = 'challenging_user' in st.session_state
-    pending_challenge = get_pending_challenge(st.session_state.username)
+    # --- NEW DESIGN: A two-column layout for a better game-like feel ---
+    left_col, right_col = st.columns([2, 1])
 
-    # The auto-refresh will ONLY run if the toggle is on AND the user is not in the middle of an action.
-    if st.session_state.live_lobby_active and not is_configuring_challenge and not pending_challenge:
-        st_autorefresh(interval=5000, key="challenge_refresh")
-    
-    # Now, we build the UI. The page will be stable if any of these conditions are met.
-    if is_configuring_challenge:
-        opponent = st.session_state.challenging_user
-        with st.container(border=True):
-            st.subheader(f"Challenge {opponent}")
-            duel_topic_options = [t for t in topic_options if t != "Advanced Combo"]
-            topic = st.selectbox("Choose a topic for your duel:", duel_topic_options)
-
-            c1, c2 = st.columns(2)
-            if c1.button("✅ Send Challenge", use_container_width=True, type="primary"):
-                duel_id = create_duel(st.session_state.username, opponent, topic)
-                if duel_id: st.toast(f"Challenge sent to {opponent} on the topic of {topic}!", icon="⚔️")
-                del st.session_state.challenging_user
-                st.rerun()
-            if c2.button("❌ Cancel", use_container_width=True):
-                del st.session_state.challenging_user
-                st.rerun()
-
-    elif pending_challenge:
-        with st.container(border=True):
-            challenger, topic, duel_id = pending_challenge['player1_username'], pending_challenge['topic'], pending_challenge['id']
-            st.info(f"⚔️ **Incoming Challenge!** {challenger} has challenged you to a duel on **{topic}**.")
-            c1, c2 = st.columns(2)
-            if c1.button("✅ Accept", use_container_width=True, type="primary", key=f"accept_{duel_id}"):
-                accept_duel(duel_id, topic)
-                st.session_state.page = "duel"
-                st.session_state.current_duel_id = duel_id
-                st.rerun()
-            if c2.button("❌ Decline", use_container_width=True, key=f"decline_{duel_id}"):
-                st.toast("Challenge declined.")
-                st.rerun()
-        
-        # Also display the user list on this screen
-        online_users = get_online_users(st.session_state.username)
-        if online_users:
-            st.subheader("Online Users")
-            for user in online_users:
-                st.markdown(_generate_user_pill_html(user), unsafe_allow_html=True)
-
-    else: # This is the main lobby view
-        active_duel = get_active_duel_for_player(st.session_state.username)
-        if active_duel:
-            st.session_state.page = "duel"
-            st.session_state.current_duel_id = active_duel['id']
-            st.rerun()
-            return
-
-        st.info("Find another student who is online and challenge them to a real-time math battle!", icon="⚔️")
-        online_users = get_online_users(st.session_state.username)
-        if online_users:
-            st.subheader("Online Users")
-            for user in online_users:
-                col1, col2 = st.columns([3, 1])
-                with col1:
-                    st.markdown(_generate_user_pill_html(user), unsafe_allow_html=True)
-                with col2:
-                    if st.button("Challenge", key=f"challenge_{user}", use_container_width=True):
-                        st.session_state.challenging_user = user
-                        st.rerun()
+    with right_col:
+        st.subheader("Online Players")
+        if not st.session_state.live_lobby_active:
+            st.info("Turn on the 'Live Lobby' toggle to see who is online and to challenge them.")
         else:
-            st.markdown("_No other users are currently online to challenge._")
+            online_users = get_online_users(st.session_state.username)
+            if online_users:
+                # This container will scroll if many users are online
+                with st.container(height=400):
+                    for user in online_users:
+                        col1, col2 = st.columns([2, 1])
+                        with col1:
+                            st.markdown(_generate_user_pill_html(user), unsafe_allow_html=True)
+                        with col2:
+                            if st.button("Challenge", key=f"challenge_{user}", use_container_width=True):
+                                st.session_state.challenging_user = user
+                                st.rerun()
+            else:
+                st.markdown("_No other users are currently online._")
+
+    with left_col:
+        is_configuring_challenge = 'challenging_user' in st.session_state
+        pending_challenge = get_pending_challenge(st.session_state.username) if st.session_state.live_lobby_active else None
+
+        # The auto-refresh only runs when the lobby is active and there are no open prompts.
+        if st.session_state.live_lobby_active and not is_configuring_challenge and not pending_challenge:
+            # --- FIX #3: Faster 3-second refresh interval ---
+            st_autorefresh(interval=3000, key="challenge_refresh")
+        
+        # This logic decides what to show in the main panel
+        if is_configuring_challenge:
+            opponent = st.session_state.challenging_user
+            with st.container(border=True):
+                st.subheader(f"Challenge {opponent}")
+                duel_topic_options = [t for t in topic_options if t != "Advanced Combo"]
+                topic = st.selectbox("Choose a topic for your duel:", duel_topic_options)
+                c1, c2 = st.columns(2)
+                if c1.button("✅ Send Challenge", use_container_width=True, type="primary"):
+                    duel_id = create_duel(st.session_state.username, opponent, topic)
+                    if duel_id: st.toast(f"Challenge sent to {opponent} on the topic of {topic}!", icon="⚔️")
+                    del st.session_state.challenging_user
+                    st.rerun()
+                if c2.button("❌ Cancel", use_container_width=True):
+                    del st.session_state.challenging_user
+                    st.rerun()
+
+        elif pending_challenge:
+            with st.container(border=True):
+                challenger, topic, duel_id = pending_challenge['player1_username'], pending_challenge['topic'], pending_challenge['id']
+                st.success(f"⚔️ **Incoming Challenge!**")
+                st.write(f"**{challenger}** has challenged you to a duel on the topic of **{topic}**.")
+                c1, c2 = st.columns(2)
+                if c1.button("✅ Accept", use_container_width=True, type="primary", key=f"accept_{duel_id}"):
+                    accept_duel(duel_id, topic)
+                    st.session_state.page = "duel"
+                    st.session_state.current_duel_id = duel_id
+                    st.rerun()
+                if c2.button("❌ Decline", use_container_width=True, key=f"decline_{duel_id}"):
+                    st.toast("Challenge declined.")
+                    st.rerun()
+        
+        else: # The default view for the main panel
+            active_duel = get_active_duel_for_player(st.session_state.username)
+            if active_duel:
+                st.session_state.page = "duel"
+                st.session_state.current_duel_id = active_duel['id']
+                st.rerun()
+            else:
+                st.subheader("Rules of the Duel")
+                st.markdown("""
+                - **Start a Match:** Turn on the 'Live Lobby' toggle and click 'Challenge' next to an online player's name.
+                - **The Quiz:** Both players receive the same 10 questions on the chosen topic.
+                - **Scoring:** The first player to submit a correct answer for a question wins the point.
+                - **Winning:** The player with the most points at the end of 10 questions is the winner!
+                """)
 # Replace your existing display_duel_page function with this corrected version.
 
 def display_duel_page():
@@ -4212,6 +4225,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
