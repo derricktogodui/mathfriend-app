@@ -3321,71 +3321,36 @@ def display_dashboard(username):
 
 def display_blackboard_page():
     st.header("칠판 Blackboard")
-    
-    # Auto-refresh to check for challenges and game starts
-    st_autorefresh(interval=5000, key="challenge_refresh")
-
-    # --- NEW: Check if the current user is already in an active duel ---
-    # This is the key fix that synchronizes both players.
-    active_duel = get_active_duel_for_player(st.session_state.username)
-    if active_duel:
-        st.session_state.page = "duel"
-        st.session_state.current_duel_id = active_duel['id']
-        st.rerun()
-        return # Stop rendering the rest of the Blackboard page
-
-    # Handle challenge creation (no changes here, but kept for completeness)
-    if 'challenge' in st.query_params:
-        opponent = st.query_params['challenge']
-        topic = st.session_state.get("quiz_topic", "Sets") 
-        duel_id = create_duel(st.session_state.username, opponent, topic)
-        if duel_id:
-            st.toast(f"Challenge sent to {opponent} on the topic of {topic}!", icon="⚔️")
-        st.query_params.clear()
-
-    # Check for and display pending challenges for the current user
-    pending_challenge = get_pending_challenge(st.session_state.username)
-    if pending_challenge:
-        with st.container(border=True):
-            challenger = pending_challenge['player1_username']
-            topic = pending_challenge['topic']
-            duel_id = pending_challenge['id']
-            st.info(f"⚔️ **Incoming Challenge!** {challenger} has challenged you to a duel on the topic of **{topic}**.")
-            
-            c1, c2 = st.columns(2)
-            if c1.button("✅ Accept", use_container_width=True, type="primary", key=f"accept_{duel_id}"):
-                accept_duel(duel_id, topic)
-                st.session_state.page = "duel"
-                st.session_state.current_duel_id = duel_id
-                st.rerun()
-
-            if c2.button("❌ Decline", use_container_width=True, key=f"decline_{duel_id}"):
-                st.toast("Challenge declined.")
-                st.rerun()
-
-    st.info("This is the community space and duel lobby. Challenge online users to a math battle!", icon="⚔️")
+    st.components.v1.html("<meta http-equiv='refresh' content='15'>", height=0)
+    st.info("This is a community space. Ask clear questions, be respectful, and help your fellow students!", icon="👋")
     online_users = get_online_users(st.session_state.username)
 
+    # --- START: NEW AND IMPROVED ONLINE USER DISPLAY ---
+    # This version uses "pills" with avatars and names, and supports horizontal scrolling.
     if online_users:
-        st.subheader("Online Users")
-        for user in online_users:
-            col1, col2 = st.columns([3, 1])
-            with col1:
-                st.markdown(_generate_user_pill_html(user), unsafe_allow_html=True)
-            with col2:
-                # Use a standard button which is more reliable
-                if st.button(f"Challenge", key=f"challenge_{user}", use_container_width=True):
-                    topic = st.session_state.get("quiz_topic", "Sets")
-                    duel_id = create_duel(st.session_state.username, user, topic)
-                    if duel_id:
-                        st.toast(f"Challenge sent to {user} on the topic of {topic}!", icon="⚔️")
-                    st.rerun()
+        pills_html_list = [_generate_user_pill_html(user) for user in online_users]
+        pills_str = "".join(pills_html_list)
+
+        # Container with horizontal scrolling for many users
+        container_style = """
+            display: flex;
+            align-items: center;
+            width: 100%;
+            overflow-x: auto;
+            white-space: nowrap;
+            padding-bottom: 10px; /* For scrollbar space */
+        """
+        st.markdown(f"""
+            <div style="display: flex; align-items: center; margin-bottom: 10px;">
+                <span style="margin-right: 10px; font-weight: bold;">🟢 Online:</span>
+                <div style="{container_style}">{pills_str}</div>
+            </div>
+        """, unsafe_allow_html=True)
     else:
         st.markdown("_No other users are currently active._")
+    # --- END: NEW AND IMPROVED ONLINE USER DISPLAY ---
 
     st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
-    
-    # Chat functionality remains the same
     channel = chat_client.channel("messaging", channel_id="mathfriend-blackboard", data={"name": "MathFriend Blackboard"})
     channel.create(st.session_state.username)
     state = channel.query(watch=False, state=True, messages={"limit": 50})
@@ -3401,6 +3366,61 @@ def display_blackboard_page():
     if prompt := st.chat_input("Post your question or comment..."):
         channel.send_message({"text": prompt}, user_id=st.session_state.username)
         st.rerun()
+
+def display_math_game_page():
+    """Displays the duel lobby for challenging other players."""
+    st.header("⚔️ Math Game Lobby")
+    
+    # Auto-refresh every 5 seconds to check for challenges
+    st_autorefresh(interval=5000, key="challenge_refresh")
+
+    # Check if the current user is already in an active duel
+    active_duel = get_active_duel_for_player(st.session_state.username)
+    if active_duel:
+        st.session_state.page = "duel"
+        st.session_state.current_duel_id = active_duel['id']
+        st.rerun()
+        return
+
+    # Check for and display pending challenges for the current user
+    pending_challenge = get_pending_challenge(st.session_state.username)
+    if pending_challenge:
+        with st.container(border=True):
+            challenger = pending_challenge['player1_username']
+            topic = pending_challenge['topic']
+            duel_id = pending_challenge['id']
+            st.info(f"⚔️ Incoming Challenge! {challenger} has challenged you to a duel on the topic of **{topic}**.")
+            
+            c1, c2 = st.columns(2)
+            if c1.button("✅ Accept", use_container_width=True, type="primary", key=f"accept_{duel_id}"):
+                accept_duel(duel_id, topic)
+                st.session_state.page = "duel"
+                st.session_state.current_duel_id = duel_id
+                st.rerun()
+
+            if c2.button("❌ Decline", use_container_width=True, key=f"decline_{duel_id}"):
+                st.toast("Challenge declined.")
+                st.rerun()
+
+    st.info("Find another student who is online and challenge them to a real-time math battle!", icon="⚔️")
+    online_users = get_online_users(st.session_state.username)
+
+    if online_users:
+        st.subheader("Online Users")
+        for user in online_users:
+            col1, col2 = st.columns([3, 1])
+            with col1:
+                st.markdown(_generate_user_pill_html(user), unsafe_allow_html=True)
+            with col2:
+                if st.button(f"Challenge", key=f"challenge_{user}", use_container_width=True):
+                    topic = st.session_state.get("quiz_topic", "Sets")
+                    duel_id = create_duel(st.session_state.username, user, topic)
+                    if duel_id:
+                        st.toast(f"Challenge sent to {user} on the topic of {topic}!", icon="⚔️")
+                    st.rerun()
+    else:
+        st.markdown("_No other users are currently online to challenge._")
+
 # Add this new function to your UI Display Functions section
 # Replace your existing display_duel_page function with this corrected version.
 
@@ -4053,8 +4073,9 @@ def show_main_app():
         display_name = profile.get('full_name') if profile and profile.get('full_name') else st.session_state.username
         st.title(f"{greeting}, {display_name}!")
         
+        # --- NEW: Updated Page Options in the Menu ---
         page_options = [
-            "📊 Dashboard", "📝 Quiz", "🏆 Leaderboard", "칠판 Blackboard", 
+            "📊 Dashboard", "📝 Quiz", "🏆 Leaderboard", "⚔️ Math Game", "💬 Blackboard", 
             "👤 Profile", "📚 Learning Resources"
         ]
         is_in_duel = st.session_state.get("page") == "duel"
@@ -4071,28 +4092,17 @@ def show_main_app():
             
     st.markdown('<div class="main-content">', unsafe_allow_html=True)
     
-    # --- FIX #2: THE ROUTER LOGIC IS ADDED HERE ---
-    # If the user is in a duel, show the duel page. Otherwise, show the selected sidebar page.
     if st.session_state.get("page") == "duel":
-        display_duel_page() # This function needs to be created next
+        display_duel_page()
     else:
         topic_options = [
             "Sets", "Percentages", "Fractions", "Indices", "Surds", 
             "Binary Operations", "Relations and Functions", "Sequence and Series", 
             "Word Problems", "Shapes (Geometry)", "Algebra Basics", "Linear Algebra",
-            "Logarithms",
-            "Probability",
-            "Binomial Theorem",
-            "Polynomial Functions",
-            "Rational Functions",
-            "Trigonometry",
-            "Vectors",
-            "Statistics",
-            "Coordinate Geometry",
-            "Introduction to Calculus",
-            "Number Bases",
-            "Modulo Arithmetic",
-            "Advanced Combo"
+            "Logarithms", "Probability", "Binomial Theorem", "Polynomial Functions",
+            "Rational Functions", "Trigonometry", "Vectors", "Statistics",
+            "Coordinate Geometry", "Introduction to Calculus", "Number Bases",
+            "Modulo Arithmetic", "Advanced Combo"
         ]
         
         if selected_page == "📊 Dashboard":
@@ -4101,8 +4111,13 @@ def show_main_app():
             display_quiz_page(topic_options)
         elif selected_page == "🏆 Leaderboard":
             display_leaderboard(topic_options)
-        elif selected_page == "칠판 Blackboard":
+        
+        # --- NEW: Updated Router Logic ---
+        elif selected_page == "⚔️ Math Game":
+            display_math_game_page()
+        elif selected_page == "💬 Blackboard":
             display_blackboard_page()
+
         elif selected_page == "👤 Profile":
             display_profile_page()
         elif selected_page == "📚 Learning Resources":
@@ -4180,6 +4195,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
