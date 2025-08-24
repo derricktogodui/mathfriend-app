@@ -3455,6 +3455,8 @@ def display_math_game_page(topic_options):
                         st.rerun()
         else:
             st.markdown("_No other users are currently online to challenge._")
+# Replace your existing display_duel_page function with this corrected version.
+
 def display_duel_page():
     """Renders the real-time head-to-head duel screen."""
     
@@ -3493,7 +3495,7 @@ def display_duel_page():
     st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
 
     if status != 'active':
-        st_autorefresh(interval=3000, key="duel_game_refresh", disabled=True)
+        # --- FIX: The incorrect st_autorefresh call has been removed from this block ---
         st.balloons()
         
         winner_username = ""
@@ -3508,12 +3510,9 @@ def display_duel_page():
         else:
             st.error(f"😞 You lost the duel against {winner_username}. Better luck next time!")
         
-        # --- FIX #2: Changed button text and logic ---
         if st.button("Exit Duel"):
-            if "current_duel_id" in st.session_state:
-                del st.session_state["current_duel_id"]
-            if "page" in st.session_state:
-                del st.session_state["page"] # This correctly resets the view
+            if "current_duel_id" in st.session_state: del st.session_state["current_duel_id"]
+            if "page" in st.session_state: del st.session_state["page"]
             st.rerun()
         return
 
@@ -3530,10 +3529,8 @@ def display_duel_page():
     if answered_by:
         st_autorefresh(interval=3000, key="duel_game_refresh")
         is_correct = duel_state.get('question_is_correct')
-        if is_correct:
-            st.success(f"✅ {answered_by} answered correctly!")
-        else:
-            st.error(f"❌ {answered_by} answered incorrectly. The answer was {q_data['answer']}.")
+        if is_correct: st.success(f"✅ {answered_by} answered correctly!")
+        else: st.error(f"❌ {answered_by} answered incorrectly. The answer was {q_data['answer']}.")
         st.info("Waiting for the next question...")
     else:
         with st.form(key=f"duel_form_{current_q_index}"):
@@ -3542,8 +3539,7 @@ def display_duel_page():
                 if user_choice is not None:
                     is_correct = (str(user_choice) == str(q_data["answer"]))
                     submitted_first = submit_duel_answer(duel_id, st.session_state.username, is_correct)
-                    if not submitted_first:
-                        st.toast("Too slow! Your opponent answered first.", icon="🐢")
+                    if not submitted_first: st.toast("Too slow! Your opponent answered first.", icon="🐢")
                     st.rerun()
                 else:
                     st.warning("Please select an answer.")
@@ -4216,6 +4212,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
