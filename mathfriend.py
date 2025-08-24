@@ -3375,6 +3375,7 @@ def display_blackboard_page():
         channel.send_message({"text": prompt}, user_id=st.session_state.username)
         st.rerun()
 
+# Replace your existing display_math_game_page function with this one.
 def display_math_game_page(topic_options):
     """Displays the duel lobby for challenging other players."""
     st.header("⚔️ Math Game Lobby")
@@ -3384,16 +3385,13 @@ def display_math_game_page(topic_options):
     
     st.session_state.live_lobby_active = st.toggle("Enable Live Lobby", value=st.session_state.live_lobby_active, help="Turn this on to see new challenges in real-time. Turn it off to stop the page from refreshing.")
     
-    if st.session_state.live_lobby_active:
-        st_autorefresh(interval=5000, key="challenge_refresh")
-        
-    # --- NEW: Multi-step challenge flow with topic selection ---
+    # This logic handles the multi-step process of sending a challenge
     if 'challenging_user' in st.session_state:
+        # --- IN THIS MODE, THE PAGE IS STABLE (NO AUTO-REFRESH) ---
         opponent = st.session_state.challenging_user
         with st.container(border=True):
             st.subheader(f"Challenge {opponent}")
             
-            # Get all topics except "Advanced Combo" for duels
             duel_topic_options = [t for t in topic_options if t != "Advanced Combo"]
             topic = st.selectbox("Choose a topic for your duel:", duel_topic_options)
 
@@ -3402,15 +3400,19 @@ def display_math_game_page(topic_options):
                 duel_id = create_duel(st.session_state.username, opponent, topic)
                 if duel_id:
                     st.toast(f"Challenge sent to {opponent} on the topic of {topic}!", icon="⚔️")
-                del st.session_state.challenging_user # Clean up state
+                del st.session_state.challenging_user
                 st.rerun()
 
             if c2.button("❌ Cancel", use_container_width=True):
-                del st.session_state.challenging_user # Clean up state
+                del st.session_state.challenging_user
                 st.rerun()
 
-    # This logic now runs only if a challenge is not being configured
+    # This is the main lobby view
     else:
+        # --- THE AUTO-REFRESH IS NOW HERE, ONLY FOR THE LOBBY VIEW ---
+        if st.session_state.live_lobby_active:
+            st_autorefresh(interval=5000, key="challenge_refresh")
+        
         active_duel = get_active_duel_for_player(st.session_state.username)
         if active_duel:
             st.session_state.page = "duel"
@@ -3443,7 +3445,6 @@ def display_math_game_page(topic_options):
                 with col1:
                     st.markdown(_generate_user_pill_html(user), unsafe_allow_html=True)
                 with col2:
-                    # This button now sets the state to begin the challenge configuration flow
                     if st.button("Challenge", key=f"challenge_{user}", use_container_width=True):
                         st.session_state.challenging_user = user
                         st.rerun()
@@ -4210,6 +4211,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
