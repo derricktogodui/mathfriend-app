@@ -3378,50 +3378,54 @@ def display_blackboard_page():
         st.rerun()
 
 # Replace your existing display_math_game_page function with this FINAL version.
+# Replace your existing display_math_game_page function with this one.
 def display_math_game_page(topic_options):
     """Displays the duel lobby with a new, improved two-column layout and stable buttons."""
     st.header("⚔️ Math Game Lobby")
     
+    # --- The toggle is now OFF by default ---
     if 'live_lobby_active' not in st.session_state:
         st.session_state.live_lobby_active = False
     
     st.session_state.live_lobby_active = st.toggle(
         "Enable Live Lobby", 
         value=st.session_state.live_lobby_active, 
-        help="Turn this on to receive challenges from other players in real-time."
+        help="Turn this on to see online players and send/receive challenges in real-time."
     )
 
+    # --- NEW DESIGN: A two-column layout for a better game-like feel ---
     left_col, right_col = st.columns([2, 1])
 
     with right_col:
         st.subheader("Online Players")
-        online_users = get_online_users(st.session_state.username)
-        
-        if online_users:
-            with st.container(height=400):
-                for user in online_users:
-                    col1, col2 = st.columns([2, 1])
-                    with col1:
-                        st.markdown(_generate_user_pill_html(user), unsafe_allow_html=True)
-                    with col2:
-                        if st.button("Challenge", key=f"challenge_{user}", use_container_width=True):
-                            st.session_state.challenging_user = user
-                            st.rerun()
+        if not st.session_state.live_lobby_active:
+            st.info("Turn on the 'Live Lobby' toggle to see who is online and to challenge them.")
         else:
-            st.markdown("_No other users are currently online._")
+            online_users = get_online_users(st.session_state.username)
+            if online_users:
+                # --- NEW DESIGN: Player Cards ---
+                with st.container(height=400):
+                    for user in online_users:
+                        # Each user is now in their own bordered container (a "card")
+                        with st.container(border=True):
+                            c1, c2 = st.columns([2, 1])
+                            with c1:
+                                st.markdown(_generate_user_pill_html(user), unsafe_allow_html=True)
+                            with c2:
+                                if st.button("Challenge", key=f"challenge_{user}", use_container_width=True):
+                                    st.session_state.challenging_user = user
+                                    st.rerun()
+            else:
+                st.markdown("_No other users are currently online._")
 
     with left_col:
-        # --- THIS IS THE KEY FIX ---
-        # First, we determine if the user needs to interact with a prompt.
         is_configuring_challenge = 'challenging_user' in st.session_state
-        # Only check for pending challenges if the lobby is active.
         pending_challenge = get_pending_challenge(st.session_state.username) if st.session_state.live_lobby_active else None
 
-        # The auto-refresh will ONLY run if the toggle is on AND there are NO open prompts on the screen.
         if st.session_state.live_lobby_active and not is_configuring_challenge and not pending_challenge:
             st_autorefresh(interval=3000, key="challenge_refresh")
         
-        # Now, we build the UI. The page is guaranteed to be stable if either prompt is shown.
+        # This logic decides what to show in the main panel
         if is_configuring_challenge:
             opponent = st.session_state.challenging_user
             with st.container(border=True):
@@ -3439,16 +3443,18 @@ def display_math_game_page(topic_options):
                     st.rerun()
 
         elif pending_challenge:
+            # --- NEW DESIGN: Themed "Incoming Challenge" panel ---
             with st.container(border=True):
                 challenger, topic, duel_id = pending_challenge['player1_username'], pending_challenge['topic'], pending_challenge['id']
                 st.success(f"⚔️ **Incoming Challenge!**")
                 st.write(f"**{challenger}** has challenged you to a duel on the topic of **{topic}**.")
                 c1, c2 = st.columns(2)
                 if c1.button("✅ Accept", use_container_width=True, type="primary", key=f"accept_{duel_id}"):
-                    accept_duel(duel_id, topic)
-                    st.session_state.page = "duel"
-                    st.session_state.current_duel_id = duel_id
-                    st.rerun()
+                    with st.spinner("Preparing your duel..."):
+                        accept_duel(duel_id, topic)
+                        st.session_state.page = "duel"
+                        st.session_state.current_duel_id = duel_id
+                        st.rerun()
                 if c2.button("❌ Decline", use_container_width=True, key=f"decline_{duel_id}"):
                     st.toast("Challenge declined.")
                     st.rerun()
@@ -3460,14 +3466,24 @@ def display_math_game_page(topic_options):
                 st.session_state.current_duel_id = active_duel['id']
                 st.rerun()
             else:
-                st.subheader("Rules of the Duel")
+                # --- NEW DESIGN: Themed "How to Play" and Leaderboard Snippet ---
+                st.subheader("How to Play")
                 st.markdown("""
-                - **To Send a Challenge:** Find an online player on the right and click 'Challenge'.
-                - **To Receive Challenges:** You must turn on the 'Enable Live Lobby' toggle above.
-                - **The Quiz:** Both players receive the same 10 questions on the chosen topic.
-                - **Scoring:** The first player to submit a correct answer wins the point.
-                - **Winning:** The player with the most points at the end of 10 questions is the winner!
+                - **1. Go Live:** Turn on the **'Enable Live Lobby'** toggle to see online players.
+                - **2. Challenge:** Find a player on the right and click 'Challenge'.
+                - **3. Compete:** The first player to submit a correct answer wins the point for that round.
+                - **4. Win:** The player with the most points after 10 questions is the Math Game champion!
                 """)
+                st.markdown("<hr>", unsafe_allow_html=True)
+                st.subheader("🏆 Overall Champions")
+                
+                top_3 = get_overall_top_scores("all")[:3]
+                if top_3:
+                    for i, (username, total_score) in enumerate(top_3):
+                        medals = ["🥇", "🥈", "🥉"]
+                        st.markdown(f"**{medals[i]} {username}** - {total_score} Total Correct Answers")
+                else:
+                    st.write("The leaderboard is waiting for its first champions!")
 def display_duel_page():
     """Renders the real-time head-to-head duel screen."""
     
@@ -4223,6 +4239,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
