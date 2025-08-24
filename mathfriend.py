@@ -3257,9 +3257,9 @@ def display_leaderboard(topic_options):
                 "🥈 Prime Mathematician",
                 "🥉 Grand Prodigy",
                 "The Destroyer",
-                "Number Ninja",
+                "Merlin",
                 "The Genius",
-                "Math Magician",
+                "Math Ninja",
                 "The Professor",
                 "The Oracle",
                 "Last Baby"
@@ -3683,6 +3683,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
