@@ -495,46 +495,37 @@ def get_active_duel_for_player(username):
         result = conn.execute(query, {"username": username}).mappings().first()
         return dict(result) if result else None
 
-# Replace your existing accept_duel function with this one.
-def accept_duel(duel_id):
-    """Instantly marks a duel as 'active' so both players can join."""
+def accept_duel(duel_id, topic):
+    """Marks a duel as 'active' and generates the questions for it."""
     with engine.connect() as conn:
+        # 1. Update the duel status to active
         update_query = text("""
             UPDATE duels 
             SET status = 'active', last_action_at = CURRENT_TIMESTAMP 
-            WHERE id = :duel_id AND status = 'pending';
+            WHERE id = :duel_id;
         """)
         conn.execute(update_query, {"duel_id": duel_id})
+
+        # 2. Generate 10 unique questions for this duel
+        questions_to_insert = []
+        for i in range(10): # A duel consists of 10 questions
+            q_data = generate_question(topic)
+            # Convert the entire question dictionary to a JSON string for storage
+            q_data_json = json.dumps(q_data)
+            questions_to_insert.append({
+                "duel_id": duel_id,
+                "question_index": i,
+                "question_data_json": q_data_json
+            })
+        
+        # 3. Insert the questions into the duel_questions table
+        insert_query = text("""
+            INSERT INTO duel_questions (duel_id, question_index, question_data_json)
+            VALUES (:duel_id, :question_index, :question_data_json);
+        """)
+        conn.execute(insert_query, questions_to_insert)
         conn.commit()
-    return True
-
-# Add this new helper function
-def generate_and_store_duel_questions(duel_id, topic):
-    """Generates and stores questions for a duel if they don't already exist."""
-    with engine.connect() as conn:
-        with conn.begin(): # Use a transaction
-            # Check if questions already exist to prevent regenerating them on every refresh
-            exists_query = text("SELECT COUNT(*) FROM duel_questions WHERE duel_id = :duel_id")
-            count = conn.execute(exists_query, {"duel_id": duel_id}).scalar_one()
-            if count > 0:
-                return # Questions are already there
-
-            # If no questions exist, generate and insert them
-            questions_to_insert = []
-            for i in range(10):
-                q_data = generate_question(topic)
-                q_data_json = json.dumps(q_data)
-                questions_to_insert.append({
-                    "duel_id": duel_id,
-                    "question_index": i,
-                    "question_data_json": q_data_json
-                })
-            
-            insert_query = text("""
-                INSERT INTO duel_questions (duel_id, question_index, question_data_json)
-                VALUES (:duel_id, :question_index, :question_data_json);
-            """)
-            conn.execute(insert_query, questions_to_insert)
+        return True
 
 def get_duel_state(duel_id):
     """Fetches the complete current state of a duel from the database."""
@@ -633,75 +624,93 @@ def submit_duel_answer(duel_id, username, is_correct):
 
 # Replace your existing display_duel_page function with this one.
 
-# Replace your existing display_duel_page function with this one.
 def display_duel_page():
     """Renders the real-time head-to-head duel screen."""
+    
+    # Refresh logic moved to be conditional
+    
     duel_id = st.session_state.get("current_duel_id")
     if not duel_id:
-        st.error("No active duel found. Returning to the lobby.")
-        st.session_state.page = "login"; time.sleep(2); st.rerun()
+        st.error("No active duel found. Returning to the Blackboard.")
+        st.session_state.page = "login"
+        time.sleep(2)
+        st.rerun()
         return
 
     duel_state = get_duel_state(duel_id)
     if not duel_state:
-        st.error("Could not retrieve duel state."); del st.session_state["current_duel_id"]
-        st.session_state.page = "login"; time.sleep(2); st.rerun()
+        st.error("Could not retrieve duel state. The game may have expired.")
+        if "current_duel_id" in st.session_state:
+            del st.session_state["current_duel_id"]
+        st.session_state.page = "login"
+        time.sleep(2)
+        st.rerun()
         return
 
-    # --- NEW: Generate questions here, only if they don't exist ---
-    # This happens after both players have joined the screen.
-    if 'question' not in duel_state:
-        with st.spinner("Generating unique questions for your duel..."):
-            generate_and_store_duel_questions(duel_id, duel_state['topic'])
-            # Rerun to fetch the newly created questions
-            st.rerun()
-
-    player1, player2, p1_score, p2_score, current_q_index, status = (
-        duel_state['player1_username'], duel_state['player2_username'], duel_state['player1_score'],
-        duel_state['player2_score'], duel_state['current_question_index'], duel_state['status']
-    )
+    player1 = duel_state['player1_username']
+    player2 = duel_state['player2_username']
+    p1_score = duel_state['player1_score']
+    p2_score = duel_state['player2_score']
+    current_q_index = duel_state['current_question_index']
+    status = duel_state['status']
 
     st.header(f"⚔️ Duel: {player1} vs. {player2}")
     st.subheader(f"Topic: {duel_state['topic']}")
     
-    score_cols = st.columns(2); score_cols[0].metric(f"{player1}'s Score", p1_score); score_cols[1].metric(f"{player2}'s Score", p2_score)
+    score_cols = st.columns(2)
+    with score_cols[0]:
+        st.metric(f"{player1}'s Score", p1_score)
+    with score_cols[1]:
+        st.metric(f"{player2}'s Score", p2_score)
 
     display_q_number = min(current_q_index + 1, 10)
     st.progress(current_q_index / 10, text=f"Question {display_q_number}/10")
     st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
 
-    if status != 'active':
+    # --- FIX: Use the final status from the database to determine the winner ---
+    if status != 'active': # Game is over if status is not 'active'
+        st_autorefresh(interval=3000, key="duel_game_refresh", disabled=True) # Stop refreshing on game over
         st.balloons()
+        
         winner_username = ""
         if status == 'player1_win': winner_username = player1
         elif status == 'player2_win': winner_username = player2
         
-        if status == 'draw': st.info("🤝 The duel ended in a draw!")
+        if status == 'draw':
+            st.info("🤝 The duel ended in a draw!")
         elif winner_username == st.session_state.username:
             opponent = player2 if st.session_state.username == player1 else player1
             st.success(f"🎉 Congratulations, you won the duel against {opponent}!")
-        else: st.error(f"😞 You lost the duel against {winner_username}. Better luck next time!")
+        else:
+            st.error(f"😞 You lost the duel against {winner_username}. Better luck next time!")
         
-        if st.button("Exit Duel"):
-            if "current_duel_id" in st.session_state: del st.session_state["current_duel_id"]
-            if "page" in st.session_state: del st.session_state["page"]
+        if st.button("Return to Blackboard"):
+            if "current_duel_id" in st.session_state:
+                del st.session_state["current_duel_id"]
+            st.session_state.page = "login" # Reset to default view
             st.rerun()
         return
 
+    # --- Gameplay Logic ---
     q_data = duel_state.get('question')
     answered_by = duel_state.get('question_answered_by')
 
     if not q_data:
-        st.info("Preparing questions..."); st_autorefresh(interval=2000, key="duel_wait_refresh"); return
+        st.info("Waiting for questions to load...")
+        st_autorefresh(interval=3000, key="duel_wait_refresh")
+        return
         
     st.markdown(q_data["question"], unsafe_allow_html=True)
 
     if answered_by:
-        st_autorefresh(interval=3000, key="duel_game_refresh")
         is_correct = duel_state.get('question_is_correct')
-        if is_correct: st.success(f"✅ {answered_by} answered correctly!")
-        else: st.error(f"❌ {answered_by} answered incorrectly. The answer was {q_data['answer']}.")
+        if is_correct:
+            st.success(f"✅ {answered_by} answered correctly!")
+        else:
+            st.error(f"❌ {answered_by} answered incorrectly. The answer was {q_data['answer']}.")
+        
         st.info("Waiting for the next question...")
+        st_autorefresh(interval=3000, key="duel_game_refresh")
     else:
         with st.form(key=f"duel_form_{current_q_index}"):
             user_choice = st.radio("Select your answer:", q_data["options"], index=None)
@@ -709,10 +718,12 @@ def display_duel_page():
                 if user_choice is not None:
                     is_correct = (str(user_choice) == str(q_data["answer"]))
                     submitted_first = submit_duel_answer(duel_id, st.session_state.username, is_correct)
-                    if not submitted_first: st.toast("Too slow! Your opponent answered first.", icon="🐢")
+                    if not submitted_first:
+                        st.toast("Too slow! Your opponent answered first.", icon="🐢")
                     st.rerun()
                 else:
                     st.warning("Please select an answer.")
+
 # ADD THESE TWO NEW FUNCTIONS
 
 def get_seen_questions(username):
@@ -4216,7 +4227,6 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
-
 
 
 
