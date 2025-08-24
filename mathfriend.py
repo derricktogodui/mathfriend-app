@@ -3375,11 +3375,10 @@ def display_blackboard_page():
         channel.send_message({"text": prompt}, user_id=st.session_state.username)
         st.rerun()
 
-def display_math_game_page():
+def display_math_game_page(topic_options):
     """Displays the duel lobby for challenging other players."""
     st.header("⚔️ Math Game Lobby")
-
-    # --- FIX #1: The refresh is now smarter and user-controllable ---
+    
     if 'live_lobby_active' not in st.session_state:
         st.session_state.live_lobby_active = True
     
@@ -3388,7 +3387,7 @@ def display_math_game_page():
     if st.session_state.live_lobby_active:
         st_autorefresh(interval=5000, key="challenge_refresh")
         
-    # --- FIX #3: New multi-step challenge flow with topic selection ---
+    # --- NEW: Multi-step challenge flow with topic selection ---
     if 'challenging_user' in st.session_state:
         opponent = st.session_state.challenging_user
         with st.container(border=True):
@@ -3444,8 +3443,8 @@ def display_math_game_page():
                 with col1:
                     st.markdown(_generate_user_pill_html(user), unsafe_allow_html=True)
                 with col2:
+                    # This button now sets the state to begin the challenge configuration flow
                     if st.button("Challenge", key=f"challenge_{user}", use_container_width=True):
-                        # Set state to begin the challenge configuration flow
                         st.session_state.challenging_user = user
                         st.rerun()
         else:
@@ -4092,7 +4091,6 @@ def show_main_app():
         display_name = profile.get('full_name') if profile and profile.get('full_name') else st.session_state.username
         st.title(f"{greeting}, {display_name}!")
         
-        # --- NEW: Updated Page Options in the Menu ---
         page_options = [
             "📊 Dashboard", "📝 Quiz", "🏆 Leaderboard", "⚔️ Math Game", "💬 Blackboard", 
             "👤 Profile", "📚 Learning Resources"
@@ -4130,13 +4128,11 @@ def show_main_app():
             display_quiz_page(topic_options)
         elif selected_page == "🏆 Leaderboard":
             display_leaderboard(topic_options)
-        
-        # --- NEW: Updated Router Logic ---
         elif selected_page == "⚔️ Math Game":
-            display_math_game_page()
+            # --- This change is necessary for the topic selector to work ---
+            display_math_game_page(topic_options)
         elif selected_page == "💬 Blackboard":
             display_blackboard_page()
-
         elif selected_page == "👤 Profile":
             display_profile_page()
         elif selected_page == "📚 Learning Resources":
@@ -4214,6 +4210,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
