@@ -3186,23 +3186,10 @@ def display_dashboard(username):
 def display_blackboard_page():
     st.header("칠판 Blackboard")
     
-    # --- NEW: Auto-refresh every 5 seconds to check for challenges ---
-    st_autorefresh(interval=5000, key="challenge_refresh")
+    # We will add st_autorefresh later once this part is confirmed working
+    # st_autorefresh(interval=5000, key="challenge_refresh")
 
-    # --- NEW: Handle challenge creation ---
-    # Check if a challenge button was clicked via query params
-    if 'challenge' in st.query_params:
-        opponent = st.query_params['challenge']
-        # For simplicity, we'll use the user's last selected quiz topic for the challenge
-        # A more advanced version could show a topic selector here
-        topic = st.session_state.get("quiz_topic", "Sets") 
-        duel_id = create_duel(st.session_state.username, opponent, topic)
-        if duel_id:
-            st.toast(f"Challenge sent to {opponent} on the topic of {topic}!", icon="⚔️")
-        # Clear the query param to prevent re-sending the challenge on refresh
-        st.query_params.clear()
-
-    # --- NEW: Check for and display pending challenges for the current user ---
+    # Check for and display pending challenges for the current user
     pending_challenge = get_pending_challenge(st.session_state.username)
     if pending_challenge:
         with st.container(border=True):
@@ -3212,18 +3199,16 @@ def display_blackboard_page():
             st.info(f"⚔️ **Incoming Challenge!** {challenger} has challenged you to a duel on the topic of **{topic}**.")
             
             c1, c2 = st.columns(2)
-            if c1.button("✅ Accept", use_container_width=True, type="primary"):
+            if c1.button("✅ Accept", use_container_width=True, type="primary", key=f"accept_{duel_id}"):
                 accept_duel(duel_id, topic)
-                # --- NEW: Set session state to move to the duel page ---
                 st.session_state.page = "duel"
                 st.session_state.current_duel_id = duel_id
                 st.rerun()
 
-            if c2.button("❌ Decline", use_container_width=True):
-                # In a full implementation, you might update the duel status to 'declined'
-                # For now, we'll just ignore it and let it expire.
+            if c2.button("❌ Decline", use_container_width=True, key=f"decline_{duel_id}"):
                 st.toast("Challenge declined.")
-                # A simple way to "hide" it is to force a rerun, the challenge will expire shortly
+                # In a real app, you'd update the duel status to 'declined'. 
+                # For now, a rerun will make it expire shortly.
                 st.rerun()
 
     st.info("This is the community space and duel lobby. Challenge online users to a math battle!", icon="⚔️")
@@ -3231,20 +3216,25 @@ def display_blackboard_page():
 
     if online_users:
         st.subheader("Online Users")
-        # Display online users with a challenge button next to each
+        # --- FIX #1: Use standard st.button instead of st.link_button ---
         for user in online_users:
             col1, col2 = st.columns([3, 1])
             with col1:
                 st.markdown(_generate_user_pill_html(user), unsafe_allow_html=True)
             with col2:
-                # Use a link styled as a button to set a query parameter
-                st.link_button("Challenge", url=f"?challenge={user}", use_container_width=True)
+                # Use a standard button with a unique key for each user
+                if st.button(f"Challenge", key=f"challenge_{user}", use_container_width=True):
+                    topic = st.session_state.get("quiz_topic", "Sets")
+                    duel_id = create_duel(st.session_state.username, user, topic)
+                    if duel_id:
+                        st.toast(f"Challenge sent to {user} on the topic of {topic}!", icon="⚔️")
+                    st.rerun()
     else:
-        st.markdown("_No other users are currently active._")
+        st.markdown("_No other users are currently active.")
 
     st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
     
-    # The chat functionality remains the same
+    # Chat functionality remains the same
     channel = chat_client.channel("messaging", channel_id="mathfriend-blackboard", data={"name": "MathFriend Blackboard"})
     channel.create(st.session_state.username)
     state = channel.query(watch=False, state=True, messages={"limit": 50})
@@ -3260,7 +3250,6 @@ def display_blackboard_page():
     if prompt := st.chat_input("Post your question or comment..."):
         channel.send_message({"text": prompt}, user_id=st.session_state.username)
         st.rerun()
-
 # Add this new function to your UI Display Functions section
 def display_duel_page():
     """Renders the real-time head-to-head duel screen."""
@@ -3885,7 +3874,6 @@ def display_profile_page():
 def show_main_app():
     load_css()
     
-    # --- ADDED: Notification Handler for Both Features ---
     if st.session_state.get('challenge_completed_toast', False):
         st.toast("🎉 Daily Challenge Completed! Great job!", icon="🎉")
         del st.session_state.challenge_completed_toast
@@ -3910,7 +3898,6 @@ def show_main_app():
             "📊 Dashboard", "📝 Quiz", "🏆 Leaderboard", "칠판 Blackboard", 
             "👤 Profile", "📚 Learning Resources"
         ]
-        # If in a duel, disable the sidebar navigation
         is_in_duel = st.session_state.get("page") == "duel"
         selected_page = st.radio("Menu", page_options, label_visibility="collapsed", disabled=is_in_duel)
         if is_in_duel:
@@ -3925,10 +3912,10 @@ def show_main_app():
             
     st.markdown('<div class="main-content">', unsafe_allow_html=True)
     
-    # --- NEW ROUTER LOGIC ---
+    # --- FIX #2: THE ROUTER LOGIC IS ADDED HERE ---
     # If the user is in a duel, show the duel page. Otherwise, show the selected sidebar page.
     if st.session_state.get("page") == "duel":
-        display_duel_page()
+        display_duel_page() # This function needs to be created next
     else:
         topic_options = [
             "Sets", "Percentages", "Fractions", "Indices", "Surds", 
@@ -4034,6 +4021,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
