@@ -3227,7 +3227,6 @@ def display_quiz_summary():
             if 'result_saved' in st.session_state: del st.session_state['result_saved']
             st.rerun()
 
-# Replace your existing display_leaderboard function with this new version.
 
 def display_leaderboard(topic_options):
     st.header("🏆 Global Leaderboard")
@@ -3250,34 +3249,26 @@ def display_leaderboard(topic_options):
         top_scores = get_overall_top_scores(time_filter)
         if top_scores:
             leaderboard_data = []
-            
-            # --- NEW: The creative and funny list of unique titles ---
             titles = [
-                "🥇 Math Legend",
-                "🥈 Prime Mathematician",
-                "🥉 Grand Prodigy",
-                "The Destroyer",
-                "Merlin",
-                "The Genius",
-                "Math Ninja",
-                "The Professor",
-                "The Oracle",
-                "Last Baby"
+                "🥇 Math Legend", "🥈 Prime Mathematician", "🥉 Grand Prodigy",
+                "The Destroyer", "Merlin", "The Genius",
+                "Math Ninja", "The Professor", "The Oracle", "Last Baby"
             ]
-
             for r, (username, total_score) in enumerate(top_scores, 1):
-                # This line takes the rank number (e.g., 1, 2, 3) and gets the matching title from the list
                 rank_title = titles[r-1]
-
                 username_display = f"{username} (You)" if username == st.session_state.username else username
-                
                 leaderboard_data.append({
                     "Rank": rank_title,
                     "Username": username_display, 
                     "Total Correct Answers": total_score
                 })
             df = pd.DataFrame(leaderboard_data)
-            st.dataframe(df.style.hide(axis="index"), use_container_width=True)
+            
+            # --- FIX: Set the 'Rank' column as the table's index ---
+            df.set_index('Rank', inplace=True)
+            
+            # --- FIX: Display the table WITHOUT hiding the (now correct) index ---
+            st.dataframe(df.style, use_container_width=True)
         else:
             st.info(f"No scores recorded in this time period. Be the first!")
 
@@ -3305,12 +3296,18 @@ def display_leaderboard(topic_options):
                     "Accuracy": (s/t)*100 if t > 0 else 0
                 })
             df = pd.DataFrame(leaderboard_data)
+            
+            # --- FIX: Set the 'Rank' column as the table's index ---
+            df.set_index('Rank', inplace=True)
+            
             def highlight_user(row):
                 if "(You)" in row.Username:
                     return ['background-color: #e6f7ff; font-weight: bold; color: #000000;'] * len(row)
                 return [''] * len(row)
+            
+            # --- FIX: Display the table WITHOUT hiding the (now correct) index ---
             st.dataframe(
-                df.style.apply(highlight_user, axis=1).format({'Accuracy': "{:.1f}%"}).hide(axis="index"), 
+                df.style.apply(highlight_user, axis=1).format({'Accuracy': "{:.1f}%"}), 
                 use_container_width=True
             )
         else:
@@ -3683,6 +3680,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
