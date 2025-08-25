@@ -515,10 +515,12 @@ def accept_duel(duel_id, topic):
             """)
             conn.execute(update_query, {"duel_id": duel_id})
     
-    # Step 2: Now, outside the transaction, perform the slower task of generating questions.
+    # Step 2: Now, outside the transaction and with the lock released,
+    # perform the slower task of generating questions.
     generate_and_store_duel_questions(duel_id, topic)
     
     return True
+
 # Add this new helper function right after your accept_duel function
 def generate_and_store_duel_questions(duel_id, topic):
     """Generates and stores questions for a duel if they don't already exist."""
@@ -685,18 +687,22 @@ def display_duel_page():
         st_autorefresh(interval=3000, key="duel_pending_refresh")
         return
 
-    # 2) Finished or logically complete: Show final results
+    # 2) Finished or logically complete: Show final results and stop
     if status != "active" or current_q_index >= 10:
         st.header(f"⚔️ Duel Complete: {player1} vs. {player2}")
+        
+        # Re-fetch final scores to be certain
         final_p1_score = duel_state["player1_score"]
         final_p2_score = duel_state["player2_score"]
 
+        # Determine winner based on final scores
         winner_username = ""
         if final_p1_score > final_p2_score:
             winner_username = player1
         elif final_p2_score > final_p1_score:
             winner_username = player2
 
+        # Display outcome
         st.balloons()
         if winner_username == "":
             st.info("🤝 The duel ended in a draw!")
@@ -707,37 +713,40 @@ def display_duel_page():
 
         if st.button("Back to Lobby", use_container_width=True):
             st.session_state.pop("current_duel_id", None)
-            st.session_state.page = "math_game_page" # Or wherever your lobby is
+            st.session_state.page = "blackboard" # Or "math_game_page"
             st.rerun()
         return
 
-    # --- THE NEW, SIMPLIFIED FIX ---
-    # 3) Active but questions not yet available for this client.
-    #    This state occurs for the challenger for a brief moment.
-    #    We simply wait and refresh until the questions (created by the opponent) appear.
+    # 3) Active but questions not seeded yet: Generate once
     if "question" not in duel_state:
-        st.info("Opponent has accepted! Preparing the first question...")
-        st_autorefresh(interval=2000, key="duel_question_wait_refresh")
+        # FIX: Add auto-refresh here to ensure challenger sees questions when they're generated
+        st.info("Questions are being generated...")
+        st_autorefresh(interval=2000, key="duel_generating_refresh")  # Refresh every 2 seconds
         return
-    # --- END OF FIX ---
 
-    # 4) Normal active flow: A question is available and ready to be displayed
+    # 4) Normal active flow: Question is displayed
     q = duel_state["question"]
     answered_by = duel_state.get("question_answered_by")
 
     st.markdown(q.get("question", ""), unsafe_allow_html=True)
     
+    # --- THIS IS THE KEY FIX ---
+    # We now check if the question has been answered.
+    # The refresh ONLY happens if we are waiting for the next question.
+    
     if answered_by:
-        # Question has been answered, waiting for the next one.
+        # State: Question has been answered, waiting for next question.
+        # It is SAFE to auto-refresh here.
         is_correct = duel_state.get('question_is_correct')
         if is_correct:
             st.success(f"✅ {answered_by} answered correctly!")
         else:
-            st.error(f"❌ {answered_by} answered incorrectly. The correct answer was {q.get('answer')}.")
+            st.error(f"❌ {answered_by} answered incorrectly. The answer was {q.get('answer')}.")
         st.info("Waiting for the next question...")
         st_autorefresh(interval=3000, key="duel_answered_refresh")
     else:
-        # Question is waiting for an answer. NO auto-refresh here.
+        # State: Question is waiting for an answer.
+        # DO NOT auto-refresh here, to allow the user to answer.
         with st.form(key=f"duel_form_{current_q_index}"):
             user_choice = st.radio("Select your answer:", q.get("options", []), index=None)
             if st.form_submit_button("Submit Answer", type="primary"):
@@ -747,7 +756,6 @@ def display_duel_page():
                     st.rerun()
                 else:
                     st.warning("Please select an answer.")
-
 
 # ADD THESE TWO NEW FUNCTIONS
 
@@ -3402,6 +3410,8 @@ def display_blackboard_page():
         channel.send_message({"text": prompt}, user_id=st.session_state.username)
         st.rerun()
 
+# Replace your existing display_math_game_page function with this FINAL version.
+# Replace your existing display_math_game_page function with this one.
 def display_math_game_page(topic_options):
     """Displays the duel lobby with a new, improved two-column layout and stable buttons."""
     st.header("⚔️ Math Game Lobby")
@@ -3430,6 +3440,7 @@ def display_math_game_page(topic_options):
                             st.markdown(_generate_user_pill_html(user), unsafe_allow_html=True)
                         with c2:
                             if st.button("Duel", key=f"challenge_{user}", use_container_width=True):
+                                # This now sets a state to show the topic selector
                                 st.session_state.challenging_user = user
                                 st.rerun()
         else:
@@ -3453,7 +3464,7 @@ def display_math_game_page(topic_options):
                     duel_id = create_duel(st.session_state.username, opponent, topic)
                     if duel_id:
                         st.toast(f"Challenge sent to {opponent}!", icon="⚔️")
-                        # --- KEY FIX ---
+                        # --- THIS IS THE KEY FIX ---
                         # Immediately redirect the challenger to the duel page.
                         st.session_state.page = "duel"
                         st.session_state.current_duel_id = duel_id
@@ -4161,8 +4172,6 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
-
-
 
 
 
