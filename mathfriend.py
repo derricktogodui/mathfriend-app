@@ -3501,33 +3501,34 @@ def display_duel_page():
         st.session_state.page = "login"; time.sleep(2); st.rerun()
         return
 
-    player1 = duel_state['player1_username']
-    player2 = duel_state['player2_username']
-    p1_score = duel_state['player1_score']
-    p2_score = duel_state['player2_score']
-    current_q_index = duel_state['current_question_index']
-    status = duel_state['status']
+    # --- Logic to handle the "pending" state for the challenger ---
+    if duel_state['status'] == 'pending':
+        st.info(f"⏳ Waiting for {duel_state['player2_username']} to accept your challenge...")
+        st_autorefresh(interval=3000, key="duel_pending_refresh")
+        return # Keep showing this message until the status changes
 
-    # --- RENDER COMMON UI (HEADER, SCORES, PROGRESS) ---
+    # --- Generate questions here, only if they don't exist ---
+    if 'question' not in duel_state:
+        with st.spinner("Opponent accepted! Generating unique questions for your duel..."):
+            generate_and_store_duel_questions(duel_id, duel_state['topic'])
+            st.rerun()
+    
+    player1, player2, p1_score, p2_score, current_q_index, status = (
+        duel_state['player1_username'], duel_state['player2_username'], duel_state['player1_score'],
+        duel_state['player2_score'], duel_state['current_question_index'], duel_state['status']
+    )
+
     st.header(f"⚔️ Duel: {player1} vs. {player2}")
     st.subheader(f"Topic: {duel_state['topic']}")
     
-    score_cols = st.columns(2)
-    with score_cols[0]:
-        st.metric(f"{player1}'s Score", p1_score)
-    with score_cols[1]:
-        st.metric(f"{player2}'s Score", p2_score)
+    score_cols = st.columns(2); score_cols[0].metric(f"{player1}'s Score", p1_score); score_cols[1].metric(f"{player2}'s Score", p2_score)
 
     display_q_number = min(current_q_index + 1, 10)
     st.progress(current_q_index / 10, text=f"Question {display_q_number}/10")
     st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
 
-    # --- START OF NEW, ROBUST LOGIC STRUCTURE ---
-
     if status != 'active':
-        # --- GAME OVER LOGIC ---
-        # There are NO calls to st_autorefresh anywhere in this block.
-        # This prevents the "ghost" refresh from ever happening.
+        st_autorefresh(interval=3000, key="duel_game_refresh", disabled=True) # Stop refreshing
         st.balloons()
         
         winner_username = ""
@@ -3547,51 +3548,34 @@ def display_duel_page():
                 del st.session_state["current_duel_id"]
             st.session_state.page = "login"
             st.rerun()
-        
-        # We still return to be absolutely safe.
+
+        # 🚀 Critical fix: stop rendering any further UI
         return
 
-    # --- ACTIVE GAME LOGIC ---
-    # If the game is not over, all logic, including autorefresh, is handled here.
+    q_data, answered_by = duel_state.get('question'), duel_state.get('question_answered_by')
+
+    if not q_data:
+        st.info("Preparing questions..."); st_autorefresh(interval=2000, key="duel_wait_refresh"); return
+        
+    st.markdown(q_data["question"], unsafe_allow_html=True)
+
+    if answered_by:
+        st_autorefresh(interval=3000, key="duel_game_refresh")
+        is_correct = duel_state.get('question_is_correct')
+        if is_correct: st.success(f"✅ {answered_by} answered correctly!")
+        else: st.error(f"❌ {answered_by} answered incorrectly. The answer was {q_data['answer']}.")
+        st.info("Waiting for the next question...")
     else:
-        if duel_state['status'] == 'pending':
-            st.info(f"⏳ Waiting for {duel_state['player2_username']} to accept your challenge...")
-            st_autorefresh(interval=3000, key="duel_pending_refresh")
-            return
-
-        if 'question' not in duel_state:
-            with st.spinner("Opponent accepted! Generating unique questions for your duel..."):
-                generate_and_store_duel_questions(duel_id, duel_state['topic'])
-            st_autorefresh(interval=1000, limit=1, key="post_question_generation_refresh") # Refresh once after generation
-            return
-            
-        q_data = duel_state.get('question')
-        answered_by = duel_state.get('question_answered_by')
-
-        st.markdown(q_data["question"], unsafe_allow_html=True)
-
-        if answered_by:
-            # Waiting for the next question to be loaded by the backend
-            st_autorefresh(interval=3000, key="duel_game_refresh")
-            is_correct = duel_state.get('question_is_correct')
-            if is_correct:
-                st.success(f"✅ {answered_by} answered correctly!")
-            else:
-                st.error(f"❌ {answered_by} answered incorrectly. The answer was {q_data['answer']}.")
-            st.info("Waiting for the next question...")
-        else:
-            # Waiting for a player to answer
-            with st.form(key=f"duel_form_{current_q_index}"):
-                user_choice = st.radio("Select your answer:", q_data["options"], index=None)
-                if st.form_submit_button("Submit Answer", type="primary"):
-                    if user_choice is not None:
-                        is_correct = (str(user_choice) == str(q_data["answer"]))
-                        submitted_first = submit_duel_answer(duel_id, st.session_state.username, is_correct)
-                        if not submitted_first:
-                            st.toast("Too slow! Your opponent answered first.", icon="🐢")
-                        st.rerun()
-                    else:
-                        st.warning("Please select an answer.")
+        with st.form(key=f"duel_form_{current_q_index}"):
+            user_choice = st.radio("Select your answer:", q_data["options"], index=None)
+            if st.form_submit_button("Submit Answer", type="primary"):
+                if user_choice is not None:
+                    is_correct = (str(user_choice) == str(q_data["answer"]))
+                    submitted_first = submit_duel_answer(duel_id, st.session_state.username, is_correct)
+                    if not submitted_first: st.toast("Too slow!", icon="🐢")
+                    st.rerun()
+                else:
+                    st.warning("Please select an answer.")
 def display_quiz_page(topic_options):
     st.header("🧠 Quiz Time!")
     QUIZ_LENGTH = 10
@@ -4261,7 +4245,6 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
-
 
 
 
