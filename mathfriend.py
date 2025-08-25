@@ -685,15 +685,18 @@ def display_duel_page():
         st_autorefresh(interval=3000, key="duel_pending_refresh")
         return
 
-    # 2) Finished: Show final results
+    # 2) Finished or logically complete: Show final results
     if status != "active" or current_q_index >= 10:
-        # (Your existing logic for displaying the winner is correct)
+        st.header(f"⚔️ Duel Complete: {player1} vs. {player2}")
+        final_p1_score = duel_state["player1_score"]
+        final_p2_score = duel_state["player2_score"]
+
         winner_username = ""
-        if duel_state["player1_score"] > duel_state["player2_score"]:
+        if final_p1_score > final_p2_score:
             winner_username = player1
-        elif duel_state["player2_score"] > duel_state["player1_score"]:
+        elif final_p2_score > final_p1_score:
             winner_username = player2
-        
+
         st.balloons()
         if winner_username == "":
             st.info("🤝 The duel ended in a draw!")
@@ -704,33 +707,37 @@ def display_duel_page():
 
         if st.button("Back to Lobby", use_container_width=True):
             st.session_state.pop("current_duel_id", None)
-            st.session_state.page = "math_game_page"
+            st.session_state.page = "math_game_page" # Or wherever your lobby is
             st.rerun()
         return
 
-    # --- KEY FIX ---
-    # 3) Active but questions not ready: Show spinner and generate them
+    # --- THE NEW, SIMPLIFIED FIX ---
+    # 3) Active but questions not yet available for this client.
+    #    This state occurs for the challenger for a brief moment.
+    #    We simply wait and refresh until the questions (created by the opponent) appear.
     if "question" not in duel_state:
-        with st.spinner("Opponent accepted! Generating unique questions..."):
-            generate_and_store_duel_questions(duel_id, duel_state["topic"])
-        st.rerun()
+        st.info("Opponent has accepted! Preparing the first question...")
+        st_autorefresh(interval=2000, key="duel_question_wait_refresh")
         return
+    # --- END OF FIX ---
 
-    # 4) Normal active flow: Question is displayed
+    # 4) Normal active flow: A question is available and ready to be displayed
     q = duel_state["question"]
     answered_by = duel_state.get("question_answered_by")
 
     st.markdown(q.get("question", ""), unsafe_allow_html=True)
     
     if answered_by:
+        # Question has been answered, waiting for the next one.
         is_correct = duel_state.get('question_is_correct')
         if is_correct:
             st.success(f"✅ {answered_by} answered correctly!")
         else:
-            st.error(f"❌ {answered_by} answered incorrectly. The answer was {q.get('answer')}.")
+            st.error(f"❌ {answered_by} answered incorrectly. The correct answer was {q.get('answer')}.")
         st.info("Waiting for the next question...")
         st_autorefresh(interval=3000, key="duel_answered_refresh")
     else:
+        # Question is waiting for an answer. NO auto-refresh here.
         with st.form(key=f"duel_form_{current_q_index}"):
             user_choice = st.radio("Select your answer:", q.get("options", []), index=None)
             if st.form_submit_button("Submit Answer", type="primary"):
@@ -4154,6 +4161,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
