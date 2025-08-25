@@ -131,6 +131,7 @@ def create_and_verify_tables():
                     current_question_index INTEGER DEFAULT 0,
                     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
                     last_action_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+                    finished_at TIMESTAMP WITH TIME ZONE 
                 )
             '''))
             
@@ -613,11 +614,20 @@ def submit_duel_answer(duel_id, username, is_correct):
                 # --- FIX: Check if this is the last question and update the final duel status ---
                 if q_index == 9: # If this was the 10th question (index 9)
                     final_status = "draw"
-                    if current_p1_score > current_p2_score: final_status = "player1_win"
-                    elif current_p2_score > current_p1_score: final_status = "player2_win"
+                    if current_p1_score > current_p2_score:
+                        final_status = "player1_win"
+                    elif current_p2_score > current_p1_score:
+                        final_status = "player2_win"
                     
                     conn.execute(
-                        text("UPDATE duels SET status = :status, current_question_index = 10, last_action_at = CURRENT_TIMESTAMP WHERE id = :duel_id"),
+                        text("""
+                            UPDATE duels
+                            SET status = :status,
+                                current_question_index = 10,
+                                last_action_at = CURRENT_TIMESTAMP,
+                                finished_at = CURRENT_TIMESTAMP        -- 👈 NEW
+                            WHERE id = :duel_id
+                        """),
                         {"status": final_status, "duel_id": duel_id}
                     )
                 else:
@@ -3492,7 +3502,7 @@ def display_duel_page():
         st.session_state.page = "login"; time.sleep(2); st.rerun()
         return
 
-    # --- NEW: Logic to handle the "pending" state for the challenger ---
+    # --- Logic to handle the "pending" state for the challenger ---
     if duel_state['status'] == 'pending':
         st.info(f"⏳ Waiting for {duel_state['player2_username']} to accept your challenge...")
         st_autorefresh(interval=3000, key="duel_pending_refresh")
@@ -3519,20 +3529,28 @@ def display_duel_page():
     st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
 
     if status != 'active':
+        st_autorefresh(interval=3000, key="duel_game_refresh", disabled=True) # Stop refreshing
         st.balloons()
+        
         winner_username = ""
         if status == 'player1_win': winner_username = player1
         elif status == 'player2_win': winner_username = player2
         
-        if status == 'draw': st.info("🤝 The duel ended in a draw!")
+        if status == 'draw':
+            st.info("🤝 The duel ended in a draw!")
         elif winner_username == st.session_state.username:
-            st.success(f"🎉 Congratulations, you won!")
-        else: st.error(f"😞 You lost against {winner_username}.")
-        
-        if st.button("Exit Duel"):
-            if "current_duel_id" in st.session_state: del st.session_state["current_duel_id"]
-            if "page" in st.session_state: del st.session_state["page"]
+            opponent = player2 if st.session_state.username == player1 else player1
+            st.success(f"🎉 Congratulations, you won the duel against {opponent}!")
+        else:
+            st.error(f"😞 You lost the duel against {winner_username}. Better luck next time!")
+
+        if st.button("Return to Blackboard"):
+            if "current_duel_id" in st.session_state:
+                del st.session_state["current_duel_id"]
+            st.session_state.page = "login"
             st.rerun()
+
+        # 🚀 Critical fix: stop rendering any further UI
         return
 
     q_data, answered_by = duel_state.get('question'), duel_state.get('question_answered_by')
@@ -4228,6 +4246,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
