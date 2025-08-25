@@ -570,46 +570,65 @@ def get_duel_state(duel_id):
 # Replace your existing submit_duel_answer function with this one.
 
 def submit_duel_answer(duel_id, username, is_correct):
-    """Records a player's answer and updates the duel state."""
+    """Records a player's answer and updates the duel state using more robust, atomic updates."""
     with engine.connect() as conn, conn.begin():
-        info = conn.execute(
-            text("""SELECT player1_username, player2_username, player1_score, player2_score, current_question_index
-                    FROM duels WHERE id = :d"""),
+        # First, find out which player we are (player1 or player2)
+        duel_info = conn.execute(
+            text("SELECT player1_username, current_question_index FROM duels WHERE id = :d"),
             {"d": duel_id}
         ).mappings().first()
-        if not info:
+
+        if not duel_info:
             return False
 
-        q_index = info["current_question_index"]
+        q_index = duel_info["current_question_index"]
+
+        # Attempt to "claim" the answer for the current question
+        # This is the most critical step. It ensures only one player can answer.
         result = conn.execute(text("""
             UPDATE duel_questions
             SET answered_by = :u, is_correct = :ok
             WHERE duel_id = :d AND question_index = :i AND answered_by IS NULL
         """), {"u": username, "ok": is_correct, "d": duel_id, "i": q_index})
 
+        # If rowcount is 0, it means another player's answer was processed first.
         if result.rowcount == 0:
-            return False  # someone else was first
+            return False
 
-        p1, p2 = info["player1_score"], info["player2_score"]
+        # If the answer was correct, update the score atomically
         if is_correct:
-            if username == info["player1_username"]:
-                p1 += 1
-                conn.execute(text("UPDATE duels SET player1_score = :s WHERE id = :d"), {"s": p1, "d": duel_id})
+            score_update_query = ""
+            if username == duel_info["player1_username"]:
+                # --- THIS IS THE KEY CHANGE: Let the database increment the score ---
+                score_update_query = text("UPDATE duels SET player1_score = player1_score + 1 WHERE id = :d")
             else:
-                p2 += 1
-                conn.execute(text("UPDATE duels SET player2_score = :s WHERE id = :d"), {"s": p2, "d": duel_id})
+                # --- THIS IS THE KEY CHANGE: Let the database increment the score ---
+                score_update_query = text("UPDATE duels SET player2_score = player2_score + 1 WHERE id = :d")
 
+            conn.execute(score_update_query, {"d": duel_id})
+
+        # Now, check if the duel is over and update the index/status
         if q_index == 9:
-            final = "draw"
-            if p1 > p2: final = "player1_win"
-            elif p2 > p1: final = "player2_win"
+            # This is the last question, so we need to determine the winner and end the duel
+            final_scores = conn.execute(
+                text("SELECT player1_score, player2_score FROM duels WHERE id = :d"),
+                {"d": duel_id}
+            ).mappings().first()
+
+            final_status = "draw"
+            if final_scores["player1_score"] > final_scores["player2_score"]:
+                final_status = "player1_win"
+            elif final_scores["player2_score"] > final_scores["player1_score"]:
+                final_status = "player2_win"
+
             conn.execute(text("""
                 UPDATE duels
                 SET status = :final, current_question_index = 10,
                     last_action_at = CURRENT_TIMESTAMP, finished_at = CURRENT_TIMESTAMP
                 WHERE id = :d
-            """), {"final": final, "d": duel_id})
+            """), {"final": final_status, "d": duel_id})
         else:
+            # Not the last question, just advance to the next one
             conn.execute(text("""
                 UPDATE duels
                 SET current_question_index = current_question_index + 1,
@@ -4155,6 +4174,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
