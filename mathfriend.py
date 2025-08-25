@@ -503,15 +503,49 @@ def get_active_duel_for_player(username):
 
 # Replace your existing accept_duel function with this one.
 def accept_duel(duel_id, topic):
-    """Instantly marks a duel as 'active' so both players can join."""
+    """Correctly marks a duel as active, then generates and saves questions for BOTH players."""
+    
+    # Step 1: Perform a very fast transaction to ONLY update the status.
     with engine.connect() as conn:
-        update_query = text("""
-            UPDATE duels 
-            SET status = 'active', last_action_at = CURRENT_TIMESTAMP 
-            WHERE id = :duel_id AND status = 'pending';
-        """)
-        conn.execute(update_query, {"duel_id": duel_id})
-        conn.commit()
+        with conn.begin():
+            update_query = text("""
+                UPDATE duels 
+                SET status = 'active', last_action_at = CURRENT_TIMESTAMP 
+                WHERE id = :duel_id AND status = 'pending';
+            """)
+            conn.execute(update_query, {"duel_id": duel_id})
+    
+    # Step 2: Generate and store questions (this is based on the opponent's history)
+    generate_and_store_duel_questions(duel_id, topic)
+
+    # --- NEW: Save the generated questions for the challenger as well ---
+    try:
+        with engine.connect() as conn:
+            # First, get the challenger's username from the duel info
+            challenger_username = conn.execute(
+                text("SELECT player1_username FROM duels WHERE id = :duel_id"),
+                {"duel_id": duel_id}
+            ).scalar_one_or_none()
+
+            if challenger_username:
+                # Next, get the questions that were just created for this duel
+                questions = conn.execute(
+                    text("SELECT question_data_json FROM duel_questions WHERE duel_id = :duel_id"),
+                    {"duel_id": duel_id}
+                ).mappings().fetchall()
+
+                # Loop through the questions and save them to the challenger's seen list
+                for q_row in questions:
+                    q_data = json.loads(q_row["question_data_json"])
+                    question_text = q_data.get("stem", q_data.get("question", ""))
+                    q_id = get_question_id(question_text)
+                    save_seen_question(challenger_username, q_id)
+    except Exception as e:
+        # If this fails for any reason, we don't want to crash the app.
+        # We can log this error for debugging if needed.
+        print(f"Error saving seen questions for challenger: {e}")
+    # --- END OF NEW CODE ---
+    
     return True
 
 # Add this new helper function right after your accept_duel function
@@ -4154,6 +4188,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
