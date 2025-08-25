@@ -672,19 +672,19 @@ def submit_duel_answer(duel_id, username, is_correct):
 # Replace your existing display_duel_page function with this one.
 
 def display_duel_page():
-    """Renders the real-time head-to-head duel screen with corrected refresh logic."""
+    """Renders the real-time head-to-head duel screen with summary page integration."""
+
+    # PART A: This new block at the top checks if a duel is over and shows the summary page.
     if st.session_state.get("duel_summary_active"):
         final_state = st.session_state.get("final_duel_state")
         if final_state:
-            # This now calls our new, fully-featured summary page function
             display_duel_summary(final_state)
         return
-    
+
     duel_id = st.session_state.get("current_duel_id")
     if not duel_id:
         st.error("No active duel found.")
-        st.session_state.page = "login"
-        time.sleep(1)
+        st.session_state.page = "math_game_page"
         st.rerun()
         return
 
@@ -692,8 +692,7 @@ def display_duel_page():
     if not duel_state:
         st.error("Could not retrieve duel state.")
         st.session_state.pop("current_duel_id", None)
-        st.session_state.page = "login"
-        time.sleep(1)
+        st.session_state.page = "math_game_page"
         st.rerun()
         return
 
@@ -719,13 +718,13 @@ def display_duel_page():
 
     # --- State-Specific Logic ---
 
-    # 1) Pending: Wait for opponent
+    # 1) Pending: Wait for opponent (with the delay fix)
     if status == "pending":
         st.info(f"⏳ Waiting for {duel_state['player2_username']} to accept your challenge...")
         st_autorefresh(interval=1000, key="duel_pending_refresh")
         return
 
-    # 2) Finished or logically complete: Show final results and stop
+    # PART B: This block now triggers the summary page instead of showing a simple message.
     if status != "active" or current_q_index >= 10:
         st.session_state.duel_summary_active = True
         st.session_state.final_duel_state = duel_state
@@ -745,33 +744,29 @@ def display_duel_page():
 
     st.markdown(q.get("question", ""), unsafe_allow_html=True)
     
-    # --- THIS IS THE KEY FIX ---
-    # We now check if the question has been answered.
-    # The refresh ONLY happens if we are waiting for the next question.
-    
     if answered_by:
-        # State: Question has been answered, waiting for next question.
-        # It is SAFE to auto-refresh here.
         is_correct = duel_state.get('question_is_correct')
         if is_correct:
             st.success(f"✅ {answered_by} answered correctly!")
         else:
             st.error(f"❌ {answered_by} answered incorrectly. The answer was {q.get('answer')}.")
         st.info("Waiting for the next question...")
-        st_autorefresh(interval=1000, key="duel_answered_refresh")
+        st_autorefresh(interval=1000, key="duel_answered_refresh") # Delay is fixed here too
     else:
         # State: Question is waiting for an answer.
-        # DO NOT auto-refresh here, to allow the user to answer.
         with st.form(key=f"duel_form_{current_q_index}"):
             user_choice = st.radio("Select your answer:", q.get("options", []), index=None)
             if st.form_submit_button("Submit Answer", type="primary"):
                 if user_choice is not None:
                     is_correct = (str(user_choice) == str(q.get("answer")))
-                    submit_duel_answer(duel_id, st.session_state.username, is_correct)
+                    was_successful = submit_duel_answer(duel_id, st.session_state.username, is_correct)
+                    
+                    if not was_successful:
+                        st.toast("Too slow! Your opponent answered first.", icon="🏃‍♀️")
+
                     st.rerun()
                 else:
                     st.warning("Please select an answer.")
-
 # ADD THESE TWO NEW FUNCTIONS
 
 def get_seen_questions(username):
@@ -4263,6 +4258,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
