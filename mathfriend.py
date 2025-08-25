@@ -3527,14 +3527,17 @@ def display_duel_page():
     st.progress(current_q_index / 10, text=f"Question {display_q_number}/10")
     st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
 
-    if status != 'active':
-        st_autorefresh(interval=3000, key="duel_game_refresh", disabled=True) # Stop refreshing
+    # --- USER'S REQUESTED CODE BLOCK STARTS HERE ---
+    if status != 'active':  # Game finished
+        st_autorefresh(interval=3000, key="duel_game_refresh", disabled=True)
         st.balloons()
-        
+
         winner_username = ""
-        if status == 'player1_win': winner_username = player1
-        elif status == 'player2_win': winner_username = player2
-        
+        if status == 'player1_win':
+            winner_username = player1
+        elif status == 'player2_win':
+            winner_username = player2
+
         if status == 'draw':
             st.info("🤝 The duel ended in a draw!")
         elif winner_username == st.session_state.username:
@@ -3549,8 +3552,9 @@ def display_duel_page():
             st.session_state.page = "login"
             st.rerun()
 
-        # 🚀 Critical fix: stop rendering any further UI
+        # 🚀 CRITICAL: stop here so no more refresh/question UI renders
         return
+    # --- USER'S REQUESTED CODE BLOCK ENDS HERE ---
 
     q_data, answered_by = duel_state.get('question'), duel_state.get('question_answered_by')
 
@@ -4245,6 +4249,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
