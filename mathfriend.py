@@ -720,11 +720,32 @@ def display_duel_page():
     # 3) Active but questions not seeded yet: Generate once
     # PASTE THIS NEW, CORRECTED BLOCK IN ITS PLACE
     # 3) Active but question isn't ready yet: Show a spinner and refresh once
-    if "question" not in duel_state:
-        st.spinner("Opponent has accepted! Starting the match...")
-        # Use a short, one-time refresh to gracefully handle the transition
-        st_autorefresh(interval=1500, limit=1, key="duel_start_sync")
+    # PASTE THIS NEW, MORE RESILIENT CODE IN ITS PLACE
+# 3) Active but question isn't ready yet: Handle potential DB lag by retrying.
+if "question" not in duel_state:
+    # Initialize a counter in the session state to prevent an infinite loop
+    if 'duel_start_retries' not in st.session_state:
+        st.session_state.duel_start_retries = 0
+
+    # If we have retried too many times, show an error.
+    if st.session_state.duel_start_retries >= 10:
+        st.error("Could not load the duel. Please try returning to the lobby and starting a new game.")
+        if st.button("Back to Lobby"):
+            st.session_state.page = "math_game_page" # Or your lobby's page name
+            st.session_state.pop('current_duel_id', None)
+            st.session_state.pop('duel_start_retries', None)
+            st.rerun()
         return
+
+    # Show a spinner and refresh every 2 seconds, up to 10 times.
+    st.spinner("Opponent has accepted! Finalizing match setup...")
+    st.session_state.duel_start_retries += 1
+    st_autorefresh(interval=2000, limit=10, key="duel_start_sync")
+    return
+
+# If we successfully load the question, reset the retry counter for the next duel.
+if 'duel_start_retries' in st.session_state:
+    del st.session_state.duel_start_retries
 
     # 4) Normal active flow: Question is displayed
     q = duel_state["question"]
@@ -4174,6 +4195,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
