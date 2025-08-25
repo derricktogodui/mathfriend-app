@@ -741,79 +741,89 @@ def _render_duel_game_over(duel_state):
         st.session_state.page = "math_game" 
         st.rerun()
 
-# Replace your existing display_duel_page function with this one.
 
-def display_duel_page():
-    """Renders the real-time head-to-head duel screen with UX improvements."""
-    duel_id = st.session_state.get("current_duel_id")
-    if not duel_id:
-        st.error("No active duel found."); st.session_state.page = "login"; time.sleep(1); st.rerun()
-        return
-
-    duel_state = get_duel_state(duel_id)
-    if not duel_state:
-        st.error("Could not retrieve duel state."); st.session_state.pop("current_duel_id", None)
-        st.session_state.page = "login"; time.sleep(1); st.rerun()
-        return
-
-    status = duel_state["status"]
+def _render_active_question(duel_state):
+    """Renders the UI for an active, ongoing question."""
+    duel_id = duel_state["id"]
     current_q_index = duel_state.get("current_question_index", 0)
-    player1 = duel_state["player1_username"]
-    player2 = duel_state["player2_username"]
+    q = duel_state["question"]
+    answered_by = duel_state.get("question_answered_by")
 
-    # 1) Pending: Wait for opponent
-    if status == "pending":
-        st.header(f"⚔️ Duel Lobby")
-        st.info(f"⏳ Waiting for {player2} to accept your challenge...")
-        st_autorefresh(interval=2000, key="duel_pending_refresh")
-        return
-
-    # --- Header and Score Display (runs for active and finished states) ---
-    st.header(f"⚔️ Duel: {player1} vs. {player2}")
-    st.subheader(f"Topic: {duel_state['topic']}")
-    cols = st.columns(2)
-    cols[0].metric(f"{player1}'s Score", duel_state["player1_score"])
-    cols[1].metric(f"{player2}'s Score", duel_state["player2_score"])
-
-    # 2) Finished or logically complete: Render the game over screen and stop.
-    if status != "active" or current_q_index >= 10:
-        _render_duel_game_over(duel_state)
-        return
-
-    # 3) Active but questions not seeded yet: Generate once
-    if "question" not in duel_state:
-        with st.spinner("Opponent accepted! Generating unique questions..."):
-            generate_and_store_duel_questions(duel_id, duel_state["topic"])
-        st.rerun()
-        return
-
-    # 4) Normal active flow: Question is displayed
     display_q_number = min(current_q_index + 1, 10)
     st.progress(current_q_index / 10, text=f"Question {display_q_number}/10")
     st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
-    q = duel_state["question"]
-    answered_by = duel_state.get("question_answered_by")
 
     st.markdown(q.get("question", ""), unsafe_allow_html=True)
     
     if answered_by:
         is_correct = duel_state.get('question_is_correct')
-        if is_correct: st.success(f"✅ {answered_by} answered correctly!")
-        else: st.error(f"❌ {answered_by} answered incorrectly. Their score was reduced by 1.")
+        if is_correct:
+            st.success(f"✅ {answered_by} answered correctly!")
+        else:
+            st.error(f"❌ {answered_by} answered incorrectly. Their score was reduced by 1.")
         st.info("Waiting for the next question...")
-        st_autorefresh(interval=2000, key="duel_answered_refresh")
     else:
-        # --- THIS IS THE BLOCK YOU ARE REPLACING ---
-        # State: Question is waiting for an answer.
         with st.form(key=f"duel_form_{current_q_index}"):
             user_choice = st.radio("Select your answer:", q.get("options", []), index=None)
             if st.form_submit_button("Submit Answer", type="primary"):
                 if user_choice is not None:
-                    # Pass the actual choice, not just True/False
                     submit_duel_answer(duel_id, st.session_state.username, user_choice)
-                    st.rerun()
+                    # No st.rerun() here to prevent loops
                 else:
                     st.warning("Please select an answer.")
+
+# Replace your existing display_duel_page function with this one.
+
+def display_duel_page():
+    """Renders the real-time head-to-head duel screen with corrected control flow."""
+    duel_id = st.session_state.get("current_duel_id")
+    if not duel_id:
+        st.error("No active duel found.")
+        st.session_state.page = "login"
+        st.rerun()
+        return
+
+    duel_state = get_duel_state(duel_id)
+    if not duel_state:
+        st.error("Could not retrieve duel state.")
+        st.session_state.page = "login"
+        st.rerun()
+        return
+
+    status = duel_state["status"]
+    current_q_index = duel_state.get("current_question_index", 0)
+
+    # --- Header and Score Display (runs for all states except pending) ---
+    if status != "pending":
+        player1 = duel_state["player1_username"]
+        player2 = duel_state["player2_username"]
+        st.header(f"⚔️ Duel: {player1} vs. {player2}")
+        st.subheader(f"Topic: {duel_state['topic']}")
+        cols = st.columns(2)
+        cols[0].metric(f"{player1}'s Score", duel_state["player1_score"])
+        cols[1].metric(f"{player2}'s Score", duel_state["player2_score"])
+
+    # 1. Waiting room ONLY if truly pending
+    if status == "pending":
+        st.info(f"⏳ Waiting for {duel_state['player2_username']} to accept your challenge...")
+        st_autorefresh(interval=2000, key=f"duel_wait_{duel_id}")
+        return
+
+    # 2. Game over check (handles finished games)
+    if status != "active" or current_q_index >= 10:
+        _render_duel_game_over(duel_state)
+        return
+
+    # 3. Once active, make sure questions are seeded
+    if status == "active" and "question" not in duel_state:
+        with st.spinner("Opponent accepted! Loading questions..."):
+            generate_and_store_duel_questions(duel_id, duel_state["topic"])
+        st.rerun()
+        return
+
+    # 4. Normal active gameplay flow
+    _render_active_question(duel_state)
+    st_autorefresh(interval=2000, key=f"duel_active_{duel_id}")
 # ADD THESE TWO NEW FUNCTIONS
 
 def get_seen_questions(username):
@@ -4229,6 +4239,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
