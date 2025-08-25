@@ -433,16 +433,10 @@ def get_user_stats_for_topic(username, topic):
         return f"{best_score:.1f}%", attempts
 
 def get_online_users(current_user):
-    """Gets online users who are NOT currently in an active duel."""
     with engine.connect() as conn:
         query = text("""
-            SELECT s.username
-            FROM user_status s
-            LEFT JOIN duels d ON (s.username = d.player1_username OR s.username = d.player2_username) AND d.status = 'active'
-            WHERE s.is_online = TRUE 
-              AND s.last_seen > NOW() - INTERVAL '5 minutes'
-              AND s.username != :current_user
-              AND d.id IS NULL;
+            SELECT username FROM user_status WHERE is_online = TRUE AND last_seen > NOW() - INTERVAL '5 minutes'
+            AND username != :current_user
         """)
         result = conn.execute(query, {"current_user": current_user})
         return [row[0] for row in result.fetchall()]
@@ -563,18 +557,17 @@ def get_duel_state(duel_id):
 # Replace your existing submit_duel_answer function with this one.
 
 def submit_duel_answer(duel_id, username, is_correct):
-    """Records a player's answer and updates the duel state using more robust, atomic updates."""
+    """Records a player's answer and updates the duel state."""
     with engine.connect() as conn, conn.begin():
-        duel_info = conn.execute(
-            text("SELECT player1_username, current_question_index FROM duels WHERE id = :d"),
+        info = conn.execute(
+            text("""SELECT player1_username, player2_username, player1_score, player2_score, current_question_index
+                    FROM duels WHERE id = :d"""),
             {"d": duel_id}
         ).mappings().first()
-
-        if not duel_info:
+        if not info:
             return False
 
-        q_index = duel_info["current_question_index"]
-
+        q_index = info["current_question_index"]
         result = conn.execute(text("""
             UPDATE duel_questions
             SET answered_by = :u, is_correct = :ok
@@ -582,35 +575,27 @@ def submit_duel_answer(duel_id, username, is_correct):
         """), {"u": username, "ok": is_correct, "d": duel_id, "i": q_index})
 
         if result.rowcount == 0:
-            return False
+            return False  # someone else was first
 
+        p1, p2 = info["player1_score"], info["player2_score"]
         if is_correct:
-            score_update_query = ""
-            if username == duel_info["player1_username"]:
-                score_update_query = text("UPDATE duels SET player1_score = player1_score + 1 WHERE id = :d")
+            if username == info["player1_username"]:
+                p1 += 1
+                conn.execute(text("UPDATE duels SET player1_score = :s WHERE id = :d"), {"s": p1, "d": duel_id})
             else:
-                score_update_query = text("UPDATE duels SET player2_score = player2_score + 1 WHERE id = :d")
-
-            conn.execute(score_update_query, {"d": duel_id})
+                p2 += 1
+                conn.execute(text("UPDATE duels SET player2_score = :s WHERE id = :d"), {"s": p2, "d": duel_id})
 
         if q_index == 9:
-            final_scores = conn.execute(
-                text("SELECT player1_score, player2_score FROM duels WHERE id = :d"),
-                {"d": duel_id}
-            ).mappings().first()
-
-            final_status = "draw"
-            if final_scores["player1_score"] > final_scores["player2_score"]:
-                final_status = "player1_win"
-            elif final_scores["player2_score"] > final_scores["player1_score"]:
-                final_status = "player2_win"
-
+            final = "draw"
+            if p1 > p2: final = "player1_win"
+            elif p2 > p1: final = "player2_win"
             conn.execute(text("""
                 UPDATE duels
                 SET status = :final, current_question_index = 10,
                     last_action_at = CURRENT_TIMESTAMP, finished_at = CURRENT_TIMESTAMP
                 WHERE id = :d
-            """), {"final": final_status, "d": duel_id})
+            """), {"final": final, "d": duel_id})
         else:
             conn.execute(text("""
                 UPDATE duels
@@ -620,6 +605,7 @@ def submit_duel_answer(duel_id, username, is_correct):
             """), {"d": duel_id})
 
         return True
+
 # Replace your existing display_duel_page function with this one.
 
 def display_duel_page():
@@ -4154,7 +4140,6 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
-
 
 
 
