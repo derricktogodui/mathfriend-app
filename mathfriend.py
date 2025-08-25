@@ -609,7 +609,7 @@ def submit_duel_answer(duel_id, username, is_correct):
 # Replace your existing display_duel_page function with this one.
 
 def display_duel_page():
-    """Renders the real-time head-to-head duel screen (no more Q10 loop)."""
+    """Renders the real-time head-to-head duel screen with corrected refresh logic."""
     duel_id = st.session_state.get("current_duel_id")
     if not duel_id:
         st.error("No active duel found.")
@@ -630,52 +630,15 @@ def display_duel_page():
     status = duel_state["status"]
     current_q_index = duel_state.get("current_question_index", 0)
 
-    # 1) Pending: just wait and refresh
-    if status == "pending":
-        st.info(f"⏳ Waiting for {duel_state['player2_username']} to accept your challenge...")
-        st_autorefresh(interval=3000, key="duel_pending_refresh")
-        return
-
-    # 2) Finished or logically complete (>=10): show results, DO NOT try to load/generate questions
-    if status != "active" or current_q_index >= 10:
-        player1 = duel_state["player1_username"]
-        player2 = duel_state["player2_username"]
-        p1, p2 = duel_state["player1_score"], duel_state["player2_score"]
-
-        st.header(f"⚔️ Duel Complete: {player1} vs. {player2}")
-        cols = st.columns(2)
-        cols[0].metric(f"{player1}'s Score", p1)
-        cols[1].metric(f"{player2}'s Score", p2)
-
-        if p1 > p2:
-            st.success(f"🏆 {player1} wins!")
-        elif p2 > p1:
-            st.success(f"🏆 {player2} wins!")
-        else:
-            st.info("🤝 It's a draw!")
-        if st.button("Back to Lobby", use_container_width=True):
-            st.session_state.pop("current_duel_id", None)
-            st.session_state.page = "blackboard"
-            st.rerun()
-        return
-
-    # 3) Active but questions not seeded yet: generate once, then rerun
-    if "question" not in duel_state:
-        with st.spinner("Opponent accepted! Generating unique questions..."):
-            generate_and_store_duel_questions(duel_id, duel_state["topic"])
-        st.rerun()
-        return
-
-    # 4) Normal active flow
+    # --- Header and Score Display (runs for all states) ---
     player1 = duel_state["player1_username"]
     player2 = duel_state["player2_username"]
     p1_score = duel_state["player1_score"]
     p2_score = duel_state["player2_score"]
-    q = duel_state["question"]
 
     st.header(f"⚔️ Duel: {player1} vs. {player2}")
     st.subheader(f"Topic: {duel_state['topic']}")
-
+    
     cols = st.columns(2)
     cols[0].metric(f"{player1}'s Score", p1_score)
     cols[1].metric(f"{player2}'s Score", p2_score)
@@ -684,21 +647,83 @@ def display_duel_page():
     st.progress(current_q_index / 10, text=f"Question {display_q_number}/10")
     st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
 
-    st.markdown(q.get("question", ""), unsafe_allow_html=True) # Used st.markdown for LaTeX rendering
-    
-    # --- Using a form for better answer submission ---
-    with st.form(key=f"duel_form_{current_q_index}"):
-        user_choice = st.radio("Select your answer:", q.get("options", []), index=None)
-        if st.form_submit_button("Submit Answer", type="primary"):
-            if user_choice is not None:
-                is_correct = (str(user_choice) == str(q.get("answer")))
-                submit_duel_answer(duel_id, st.session_state.username, is_correct)
-                st.rerun()
-            else:
-                st.warning("Please select an answer.")
+    # --- State-Specific Logic ---
 
-    # Keep live updates while active
-    st_autorefresh(interval=3000, key="duel_active_refresh")
+    # 1) Pending: Wait for opponent
+    if status == "pending":
+        st.info(f"⏳ Waiting for {duel_state['player2_username']} to accept your challenge...")
+        st_autorefresh(interval=3000, key="duel_pending_refresh")
+        return
+
+    # 2) Finished or logically complete: Show final results and stop
+    if status != "active" or current_q_index >= 10:
+        st.header(f"⚔️ Duel Complete: {player1} vs. {player2}")
+        
+        # Re-fetch final scores to be certain
+        final_p1_score = duel_state["player1_score"]
+        final_p2_score = duel_state["player2_score"]
+
+        # Determine winner based on final scores
+        winner_username = ""
+        if final_p1_score > final_p2_score:
+            winner_username = player1
+        elif final_p2_score > final_p1_score:
+            winner_username = player2
+
+        # Display outcome
+        st.balloons()
+        if winner_username == "":
+            st.info("🤝 The duel ended in a draw!")
+        elif winner_username == st.session_state.username:
+            st.success(f"🎉 Congratulations, you won!")
+        else:
+            st.error(f"😞 You lost against {winner_username}.")
+
+        if st.button("Back to Lobby", use_container_width=True):
+            st.session_state.pop("current_duel_id", None)
+            st.session_state.page = "blackboard" # Or "math_game_page"
+            st.rerun()
+        return
+
+    # 3) Active but questions not seeded yet: Generate once
+    if "question" not in duel_state:
+        with st.spinner("Opponent accepted! Generating unique questions..."):
+            generate_and_store_duel_questions(duel_id, duel_state["topic"])
+        st.rerun()
+        return
+
+    # 4) Normal active flow: Question is displayed
+    q = duel_state["question"]
+    answered_by = duel_state.get("question_answered_by")
+
+    st.markdown(q.get("question", ""), unsafe_allow_html=True)
+    
+    # --- THIS IS THE KEY FIX ---
+    # We now check if the question has been answered.
+    # The refresh ONLY happens if we are waiting for the next question.
+    
+    if answered_by:
+        # State: Question has been answered, waiting for next question.
+        # It is SAFE to auto-refresh here.
+        is_correct = duel_state.get('question_is_correct')
+        if is_correct:
+            st.success(f"✅ {answered_by} answered correctly!")
+        else:
+            st.error(f"❌ {answered_by} answered incorrectly. The answer was {q.get('answer')}.")
+        st.info("Waiting for the next question...")
+        st_autorefresh(interval=3000, key="duel_answered_refresh")
+    else:
+        # State: Question is waiting for an answer.
+        # DO NOT auto-refresh here, to allow the user to answer.
+        with st.form(key=f"duel_form_{current_q_index}"):
+            user_choice = st.radio("Select your answer:", q.get("options", []), index=None)
+            if st.form_submit_button("Submit Answer", type="primary"):
+                if user_choice is not None:
+                    is_correct = (str(user_choice) == str(q.get("answer")))
+                    submit_duel_answer(duel_id, st.session_state.username, is_correct)
+                    st.rerun()
+                else:
+                    st.warning("Please select an answer.")
 
 # ADD THESE TWO NEW FUNCTIONS
 
@@ -4115,6 +4140,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
