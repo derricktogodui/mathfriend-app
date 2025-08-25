@@ -502,15 +502,23 @@ def get_active_duel_for_player(username):
 
 # Replace your existing accept_duel function with this one.
 def accept_duel(duel_id, topic):
-    """Instantly marks a duel as 'active' so both players can join."""
+    """Correctly marks a duel as active, then generates questions to prevent locking."""
+    
+    # Step 1: Perform a very fast transaction to ONLY update the status.
+    # This acquires and releases the database lock almost instantly.
     with engine.connect() as conn:
-        update_query = text("""
-            UPDATE duels 
-            SET status = 'active', last_action_at = CURRENT_TIMESTAMP 
-            WHERE id = :duel_id AND status = 'pending';
-        """)
-        conn.execute(update_query, {"duel_id": duel_id})
-        conn.commit()
+        with conn.begin(): # This handles the transaction automatically
+            update_query = text("""
+                UPDATE duels 
+                SET status = 'active', last_action_at = CURRENT_TIMESTAMP 
+                WHERE id = :duel_id AND status = 'pending';
+            """)
+            conn.execute(update_query, {"duel_id": duel_id})
+    
+    # Step 2: Now, outside the transaction and with the lock released,
+    # perform the slower task of generating questions.
+    generate_and_store_duel_questions(duel_id, topic)
+    
     return True
 
 # Add this new helper function right after your accept_duel function
@@ -4147,6 +4155,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
