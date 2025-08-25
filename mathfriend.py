@@ -630,7 +630,6 @@ def submit_duel_answer(duel_id, username, is_correct):
             
             return False # Someone else answered first
 
-
 # Replace your existing display_duel_page function with this one.
 
 def display_duel_page():
@@ -4229,6 +4228,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
