@@ -674,7 +674,7 @@ def submit_duel_answer(duel_id, username, is_correct):
 def display_duel_page():
     """Renders the real-time head-to-head duel screen with summary page integration."""
 
-    # PART A: This new block at the top checks if a duel is over and shows the summary page.
+    # PART A: This block checks if a duel is over and shows the summary page.
     if st.session_state.get("duel_summary_active"):
         final_state = st.session_state.get("final_duel_state")
         if final_state:
@@ -751,7 +751,7 @@ def display_duel_page():
         else:
             st.error(f"❌ {answered_by} answered incorrectly. The answer was {q.get('answer')}.")
         st.info("Waiting for the next question...")
-        st_autorefresh(interval=1000, key="duel_answered_refresh") # Delay is fixed here too
+        st_autorefresh(interval=1000, key="duel_answered_refresh") # Delay is fixed here
     else:
         # State: Question is waiting for an answer.
         with st.form(key=f"duel_form_{current_q_index}"):
@@ -4258,6 +4258,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
