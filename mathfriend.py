@@ -118,7 +118,7 @@ def create_and_verify_tables():
                                 unlocked_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
                             )'''))
             
-            # --- NEW: Head-to-Head Duel Tables ---
+            # --- CORRECTED Head-to-Head Duel Tables ---
             conn.execute(text('''
                 CREATE TABLE IF NOT EXISTS duels (
                     id SERIAL PRIMARY KEY,
@@ -130,8 +130,8 @@ def create_and_verify_tables():
                     player2_score INTEGER DEFAULT 0,
                     current_question_index INTEGER DEFAULT 0,
                     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-                    last_action_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-                    finished_at TIMESTAMP WITH TIME ZONE 
+                    last_action_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                    finished_at TIMESTAMP WITH TIME ZONE
                 )
             '''))
             
@@ -146,14 +146,13 @@ def create_and_verify_tables():
                     UNIQUE(duel_id, question_index)
                 )
             '''))
-            # --- END OF NEW TABLES ---
+            # --- END OF CORRECTION ---
             
             # --- Populate daily_challenges if it's empty ---
             result = conn.execute(text("SELECT COUNT(*) FROM daily_challenges")).scalar_one()
             if result == 0:
                 print("Populating daily_challenges table for the first time.")
                 challenges = [
-                    # ... (your existing list of challenges is unchanged)
                     ("Answer 5 questions correctly on any topic.", "Any", 5),
                     ("Complete any quiz with a score of 4 or more.", "Any", 4),
                     ("Correctly answer 4 Set theory questions.", "Sets", 4),
@@ -184,7 +183,7 @@ def create_and_verify_tables():
                              [{"description": d, "topic": t, "target_count": c} for d, t, c in challenges])
             
             conn.commit()
-        print("Database tables created or verified successfully, including new Duel tables.")
+        print("Database tables created or verified successfully, including corrected Duel tables.")
     except Exception as e:
         st.error(f"Database setup error: {e}")
 create_and_verify_tables()
@@ -4246,6 +4245,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
