@@ -687,7 +687,7 @@ def display_duel_page():
 
     if status == "pending":
         st.info(f"⏳ Waiting for {duel_state['player2_username']} to accept your challenge...")
-        st_autorefresh(interval=1000, key="duel_pending_refresh")
+        st_autorefresh(interval=3000, key="duel_pending_refresh")
         return
 
     if status != "active" or current_q_index >= 10:
@@ -710,7 +710,7 @@ def display_duel_page():
 
         st.spinner("Opponent has accepted! Finalizing match setup...")
         st.session_state.duel_start_retries += 1
-        st_autorefresh(interval=2000, limit=10, key="duel_start_sync")
+        st_autorefresh(interval=3000, limit=10, key="duel_start_sync")
         return
     
     if 'duel_start_retries' in st.session_state:
@@ -4155,6 +4155,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
