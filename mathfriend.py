@@ -449,21 +449,6 @@ def get_online_users(current_user):
 
 # Add this block of 5 new functions to your Core Backend Functions section
 
-def get_duel_history(duel_id):
-    """Fetches all questions and their outcomes for a finished duel."""
-    with engine.connect() as conn:
-        query = text("""
-            SELECT 
-                dq.question_data_json, 
-                dq.answered_by, 
-                dq.is_correct
-            FROM duel_questions dq
-            WHERE dq.duel_id = :duel_id
-            ORDER BY dq.question_index ASC;
-        """)
-        result = conn.execute(query, {"duel_id": duel_id})
-        return result.mappings().fetchall()
-
 # Replace your existing create_duel function with this one.
 def create_duel(challenger_username, opponent_username, topic):
     """Creates a new duel challenge in the database."""
@@ -518,49 +503,15 @@ def get_active_duel_for_player(username):
 
 # Replace your existing accept_duel function with this one.
 def accept_duel(duel_id, topic):
-    """Correctly marks a duel as active, then generates and saves questions for BOTH players."""
-    
-    # Step 1: Perform a very fast transaction to ONLY update the status.
+    """Instantly marks a duel as 'active' so both players can join."""
     with engine.connect() as conn:
-        with conn.begin():
-            update_query = text("""
-                UPDATE duels 
-                SET status = 'active', last_action_at = CURRENT_TIMESTAMP 
-                WHERE id = :duel_id AND status = 'pending';
-            """)
-            conn.execute(update_query, {"duel_id": duel_id})
-    
-    # Step 2: Generate and store questions (this is based on the opponent's history)
-    generate_and_store_duel_questions(duel_id, topic)
-
-    # --- NEW: Save the generated questions for the challenger as well ---
-    try:
-        with engine.connect() as conn:
-            # First, get the challenger's username from the duel info
-            challenger_username = conn.execute(
-                text("SELECT player1_username FROM duels WHERE id = :duel_id"),
-                {"duel_id": duel_id}
-            ).scalar_one_or_none()
-
-            if challenger_username:
-                # Next, get the questions that were just created for this duel
-                questions = conn.execute(
-                    text("SELECT question_data_json FROM duel_questions WHERE duel_id = :duel_id"),
-                    {"duel_id": duel_id}
-                ).mappings().fetchall()
-
-                # Loop through the questions and save them to the challenger's seen list
-                for q_row in questions:
-                    q_data = json.loads(q_row["question_data_json"])
-                    question_text = q_data.get("stem", q_data.get("question", ""))
-                    q_id = get_question_id(question_text)
-                    save_seen_question(challenger_username, q_id)
-    except Exception as e:
-        # If this fails for any reason, we don't want to crash the app.
-        # We can log this error for debugging if needed.
-        print(f"Error saving seen questions for challenger: {e}")
-    # --- END OF NEW CODE ---
-    
+        update_query = text("""
+            UPDATE duels 
+            SET status = 'active', last_action_at = CURRENT_TIMESTAMP 
+            WHERE id = :duel_id AND status = 'pending';
+        """)
+        conn.execute(update_query, {"duel_id": duel_id})
+        conn.commit()
     return True
 
 # Add this new helper function right after your accept_duel function
@@ -672,19 +623,12 @@ def submit_duel_answer(duel_id, username, is_correct):
 # Replace your existing display_duel_page function with this one.
 
 def display_duel_page():
-    """Renders the real-time head-to-head duel screen with summary page integration."""
-
-    # PART A: This block checks if a duel is over and shows the summary page.
-    if st.session_state.get("duel_summary_active"):
-        final_state = st.session_state.get("final_duel_state")
-        if final_state:
-            display_duel_summary(final_state)
-        return
-
+    """Renders the real-time head-to-head duel screen with corrected refresh logic."""
     duel_id = st.session_state.get("current_duel_id")
     if not duel_id:
         st.error("No active duel found.")
-        st.session_state.page = "math_game_page"
+        st.session_state.page = "login"
+        time.sleep(1)
         st.rerun()
         return
 
@@ -692,7 +636,8 @@ def display_duel_page():
     if not duel_state:
         st.error("Could not retrieve duel state.")
         st.session_state.pop("current_duel_id", None)
-        st.session_state.page = "math_game_page"
+        st.session_state.page = "login"
+        time.sleep(1)
         st.rerun()
         return
 
@@ -718,17 +663,40 @@ def display_duel_page():
 
     # --- State-Specific Logic ---
 
-    # 1) Pending: Wait for opponent (with the delay fix)
+    # 1) Pending: Wait for opponent
     if status == "pending":
         st.info(f"⏳ Waiting for {duel_state['player2_username']} to accept your challenge...")
         st_autorefresh(interval=1000, key="duel_pending_refresh")
         return
 
-    # PART B: This block now triggers the summary page instead of showing a simple message.
+    # 2) Finished or logically complete: Show final results and stop
     if status != "active" or current_q_index >= 10:
-        st.session_state.duel_summary_active = True
-        st.session_state.final_duel_state = duel_state
-        st.rerun()
+        st.header(f"⚔️ Duel Complete: {player1} vs. {player2}")
+        
+        # Re-fetch final scores to be certain
+        final_p1_score = duel_state["player1_score"]
+        final_p2_score = duel_state["player2_score"]
+
+        # Determine winner based on final scores
+        winner_username = ""
+        if final_p1_score > final_p2_score:
+            winner_username = player1
+        elif final_p2_score > final_p1_score:
+            winner_username = player2
+
+        # Display outcome
+        st.balloons()
+        if winner_username == "":
+            st.info("🤝 The duel ended in a draw!")
+        elif winner_username == st.session_state.username:
+            st.success(f"🎉 Congratulations, you won!")
+        else:
+            st.error(f"😞 You lost against {winner_username}.")
+
+        if st.button("Back to Lobby", use_container_width=True):
+            st.session_state.pop("current_duel_id", None)
+            st.session_state.page = "blackboard" # Or "math_game_page"
+            st.rerun()
         return
 
     # 3) Active but questions not seeded yet: Generate once
@@ -744,29 +712,33 @@ def display_duel_page():
 
     st.markdown(q.get("question", ""), unsafe_allow_html=True)
     
+    # --- THIS IS THE KEY FIX ---
+    # We now check if the question has been answered.
+    # The refresh ONLY happens if we are waiting for the next question.
+    
     if answered_by:
+        # State: Question has been answered, waiting for next question.
+        # It is SAFE to auto-refresh here.
         is_correct = duel_state.get('question_is_correct')
         if is_correct:
             st.success(f"✅ {answered_by} answered correctly!")
         else:
             st.error(f"❌ {answered_by} answered incorrectly. The answer was {q.get('answer')}.")
         st.info("Waiting for the next question...")
-        st_autorefresh(interval=1000, key="duel_answered_refresh") # Delay is fixed here
+        st_autorefresh(interval=1000, key="duel_answered_refresh")
     else:
         # State: Question is waiting for an answer.
+        # DO NOT auto-refresh here, to allow the user to answer.
         with st.form(key=f"duel_form_{current_q_index}"):
             user_choice = st.radio("Select your answer:", q.get("options", []), index=None)
             if st.form_submit_button("Submit Answer", type="primary"):
                 if user_choice is not None:
                     is_correct = (str(user_choice) == str(q.get("answer")))
-                    was_successful = submit_duel_answer(duel_id, st.session_state.username, is_correct)
-                    
-                    if not was_successful:
-                        st.toast("Too slow! Your opponent answered first.", icon="🏃‍♀️")
-
+                    submit_duel_answer(duel_id, st.session_state.username, is_correct)
                     st.rerun()
                 else:
                     st.warning("Please select an answer.")
+
 # ADD THESE TWO NEW FUNCTIONS
 
 def get_seen_questions(username):
@@ -3732,82 +3704,6 @@ def display_quiz_summary():
             st.rerun()
 
 
-def display_duel_summary(duel_state):
-    """Renders the post-game summary screen for a duel with a rematch option."""
-    st.header("⚔️ Duel Summary")
-    
-    player1 = duel_state["player1_username"]
-    player2 = duel_state["player2_username"]
-    p1_score = duel_state["player1_score"]
-    p2_score = duel_state["player2_score"]
-    topic = duel_state["topic"]
-    
-    st.subheader(f"Final Score: {player1} ({p1_score}) vs. {player2} ({p2_score})")
-
-    winner_username = ""
-    if p1_score > p2_score:
-        winner_username = player1
-    elif p2_score > p1_score:
-        winner_username = player2
-
-    if winner_username == "":
-        st.info("🤝 The duel ended in a draw!")
-    elif winner_username == st.session_state.username:
-        st.success(f"🎉 Congratulations, you won!")
-        st.balloons()
-    else:
-        st.error(f"😞 You lost against {winner_username}.")
-
-    # --- Rematch and Lobby Buttons ---
-    col1, col2 = st.columns(2)
-    with col1:
-        if st.button("🔁 Request Rematch", use_container_width=True, type="primary"):
-            # The winner of the last round initiates the new challenge
-            challenger = player1 if st.session_state.username == player1 else player2
-            opponent = player2 if st.session_state.username == player1 else player1
-            
-            new_duel_id = create_duel(challenger, opponent, topic)
-            if new_duel_id:
-                st.toast(f"Rematch request sent to {opponent}!", icon="⚔️")
-                st.session_state.page = "duel"
-                st.session_state.current_duel_id = new_duel_id
-                # Clean up summary flags before rerunning into the new duel
-                st.session_state.pop("duel_summary_active", None)
-                st.session_state.pop("final_duel_state", None)
-                st.rerun()
-
-    with col2:
-        if st.button("Back to Lobby", use_container_width=True):
-            st.session_state.pop("current_duel_id", None)
-            st.session_state.pop("duel_summary_active", None)
-            st.session_state.pop("final_duel_state", None)
-            st.session_state.page = "math_game_page"
-            st.rerun()
-
-    st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
-    st.subheader("Question Breakdown")
-
-    duel_history = get_duel_history(duel_state['id'])
-    if not duel_history:
-        st.warning("Could not retrieve question history for this duel.")
-    else:
-        for i, record in enumerate(duel_history):
-            q_data = json.loads(record['question_data_json'])
-            answered_by = record['answered_by']
-            is_correct = record['is_correct']
-
-            with st.expander(f"**Question {i+1}:** {q_data['question'][:60]}..."):
-                st.markdown(q_data['question'], unsafe_allow_html=True)
-                st.info(f"**Correct Answer:** {q_data['answer']}")
-                
-                if answered_by:
-                    if is_correct:
-                        st.success(f"✅ Answered correctly by **{answered_by}**.")
-                    else:
-                        st.error(f"❌ Answered incorrectly by **{answered_by}**.")
-                else:
-                    st.warning("⌛ No one answered this question.")
-
 def display_leaderboard(topic_options):
     st.header("🏆 Global Leaderboard")
     
@@ -4258,10 +4154,6 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
-
-
-
-
 
 
 
