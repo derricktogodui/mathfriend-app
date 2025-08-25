@@ -640,6 +640,7 @@ def submit_duel_answer(duel_id, username, is_correct):
 def display_duel_page():
     """Renders the real-time head-to-head duel screen with all synchronization fixes."""
 
+    # Handles the summary screen at the end of the duel
     if st.session_state.get("duel_summary_active"):
         final_state = st.session_state.get("final_duel_state")
         if final_state:
@@ -671,11 +672,11 @@ def display_duel_page():
     status = duel_state["status"]
     current_q_index = duel_state.get("current_question_index", 0)
 
+    # --- Header and Score Display ---
     player1 = duel_state["player1_username"]
     player2 = duel_state["player2_username"]
     p1_score = duel_state["player1_score"]
     p2_score = duel_state["player2_score"]
-
     st.header(f"⚔️ Duel: {player1} vs. {player2}")
     st.subheader(f"Topic: {duel_state['topic']}")
     cols = st.columns(2)
@@ -685,17 +686,22 @@ def display_duel_page():
     st.progress(current_q_index / 10, text=f"Question {display_q_number}/10")
     st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
 
+    # --- State-Specific Logic ---
+
+    # FIX for the DELAY: Shorten 'pending' refresh to 1 sec for a fair start
     if status == "pending":
         st.info(f"⏳ Waiting for {duel_state['player2_username']} to accept your challenge...")
-        st_autorefresh(interval=3000, key="duel_pending_refresh")
+        st_autorefresh(interval=1000, key="duel_pending_refresh")
         return
 
+    # Logic to handle the end of the duel
     if status != "active" or current_q_index >= 10:
         st.session_state.duel_summary_active = True
         st.session_state.final_duel_state = duel_state
         st.rerun()
         return
 
+    # FIX for the BLANK SCREEN: Resiliently retry fetching the question
     if "question" not in duel_state:
         if 'duel_start_retries' not in st.session_state:
             st.session_state.duel_start_retries = 0
@@ -710,15 +716,16 @@ def display_duel_page():
 
         st.spinner("Opponent has accepted! Finalizing match setup...")
         st.session_state.duel_start_retries += 1
-        st_autorefresh(interval=3000, limit=10, key="duel_start_sync")
+        st_autorefresh(interval=2000, limit=10, key="duel_start_sync")
         return
     
+    # Clean up the retry counter once the question is loaded
     if 'duel_start_retries' in st.session_state:
         del st.session_state.duel_start_retries
 
+    # --- Normal Question Display ---
     q = duel_state["question"]
     answered_by = duel_state.get("question_answered_by")
-
     st.markdown(q.get("question", ""), unsafe_allow_html=True)
     
     if answered_by:
@@ -728,6 +735,7 @@ def display_duel_page():
         else:
             st.error(f"❌ {answered_by} answered incorrectly. The answer was {q.get('answer')}.")
         st.info("Waiting for the next question...")
+        # FIX for the DELAY: Shorter, fairer delay between questions
         st_autorefresh(interval=1000, key="duel_answered_refresh")
     else:
         with st.form(key=f"duel_form_{current_q_index}"):
@@ -739,7 +747,6 @@ def display_duel_page():
                     st.rerun()
                 else:
                     st.warning("Please select an answer.")
-
 
 # ADD THESE TWO NEW FUNCTIONS
 
@@ -4155,6 +4162,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
