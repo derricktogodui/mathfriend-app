@@ -503,11 +503,9 @@ def get_active_duel_for_player(username):
 # Replace your existing accept_duel function with this one.
 def accept_duel(duel_id, topic):
     """Correctly marks a duel as active, then generates questions to prevent locking."""
-    
     # Step 1: Perform a very fast transaction to ONLY update the status.
-    # This acquires and releases the database lock almost instantly.
     with engine.connect() as conn:
-        with conn.begin(): # This handles the transaction automatically
+        with conn.begin():
             update_query = text("""
                 UPDATE duels 
                 SET status = 'active', last_action_at = CURRENT_TIMESTAMP 
@@ -515,8 +513,7 @@ def accept_duel(duel_id, topic):
             """)
             conn.execute(update_query, {"duel_id": duel_id})
     
-    # Step 2: Now, outside the transaction and with the lock released,
-    # perform the slower task of generating questions.
+    # Step 2: Now, with the lock released, perform the slower task of generating questions.
     generate_and_store_duel_questions(duel_id, topic)
     
     return True
@@ -643,12 +640,9 @@ def submit_duel_answer(duel_id, username, is_correct):
 def display_duel_page():
     """Renders the real-time head-to-head duel screen with all synchronization fixes."""
 
-    # This check handles the redirect to the summary page at the end of the duel
     if st.session_state.get("duel_summary_active"):
         final_state = st.session_state.get("final_duel_state")
         if final_state:
-            # We will create this summary page function later if you wish.
-            # For now, it shows a simple completion message.
             st.header(f"⚔️ Duel Complete!")
             st.balloons()
             if st.button("Back to Lobby", use_container_width=True):
@@ -677,7 +671,6 @@ def display_duel_page():
     status = duel_state["status"]
     current_q_index = duel_state.get("current_question_index", 0)
 
-    # --- Header and Score Display ---
     player1 = duel_state["player1_username"]
     player2 = duel_state["player2_username"]
     p1_score = duel_state["player1_score"]
@@ -692,22 +685,17 @@ def display_duel_page():
     st.progress(current_q_index / 10, text=f"Question {display_q_number}/10")
     st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
 
-    # --- State-Specific Logic ---
-
-    # FIX 1: Waiting for opponent with a shorter, fairer refresh interval
     if status == "pending":
         st.info(f"⏳ Waiting for {duel_state['player2_username']} to accept your challenge...")
         st_autorefresh(interval=1000, key="duel_pending_refresh")
         return
 
-    # FIX 2: Correctly redirect to summary page when the duel is finished
     if status != "active" or current_q_index >= 10:
         st.session_state.duel_summary_active = True
         st.session_state.final_duel_state = duel_state
         st.rerun()
         return
 
-    # FIX 3: The resilient retry logic that solves the "blank screen" for the challenger
     if "question" not in duel_state:
         if 'duel_start_retries' not in st.session_state:
             st.session_state.duel_start_retries = 0
@@ -728,7 +716,6 @@ def display_duel_page():
     if 'duel_start_retries' in st.session_state:
         del st.session_state.duel_start_retries
 
-    # --- Normal active flow: Question is displayed ---
     q = duel_state["question"]
     answered_by = duel_state.get("question_answered_by")
 
@@ -741,7 +728,6 @@ def display_duel_page():
         else:
             st.error(f"❌ {answered_by} answered incorrectly. The answer was {q.get('answer')}.")
         st.info("Waiting for the next question...")
-        # FIX 4: Shorter, fairer delay between questions
         st_autorefresh(interval=1000, key="duel_answered_refresh")
     else:
         with st.form(key=f"duel_form_{current_q_index}"):
@@ -3408,8 +3394,6 @@ def display_blackboard_page():
         channel.send_message({"text": prompt}, user_id=st.session_state.username)
         st.rerun()
 
-# Replace your existing display_math_game_page function with this FINAL version.
-# Replace your existing display_math_game_page function with this one.
 def display_math_game_page(topic_options):
     """Displays the duel lobby with a new, improved two-column layout and stable buttons."""
     st.header("⚔️ Math Game Lobby")
@@ -3438,7 +3422,6 @@ def display_math_game_page(topic_options):
                             st.markdown(_generate_user_pill_html(user), unsafe_allow_html=True)
                         with c2:
                             if st.button("Duel", key=f"challenge_{user}", use_container_width=True):
-                                # This now sets a state to show the topic selector
                                 st.session_state.challenging_user = user
                                 st.rerun()
         else:
@@ -3462,8 +3445,6 @@ def display_math_game_page(topic_options):
                     duel_id = create_duel(st.session_state.username, opponent, topic)
                     if duel_id:
                         st.toast(f"Challenge sent to {opponent}!", icon="⚔️")
-                        # --- THIS IS THE KEY FIX ---
-                        # Immediately redirect the challenger to the duel page.
                         st.session_state.page = "duel"
                         st.session_state.current_duel_id = duel_id
                         del st.session_state.challenging_user
@@ -3479,6 +3460,10 @@ def display_math_game_page(topic_options):
                 st.write(f"**{challenger}** has challenged you to a duel on **{topic}**.")
                 c1, c2 = st.columns(2)
                 if c1.button("✅ Accept", use_container_width=True, type="primary", key=f"accept_{duel_id}"):
+                    
+                    # --- THIS IS THE NEW CACHE-CLEARING FIX ---
+                    st.cache_data.clear()
+
                     accept_duel(duel_id, topic)
                     st.session_state.page = "duel"
                     st.session_state.current_duel_id = duel_id
@@ -4170,6 +4155,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
