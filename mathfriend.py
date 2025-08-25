@@ -484,7 +484,6 @@ def get_pending_challenge(username):
         result = conn.execute(query, {"username": username}).mappings().first()
         return dict(result) if result else None
 
-# Replace your existing get_active_duel_for_player function with this one.
 
 def get_active_duel_for_player(username):
     """
@@ -492,12 +491,16 @@ def get_active_duel_for_player(username):
     Robust against NULL current_question_index on fresh activations.
     """
     with engine.connect() as conn:
+        # --- THIS IS THE FIX ---
+        # The logic is simplified to find any 'active' duel that has not timed out.
+        # This will correctly find a duel the moment it's accepted (index is 0)
+        # and also correctly find an ongoing duel (index is 1-9).
         query = text("""
             SELECT id
             FROM duels
             WHERE (player1_username = :username OR player2_username = :username)
               AND status = 'active'
-              AND COALESCE(current_question_index, 0) < 10
+              AND finished_at IS NULL
               AND last_action_at > NOW() - INTERVAL '5 minutes'
             ORDER BY last_action_at DESC
             LIMIT 1;
