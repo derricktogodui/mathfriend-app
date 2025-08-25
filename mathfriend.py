@@ -186,7 +186,7 @@ def create_and_verify_tables():
         print("Database tables created or verified successfully, including corrected Duel tables.")
     except Exception as e:
         st.error(f"Database setup error: {e}")
-create_and_verify_tables()
+#create_and_verify_tables()
 
 
 # --- Core Backend Functions (PostgreSQL) ---
@@ -652,7 +652,7 @@ def display_duel_page():
     # 1) Pending: Wait for opponent
     if status == "pending":
         st.info(f"⏳ Waiting for {duel_state['player2_username']} to accept your challenge...")
-        st_autorefresh(interval=3000, key="duel_pending_refresh")
+        st_autorefresh(interval=1000, key="duel_pending_refresh")
         return
 
     # 2) Finished or logically complete: Show final results and stop
@@ -711,7 +711,7 @@ def display_duel_page():
         else:
             st.error(f"❌ {answered_by} answered incorrectly. The answer was {q.get('answer')}.")
         st.info("Waiting for the next question...")
-        st_autorefresh(interval=3000, key="duel_answered_refresh")
+        st_autorefresh(interval=1000, key="duel_answered_refresh")
     else:
         # State: Question is waiting for an answer.
         # DO NOT auto-refresh here, to allow the user to answer.
@@ -4140,6 +4140,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
