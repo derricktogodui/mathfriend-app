@@ -140,8 +140,14 @@ def create_and_verify_tables():
                     id SERIAL PRIMARY KEY,
                     duel_id INTEGER REFERENCES duels(id) ON DELETE CASCADE,
                     question_index INTEGER NOT NULL,
-                    question_data_json TEXT NOT NULL, -- Storing the question dictionary as a JSON string
-                    answered_by TEXT, -- Username of the player who answered first
+                    question_data_json TEXT NOT NULL,
+                    -- NEW COLUMNS to track individual answers and times
+                    player1_answer TEXT,
+                    player2_answer TEXT,
+                    player1_answered_at TIMESTAMP WITH TIME ZONE,
+                    player2_answered_at TIMESTAMP WITH TIME ZONE,
+                    -- OLD COLUMNS are now updated by a trigger or in-app logic
+                    answered_by TEXT, 
                     is_correct BOOLEAN,
                     UNIQUE(duel_id, question_index)
                 )
@@ -558,135 +564,217 @@ def get_duel_state(duel_id):
             duel["question_is_correct"] = qrow["is_correct"]
 
         return duel
+
+def get_duel_summary_details(duel_id):
+    """Fetches all questions and answers for a completed duel summary."""
+    with engine.connect() as conn:
+        query = text("""
+            SELECT 
+                dq.question_index,
+                dq.question_data_json,
+                dq.player1_answer,
+                dq.player2_answer,
+                d.created_at, -- Use duel's creation time as the base for timing
+                dq.player1_answered_at,
+                dq.player2_answered_at
+            FROM duel_questions dq
+            JOIN duels d ON dq.duel_id = d.id
+            WHERE dq.duel_id = :duel_id
+            ORDER BY dq.question_index;
+        """)
+        results = conn.execute(query, {"duel_id": duel_id}).mappings().fetchall()
+        return [dict(row) for row in results]
+
 # Replace your existing submit_duel_answer function with this one.
 
-def submit_duel_answer(duel_id, username, is_correct):
-    """Records a player's answer and updates the duel state."""
+def submit_duel_answer(duel_id, username, answer_choice):
+    """Records a player's specific answer and timestamp, then updates the duel state."""
     with engine.connect() as conn, conn.begin():
-        info = conn.execute(
-            text("""SELECT player1_username, player2_username, player1_score, player2_score, current_question_index
-                    FROM duels WHERE id = :d"""),
+        # Get duel info to identify player1 vs player2
+        duel_info = conn.execute(
+            text("SELECT player1_username, player2_username, current_question_index FROM duels WHERE id = :d"),
             {"d": duel_id}
         ).mappings().first()
-        if not info:
-            return False
+        if not duel_info: return
 
-        q_index = info["current_question_index"]
-        result = conn.execute(text("""
+        q_index = duel_info["current_question_index"]
+        
+        # Determine which player column to update
+        player_col = "player1" if username == duel_info["player1_username"] else "player2"
+        
+        # Record the specific answer and timestamp for this player
+        update_query = text(f"""
             UPDATE duel_questions
-            SET answered_by = :u, is_correct = :ok
-            WHERE duel_id = :d AND question_index = :i AND answered_by IS NULL
-        """), {"u": username, "ok": is_correct, "d": duel_id, "i": q_index})
+            SET {player_col}_answer = :answer, {player_col}_answered_at = CURRENT_TIMESTAMP
+            WHERE duel_id = :d AND question_index = :i AND {player_col}_answer IS NULL
+        """)
+        conn.execute(update_query, {"answer": answer_choice, "d": duel_id, "i": q_index})
 
-        if result.rowcount == 0:
-            return False  # someone else was first
+        # --- Logic to process the winner of the question ---
+        q_info_query = text("""
+            SELECT q.question_data_json, q.player1_answered_at, q.player2_answered_at,
+                   q.player1_answer, q.player2_answer, d.player1_score, d.player2_score
+            FROM duel_questions q JOIN duels d ON q.duel_id = d.id
+            WHERE q.duel_id = :d AND q.question_index = :i
+        """)
+        q_info = conn.execute(q_info_query, {"d": duel_id, "i": q_index}).mappings().first()
 
-        p1, p2 = info["player1_score"], info["player2_score"]
-        if is_correct:
-            if username == info["player1_username"]:
-                p1 += 1
-                conn.execute(text("UPDATE duels SET player1_score = :s WHERE id = :d"), {"s": p1, "d": duel_id})
+        correct_answer = json.loads(q_info['question_data_json'])['answer']
+        p1_time = q_info['player1_answered_at']
+        p2_time = q_info['player2_answered_at']
+
+        # Only proceed if the question hasn't been finalized yet
+        answered_by_check = conn.execute(text("SELECT answered_by FROM duel_questions WHERE duel_id = :d AND question_index = :i"), {"d": duel_id, "i": q_index}).scalar_one_or_none()
+        if answered_by_check:
+            return
+
+        first_player_to_answer = ""
+        is_first_answer_correct = False
+
+        if p1_time and p2_time: # Both answered
+            first_player_to_answer = duel_info['player1_username'] if p1_time < p2_time else duel_info['player2_username']
+        elif p1_time: # Only P1 answered
+            first_player_to_answer = duel_info['player1_username']
+        elif p2_time: # Only P2 answered
+            first_player_to_answer = duel_info['player2_username']
+
+        if first_player_to_answer:
+            answer_to_check = q_info['player1_answer'] if first_player_to_answer == duel_info['player1_username'] else q_info['player2_answer']
+            is_first_answer_correct = (str(answer_to_check) == str(correct_answer))
+
+            # Finalize the question winner
+            conn.execute(text("""
+                UPDATE duel_questions SET answered_by = :winner, is_correct = :ok
+                WHERE duel_id = :d AND question_index = :i
+            """), {"winner": first_player_to_answer, "ok": is_first_answer_correct, "d": duel_id, "i": q_index})
+
+            # Update score
+            p1, p2 = q_info["player1_score"], q_info["player2_score"]
+            if is_first_answer_correct:
+                if first_player_to_answer == duel_info["player1_username"]: p1 += 1
+                else: p2 += 1
             else:
-                p2 += 1
-                conn.execute(text("UPDATE duels SET player2_score = :s WHERE id = :d"), {"s": p2, "d": duel_id})
+                if first_player_to_answer == duel_info["player1_username"]: p1 = max(0, p1 - 1)
+                else: p2 = max(0, p2 - 1)
+            
+            conn.execute(text("UPDATE duels SET player1_score = :p1, player2_score = :p2 WHERE id = :d"), {"p1": p1, "p2": p2, "d": duel_id})
 
-        if q_index == 9:
-            final = "draw"
-            if p1 > p2: final = "player1_win"
-            elif p2 > p1: final = "player2_win"
-            conn.execute(text("""
-                UPDATE duels
-                SET status = :final, current_question_index = 10,
-                    last_action_at = CURRENT_TIMESTAMP, finished_at = CURRENT_TIMESTAMP
-                WHERE id = :d
-            """), {"final": final, "d": duel_id})
-        else:
-            conn.execute(text("""
-                UPDATE duels
-                SET current_question_index = current_question_index + 1,
-                    last_action_at = CURRENT_TIMESTAMP
-                WHERE id = :d
-            """), {"d": duel_id})
+            # Advance the duel state
+            if q_index == 9:
+                final_status = "draw"
+                if p1 > p2: final_status = "player1_win"
+                elif p2 > p1: final_status = "player2_win"
+                conn.execute(text("UPDATE duels SET status = :s, current_question_index = 10, finished_at = CURRENT_TIMESTAMP WHERE id = :d"), {"s": final_status, "d": duel_id})
+            else:
+                conn.execute(text("UPDATE duels SET current_question_index = current_question_index + 1 WHERE id = :d"), {"d": duel_id})
 
-        return True
+
+def _render_duel_game_over(duel_state):
+    """Renders the final game over screen with a detailed summary."""
+    player1 = duel_state["player1_username"]
+    player2 = duel_state["player2_username"]
+    duel_id = duel_state["id"]
+    
+    st.header(f"⚔️ Duel Complete: {player1} vs. {player2}")
+
+    # Display final scores
+    st.metric(f"🏆 Final Score", f"{duel_state['player1_score']} - {duel_state['player2_score']}")
+
+    # --- DETAILED SUMMARY SECTION ---
+    summary_data = get_duel_summary_details(duel_id)
+    if summary_data:
+        st.subheader("Question Breakdown")
+        
+        p1_total_time = 0
+        p2_total_time = 0
+
+        for item in summary_data:
+            q_data = json.loads(item['question_data_json'])
+            correct_answer = q_data['answer']
+            
+            p1_answer = item.get('player1_answer', 'N/A')
+            p2_answer = item.get('player2_answer', 'N/A')
+
+            p1_correct = (str(p1_answer) == str(correct_answer))
+            p2_correct = (str(p2_answer) == str(correct_answer))
+
+            p1_icon = "✔" if p1_correct else "✘"
+            p2_icon = "✔" if p2_correct else "✘"
+            
+            # Calculate time taken for each question
+            duel_start_time = item['created_at']
+            if item.get('player1_answered_at'):
+                p1_time = (item['player1_answered_at'] - duel_start_time).total_seconds()
+                p1_total_time += p1_time
+            if item.get('player2_answered_at'):
+                p2_time = (item['player2_answered_at'] - duel_start_time).total_seconds()
+                p2_total_time += p2_time
+
+            with st.container(border=True):
+                st.markdown(f"**Q{item['question_index'] + 1}:** {q_data['question']}")
+                col1, col2 = st.columns(2)
+                with col1:
+                    st.markdown(f"{player1}: **{p1_answer}** {p1_icon}")
+                with col2:
+                    st.markdown(f"{player2}: **{p2_answer}** {p2_icon}")
+
+        st.subheader("Total Time")
+        col1, col2 = st.columns(2)
+        col1.metric(f"{player1}'s Total Time", f"{p1_total_time:.2f}s")
+        col2.metric(f"{player2}'s Total Time", f"{p2_total_time:.2f}s")
+
+    # --- Action Buttons ---
+    st.markdown("---")
+    rematch_cols = st.columns(2)
+    if rematch_cols[0].button("🔁 Rematch", use_container_width=True, type="primary"):
+        opponent = player2 if st.session_state.username == player1 else player1
+        new_duel_id = create_duel(st.session_state.username, opponent, duel_state["topic"])
+        if new_duel_id:
+            st.session_state.current_duel_id = new_duel_id
+            st.rerun()
+
+    if rematch_cols[1].button("🚪 Exit to Lobby", use_container_width=True):
+        st.session_state.pop("current_duel_id", None)
+        st.session_state.page = "math_game" 
+        st.rerun()
 
 # Replace your existing display_duel_page function with this one.
 
 def display_duel_page():
-    """Renders the real-time head-to-head duel screen with corrected refresh logic."""
+    """Renders the real-time head-to-head duel screen with UX improvements."""
     duel_id = st.session_state.get("current_duel_id")
     if not duel_id:
-        st.error("No active duel found.")
-        st.session_state.page = "login"
-        time.sleep(1)
-        st.rerun()
+        st.error("No active duel found."); st.session_state.page = "login"; time.sleep(1); st.rerun()
         return
 
     duel_state = get_duel_state(duel_id)
     if not duel_state:
-        st.error("Could not retrieve duel state.")
-        st.session_state.pop("current_duel_id", None)
-        st.session_state.page = "login"
-        time.sleep(1)
-        st.rerun()
+        st.error("Could not retrieve duel state."); st.session_state.pop("current_duel_id", None)
+        st.session_state.page = "login"; time.sleep(1); st.rerun()
         return
 
     status = duel_state["status"]
     current_q_index = duel_state.get("current_question_index", 0)
-
-    # --- Header and Score Display (runs for all states) ---
     player1 = duel_state["player1_username"]
     player2 = duel_state["player2_username"]
-    p1_score = duel_state["player1_score"]
-    p2_score = duel_state["player2_score"]
-
-    st.header(f"⚔️ Duel: {player1} vs. {player2}")
-    st.subheader(f"Topic: {duel_state['topic']}")
-    
-    cols = st.columns(2)
-    cols[0].metric(f"{player1}'s Score", p1_score)
-    cols[1].metric(f"{player2}'s Score", p2_score)
-
-    display_q_number = min(current_q_index + 1, 10)
-    st.progress(current_q_index / 10, text=f"Question {display_q_number}/10")
-    st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
-
-    # --- State-Specific Logic ---
 
     # 1) Pending: Wait for opponent
     if status == "pending":
-        st.info(f"⏳ Waiting for {duel_state['player2_username']} to accept your challenge...")
-        st_autorefresh(interval=3000, key="duel_pending_refresh")
+        st.header(f"⚔️ Duel Lobby")
+        st.info(f"⏳ Waiting for {player2} to accept your challenge...")
+        st_autorefresh(interval=2000, key="duel_pending_refresh")
         return
 
-    # 2) Finished or logically complete: Show final results and stop
+    # --- Header and Score Display (runs for active and finished states) ---
+    st.header(f"⚔️ Duel: {player1} vs. {player2}")
+    st.subheader(f"Topic: {duel_state['topic']}")
+    cols = st.columns(2)
+    cols[0].metric(f"{player1}'s Score", duel_state["player1_score"])
+    cols[1].metric(f"{player2}'s Score", duel_state["player2_score"])
+
+    # 2) Finished or logically complete: Render the game over screen and stop.
     if status != "active" or current_q_index >= 10:
-        st.header(f"⚔️ Duel Complete: {player1} vs. {player2}")
-        
-        # Re-fetch final scores to be certain
-        final_p1_score = duel_state["player1_score"]
-        final_p2_score = duel_state["player2_score"]
-
-        # Determine winner based on final scores
-        winner_username = ""
-        if final_p1_score > final_p2_score:
-            winner_username = player1
-        elif final_p2_score > final_p1_score:
-            winner_username = player2
-
-        # Display outcome
-        st.balloons()
-        if winner_username == "":
-            st.info("🤝 The duel ended in a draw!")
-        elif winner_username == st.session_state.username:
-            st.success(f"🎉 Congratulations, you won!")
-        else:
-            st.error(f"😞 You lost against {winner_username}.")
-
-        if st.button("Back to Lobby", use_container_width=True):
-            st.session_state.pop("current_duel_id", None)
-            st.session_state.page = "blackboard" # Or "math_game_page"
-            st.rerun()
+        _render_duel_game_over(duel_state)
         return
 
     # 3) Active but questions not seeded yet: Generate once
@@ -697,38 +785,32 @@ def display_duel_page():
         return
 
     # 4) Normal active flow: Question is displayed
+    display_q_number = min(current_q_index + 1, 10)
+    st.progress(current_q_index / 10, text=f"Question {display_q_number}/10")
+    st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
     q = duel_state["question"]
     answered_by = duel_state.get("question_answered_by")
 
     st.markdown(q.get("question", ""), unsafe_allow_html=True)
     
-    # --- THIS IS THE KEY FIX ---
-    # We now check if the question has been answered.
-    # The refresh ONLY happens if we are waiting for the next question.
-    
     if answered_by:
-        # State: Question has been answered, waiting for next question.
-        # It is SAFE to auto-refresh here.
         is_correct = duel_state.get('question_is_correct')
-        if is_correct:
-            st.success(f"✅ {answered_by} answered correctly!")
-        else:
-            st.error(f"❌ {answered_by} answered incorrectly. The answer was {q.get('answer')}.")
+        if is_correct: st.success(f"✅ {answered_by} answered correctly!")
+        else: st.error(f"❌ {answered_by} answered incorrectly. Their score was reduced by 1.")
         st.info("Waiting for the next question...")
-        st_autorefresh(interval=3000, key="duel_answered_refresh")
+        st_autorefresh(interval=2000, key="duel_answered_refresh")
     else:
+        # --- THIS IS THE BLOCK YOU ARE REPLACING ---
         # State: Question is waiting for an answer.
-        # DO NOT auto-refresh here, to allow the user to answer.
         with st.form(key=f"duel_form_{current_q_index}"):
             user_choice = st.radio("Select your answer:", q.get("options", []), index=None)
             if st.form_submit_button("Submit Answer", type="primary"):
                 if user_choice is not None:
-                    is_correct = (str(user_choice) == str(q.get("answer")))
-                    submit_duel_answer(duel_id, st.session_state.username, is_correct)
+                    # Pass the actual choice, not just True/False
+                    submit_duel_answer(duel_id, st.session_state.username, user_choice)
                     st.rerun()
                 else:
                     st.warning("Please select an answer.")
-
 # ADD THESE TWO NEW FUNCTIONS
 
 def get_seen_questions(username):
@@ -4144,6 +4226,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
