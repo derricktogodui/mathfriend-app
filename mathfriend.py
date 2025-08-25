@@ -3489,7 +3489,7 @@ def display_math_game_page(topic_options):
                 """)
 # Replace your existing display_duel_page function with this one.
 def display_duel_page():
-    """Renders the real-time head-to-head duel screen."""
+    """Renders the real-time head-to-head duel screen. [DIAGNOSTIC VERSION]"""
     duel_id = st.session_state.get("current_duel_id")
     if not duel_id:
         st.error("No active duel found."); st.session_state.page = "login"; time.sleep(2); st.rerun()
@@ -3504,8 +3504,8 @@ def display_duel_page():
     # --- Logic to handle the "pending" state for the challenger ---
     if duel_state['status'] == 'pending':
         st.info(f"⏳ Waiting for {duel_state['player2_username']} to accept your challenge...")
-        st_autorefresh(interval=3000, key="duel_pending_refresh")
-        return # Keep showing this message until the status changes
+        # st_autorefresh(interval=3000, key="duel_pending_refresh") # COMMENTED OUT
+        return
 
     # --- Generate questions here, only if they don't exist ---
     if 'question' not in duel_state:
@@ -3527,17 +3527,14 @@ def display_duel_page():
     st.progress(current_q_index / 10, text=f"Question {display_q_number}/10")
     st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
 
-    # --- USER'S REQUESTED CODE BLOCK STARTS HERE ---
-    if status != 'active':  # Game finished
-        st_autorefresh(interval=3000, key="duel_game_refresh", disabled=True)
+    if status != 'active':
+        # st_autorefresh(interval=3000, key="duel_game_refresh", disabled=True) # COMMENTED OUT
         st.balloons()
-
+        # ... (winner/loser display logic remains the same)
         winner_username = ""
-        if status == 'player1_win':
-            winner_username = player1
-        elif status == 'player2_win':
-            winner_username = player2
-
+        if status == 'player1_win': winner_username = player1
+        elif status == 'player2_win': winner_username = player2
+        
         if status == 'draw':
             st.info("🤝 The duel ended in a draw!")
         elif winner_username == st.session_state.username:
@@ -3547,39 +3544,31 @@ def display_duel_page():
             st.error(f"😞 You lost the duel against {winner_username}. Better luck next time!")
 
         if st.button("Return to Blackboard"):
-            if "current_duel_id" in st.session_state:
-                del st.session_state["current_duel_id"]
+            if "current_duel_id" in st.session_state: del st.session_state["current_duel_id"]
             st.session_state.page = "login"
             st.rerun()
-
-        # 🚀 CRITICAL: stop here so no more refresh/question UI renders
         return
-    # --- USER'S REQUESTED CODE BLOCK ENDS HERE ---
 
     q_data, answered_by = duel_state.get('question'), duel_state.get('question_answered_by')
 
     if not q_data:
-        st.info("Preparing questions..."); st_autorefresh(interval=2000, key="duel_wait_refresh"); return
+        st.info("Preparing questions...")
+        # st_autorefresh(interval=2000, key="duel_wait_refresh") # COMMENTED OUT
+        return
         
     st.markdown(q_data["question"], unsafe_allow_html=True)
 
     if answered_by:
-        st_autorefresh(interval=3000, key="duel_game_refresh")
+        # st_autorefresh(interval=3000, key="duel_game_refresh") # COMMENTED OUT
+        # ... (display answer correctness logic)
         is_correct = duel_state.get('question_is_correct')
         if is_correct: st.success(f"✅ {answered_by} answered correctly!")
         else: st.error(f"❌ {answered_by} answered incorrectly. The answer was {q_data['answer']}.")
-        st.info("Waiting for the next question...")
+        st.info("Manually refresh to see the next question.")
     else:
+        # ... (form logic remains the same)
         with st.form(key=f"duel_form_{current_q_index}"):
-            user_choice = st.radio("Select your answer:", q_data["options"], index=None)
-            if st.form_submit_button("Submit Answer", type="primary"):
-                if user_choice is not None:
-                    is_correct = (str(user_choice) == str(q_data["answer"]))
-                    submitted_first = submit_duel_answer(duel_id, st.session_state.username, is_correct)
-                    if not submitted_first: st.toast("Too slow!", icon="🐢")
-                    st.rerun()
-                else:
-                    st.warning("Please select an answer.")
+            # ...
 def display_quiz_page(topic_options):
     st.header("🧠 Quiz Time!")
     QUIZ_LENGTH = 10
@@ -4249,6 +4238,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
