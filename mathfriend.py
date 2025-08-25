@@ -680,12 +680,35 @@ def _render_duel_game_over(duel_state):
     
     st.header(f"⚔️ Duel Complete: {player1} vs. {player2}")
 
-    # Display final scores
-    st.metric(f"🏆 Final Score", f"{duel_state['player1_score']} - {duel_state['player2_score']}")
+    # --- THIS BLOCK IS NOW CORRECTED ---
+    final_p1_score = duel_state['player1_score']
+    final_p2_score = duel_state['player2_score']
+    
+    # Display final scores using st.metric
+    cols = st.columns(2)
+    cols[0].metric(f"{player1}'s Final Score", final_p1_score)
+    cols[1].metric(f"{player2}'s Final Score", final_p2_score)
 
-    # --- DETAILED SUMMARY SECTION ---
+    winner_username = ""
+    if final_p1_score > final_p2_score:
+        winner_username = player1
+    elif final_p2_score > final_p1_score:
+        winner_username = player2
+
+    if winner_username:
+        st.balloons()
+        if winner_username == st.session_state.username:
+            st.success("🎉 Congratulations, you won the duel!")
+        else:
+            st.error(f"😞 You lost against {winner_username}. Better luck next time!")
+    else:
+        st.info("🤝 The duel ended in a draw!")
+    # --- END OF CORRECTION ---
+
+    # --- DETAILED SUMMARY SECTION (no changes here) ---
     summary_data = get_duel_summary_details(duel_id)
     if summary_data:
+        # ... (rest of summary logic is unchanged)
         st.subheader("Question Breakdown")
         
         p1_total_time = 0
@@ -704,7 +727,6 @@ def _render_duel_game_over(duel_state):
             p1_icon = "✔" if p1_correct else "✘"
             p2_icon = "✔" if p2_correct else "✘"
             
-            # Calculate time taken for each question
             duel_start_time = item['created_at']
             if item.get('player1_answered_at'):
                 p1_time = (item['player1_answered_at'] - duel_start_time).total_seconds()
@@ -726,7 +748,6 @@ def _render_duel_game_over(duel_state):
         col1.metric(f"{player1}'s Total Time", f"{p1_total_time:.2f}s")
         col2.metric(f"{player2}'s Total Time", f"{p2_total_time:.2f}s")
 
-    # --- Action Buttons ---
     st.markdown("---")
     rematch_cols = st.columns(2)
     if rematch_cols[0].button("🔁 Rematch", use_container_width=True, type="primary"):
@@ -740,7 +761,6 @@ def _render_duel_game_over(duel_state):
         st.session_state.pop("current_duel_id", None)
         st.session_state.page = "math_game" 
         st.rerun()
-
 
 def _render_active_question(duel_state):
     """Renders the UI for an active, ongoing question with corrected refresh logic."""
@@ -796,29 +816,32 @@ def display_duel_page():
     status = duel_state["status"]
     current_q_index = duel_state.get("current_question_index", 0)
 
-    # --- Header and Score Display (runs for all states except pending) ---
-    if status != "pending":
-        player1 = duel_state["player1_username"]
-        player2 = duel_state["player2_username"]
-        st.header(f"⚔️ Duel: {player1} vs. {player2}")
-        st.subheader(f"Topic: {duel_state['topic']}")
-        cols = st.columns(2)
-        cols[0].metric(f"{player1}'s Score", duel_state["player1_score"])
-        cols[1].metric(f"{player2}'s Score", duel_state["player2_score"])
-
-    # 1. Waiting room ONLY if truly pending
+    # --- THIS IS THE KEY FIX FOR SYNCHRONIZATION ---
+    # We now handle the 'active' state in a unified way.
+    
     if status == "pending":
+        # 1. Waiting room ONLY if truly pending
         st.info(f"⏳ Waiting for {duel_state['player2_username']} to accept your challenge...")
         st_autorefresh(interval=2000, key=f"duel_wait_{duel_id}")
         return
+
+    # Once status is no longer 'pending', we show the main duel UI
+    player1 = duel_state["player1_username"]
+    player2 = duel_state["player2_username"]
+    st.header(f"⚔️ Duel: {player1} vs. {player2}")
+    st.subheader(f"Topic: {duel_state['topic']}")
+    cols = st.columns(2)
+    cols[0].metric(f"{player1}'s Score", duel_state["player1_score"])
+    cols[1].metric(f"{player2}'s Score", duel_state["player2_score"])
 
     # 2. Game over check (handles finished games)
     if status != "active" or current_q_index >= 10:
         _render_duel_game_over(duel_state)
         return
 
-    # 3. Once active, make sure questions are seeded
-    if status == "active" and "question" not in duel_state:
+    # 3. If we are here, status must be 'active'.
+    # Ensure questions are seeded. This will now run for the challenger correctly.
+    if "question" not in duel_state:
         with st.spinner("Opponent accepted! Loading questions..."):
             generate_and_store_duel_questions(duel_id, duel_state["topic"])
         st.rerun()
@@ -4241,6 +4264,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
