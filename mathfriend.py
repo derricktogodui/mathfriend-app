@@ -146,10 +146,6 @@ def create_and_verify_tables():
                     UNIQUE(duel_id, question_index)
                 )
             '''))
-            # --- NEW: Add indexes for performance ---
-            conn.execute(text("CREATE INDEX IF NOT EXISTS idx_duels_player1_status ON duels (player1_username, status)"))
-            conn.execute(text("CREATE INDEX IF NOT EXISTS idx_duels_player2_status ON duels (player2_username, status)"))
-            conn.execute(text("CREATE INDEX IF NOT EXISTS idx_duel_questions_duel_id_index ON duel_questions (duel_id, question_index)"))
             # --- END OF CORRECTION ---
             
             # --- Populate daily_challenges if it's empty ---
@@ -4144,7 +4140,6 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
-
 
 
 
