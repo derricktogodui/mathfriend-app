@@ -719,9 +719,9 @@ def display_duel_page():
 
     # 3) Active but questions not seeded yet: Generate once
     if "question" not in duel_state:
-        # FIX: Add auto-refresh here to ensure challenger sees questions when they're generated
-        st.info("Questions are being generated...")
-        st_autorefresh(interval=2000, key="duel_generating_refresh")  # Refresh every 2 seconds
+        with st.spinner("Opponent accepted! Generating unique questions..."):
+            generate_and_store_duel_questions(duel_id, duel_state["topic"])
+        st.rerun()
         return
 
     # 4) Normal active flow: Question is displayed
@@ -756,6 +756,7 @@ def display_duel_page():
                     st.rerun()
                 else:
                     st.warning("Please select an answer.")
+
 
 # ADD THESE TWO NEW FUNCTIONS
 
