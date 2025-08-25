@@ -76,7 +76,7 @@ def create_and_verify_tables():
     """Creates, verifies, and populates necessary database tables."""
     try:
         with engine.connect() as conn:
-            # --- Standard Tables (no changes here) ---
+            # --- Standard Tables ---
             conn.execute(text('''CREATE TABLE IF NOT EXISTS users (username TEXT PRIMARY KEY, password TEXT)'''))
             conn.execute(text('''CREATE TABLE IF NOT EXISTS quiz_results
                          (id SERIAL PRIMARY KEY, username TEXT, topic TEXT, score INTEGER,
@@ -85,12 +85,40 @@ def create_and_verify_tables():
                          (username TEXT PRIMARY KEY, full_name TEXT, school TEXT, age INTEGER, bio TEXT)'''))
             conn.execute(text('''CREATE TABLE IF NOT EXISTS user_status
                          (username TEXT PRIMARY KEY, is_online BOOLEAN, last_seen TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP)'''))
-            conn.execute(text('''CREATE TABLE IF NOT EXISTS daily_challenges (id SERIAL PRIMARY KEY, description TEXT NOT NULL, topic TEXT NOT NULL, target_count INTEGER NOT NULL)'''))
-            conn.execute(text('''CREATE TABLE IF NOT EXISTS user_daily_progress (username TEXT NOT NULL, challenge_date DATE NOT NULL, challenge_id INTEGER REFERENCES daily_challenges(id), progress_count INTEGER DEFAULT 0, is_completed BOOLEAN DEFAULT FALSE, PRIMARY KEY (username, challenge_date))'''))
-            conn.execute(text('''CREATE TABLE IF NOT EXISTS seen_questions (id SERIAL PRIMARY KEY, username TEXT NOT NULL, question_id TEXT NOT NULL, seen_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP, UNIQUE (username, question_id))'''))
-            conn.execute(text('''CREATE TABLE IF NOT EXISTS user_achievements (id SERIAL PRIMARY KEY, username TEXT NOT NULL, achievement_name TEXT NOT NULL, badge_icon TEXT, unlocked_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP)'''))
             
-            # --- Duel Tables (no changes here) ---
+            # --- Daily Challenge Tables ONLY ---
+            conn.execute(text('''CREATE TABLE IF NOT EXISTS daily_challenges (
+                                id SERIAL PRIMARY KEY,
+                                description TEXT NOT NULL,
+                                topic TEXT NOT NULL, 
+                                target_count INTEGER NOT NULL
+                            )'''))
+            conn.execute(text('''CREATE TABLE IF NOT EXISTS user_daily_progress (
+                                username TEXT NOT NULL,
+                                challenge_date DATE NOT NULL,
+                                challenge_id INTEGER REFERENCES daily_challenges(id),
+                                progress_count INTEGER DEFAULT 0,
+                                is_completed BOOLEAN DEFAULT FALSE,
+                                PRIMARY KEY (username, challenge_date)
+                            )'''))
+
+            conn.execute(text('''CREATE TABLE IF NOT EXISTS seen_questions (
+                                id SERIAL PRIMARY KEY,
+                                username TEXT NOT NULL,
+                                question_id TEXT NOT NULL,
+                                seen_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                                UNIQUE (username, question_id)
+                            )'''))
+            
+            conn.execute(text('''CREATE TABLE IF NOT EXISTS user_achievements (
+                                id SERIAL PRIMARY KEY,
+                                username TEXT NOT NULL,
+                                achievement_name TEXT NOT NULL,
+                                badge_icon TEXT,
+                                unlocked_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+                            )'''))
+            
+            # --- CORRECTED Head-to-Head Duel Tables ---
             conn.execute(text('''
                 CREATE TABLE IF NOT EXISTS duels (
                     id SERIAL PRIMARY KEY,
@@ -106,24 +134,21 @@ def create_and_verify_tables():
                     finished_at TIMESTAMP WITH TIME ZONE
                 )
             '''))
+            
             conn.execute(text('''
                 CREATE TABLE IF NOT EXISTS duel_questions (
                     id SERIAL PRIMARY KEY,
                     duel_id INTEGER REFERENCES duels(id) ON DELETE CASCADE,
                     question_index INTEGER NOT NULL,
-                    question_data_json TEXT NOT NULL,
-                    answered_by TEXT,
+                    question_data_json TEXT NOT NULL, -- Storing the question dictionary as a JSON string
+                    answered_by TEXT, -- Username of the player who answered first
                     is_correct BOOLEAN,
                     UNIQUE(duel_id, question_index)
                 )
             '''))
+            # --- END OF CORRECTION ---
             
-            # --- NEW: Add indexes for performance as suggested ---
-            conn.execute(text("CREATE INDEX IF NOT EXISTS idx_duels_player1_status ON duels (player1_username, status)"))
-            conn.execute(text("CREATE INDEX IF NOT EXISTS idx_duels_player2_status ON duels (player2_username, status)"))
-            conn.execute(text("CREATE INDEX IF NOT EXISTS idx_duel_questions_duel_id_index ON duel_questions (duel_id, question_index)"))
-
-            # --- Populate daily_challenges if it's empty (no changes here) ---
+            # --- Populate daily_challenges if it's empty ---
             result = conn.execute(text("SELECT COUNT(*) FROM daily_challenges")).scalar_one()
             if result == 0:
                 print("Populating daily_challenges table for the first time.")
@@ -158,7 +183,7 @@ def create_and_verify_tables():
                              [{"description": d, "topic": t, "target_count": c} for d, t, c in challenges])
             
             conn.commit()
-        print("Database tables created or verified successfully, including new performance indexes.")
+        print("Database tables created or verified successfully, including corrected Duel tables.")
     except Exception as e:
         st.error(f"Database setup error: {e}")
 create_and_verify_tables()
@@ -581,48 +606,10 @@ def submit_duel_answer(duel_id, username, is_correct):
 
         return True
 
-def _render_duel_game_over(duel_state):
-    """Renders the final game over screen for a duel."""
-    player1 = duel_state["player1_username"]
-    player2 = duel_state["player2_username"]
-    
-    st.header(f"⚔️ Duel Complete: {player1} vs. {player2}")
-
-    # Determine winner
-    winner_username = ""
-    if duel_state["player1_score"] > duel_state["player2_score"]:
-        winner_username = player1
-    elif duel_state["player2_score"] > duel_state["player1_score"]:
-        winner_username = player2
-
-    # Display outcome message
-    if winner_username:
-        st.balloons()
-        if winner_username == st.session_state.username:
-            st.success("🎉 Congratulations, you won!")
-        else:
-            st.error(f"😞 You lost against {winner_username}. Better luck next time!")
-    else:
-        st.info("🤝 The duel ended in a draw!")
-    
-    # Action buttons
-    rematch_cols = st.columns(2)
-    if rematch_cols[0].button("🔁 Rematch", use_container_width=True, type="primary"):
-        opponent = player2 if st.session_state.username == player1 else player1
-        new_duel_id = create_duel(st.session_state.username, opponent, duel_state["topic"])
-        if new_duel_id:
-            st.session_state.current_duel_id = new_duel_id
-            st.rerun()
-
-    if rematch_cols[1].button("🚪 Exit to Lobby", use_container_width=True):
-        st.session_state.pop("current_duel_id", None)
-        st.session_state.page = "math_game" 
-        st.rerun()
-
 # Replace your existing display_duel_page function with this one.
 
 def display_duel_page():
-    """Renders the real-time head-to-head duel screen."""
+    """Renders the real-time head-to-head duel screen with corrected refresh logic."""
     duel_id = st.session_state.get("current_duel_id")
     if not duel_id:
         st.error("No active duel found.")
@@ -643,24 +630,59 @@ def display_duel_page():
     status = duel_state["status"]
     current_q_index = duel_state.get("current_question_index", 0)
 
+    # --- Header and Score Display (runs for all states) ---
+    player1 = duel_state["player1_username"]
+    player2 = duel_state["player2_username"]
+    p1_score = duel_state["player1_score"]
+    p2_score = duel_state["player2_score"]
+
+    st.header(f"⚔️ Duel: {player1} vs. {player2}")
+    st.subheader(f"Topic: {duel_state['topic']}")
+    
+    cols = st.columns(2)
+    cols[0].metric(f"{player1}'s Score", p1_score)
+    cols[1].metric(f"{player2}'s Score", p2_score)
+
+    display_q_number = min(current_q_index + 1, 10)
+    st.progress(current_q_index / 10, text=f"Question {display_q_number}/10")
+    st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
+
+    # --- State-Specific Logic ---
+
     # 1) Pending: Wait for opponent
     if status == "pending":
         st.info(f"⏳ Waiting for {duel_state['player2_username']} to accept your challenge...")
         st_autorefresh(interval=3000, key="duel_pending_refresh")
         return
 
-    # --- Header and Score Display (runs for all states) ---
-    player1 = duel_state["player1_username"]
-    player2 = duel_state["player2_username"]
-    st.header(f"⚔️ Duel: {player1} vs. {player2}")
-    st.subheader(f"Topic: {duel_state['topic']}")
-    cols = st.columns(2)
-    cols[0].metric(f"{player1}'s Score", duel_state["player1_score"])
-    cols[1].metric(f"{player2}'s Score", duel_state["player2_score"])
-
-    # 2) Finished or logically complete: Render the game over screen and stop.
+    # 2) Finished or logically complete: Show final results and stop
     if status != "active" or current_q_index >= 10:
-        _render_duel_game_over(duel_state)
+        st.header(f"⚔️ Duel Complete: {player1} vs. {player2}")
+        
+        # Re-fetch final scores to be certain
+        final_p1_score = duel_state["player1_score"]
+        final_p2_score = duel_state["player2_score"]
+
+        # Determine winner based on final scores
+        winner_username = ""
+        if final_p1_score > final_p2_score:
+            winner_username = player1
+        elif final_p2_score > final_p1_score:
+            winner_username = player2
+
+        # Display outcome
+        st.balloons()
+        if winner_username == "":
+            st.info("🤝 The duel ended in a draw!")
+        elif winner_username == st.session_state.username:
+            st.success(f"🎉 Congratulations, you won!")
+        else:
+            st.error(f"😞 You lost against {winner_username}.")
+
+        if st.button("Back to Lobby", use_container_width=True):
+            st.session_state.pop("current_duel_id", None)
+            st.session_state.page = "blackboard" # Or "math_game_page"
+            st.rerun()
         return
 
     # 3) Active but questions not seeded yet: Generate once
@@ -671,16 +693,18 @@ def display_duel_page():
         return
 
     # 4) Normal active flow: Question is displayed
-    display_q_number = min(current_q_index + 1, 10)
-    st.progress(current_q_index / 10, text=f"Question {display_q_number}/10")
-    st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
-
     q = duel_state["question"]
     answered_by = duel_state.get("question_answered_by")
 
     st.markdown(q.get("question", ""), unsafe_allow_html=True)
     
+    # --- THIS IS THE KEY FIX ---
+    # We now check if the question has been answered.
+    # The refresh ONLY happens if we are waiting for the next question.
+    
     if answered_by:
+        # State: Question has been answered, waiting for next question.
+        # It is SAFE to auto-refresh here.
         is_correct = duel_state.get('question_is_correct')
         if is_correct:
             st.success(f"✅ {answered_by} answered correctly!")
@@ -689,6 +713,8 @@ def display_duel_page():
         st.info("Waiting for the next question...")
         st_autorefresh(interval=3000, key="duel_answered_refresh")
     else:
+        # State: Question is waiting for an answer.
+        # DO NOT auto-refresh here, to allow the user to answer.
         with st.form(key=f"duel_form_{current_q_index}"):
             user_choice = st.radio("Select your answer:", q.get("options", []), index=None)
             if st.form_submit_button("Submit Answer", type="primary"):
@@ -4114,7 +4140,6 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
-
 
 
 
