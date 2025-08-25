@@ -691,10 +691,12 @@ def display_duel_page():
         return
 
     # 3) Active but questions not seeded yet: Generate once
+    # PASTE THIS NEW, CORRECTED BLOCK IN ITS PLACE
+    # 3) Active but question isn't ready yet: Show a spinner and refresh once
     if "question" not in duel_state:
-        with st.spinner("Opponent accepted! Generating unique questions..."):
-            generate_and_store_duel_questions(duel_id, duel_state["topic"])
-        st.rerun()
+        st.spinner("Opponent has accepted! Starting the match...")
+        # Use a short, one-time refresh to gracefully handle the transition
+        st_autorefresh(interval=1500, limit=1, key="duel_start_sync")
         return
 
     # 4) Normal active flow: Question is displayed
