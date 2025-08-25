@@ -716,7 +716,7 @@ def display_duel_page():
         else:
             st.error(f"❌ {answered_by} answered incorrectly. The answer was {q.get('answer')}.")
         st.info("Waiting for the next question...")
-        st_autorefresh(interval=3000, key="duel_answered_refresh")
+        st_autorefresh(interval=1000, key="duel_answered_refresh")
     else:
         # State: Question is waiting for an answer.
         # DO NOT auto-refresh here, to allow the user to answer.
@@ -4145,6 +4145,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
