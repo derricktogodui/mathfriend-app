@@ -743,7 +743,7 @@ def _render_duel_game_over(duel_state):
 
 
 def _render_active_question(duel_state):
-    """Renders the UI for an active, ongoing question."""
+    """Renders the UI for an active, ongoing question with corrected refresh logic."""
     duel_id = duel_state["id"]
     current_q_index = duel_state.get("current_question_index", 0)
     q = duel_state["question"]
@@ -756,19 +756,22 @@ def _render_active_question(duel_state):
     st.markdown(q.get("question", ""), unsafe_allow_html=True)
     
     if answered_by:
+        # State: Question is answered. SAFE to auto-refresh while waiting for the next question.
         is_correct = duel_state.get('question_is_correct')
         if is_correct:
             st.success(f"✅ {answered_by} answered correctly!")
         else:
-            st.error(f"❌ {answered_by} answered incorrectly. Their score was reduced by 1.")
+            st.error(f"❌ {answered_by} answered incorrectly. The answer was {q.get('answer')}.")
         st.info("Waiting for the next question...")
+        st_autorefresh(interval=2000, key=f"duel_answered_{duel_id}_{current_q_index}")
     else:
+        # State: Question is waiting for an answer. DO NOT auto-refresh.
         with st.form(key=f"duel_form_{current_q_index}"):
             user_choice = st.radio("Select your answer:", q.get("options", []), index=None)
             if st.form_submit_button("Submit Answer", type="primary"):
                 if user_choice is not None:
                     submit_duel_answer(duel_id, st.session_state.username, user_choice)
-                    # No st.rerun() here to prevent loops
+                    st.rerun() # Rerun once immediately after submission
                 else:
                     st.warning("Please select an answer.")
 
@@ -821,9 +824,8 @@ def display_duel_page():
         st.rerun()
         return
 
-    # 4. Normal active gameplay flow
+    # 4. Normal active gameplay flow is now handled by the helper
     _render_active_question(duel_state)
-    st_autorefresh(interval=2000, key=f"duel_active_{duel_id}")
 # ADD THESE TWO NEW FUNCTIONS
 
 def get_seen_questions(username):
@@ -4239,6 +4241,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
