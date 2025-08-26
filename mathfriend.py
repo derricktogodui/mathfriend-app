@@ -606,38 +606,6 @@ def get_duel_state(duel_id):
             duel["question_is_correct"] = qrow["is_correct"]
 
         return duel
-
-def get_duel_summary(duel_id):
-    """Fetches all data needed for the duel summary page."""
-    with engine.connect() as conn:
-        # First, get the main duel information
-        duel_details_query = text("SELECT * FROM duels WHERE id = :d")
-        duel = conn.execute(duel_details_query, {"d": duel_id}).mappings().first()
-        if not duel:
-            return None
-        
-        summary = dict(duel)
-
-        # Next, get all the questions and answers for that duel
-        duel_questions_query = text("""
-            SELECT question_index, question_data_json, answered_by, is_correct 
-            FROM duel_questions 
-            WHERE duel_id = :d 
-            ORDER BY question_index ASC
-        """)
-        questions = conn.execute(duel_questions_query, {"d": duel_id}).mappings().fetchall()
-        
-        # Parse the JSON data for each question
-        summary['questions'] = [
-            {
-                'index': q['question_index'],
-                'data': json.loads(q['question_data_json']),
-                'answered_by': q['answered_by'],
-                'is_correct': q['is_correct']
-            } for q in questions
-        ]
-        return summary
-
 # Replace your existing submit_duel_answer function with this one.
 
 def submit_duel_answer(duel_id, username, is_correct):
@@ -699,74 +667,6 @@ def submit_duel_answer(duel_id, username, is_correct):
 
         return True
 
-def display_duel_summary_page(duel_summary):
-    """Renders the detailed post-duel summary screen."""
-    player1 = duel_summary["player1_username"]
-    player2 = duel_summary["player2_username"]
-    p1_score = duel_summary["player1_score"]
-    p2_score = duel_summary["player2_score"]
-    current_user = st.session_state.username
-
-    st.header(f"📜 Duel Summary: {player1} vs. {player2}")
-
-    # Determine the winner
-    winner = ""
-    if p1_score > p2_score: winner = player1
-    elif p2_score > p1_score: winner = player2
-
-    if winner:
-        if winner == current_user:
-            st.success(f"🎉 Congratulations, you won!")
-            st.balloons()
-        else:
-            st.error(f"😞 You lost against {winner}.")
-    else:
-        st.info("🤝 The duel ended in a draw!")
-
-    # Display final scores
-    cols = st.columns(2)
-    cols[0].metric(f"{player1}'s Final Score", p1_score)
-    cols[1].metric(f"{player2}'s Final Score", p2_score)
-
-    st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
-    st.subheader("Question Breakdown")
-
-    # Loop through and display each question
-    for q in duel_summary.get('questions', []):
-        q_data = q['data']
-        with st.expander(f"**Question {q['index'] + 1}**"):
-            st.markdown(q_data.get("question", ""), unsafe_allow_html=True)
-            st.write(f"**Correct Answer:** {q_data.get('answer')}")
-
-            if q['answered_by']:
-                if q['is_correct']:
-                    st.success(f"✅ Answered correctly by {q['answered_by']}.")
-                else:
-                    st.error(f"❌ Answered incorrectly by {q['answered_by']}.")
-            else:
-                st.info("⚪ This question was not answered by either player.")
-            st.write("---")
-            
-    st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
-
-    # Action buttons: Rematch and Back to Lobby
-    c1, c2 = st.columns(2)
-    with c1:
-        if st.button("🔄 Rematch", use_container_width=True, type="primary"):
-            opponent = player2 if current_user == player1 else player1
-            duel_id = create_duel(current_user, opponent, duel_summary['topic'])
-            if duel_id:
-                st.toast(f"Rematch challenge sent to {opponent}!", icon="⚔️")
-                st.session_state.page = "duel"
-                st.session_state.current_duel_id = duel_id
-                st.rerun()
-
-    with c2:
-        if st.button("🚪 Back to Lobby", use_container_width=True):
-            st.session_state.pop("current_duel_id", None)
-            st.session_state.page = "math_game_page" # Or whatever your lobby page is called
-            st.rerun()
-
 # Replace your existing display_duel_page function with this one.
 
 def display_duel_page():
@@ -818,17 +718,33 @@ def display_duel_page():
 
     # 2) Finished or logically complete: Show final results and stop
     if status != "active" or current_q_index >= 10:
-    duel_summary = get_duel_summary(duel_id)
-    if duel_summary:
-        display_duel_summary_page(duel_summary)
-    else:
-        # Fallback in case summary fails to load
-        st.error("Could not load duel summary.")
+        st.header(f"⚔️ Duel Complete: {player1} vs. {player2}")
+        
+        # Re-fetch final scores to be certain
+        final_p1_score = duel_state["player1_score"]
+        final_p2_score = duel_state["player2_score"]
+
+        # Determine winner based on final scores
+        winner_username = ""
+        if final_p1_score > final_p2_score:
+            winner_username = player1
+        elif final_p2_score > final_p1_score:
+            winner_username = player2
+
+        # Display outcome
+        st.balloons()
+        if winner_username == "":
+            st.info("🤝 The duel ended in a draw!")
+        elif winner_username == st.session_state.username:
+            st.success(f"🎉 Congratulations, you won!")
+        else:
+            st.error(f"😞 You lost against {winner_username}.")
+
         if st.button("Back to Lobby", use_container_width=True):
             st.session_state.pop("current_duel_id", None)
-            st.session_state.page = "math_game_page"
+            st.session_state.page = "blackboard" # Or "math_game_page"
             st.rerun()
-    return # Stop further execution of the duel page
+        return
 
     # 3) Active but questions not seeded yet: Generate once
     if "question" not in duel_state:
@@ -4285,10 +4201,6 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
-
-
-
-
 
 
 
