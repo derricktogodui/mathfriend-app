@@ -747,7 +747,7 @@ def display_duel_page():
         # If still no question, show a brief loading message and rerun.
         if "question" not in duel_state:
             st.info("Preparing the duel...")
-            st_autorefresh(interval=1500, limit=1, key="duel_start_refresh")
+            st_autorefresh(interval=1000, limit=1, key="duel_start_refresh")
             return
     # --- END OF OPTIMIZATION ---
 
@@ -4282,6 +4282,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
