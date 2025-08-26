@@ -186,7 +186,7 @@ def create_and_verify_tables():
         print("Database tables created or verified successfully, including corrected Duel tables.")
     except Exception as e:
         st.error(f"Database setup error: {e}")
-create_and_verify_tables()
+#create_and_verify_tables()
 
 
 # --- Core Backend Functions (PostgreSQL) ---
@@ -435,11 +435,11 @@ def get_user_stats_for_topic(username, topic):
 def get_online_users(current_user):
     """
     Gets online users who are NOT in a genuinely active duel.
-    (CORRECTED & BULLETPROOF LOGIC)
+    (FINAL, ROBUST LOGIC WITH TIMEOUT)
     """
     with engine.connect() as conn:
-        # This version checks BOTH the status and the question index,
-        # making it resilient to "stuck" duels in the database.
+        # This final version checks status, question index, AND a 5-minute timeout,
+        # ensuring abandoned duels automatically expire from the online list.
         query = text("""
             SELECT s.username
             FROM user_status s
@@ -449,9 +449,12 @@ def get_online_users(current_user):
               AND NOT EXISTS (
                   SELECT 1 
                   FROM duels d
-                  WHERE (d.player1_username = s.username OR d.player2_username = s.username)
-                    AND d.status = 'active'
-                    AND d.current_question_index < 10 -- THIS IS THE CRITICAL FIX
+                  WHERE 
+                    (d.player1_username = s.username OR d.player2_username = s.username)
+                    -- A duel is only TRULY active if all these are met:
+                    AND d.status = 'active'                 -- It must be marked active.
+                    AND d.current_question_index < 10       -- It must not be finished.
+                    AND d.last_action_at > NOW() - INTERVAL '5 minutes' -- It must be recent.
               );
         """)
         result = conn.execute(query, {"current_user": current_user})
@@ -4198,6 +4201,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
