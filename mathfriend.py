@@ -433,10 +433,16 @@ def get_user_stats_for_topic(username, topic):
         return f"{best_score:.1f}%", attempts
 
 def get_online_users(current_user):
+    """Gets online users who are NOT currently in an active duel."""
     with engine.connect() as conn:
         query = text("""
-            SELECT username FROM user_status WHERE is_online = TRUE AND last_seen > NOW() - INTERVAL '5 minutes'
-            AND username != :current_user
+            SELECT s.username
+            FROM user_status s
+            LEFT JOIN duels d ON (s.username = d.player1_username OR s.username = d.player2_username) AND d.status = 'active'
+            WHERE s.is_online = TRUE 
+              AND s.last_seen > NOW() - INTERVAL '5 minutes'
+              AND s.username != :current_user
+              AND d.id IS NULL;
         """)
         result = conn.execute(query, {"current_user": current_user})
         return [row[0] for row in result.fetchall()]
@@ -4054,7 +4060,7 @@ def show_main_app():
         del st.session_state.achievement_unlocked_toast
 
     last_update = st.session_state.get("last_status_update", 0)
-    if time.time() - last_update > 60:
+    if time.time() - last_update > 10:
         update_user_status(st.session_state.username, True)
         st.session_state.last_status_update = time.time()
         
@@ -4075,6 +4081,9 @@ def show_main_app():
 
         st.write("---")
         if st.button("Logout", type="primary", use_container_width=True):
+            # NEW LINE: Set user to offline in the database
+            update_user_status(st.session_state.username, False)
+
             st.session_state.logged_in = False
             if 'challenge_completed_toast' in st.session_state: del st.session_state.challenge_completed_toast
             if 'achievement_unlocked_toast' in st.session_state: del st.session_state.achievement_unlocked_toast
@@ -4183,7 +4192,6 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
-
 
 
 
