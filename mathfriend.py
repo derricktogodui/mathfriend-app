@@ -433,16 +433,10 @@ def get_user_stats_for_topic(username, topic):
         return f"{best_score:.1f}%", attempts
 
 def get_online_users(current_user):
-    """Gets online users who are NOT currently in an active duel."""
     with engine.connect() as conn:
         query = text("""
-            SELECT s.username
-            FROM user_status s
-            LEFT JOIN duels d ON (s.username = d.player1_username OR s.username = d.player2_username) AND d.status = 'active'
-            WHERE s.is_online = TRUE 
-              AND s.last_seen > NOW() - INTERVAL '5 minutes'
-              AND s.username != :current_user
-              AND d.id IS NULL;
+            SELECT username FROM user_status WHERE is_online = TRUE AND last_seen > NOW() - INTERVAL '5 minutes'
+            AND username != :current_user
         """)
         result = conn.execute(query, {"current_user": current_user})
         return [row[0] for row in result.fetchall()]
@@ -4189,6 +4183,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
