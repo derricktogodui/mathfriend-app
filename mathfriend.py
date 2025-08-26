@@ -8,7 +8,7 @@ import hashlib
 import math
 import base64
 import os
-from datetime import datetime, timedelta
+from datetime import datetime
 from streamlit.components.v1 import html
 from fractions import Fraction
 import numpy as np
@@ -186,7 +186,7 @@ def create_and_verify_tables():
         print("Database tables created or verified successfully, including corrected Duel tables.")
     except Exception as e:
         st.error(f"Database setup error: {e}")
-#create_and_verify_tables()
+create_and_verify_tables()
 
 
 # --- Core Backend Functions (PostgreSQL) ---
@@ -433,21 +433,12 @@ def get_user_stats_for_topic(username, topic):
         return f"{best_score:.1f}%", attempts
 
 def get_online_users(current_user):
-    """Gets online users who are NOT currently in an active duel, immune to server time issues."""
     with engine.connect() as conn:
-        # Calculate the cutoff time in Python to avoid server clock sync issues.
-        five_minutes_ago = datetime.now() - timedelta(minutes=5)
-        
         query = text("""
-            SELECT s.username
-            FROM user_status s
-            LEFT JOIN duels d ON (s.username = d.player1_username OR s.username = d.player2_username) AND d.status = 'active'
-            WHERE s.is_online = TRUE 
-              AND s.last_seen > :five_minutes_ago
-              AND s.username != :current_user
-              AND d.id IS NULL;
+            SELECT username FROM user_status WHERE is_online = TRUE AND last_seen > NOW() - INTERVAL '5 minutes'
+            AND username != :current_user
         """)
-        result = conn.execute(query, {"current_user": current_user, "five_minutes_ago": five_minutes_ago})
+        result = conn.execute(query, {"current_user": current_user})
         return [row[0] for row in result.fetchall()]
 
 # Add this block of 5 new functions to your Core Backend Functions section
@@ -506,49 +497,15 @@ def get_active_duel_for_player(username):
 
 # Replace your existing accept_duel function with this one.
 def accept_duel(duel_id, topic):
-    """Correctly marks a duel as active, then generates and saves questions for BOTH players."""
-    
-    # Step 1: Perform a very fast transaction to ONLY update the status.
+    """Instantly marks a duel as 'active' so both players can join."""
     with engine.connect() as conn:
-        with conn.begin():
-            update_query = text("""
-                UPDATE duels 
-                SET status = 'active', last_action_at = CURRENT_TIMESTAMP 
-                WHERE id = :duel_id AND status = 'pending';
-            """)
-            conn.execute(update_query, {"duel_id": duel_id})
-    
-    # Step 2: Generate and store questions (this is based on the opponent's history)
-    generate_and_store_duel_questions(duel_id, topic)
-
-    # --- NEW: Save the generated questions for the challenger as well ---
-    try:
-        with engine.connect() as conn:
-            # First, get the challenger's username from the duel info
-            challenger_username = conn.execute(
-                text("SELECT player1_username FROM duels WHERE id = :duel_id"),
-                {"duel_id": duel_id}
-            ).scalar_one_or_none()
-
-            if challenger_username:
-                # Next, get the questions that were just created for this duel
-                questions = conn.execute(
-                    text("SELECT question_data_json FROM duel_questions WHERE duel_id = :duel_id"),
-                    {"duel_id": duel_id}
-                ).mappings().fetchall()
-
-                # Loop through the questions and save them to the challenger's seen list
-                for q_row in questions:
-                    q_data = json.loads(q_row["question_data_json"])
-                    question_text = q_data.get("stem", q_data.get("question", ""))
-                    q_id = get_question_id(question_text)
-                    save_seen_question(challenger_username, q_id)
-    except Exception as e:
-        # If this fails for any reason, we don't want to crash the app.
-        # We can log this error for debugging if needed.
-        print(f"Error saving seen questions for challenger: {e}")
-    # --- END OF NEW CODE ---
-    
+        update_query = text("""
+            UPDATE duels 
+            SET status = 'active', last_action_at = CURRENT_TIMESTAMP 
+            WHERE id = :duel_id AND status = 'pending';
+        """)
+        conn.execute(update_query, {"duel_id": duel_id})
+        conn.commit()
     return True
 
 # Add this new helper function right after your accept_duel function
@@ -600,18 +557,17 @@ def get_duel_state(duel_id):
 # Replace your existing submit_duel_answer function with this one.
 
 def submit_duel_answer(duel_id, username, is_correct):
-    """Records a player's answer and updates the duel state using more robust, atomic updates."""
+    """Records a player's answer and updates the duel state."""
     with engine.connect() as conn, conn.begin():
-        duel_info = conn.execute(
-            text("SELECT player1_username, current_question_index FROM duels WHERE id = :d"),
+        info = conn.execute(
+            text("""SELECT player1_username, player2_username, player1_score, player2_score, current_question_index
+                    FROM duels WHERE id = :d"""),
             {"d": duel_id}
         ).mappings().first()
-
-        if not duel_info:
+        if not info:
             return False
 
-        q_index = duel_info["current_question_index"]
-
+        q_index = info["current_question_index"]
         result = conn.execute(text("""
             UPDATE duel_questions
             SET answered_by = :u, is_correct = :ok
@@ -619,35 +575,27 @@ def submit_duel_answer(duel_id, username, is_correct):
         """), {"u": username, "ok": is_correct, "d": duel_id, "i": q_index})
 
         if result.rowcount == 0:
-            return False
+            return False  # someone else was first
 
+        p1, p2 = info["player1_score"], info["player2_score"]
         if is_correct:
-            score_update_query = ""
-            if username == duel_info["player1_username"]:
-                score_update_query = text("UPDATE duels SET player1_score = player1_score + 1 WHERE id = :d")
+            if username == info["player1_username"]:
+                p1 += 1
+                conn.execute(text("UPDATE duels SET player1_score = :s WHERE id = :d"), {"s": p1, "d": duel_id})
             else:
-                score_update_query = text("UPDATE duels SET player2_score = player2_score + 1 WHERE id = :d")
-
-            conn.execute(score_update_query, {"d": duel_id})
+                p2 += 1
+                conn.execute(text("UPDATE duels SET player2_score = :s WHERE id = :d"), {"s": p2, "d": duel_id})
 
         if q_index == 9:
-            final_scores = conn.execute(
-                text("SELECT player1_score, player2_score FROM duels WHERE id = :d"),
-                {"d": duel_id}
-            ).mappings().first()
-
-            final_status = "draw"
-            if final_scores["player1_score"] > final_scores["player2_score"]:
-                final_status = "player1_win"
-            elif final_scores["player2_score"] > final_scores["player1_score"]:
-                final_status = "player2_win"
-
+            final = "draw"
+            if p1 > p2: final = "player1_win"
+            elif p2 > p1: final = "player2_win"
             conn.execute(text("""
                 UPDATE duels
                 SET status = :final, current_question_index = 10,
                     last_action_at = CURRENT_TIMESTAMP, finished_at = CURRENT_TIMESTAMP
                 WHERE id = :d
-            """), {"final": final_status, "d": duel_id})
+            """), {"final": final, "d": duel_id})
         else:
             conn.execute(text("""
                 UPDATE duels
@@ -704,7 +652,7 @@ def display_duel_page():
     # 1) Pending: Wait for opponent
     if status == "pending":
         st.info(f"⏳ Waiting for {duel_state['player2_username']} to accept your challenge...")
-        st_autorefresh(interval=1000, key="duel_pending_refresh")
+        st_autorefresh(interval=3000, key="duel_pending_refresh")
         return
 
     # 2) Finished or logically complete: Show final results and stop
@@ -763,7 +711,7 @@ def display_duel_page():
         else:
             st.error(f"❌ {answered_by} answered incorrectly. The answer was {q.get('answer')}.")
         st.info("Waiting for the next question...")
-        st_autorefresh(interval=1000, key="duel_answered_refresh")
+        st_autorefresh(interval=3000, key="duel_answered_refresh")
     else:
         # State: Question is waiting for an answer.
         # DO NOT auto-refresh here, to allow the user to answer.
@@ -4063,7 +4011,7 @@ def show_main_app():
         del st.session_state.achievement_unlocked_toast
 
     last_update = st.session_state.get("last_status_update", 0)
-    if time.time() - last_update > 10:
+    if time.time() - last_update > 60:
         update_user_status(st.session_state.username, True)
         st.session_state.last_status_update = time.time()
         
@@ -4084,9 +4032,6 @@ def show_main_app():
 
         st.write("---")
         if st.button("Logout", type="primary", use_container_width=True):
-            # NEW LINE: Set user to offline in the database
-            update_user_status(st.session_state.username, False)
-
             st.session_state.logged_in = False
             if 'challenge_completed_toast' in st.session_state: del st.session_state.challenge_completed_toast
             if 'achievement_unlocked_toast' in st.session_state: del st.session_state.achievement_unlocked_toast
@@ -4195,11 +4140,6 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
-
-
-
-
-
 
 
 
