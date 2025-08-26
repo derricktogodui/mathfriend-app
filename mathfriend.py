@@ -724,8 +724,9 @@ def display_duel_page():
     current_q_index = duel_state.get("current_question_index", 0)
 
     # --- THIS IS THE KEY FIX ---
-    # Check if the duel is finished FIRST, before rendering anything else.
-    if status != "active" or current_q_index >= 10:
+    # A duel is only finished if its status is a final one OR the index is too high.
+    # This correctly ignores 'pending' and 'active' statuses.
+    if status in ['player1_win', 'player2_win', 'draw', 'expired'] or current_q_index >= 10:
         duel_summary = get_duel_summary(duel_id)
         if duel_summary:
             display_duel_summary_page(duel_summary)
@@ -739,7 +740,7 @@ def display_duel_page():
 
     # --- If the duel is NOT finished, the rest of the function below will run. ---
 
-    # Header and Score Display (only runs for active duels now)
+    # Header and Score Display (only runs for pending or active duels)
     player1 = duel_state["player1_username"]
     player2 = duel_state["player2_username"]
     p1_score = duel_state["player1_score"]
@@ -747,7 +748,7 @@ def display_duel_page():
 
     st.header(f"⚔️ Duel: {player1} vs. {player2}")
     st.subheader(f"Topic: {duel_state['topic']}")
-    
+
     cols = st.columns(2)
     cols[0].metric(f"{player1}'s Score", p1_score)
     cols[1].metric(f"{player2}'s Score", p2_score)
@@ -756,7 +757,7 @@ def display_duel_page():
     st.progress(current_q_index / 10, text=f"Question {display_q_number}/10")
     st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
 
-    # State-Specific Logic for active duels
+    # State-Specific Logic for pending or active duels
     if status == "pending":
         st.info(f"⏳ Waiting for {duel_state['player2_username']} to accept your challenge...")
         st_autorefresh(interval=1000, key="duel_pending_refresh")
@@ -4276,6 +4277,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
