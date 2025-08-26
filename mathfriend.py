@@ -702,7 +702,7 @@ def get_duel_summary(duel_id):
 # Replace your existing display_duel_page function with this one.
 
 def display_duel_page():
-    """Renders the real-time head-to-head duel screen with corrected refresh logic."""
+    """Renders the real-time head-to-head duel screen with corrected logic."""
     duel_id = st.session_state.get("current_duel_id")
     if not duel_id:
         st.error("No active duel found.")
@@ -723,7 +723,23 @@ def display_duel_page():
     status = duel_state["status"]
     current_q_index = duel_state.get("current_question_index", 0)
 
-    # --- Header and Score Display (runs for all states) ---
+    # --- THIS IS THE KEY FIX ---
+    # Check if the duel is finished FIRST, before rendering anything else.
+    if status != "active" or current_q_index >= 10:
+        duel_summary = get_duel_summary(duel_id)
+        if duel_summary:
+            display_duel_summary_page(duel_summary)
+        else:
+            st.error("Could not load duel summary.")
+            if st.button("Back to Lobby", use_container_width=True):
+                st.session_state.pop("current_duel_id", None)
+                st.session_state.page = "math_game_page"
+                st.rerun()
+        return  # Exit the function immediately after showing the summary.
+
+    # --- If the duel is NOT finished, the rest of the function below will run. ---
+
+    # Header and Score Display (only runs for active duels now)
     player1 = duel_state["player1_username"]
     player2 = duel_state["player2_username"]
     p1_score = duel_state["player1_score"]
@@ -740,48 +756,25 @@ def display_duel_page():
     st.progress(current_q_index / 10, text=f"Question {display_q_number}/10")
     st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
 
-    # --- State-Specific Logic ---
-
-    # 1) Pending: Wait for opponent
+    # State-Specific Logic for active duels
     if status == "pending":
         st.info(f"⏳ Waiting for {duel_state['player2_username']} to accept your challenge...")
         st_autorefresh(interval=1000, key="duel_pending_refresh")
         return
 
-    # 2) Finished or logically complete: Fetch the full summary and display it.
-    if status != "active" or current_q_index >= 10:
-        duel_summary = get_duel_summary(duel_id)
-        if duel_summary:
-            display_duel_summary_page(duel_summary)
-        else:
-            # Fallback in case summary fails to load
-            st.error("Could not load duel summary.")
-            if st.button("Back to Lobby", use_container_width=True):
-                st.session_state.pop("current_duel_id", None)
-                st.session_state.page = "math_game_page"
-                st.rerun()
-        return # Stop further execution of the duel page
-
-    # 3) Active but questions not seeded yet: Generate once
     if "question" not in duel_state:
         with st.spinner("Opponent accepted! Generating unique questions..."):
             generate_and_store_duel_questions(duel_id, duel_state["topic"])
         st.rerun()
         return
 
-    # 4) Normal active flow: Question is displayed
+    # Normal active flow: Question is displayed
     q = duel_state["question"]
     answered_by = duel_state.get("question_answered_by")
 
     st.markdown(q.get("question", ""), unsafe_allow_html=True)
     
-    # --- THIS IS THE KEY FIX ---
-    # We now check if the question has been answered.
-    # The refresh ONLY happens if we are waiting for the next question.
-    
     if answered_by:
-        # State: Question has been answered, waiting for next question.
-        # It is SAFE to auto-refresh here.
         is_correct = duel_state.get('question_is_correct')
         if is_correct:
             st.success(f"✅ {answered_by} answered correctly!")
@@ -790,8 +783,6 @@ def display_duel_page():
         st.info("Waiting for the next question...")
         st_autorefresh(interval=1000, key="duel_answered_refresh")
     else:
-        # State: Question is waiting for an answer.
-        # DO NOT auto-refresh here, to allow the user to answer.
         with st.form(key=f"duel_form_{current_q_index}"):
             user_choice = st.radio("Select your answer:", q.get("options", []), index=None)
             if st.form_submit_button("Submit Answer", type="primary"):
@@ -4285,6 +4276,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
