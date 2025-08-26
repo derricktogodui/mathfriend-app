@@ -8,7 +8,7 @@ import hashlib
 import math
 import base64
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
 from streamlit.components.v1 import html
 from fractions import Fraction
 import numpy as np
@@ -433,16 +433,21 @@ def get_user_stats_for_topic(username, topic):
         return f"{best_score:.1f}%", attempts
 
 def get_online_users(current_user):
-    """TEST VERSION: Simplified to find the source of the bug."""
+    """Gets online users who are NOT currently in an active duel, immune to server time issues."""
     with engine.connect() as conn:
+        # Calculate the cutoff time in Python to avoid server clock sync issues.
+        five_minutes_ago = datetime.now() - timedelta(minutes=5)
+        
         query = text("""
-            SELECT username
-            FROM user_status
-            WHERE is_online = TRUE 
-              AND last_seen > NOW() - INTERVAL '5 minutes'
-              AND username != :current_user;
+            SELECT s.username
+            FROM user_status s
+            LEFT JOIN duels d ON (s.username = d.player1_username OR s.username = d.player2_username) AND d.status = 'active'
+            WHERE s.is_online = TRUE 
+              AND s.last_seen > :five_minutes_ago
+              AND s.username != :current_user
+              AND d.id IS NULL;
         """)
-        result = conn.execute(query, {"current_user": current_user})
+        result = conn.execute(query, {"current_user": current_user, "five_minutes_ago": five_minutes_ago})
         return [row[0] for row in result.fetchall()]
 
 # Add this block of 5 new functions to your Core Backend Functions section
@@ -4190,6 +4195,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
