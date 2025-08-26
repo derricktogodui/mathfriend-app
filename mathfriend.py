@@ -723,9 +723,7 @@ def display_duel_page():
     status = duel_state["status"]
     current_q_index = duel_state.get("current_question_index", 0)
 
-    # --- THIS IS THE KEY FIX ---
-    # A duel is only finished if its status is a final one OR the index is too high.
-    # This correctly ignores 'pending' and 'active' statuses.
+    # Check if the duel is finished FIRST, before rendering anything else.
     if status in ['player1_win', 'player2_win', 'draw', 'expired'] or current_q_index >= 10:
         duel_summary = get_duel_summary(duel_id)
         if duel_summary:
@@ -738,7 +736,20 @@ def display_duel_page():
                 st.rerun()
         return  # Exit the function immediately after showing the summary.
 
-    # --- If the duel is NOT finished, the rest of the function below will run. ---
+    # --- THIS IS THE OPTIMIZATION ---
+    # If questions aren't immediately available, this block runs silently
+    # to ensure they are loaded without a disruptive spinner and extra rerun.
+    if "question" not in duel_state:
+        # Silently ensure questions are generated (acts as a safety net).
+        generate_and_store_duel_questions(duel_id, duel_state["topic"])
+        # Re-fetch the state within the same script run to get the questions.
+        duel_state = get_duel_state(duel_id)
+        # If still no question, show a brief loading message and rerun.
+        if "question" not in duel_state:
+            st.info("Preparing the duel...")
+            st_autorefresh(interval=1500, limit=1, key="duel_start_refresh")
+            return
+    # --- END OF OPTIMIZATION ---
 
     # Header and Score Display (only runs for pending or active duels)
     player1 = duel_state["player1_username"]
@@ -761,12 +772,6 @@ def display_duel_page():
     if status == "pending":
         st.info(f"⏳ Waiting for {duel_state['player2_username']} to accept your challenge...")
         st_autorefresh(interval=1000, key="duel_pending_refresh")
-        return
-
-    if "question" not in duel_state:
-        with st.spinner("Opponent accepted! Generating unique questions..."):
-            generate_and_store_duel_questions(duel_id, duel_state["topic"])
-        st.rerun()
         return
 
     # Normal active flow: Question is displayed
@@ -4277,6 +4282,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
