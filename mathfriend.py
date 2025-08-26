@@ -433,11 +433,13 @@ def get_user_stats_for_topic(username, topic):
         return f"{best_score:.1f}%", attempts
 
 def get_online_users(current_user):
-    """Gets online users who are NOT currently in an active duel. (CORRECTED LOGIC)"""
+    """
+    Gets online users who are NOT in a genuinely active duel.
+    (CORRECTED & BULLETPROOF LOGIC)
+    """
     with engine.connect() as conn:
-        # This query uses NOT EXISTS, which is more robust for this kind of check.
-        # It selects users from the status table only if they do not appear as a player
-        # in any duel that currently has the 'active' status.
+        # This version checks BOTH the status and the question index,
+        # making it resilient to "stuck" duels in the database.
         query = text("""
             SELECT s.username
             FROM user_status s
@@ -449,11 +451,11 @@ def get_online_users(current_user):
                   FROM duels d
                   WHERE (d.player1_username = s.username OR d.player2_username = s.username)
                     AND d.status = 'active'
+                    AND d.current_question_index < 10 -- THIS IS THE CRITICAL FIX
               );
         """)
         result = conn.execute(query, {"current_user": current_user})
         return [row[0] for row in result.fetchall()]
-
 # Add this block of 5 new functions to your Core Backend Functions section
 
 # Replace your existing create_duel function with this one.
@@ -4196,6 +4198,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
