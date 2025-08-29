@@ -881,75 +881,6 @@ def display_duel_page():
                     st.rerun()
                 else:
                     st.warning("Please select an answer.")
-def display_duel_summary_page(duel_summary):
-    """Renders the detailed post-duel summary screen."""
-    player1 = duel_summary["player1_username"]
-    player2 = duel_summary["player2_username"]
-    p1_score = duel_summary["player1_score"]
-    p2_score = duel_summary["player2_score"]
-    current_user = st.session_state.username
-
-    st.header(f"📜 Duel Summary: {player1} vs. {player2}")
-
-    # Determine the winner
-    winner = ""
-    if p1_score > p2_score: winner = player1
-    elif p2_score > p1_score: winner = player2
-
-    if winner:
-        if winner == current_user:
-            st.success(f"🎉 Congratulations, you won!")
-            st.balloons()
-        else:
-            st.error(f"😞 You lost against {winner}.")
-    else:
-        st.info("🤝 The duel ended in a draw!")
-
-    # Display final scores
-    cols = st.columns(2)
-    cols[0].metric(f"{player1}'s Final Score", p1_score)
-    cols[1].metric(f"{player2}'s Final Score", p2_score)
-
-    st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
-    st.subheader("Question Breakdown")
-
-    # Loop through and display each question
-    for q in duel_summary.get('questions', []):
-        q_data = q['data']
-        with st.expander(f"**Question {q['index'] + 1}**"):
-            st.markdown(q_data.get("question", ""), unsafe_allow_html=True)
-            st.write(f"**Correct Answer:** {q_data.get('answer')}")
-
-            if q['answered_by']:
-                if q['is_correct']:
-                    st.success(f"✅ Answered correctly by {q['answered_by']}.")
-                else:
-                    st.error(f"❌ Answered incorrectly by {q['answered_by']}.")
-            else:
-                st.info("⚪ This question was not answered by either player.")
-            st.write("---")
-            
-    st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
-
-    # Action buttons: Rematch and Back to Lobby
-    c1, c2 = st.columns(2)
-    with c1:
-        if st.button("🔄 Rematch", use_container_width=True, type="primary"):
-            opponent = player2 if current_user == player1 else player1
-            duel_id = create_duel(current_user, opponent, duel_summary['topic'])
-            if duel_id:
-                st.toast(f"Rematch challenge sent to {opponent}!", icon="⚔️")
-                st.session_state.page = "duel"
-                st.session_state.current_duel_id = duel_id
-                st.rerun()
-
-    with c2:
-        if st.button("🚪 Back to Lobby", use_container_width=True):
-            st.session_state.pop("current_duel_id", None)
-            # IMPORTANT: Change this to 'math_game_page' to go back to the lobby
-            st.session_state.page = "math_game_page" 
-            st.rerun()
-
 # ADD THESE TWO NEW FUNCTIONS
 
 def get_seen_questions(username):
@@ -4374,6 +4305,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
