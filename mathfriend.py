@@ -287,6 +287,25 @@ def get_top_scores(topic, time_filter="all"):
         return result.fetchall()
 
 @st.cache_data(ttl=300) # Cache for 5 minutes
+def get_top_duel_players():
+    """Fetches the top 5 players based on their total duel wins."""
+    with engine.connect() as conn:
+        query = text("""
+            WITH wins AS (
+                SELECT player1_username AS username, 1 AS win FROM duels WHERE status = 'player1_win'
+                UNION ALL
+                SELECT player2_username AS username, 1 AS win FROM duels WHERE status = 'player2_win'
+            )
+            SELECT username, SUM(win) as total_wins
+            FROM wins
+            GROUP BY username
+            ORDER BY total_wins DESC
+            LIMIT 5;
+        """)
+        result = conn.execute(query).mappings().fetchall()
+        return [dict(row) for row in result]
+
+@st.cache_data(ttl=300) # Cache for 5 minutes
 def get_overall_top_scores(time_filter="all"):
     """Fetches the top 10 users based on the sum of all their correct answers."""
     with engine.connect() as conn:
@@ -3520,10 +3539,8 @@ def display_blackboard_page():
         channel.send_message({"text": prompt}, user_id=st.session_state.username)
         st.rerun()
 
-# Replace your existing display_math_game_page function with this FINAL version.
-# Replace your existing display_math_game_page function with this one.
 def display_math_game_page(topic_options):
-    """Displays the duel lobby with a new, improved two-column layout and stable buttons."""
+    """Displays the duel lobby with a new, improved two-column layout and a duel leaderboard."""
     st.header("⚔️ Math Game Lobby")
     
     if 'live_lobby_active' not in st.session_state:
@@ -3550,7 +3567,6 @@ def display_math_game_page(topic_options):
                             st.markdown(_generate_user_pill_html(user), unsafe_allow_html=True)
                         with c2:
                             if st.button("Duel", key=f"challenge_{user}", use_container_width=True):
-                                # This now sets a state to show the topic selector
                                 st.session_state.challenging_user = user
                                 st.rerun()
         else:
@@ -3574,8 +3590,6 @@ def display_math_game_page(topic_options):
                     duel_id = create_duel(st.session_state.username, opponent, topic)
                     if duel_id:
                         st.toast(f"Challenge sent to {opponent}!", icon="⚔️")
-                        # --- THIS IS THE KEY FIX ---
-                        # Immediately redirect the challenger to the duel page.
                         st.session_state.page = "duel"
                         st.session_state.current_duel_id = duel_id
                         del st.session_state.challenging_user
@@ -3606,6 +3620,20 @@ def display_math_game_page(topic_options):
                 st.session_state.current_duel_id = active_duel['id']
                 st.rerun()
             else:
+                # --- NEW LEADERBOARD SECTION ---
+                st.subheader("🏆 Top 5 Duelists")
+                top_duelists = get_top_duel_players()
+                if top_duelists:
+                    df = pd.DataFrame(top_duelists)
+                    df.columns = ["Username", "Wins"]
+                    df.index = df.index + 1 # Start ranking from 1
+                    st.dataframe(df, use_container_width=True)
+                else:
+                    st.info("No duel wins have been recorded yet. Be the first!")
+                
+                st.markdown("<hr>", unsafe_allow_html=True)
+                # --- END OF NEW LEADERBOARD SECTION ---
+
                 st.subheader("How to Play")
                 st.markdown("""
                 - **1. Send a Challenge:** Find an online player and click 'Duel'.
@@ -4282,6 +4310,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
