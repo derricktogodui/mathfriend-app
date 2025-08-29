@@ -686,41 +686,65 @@ def submit_duel_answer(duel_id, username, is_correct):
         return True
 
 
-def get_duel_summary(duel_id):
-    """Fetches all data needed for the duel summary page."""
-    with engine.connect() as conn:
-        # First, get the main duel information
-        duel_details_query = text("SELECT * FROM duels WHERE id = :d")
-        duel = conn.execute(duel_details_query, {"d": duel_id}).mappings().first()
-        if not duel:
-            return None
-        
-        summary = dict(duel)
+# --- FIX: THIS IS THE NEW VERSION WITH THE REMATCH BUTTON REMOVED ---
+def display_duel_summary_page(duel_summary):
+    """Renders the detailed post-duel summary screen."""
+    player1 = duel_summary["player1_username"]
+    player2 = duel_summary["player2_username"]
+    p1_score = duel_summary["player1_score"]
+    p2_score = duel_summary["player2_score"]
+    current_user = st.session_state.username
 
-        # Next, get all the questions and answers for that duel
-        duel_questions_query = text("""
-            SELECT question_index, question_data_json, answered_by, is_correct 
-            FROM duel_questions 
-            WHERE duel_id = :d 
-            ORDER BY question_index ASC
-        """)
-        questions = conn.execute(duel_questions_query, {"d": duel_id}).mappings().fetchall()
-        
-        # Parse the JSON data for each question
-        summary['questions'] = [
-            {
-                'index': q['question_index'],
-                'data': json.loads(q['question_data_json']),
-                'answered_by': q['answered_by'],
-                'is_correct': q['is_correct']
-            } for q in questions
-        ]
-        return summary
+    st.header(f"📜 Duel Summary: {player1} vs. {player2}")
 
-# Replace your existing display_duel_page function with this one.
+    # Determine the winner
+    winner = ""
+    if p1_score > p2_score: winner = player1
+    elif p2_score > p1_score: winner = player2
 
+    if winner:
+        if winner == current_user:
+            st.success(f"🎉 Congratulations, you won!")
+            st.balloons()
+        else:
+            st.error(f"😞 You lost against {winner}.")
+    else:
+        st.info("🤝 The duel ended in a draw!")
+
+    # Display final scores
+    cols = st.columns(2)
+    cols[0].metric(f"{player1}'s Final Score", p1_score)
+    cols[1].metric(f"{player2}'s Final Score", p2_score)
+
+    st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
+    st.subheader("Question Breakdown")
+
+    # Loop through and display each question
+    for q in duel_summary.get('questions', []):
+        q_data = q['data']
+        with st.expander(f"**Question {q['index'] + 1}**"):
+            st.markdown(q_data.get("question", ""), unsafe_allow_html=True)
+            st.write(f"**Correct Answer:** {q_data.get('answer')}")
+
+            if q['answered_by']:
+                if q['is_correct']:
+                    st.success(f"✅ Answered correctly by {q['answered_by']}.")
+                else:
+                    st.error(f"❌ Answered incorrectly by {q['answered_by']}.")
+            else:
+                st.info("⚪ This question was not answered by either player.")
+            st.write("---")
+            
+    st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
+
+    # Action buttons: Rematch button is now removed.
+    if st.button("🚪 Back to Lobby", use_container_width=True):
+        st.session_state.pop("current_duel_id", None)
+        st.session_state.page = "math_game_page" 
+        st.rerun()
+# --- FIX: THIS IS THE NEW, OPTIMIZED VERSION OF THE DUEL PAGE ---
 def display_duel_page():
-    """Renders the real-time head-to-head duel screen with corrected logic."""
+    """Renders the real-time head-to-head duel screen with improved loading logic."""
     duel_id = st.session_state.get("current_duel_id")
     if not duel_id:
         st.error("No active duel found.")
@@ -754,21 +778,6 @@ def display_duel_page():
                 st.rerun()
         return  # Exit the function immediately after showing the summary.
 
-    # --- THIS IS THE OPTIMIZATION ---
-    # If questions aren't immediately available, this block runs silently
-    # to ensure they are loaded without a disruptive spinner and extra rerun.
-    if "question" not in duel_state:
-        # Silently ensure questions are generated (acts as a safety net).
-        generate_and_store_duel_questions(duel_id, duel_state["topic"])
-        # Re-fetch the state within the same script run to get the questions.
-        duel_state = get_duel_state(duel_id)
-        # If still no question, show a brief loading message and rerun.
-        if "question" not in duel_state:
-            st.info("Preparing the duel...")
-            st_autorefresh(interval=1000, limit=1, key="duel_start_refresh")
-            return
-    # --- END OF OPTIMIZATION ---
-
     # Header and Score Display (only runs for pending or active duels)
     player1 = duel_state["player1_username"]
     player2 = duel_state["player2_username"]
@@ -778,6 +787,7 @@ def display_duel_page():
     st.header(f"⚔️ Duel: {player1} vs. {player2}")
     st.subheader(f"Topic: {duel_state['topic']}")
 
+    # --- NEW: Live Scoreboard ---
     cols = st.columns(2)
     cols[0].metric(f"{player1}'s Score", p1_score)
     cols[1].metric(f"{player2}'s Score", p2_score)
@@ -786,15 +796,37 @@ def display_duel_page():
     st.progress(current_q_index / 10, text=f"Question {display_q_number}/10")
     st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
 
+    # --- THIS IS THE OPTIMIZATION FOR THE "PREPARING DUEL" BUG ---
+    # If questions aren't immediately available, this block runs silently
+    # to ensure they are loaded without a disruptive spinner and extra rerun.
+    if status == "active" and "question" not in duel_state:
+        # Silently ensure questions are generated (acts as a safety net).
+        generate_and_store_duel_questions(duel_id, duel_state["topic"])
+        # Re-fetch the state within the same script run to get the questions.
+        duel_state = get_duel_state(duel_id)
+        # If still no question, show a brief loading message and rerun ONCE.
+        if "question" not in duel_state:
+            st.info("Preparing the duel...")
+            st_autorefresh(interval=1500, limit=1, key="duel_start_refresh")
+            return
+    # --- END OF OPTIMIZATION ---
+
     # State-Specific Logic for pending or active duels
     if status == "pending":
         st.info(f"⏳ Waiting for {duel_state['player2_username']} to accept your challenge...")
-        st_autorefresh(interval=1000, key="duel_pending_refresh")
+        # FIX: Increased refresh interval for better responsiveness
+        st_autorefresh(interval=2000, key="duel_pending_refresh")
         return
 
     # Normal active flow: Question is displayed
-    q = duel_state["question"]
+    q = duel_state.get("question")
     answered_by = duel_state.get("question_answered_by")
+
+    # This handles the rare case where the question is still not loaded.
+    if not q:
+        st.info("Loading next question...")
+        st_autorefresh(interval=1000, limit=1, key="duel_q_load_refresh")
+        return
 
     st.markdown(q.get("question", ""), unsafe_allow_html=True)
     
@@ -805,13 +837,15 @@ def display_duel_page():
         else:
             st.error(f"❌ {answered_by} answered incorrectly. The answer was {q.get('answer')}.")
         st.info("Waiting for the next question...")
-        st_autorefresh(interval=1000, key="duel_answered_refresh")
+        # FIX: Increased refresh interval for better responsiveness
+        st_autorefresh(interval=2000, key="duel_answered_refresh")
     else:
         with st.form(key=f"duel_form_{current_q_index}"):
             user_choice = st.radio("Select your answer:", q.get("options", []), index=None)
             if st.form_submit_button("Submit Answer", type="primary"):
                 if user_choice is not None:
                     is_correct = (str(user_choice) == str(q.get("answer")))
+                    # The backend function handles the "fastest finger" logic
                     submit_duel_answer(duel_id, st.session_state.username, is_correct)
                     st.rerun()
                 else:
@@ -4309,6 +4343,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
