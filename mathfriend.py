@@ -686,7 +686,6 @@ def submit_duel_answer(duel_id, username, is_correct):
         return True
 
 
-# --- FIX: THIS IS THE NEW VERSION WITH THE REMATCH BUTTON REMOVED ---
 def display_duel_summary_page(duel_summary):
     """Renders the detailed post-duel summary screen."""
     player1 = duel_summary["player1_username"]
@@ -737,7 +736,8 @@ def display_duel_summary_page(duel_summary):
             
     st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
 
-    # Action buttons: Rematch button is now removed.
+    # --- THIS IS THE BACK TO LOBBY CODE ---
+    # The Rematch button and columns have been removed.
     if st.button("🚪 Back to Lobby", use_container_width=True):
         st.session_state.pop("current_duel_id", None)
         st.session_state.page = "math_game_page" 
@@ -4343,6 +4343,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
