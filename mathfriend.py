@@ -531,6 +531,37 @@ def get_active_duel_for_player(username):
         row = conn.execute(query, {"username": username}).mappings().first()
         return dict(row) if row else None
 
+def get_duel_summary(duel_id):
+    """Fetches all data needed for the duel summary page."""
+    with engine.connect() as conn:
+        # First, get the main duel information
+        duel_details_query = text("SELECT * FROM duels WHERE id = :d")
+        duel = conn.execute(duel_details_query, {"d": duel_id}).mappings().first()
+        if not duel:
+            return None
+        
+        summary = dict(duel)
+
+        # Next, get all the questions and answers for that duel
+        duel_questions_query = text("""
+            SELECT question_index, question_data_json, answered_by, is_correct 
+            FROM duel_questions 
+            WHERE duel_id = :d 
+            ORDER BY question_index ASC
+        """)
+        questions = conn.execute(duel_questions_query, {"d": duel_id}).mappings().fetchall()
+        
+        # Parse the JSON data for each question
+        summary['questions'] = [
+            {
+                'index': q['question_index'],
+                'data': json.loads(q['question_data_json']),
+                'answered_by': q['answered_by'],
+                'is_correct': q['is_correct']
+            } for q in questions
+        ]
+        return summary
+
 # Replace your existing accept_duel function with this one.
 def accept_duel(duel_id, topic):
     """Correctly marks a duel as active, then generates and saves questions for BOTH players."""
@@ -4343,6 +4374,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
