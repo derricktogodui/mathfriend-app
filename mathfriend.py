@@ -287,24 +287,25 @@ def get_top_scores(topic, time_filter="all"):
         return result.fetchall()
 
 @st.cache_data(ttl=300) # Cache for 5 minutes
-def get_top_duel_players():
-    """Fetches the top 5 players based on their total duel wins."""
+def get_active_duel_for_player(username):
+    """
+    Return the most-recent active duel for this user.
+    This version is more strict and will NOT find completed duels.
+    """
     with engine.connect() as conn:
         query = text("""
-            WITH wins AS (
-                SELECT player1_username AS username, 1 AS win FROM duels WHERE status = 'player1_win'
-                UNION ALL
-                SELECT player2_username AS username, 1 AS win FROM duels WHERE status = 'player2_win'
-            )
-            SELECT username, SUM(win) as total_wins
-            FROM wins
-            GROUP BY username
-            ORDER BY total_wins DESC
-            LIMIT 5;
+            SELECT id
+            FROM duels
+            WHERE (player1_username = :username OR player2_username = :username)
+              -- THIS IS THE CRUCIAL FIX: The status MUST be 'active'
+              AND status = 'active'
+              AND current_question_index < 10
+              AND last_action_at > NOW() - INTERVAL '5 minutes'
+            ORDER BY last_action_at DESC
+            LIMIT 1;
         """)
-        result = conn.execute(query).mappings().fetchall()
-        return [dict(row) for row in result]
-
+        row = conn.execute(query, {"username": username}).mappings().first()
+        return dict(row) if row else None
 @st.cache_data(ttl=300) # Cache for 5 minutes
 def get_overall_top_scores(time_filter="all"):
     """Fetches the top 10 users based on the sum of all their correct answers."""
@@ -4310,6 +4311,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
