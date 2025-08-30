@@ -415,6 +415,66 @@ def get_performance_over_time():
         result = conn.execute(query).mappings().fetchall()
         return [dict(row) for row in result]
 
+# --- NEW ADVANCED ANALYTICS BACKEND FUNCTIONS ---
+
+def get_topic_performance_summary():
+    """Calculates the overall average accuracy for each topic across all students."""
+    with engine.connect() as conn:
+        query = text("""
+            SELECT 
+                topic, 
+                AVG(CASE WHEN questions_answered > 0 THEN (score * 100.0 / questions_answered) ELSE 0 END) as avg_accuracy,
+                COUNT(*) as times_taken
+            FROM quiz_results
+            GROUP BY topic
+            HAVING COUNT(*) > 2 -- Only include topics taken at least 3 times for statistical significance
+            ORDER BY avg_accuracy DESC;
+        """)
+        result = conn.execute(query).mappings().fetchall()
+        return [dict(row) for row in result]
+
+def get_most_active_students():
+    """Fetches a leaderboard of students who have taken the most quizzes."""
+    with engine.connect() as conn:
+        query = text("""
+            SELECT username, COUNT(*) as quiz_count
+            FROM quiz_results
+            GROUP BY username
+            ORDER BY quiz_count DESC
+            LIMIT 10;
+        """)
+        result = conn.execute(query).mappings().fetchall()
+        return [dict(row) for row in result]
+
+def get_daily_activity():
+    """Fetches the number of quizzes taken each day."""
+    with engine.connect() as conn:
+        query = text("""
+            SELECT 
+                DATE_TRUNC('day', timestamp)::date as date, 
+                COUNT(*) as quiz_count
+            FROM quiz_results
+            GROUP BY DATE_TRUNC('day', timestamp)
+            ORDER BY date ASC;
+        """)
+        result = conn.execute(query).mappings().fetchall()
+        return [dict(row) for row in result]
+
+def get_duel_topic_popularity():
+    """Fetches the count of duels played per topic."""
+    with engine.connect() as conn:
+        query = text("""
+            SELECT topic, COUNT(*) as duel_count
+            FROM duels
+            WHERE status != 'pending'
+            GROUP BY topic
+            ORDER BY duel_count DESC;
+        """)
+        result = conn.execute(query).mappings().fetchall()
+        return [dict(row) for row in result]
+
+# --- END OF ADVANCED ANALYTICS FUNCTIONS ---
+
 # --- END OF ANALYTICS FUNCTIONS ---
 
 # --- END OF CHALLENGE ADMIN FUNCTIONS ---
@@ -4536,18 +4596,16 @@ def display_profile_page():
 def display_admin_panel():
     st.title("⚙️ Admin Panel: Mission Control")
 
-    # Added a new tab for Analytics
     tab1, tab2, tab3, tab4 = st.tabs(["📊 User Management", "🎯 Daily Challenges", "🎮 Game Management", "📈 Analytics"])
 
     with tab1:
+        # This tab code remains the same
         st.subheader("User Overview")
-        
         all_users = get_all_users_summary()
         if not all_users:
             st.info("No users have registered yet.")
         else:
             df = pd.DataFrame(all_users)
-            # Safely format the 'last_seen' column
             if 'last_seen' in df.columns and not df['last_seen'].isnull().all():
                 df['last_seen'] = pd.to_datetime(df['last_seen']).dt.strftime('%Y-%m-%d %H:%M')
             df.rename(columns={
@@ -4555,19 +4613,14 @@ def display_admin_panel():
                 'school': 'School', 'quizzes_taken': 'Quizzes Taken', 'last_seen': 'Last Seen'
             }, inplace=True)
             st.dataframe(df, use_container_width=True)
-
         st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
         st.subheader("🏆 Manually Award an Achievement")
-
         with st.form("award_achievement_form", clear_on_submit=True):
             user_list = [user['username'] for user in all_users]
             selected_user = st.selectbox("Select User", user_list)
-            
             all_achievements = get_all_achievements()
             selected_achievement = st.selectbox("Select Achievement to Award", all_achievements)
-            
             badge_icon = st.text_input("Badge Icon (e.g., 🌟, 💡, 🏅)", value="🏅")
-
             if st.form_submit_button("Award Badge", type="primary"):
                 if selected_user and selected_achievement:
                     success = award_achievement_to_user(selected_user, selected_achievement, badge_icon)
@@ -4579,8 +4632,8 @@ def display_admin_panel():
                     st.error("Please select a user and an achievement.")
 
     with tab2:
+        # This tab code remains the same
         st.subheader("Manage Daily Challenges")
-        # ... (This tab is already built) ...
         st.info("Here you can control the pool of challenges that are randomly assigned to students each day.")
         st.markdown("---")
         st.subheader("Add New Challenge")
@@ -4588,7 +4641,6 @@ def display_admin_panel():
             new_desc = st.text_input("Challenge Description", placeholder="e.g., Correctly answer 5 Algebra questions.")
             new_topic = st.text_input("Topic Name (must match exactly, e.g., Algebra Basics)", placeholder="e.g., Algebra Basics or Any")
             new_target = st.number_input("Target Count", min_value=1, value=5)
-
             if st.form_submit_button("Add Challenge", type="primary"):
                 if new_desc and new_topic and new_target:
                     add_new_challenge(new_desc, new_topic, new_target)
@@ -4596,10 +4648,8 @@ def display_admin_panel():
                     st.rerun()
                 else:
                     st.error("All fields are required.")
-        
         st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
         st.subheader("Existing Challenges")
-
         all_challenges = get_all_challenges_admin()
         if not all_challenges:
             st.warning("No challenges found in the database.")
@@ -4609,27 +4659,24 @@ def display_admin_panel():
                     st.markdown(f"**ID: {challenge['id']}** | **Topic:** `{challenge['topic']}`")
                     st.markdown(challenge['description'])
                     st.markdown(f"**Target:** {challenge['target_count']}")
-
                     with st.expander("Edit this challenge"):
                         with st.form(key=f"edit_form_{challenge['id']}"):
                             edit_desc = st.text_input("Description", value=challenge['description'], key=f"desc_{challenge['id']}")
                             edit_topic = st.text_input("Topic", value=challenge['topic'], key=f"topic_{challenge['id']}")
                             edit_target = st.number_input("Target", value=challenge['target_count'], min_value=1, key=f"target_{challenge['id']}")
-                            
                             c1, c2 = st.columns([3, 1])
                             if c1.form_submit_button("Save Changes"):
                                 update_challenge(challenge['id'], edit_desc, edit_topic, edit_target)
                                 st.success(f"Challenge {challenge['id']} updated!")
                                 st.rerun()
-                            
                             if c2.form_submit_button("Delete", type="secondary"):
                                 delete_challenge(challenge['id'])
                                 st.success(f"Challenge {challenge['id']} deleted!")
                                 st.rerun()
 
     with tab3:
+        # This tab code remains the same
         st.subheader("Manage Active Duels")
-        # ... (This tab is already built) ...
         st.info("This panel shows all duels currently in progress. If a game appears to be stuck, you can use the 'Force End Duel' button to resolve it.")
         active_duels = get_all_active_duels_admin()
         if not active_duels:
@@ -4643,50 +4690,70 @@ def display_admin_panel():
                     st.markdown(f"**Duel ID:** `{duel['id']}` | **Topic:** `{duel['topic']}`")
                     st.markdown(f"**Players:** `{p1}` (Score: {score1}) vs. `{p2}` (Score: {score2})")
                     st.caption(f"Last Action: {duel['last_action_at'].strftime('%Y-%m-%d %H:%M:%S')}")
-
                     if st.button("🔴 Force End Duel", key=f"end_duel_{duel['id']}", use_container_width=True):
                         force_end_duel_admin(duel['id'])
                         st.success(f"Duel ID {duel['id']} has been ended.")
                         st.rerun()
 
-    # --- THIS IS THE NEW ANALYTICS TAB ---
+    # --- THIS IS THE NEW, FULLY BUILT-OUT ANALYTICS TAB ---
     with tab4:
         st.subheader("App Analytics & Insights")
-
-        # Display Key Metrics
         kpis = get_admin_kpis()
         c1, c2, c3 = st.columns(3)
         c1.metric("Total Users", kpis.get("total_users", 0))
         c2.metric("Total Quizzes Taken", kpis.get("total_quizzes", 0))
         c3.metric("Total Duels Played", kpis.get("total_duels", 0))
+        
+        st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
+        
+        st.subheader("Topic Performance Analysis")
+        topic_perf_data = get_topic_performance_summary()
+        if not topic_perf_data:
+            st.info("Not enough quiz data yet to analyze topic performance.")
+        else:
+            df_perf = pd.DataFrame(topic_perf_data)
+            df_perf['avg_accuracy'] = df_perf['avg_accuracy'].round(1)
+            
+            c1, c2 = st.columns(2)
+            with c1:
+                st.write("🧠 **Strongest Topics** (Highest Accuracy)")
+                st.dataframe(df_perf.head(5).rename(columns={'topic': 'Topic', 'avg_accuracy': 'Accuracy %', 'times_taken': 'Times Taken'}), use_container_width=True)
+            with c2:
+                st.write("🤔 **Weakest Topics** (Lowest Accuracy)")
+                st.dataframe(df_perf.tail(5).sort_values(by='avg_accuracy', ascending=True).rename(columns={'topic': 'Topic', 'avg_accuracy': 'Accuracy %', 'times_taken': 'Times Taken'}), use_container_width=True)
 
         st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
 
-        # Display Topic Popularity
-        st.subheader("Quiz Topic Popularity")
-        topic_data = get_topic_popularity()
-        if not topic_data:
-            st.info("No quizzes have been taken yet.")
-        else:
-            df_topics = pd.DataFrame(topic_data)
-            fig_topics = px.bar(df_topics, x="quizzes_taken", y="topic", orientation='h',
-                                title="Most Popular Quiz Topics", labels={'quizzes_taken': 'Number of Quizzes Taken', 'topic': 'Topic'})
-            fig_topics.update_layout(yaxis={'categoryorder':'total ascending'})
-            st.plotly_chart(fig_topics, use_container_width=True)
+        st.subheader("Activity & Engagement")
+        c1, c2 = st.columns(2)
+        with c1:
+            st.write("📅 **Overall App Activity** (Quizzes per Day)")
+            activity_data = get_daily_activity()
+            if activity_data:
+                df_activity = pd.DataFrame(activity_data)
+                fig_activity = px.bar(df_activity, x="date", y="quiz_count", title="Quizzes Taken Per Day")
+                st.plotly_chart(fig_activity, use_container_width=True)
+            else:
+                st.info("No daily activity to display yet.")
+        
+        with c2:
+            st.write("⚔️ **Most Popular Duel Topics**")
+            duel_pop_data = get_duel_topic_popularity()
+            if duel_pop_data:
+                df_duel_pop = pd.DataFrame(duel_pop_data)
+                fig_duel_pop = px.pie(df_duel_pop, names="topic", values="duel_count", title="Duel Topic Distribution")
+                st.plotly_chart(fig_duel_pop, use_container_width=True)
+            else:
+                st.info("No duels have been played yet.")
 
         st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
-
-        # Display Performance Over Time
-        st.subheader("Average Performance Over Time")
-        perf_data = get_performance_over_time()
-        if not perf_data:
-            st.info("No quiz data available to show performance trends.")
+        st.subheader("🏆 Top 10 Most Active Students")
+        active_student_data = get_most_active_students()
+        if active_student_data:
+            df_active = pd.DataFrame(active_student_data)
+            st.dataframe(df_active.rename(columns={'username': 'Username', 'quiz_count': 'Total Quizzes Taken'}), use_container_width=True)
         else:
-            df_perf = pd.DataFrame(perf_data)
-            df_perf['date'] = pd.to_datetime(df_perf['date'])
-            fig_perf = px.line(df_perf, x="date", y="average_accuracy", markers=True,
-                               title="Average Quiz Accuracy Per Day", labels={'date': 'Date', 'average_accuracy': 'Average Accuracy (%)'})
-            st.plotly_chart(fig_perf, use_container_width=True)
+            st.info("No student activity to rank yet.")
 # Replace your existing show_main_app function with this one.
 
 def show_main_app():
@@ -4840,6 +4907,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
