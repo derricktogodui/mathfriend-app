@@ -592,38 +592,9 @@ def reset_user_password_admin(username, new_password):
         conn.execute(query, {"username": username, "password": hashed_password})
         conn.commit()
 
-# --- NEW ADMIN BACKEND FUNCTIONS FOR CHAT MODERATION ---
+# --- END OF NEW USER ACTION FUNCTIONS ---
 
-def get_latest_messages_admin(limit=50):
-    """Fetches the latest messages from the main chat channel for moderation."""
-    try:
-        channel = chat_client.channel("messaging", "mathfriend-blackboard")
-        response = channel.query(messages={"limit": limit})
-        return response['messages']
-    except Exception as e:
-        st.error(f"Could not fetch chat messages: {e}")
-        return []
-
-def delete_message_admin(message_id):
-    """Deletes a specific chat message using its ID."""
-    try:
-        chat_client.delete_message(message_id, hard=True) # hard=True means permanent deletion
-        return True
-    except Exception as e:
-        st.error(f"Failed to delete message: {e}")
-        return False
-
-def ban_user_from_channel_admin(username_to_ban, banned_by_username):
-    """Bans a user from the main chat channel."""
-    try:
-        channel = chat_client.channel("messaging", "mathfriend-blackboard")
-        channel.ban_user(username_to_ban, user_id=banned_by_username, reason="Moderator action from admin panel.")
-        return True
-    except Exception as e:
-        st.error(f"Failed to ban user: {e}")
-        return False
-
-# --- END OF CHAT MODERATION FUNCTIONS ---
+# --- END OF PRACTICE QUESTION FUNCTIONS ---
 
 def update_user_profile(username, full_name, school, age, bio):
     with engine.connect() as conn:
@@ -5081,38 +5052,6 @@ def display_admin_panel():
             st.dataframe(df_active.rename(columns={'username': 'Username', 'quiz_count': 'Total Quizzes Taken'}), use_container_width=True)
         else:
             st.info("No student activity to rank yet.")
-    # --- TAB 7: CHAT MODERATION ---
-    with tabs[6]:
-        st.subheader("💬 Chat Moderation")
-        st.info("View the latest messages from the public Blackboard. You can delete individual messages or ban users from the channel.")
-        latest_messages = get_latest_messages_admin(limit=100)
-        if not latest_messages:
-            st.success("✅ No recent messages to display.")
-        else:
-            for msg in latest_messages:
-                with st.container(border=True):
-                    author = msg.get('user', {}).get('id', 'Unknown User')
-                    timestamp = msg.get('created_at', 'No time').strftime('%Y-%m-%d %H:%M') if isinstance(msg.get('created_at'), datetime) else 'N/A'
-                    st.markdown(f"**{author}** at `{timestamp}`:")
-                    st.markdown(f"> {msg.get('text')}")
-                    c1, c2 = st.columns(2)
-                    with c1:
-                        delete_popover = st.popover("Delete Message", use_container_width=True, key=f"del_pop_{msg.get('id')}")
-                        with delete_popover:
-                            st.warning("Are you sure you want to permanently delete this message?")
-                            if st.button("Confirm Delete", key=f"del_msg_{msg.get('id')}", type="primary"):
-                                if delete_message_admin(msg.get('id')):
-                                    st.success("Message deleted.")
-                                    st.rerun()
-                    with c2:
-                        ban_popover = st.popover("Ban User", use_container_width=True, key=f"ban_pop_{msg.get('id')}")
-                        with ban_popover:
-                            st.warning(f"Are you sure you want to ban **{author}** from the Blackboard chat?")
-                            if st.button("Confirm Ban", key=f"ban_user_{author}_{msg.get('id')}", type="primary"):
-                                if ban_user_from_channel_admin(author, st.session_state.username):
-                                    st.success(f"User {author} has been banned from the channel.")
-                                    st.rerun()
-
 # Replace your existing show_main_app function with this one.
 
 def show_main_app():
@@ -5266,8 +5205,6 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
-
-
 
 
 
