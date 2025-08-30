@@ -306,6 +306,50 @@ def award_achievement_to_user(username, achievement_name, badge_icon):
             return True # Indicates success
         return False # Indicates user already had it
 
+# --- NEW ADMIN BACKEND FUNCTIONS FOR CHALLENGES ---
+
+def get_all_challenges_admin():
+    """Fetches all daily challenges from the database for the admin panel."""
+    with engine.connect() as conn:
+        query = text("SELECT id, description, topic, target_count FROM daily_challenges ORDER BY id ASC")
+        result = conn.execute(query).mappings().fetchall()
+        return [dict(row) for row in result]
+
+def add_new_challenge(description, topic, target_count):
+    """Adds a new daily challenge to the database."""
+    with engine.connect() as conn:
+        query = text("""
+            INSERT INTO daily_challenges (description, topic, target_count)
+            VALUES (:desc, :topic, :target)
+        """)
+        conn.execute(query, {"desc": description, "topic": topic, "target": target_count})
+        conn.commit()
+
+def update_challenge(challenge_id, description, topic, target_count):
+    """Updates an existing daily challenge."""
+    with engine.connect() as conn:
+        query = text("""
+            UPDATE daily_challenges
+            SET description = :desc, topic = :topic, target_count = :target
+            WHERE id = :id
+        """)
+        conn.execute(query, {
+            "id": challenge_id,
+            "desc": description,
+            "topic": topic,
+            "target": target_count
+        })
+        conn.commit()
+
+def delete_challenge(challenge_id):
+    """Deletes a daily challenge from the database."""
+    with engine.connect() as conn:
+        query = text("DELETE FROM daily_challenges WHERE id = :id")
+        conn.execute(query, {"id": challenge_id})
+        conn.commit()
+
+# --- END OF CHALLENGE ADMIN FUNCTIONS ---
+
 def update_user_profile(username, full_name, school, age, bio):
     with engine.connect() as conn:
         query = text("""
@@ -4470,7 +4514,55 @@ def display_admin_panel():
 
     with tab2:
         st.subheader("Manage Daily Challenges")
-        st.info("Feature coming soon: Add, edit, and delete daily challenges.")
+
+        st.info("""
+        Here you can control the pool of challenges that are randomly assigned to students each day.
+        """)
+
+        st.markdown("---")
+        st.subheader("Add New Challenge")
+        with st.form("new_challenge_form", clear_on_submit=True):
+            new_desc = st.text_input("Challenge Description", placeholder="e.g., Correctly answer 5 Algebra questions.")
+            new_topic = st.text_input("Topic Name (must match exactly, e.g., Algebra Basics)", placeholder="e.g., Algebra Basics or Any")
+            new_target = st.number_input("Target Count", min_value=1, value=5)
+
+            if st.form_submit_button("Add Challenge", type="primary"):
+                if new_desc and new_topic and new_target:
+                    add_new_challenge(new_desc, new_topic, new_target)
+                    st.success("New challenge added!")
+                    st.rerun()
+                else:
+                    st.error("All fields are required.")
+        
+        st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
+        st.subheader("Existing Challenges")
+
+        all_challenges = get_all_challenges_admin()
+        if not all_challenges:
+            st.warning("No challenges found in the database.")
+        else:
+            for challenge in all_challenges:
+                with st.container(border=True):
+                    st.markdown(f"**ID: {challenge['id']}** | **Topic:** `{challenge['topic']}`")
+                    st.markdown(challenge['description'])
+                    st.markdown(f"**Target:** {challenge['target_count']}")
+
+                    with st.expander("Edit this challenge"):
+                        with st.form(key=f"edit_form_{challenge['id']}"):
+                            edit_desc = st.text_input("Description", value=challenge['description'], key=f"desc_{challenge['id']}")
+                            edit_topic = st.text_input("Topic", value=challenge['topic'], key=f"topic_{challenge['id']}")
+                            edit_target = st.number_input("Target", value=challenge['target_count'], min_value=1, key=f"target_{challenge['id']}")
+                            
+                            c1, c2 = st.columns([3, 1])
+                            if c1.form_submit_button("Save Changes"):
+                                update_challenge(challenge['id'], edit_desc, edit_topic, edit_target)
+                                st.success(f"Challenge {challenge['id']} updated!")
+                                st.rerun()
+                            
+                            if c2.form_submit_button("Delete", type="secondary"):
+                                delete_challenge(challenge['id'])
+                                st.success(f"Challenge {challenge['id']} deleted!")
+                                st.rerun()
 
     with tab3:
         st.subheader("Manage Active Games")
@@ -4629,6 +4721,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
