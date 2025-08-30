@@ -4019,6 +4019,75 @@ def display_learning_resources(topic_options):
         - **Simplifying:** Find the largest perfect square factor. Example: $\\sqrt{50} = \\sqrt{25 \\times 2} = \\sqrt{25} \\times \\sqrt{2} = 5\\sqrt{2}$.
         - **Operations:** You can only add or subtract 'like' surds. Example: $4\\sqrt{3} + 2\\sqrt{3} = 6\\sqrt{3}$.
         - **Rationalizing the Denominator:** To remove a surd from the denominator, multiply the numerator and denominator by the conjugate. The conjugate of $(a + \\sqrt{b})$ is $(a - \\sqrt{b})$.
+
+        ---
+        
+        ### 📄 Downloadable PDF
+        * **[Download PDF: Comprehensive Guide to Surds](https://github.com/derricktogodui/mathfriend-app/releases/download/Learning_Resources/Surds.pdf)**
+        
+        <br>
+
+        ### 🎥 Video Tutorials
+        
+        #### Simplifying and Operating with Surds
+        <table>
+          <tr>
+            <td>
+              <a href="https://www.youtube.com/watch?v=wzAotwNPhm8" target="_blank">
+                <img src="https://img.youtube.com/vi/wzAotwNPhm8/0.jpg" alt="Introduction to Surds" width="240">
+              </a>
+            </td>
+            <td>
+              <a href="https://www.youtube.com/watch?v=I_Mys8RNt30" target="_blank">
+                <img src="https://img.youtube.com/vi/I_Mys8RNt30/0.jpg" alt="Adding and Subtracting Surds" width="240">
+              </a>
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <a href="https://www.youtube.com/watch?v=TN0n3yNj6do" target="_blank">
+                <img src="https://img.youtube.com/vi/TN0n3yNj6do/0.jpg" alt="Multiplying Surds" width="240">
+              </a>
+            </td>
+            <td>
+              <a href="https://www.youtube.com/watch?v=-5Z0xfYr0yE" target="_blank">
+                <img src="https://img.youtube.com/vi/-5Z0xfYr0yE/0.jpg" alt="Dividing and Rationalizing Surds" width="240">
+              </a>
+            </td>
+          </tr>
+           <tr>
+            <td>
+              <a href="https://www.youtube.com/watch?v=auYQ38gjJzk" target="_blank">
+                <img src="https://img.youtube.com/vi/auYQ38gjJzk/0.jpg" alt="Expanding Brackets with Surds" width="240">
+              </a>
+            </td>
+          </tr>
+        </table>
+
+        <br>
+        
+        #### Solving Radical Equations
+        <table>
+          <tr>
+            <td>
+              <a href="https://www.youtube.com/watch?v=g3rzuggIgIw" target="_blank">
+                <img src="https://img.youtube.com/vi/g3rzuggIgIw/0.jpg" alt="Solving Basic Radical Equations" width="240">
+              </a>
+            </td>
+            <td>
+              <a href="https://www.youtube.com/watch?v=lYwsQxNfkSA" target="_blank">
+                <img src="https://img.youtube.com/vi/lYwsQxNfkSA/0.jpg" alt="Equations with Two Square Roots" width="240">
+              </a>
+            </td>
+          </tr>
+           <tr>
+            <td>
+              <a href="https://www.youtube.com/watch?v=c0jONsjJ_eU" target="_blank">
+                <img src="https://img.youtube.com/vi/c0jONsjJ_eU/0.jpg" alt="Checking for Extraneous Solutions" width="240">
+              </a>
+            </td>
+          </tr>
+        </table>
         """,
         "Binary Operations": """
         A **binary operation** ($\\ast$) on a set is a rule for combining any two elements of the set to produce another element.
@@ -4340,6 +4409,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
