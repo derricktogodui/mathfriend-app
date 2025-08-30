@@ -201,7 +201,7 @@ def create_and_verify_tables():
         print("Database tables created or verified successfully, including corrected Duel tables.")
     except Exception as e:
         st.error(f"Database setup error: {e}")
-create_and_verify_tables()
+#create_and_verify_tables()
 
 
 # --- Core Backend Functions (PostgreSQL) ---
@@ -5183,6 +5183,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
