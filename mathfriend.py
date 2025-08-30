@@ -3954,14 +3954,39 @@ def display_learning_resources(topic_options):
           $$ |A \\cup B| = |A| + |B| - |A \\cap B| $$
         
         ---
-        **Additional Resources for Sets:**
+        
+        ### 📄 Downloadable PDF
         * **[Download PDF: Comprehensive Guide to Sets](https://github.com/derricktogodui/mathfriend-app/releases/download/Learning_Resources/Sets.pdf)**
         
-        * **Watch Video Explanations:**
-            [![Math Antics - Basic Set Theory](https://img.youtube.com/vi/WHfef-NghN8/0.jpg)](https://www.youtube.com/watch?v=WHfef-NghN8)
-            [![Set Theory - All you need to know](https://img.youtube.com/vi/5ZhNmKb-dqk/0.jpg)](https://www.youtube.com/watch?v=5ZhNmKb-dqk)
-            [![Introduction to Set Theory (WASSCE)](https://img.youtube.com/vi/xZELQc11ACY/0.jpg)](https://www.youtube.com/watch?v=xZELQc11ACY)
-            [![Set Theory - The Ultimate Revision Guide](https://img.youtube.com/vi/09c7OxBF0i4/0.jpg)](https://www.youtube.com/watch?v=09c7OxBF0i4)
+        <br>
+
+        ### 🎥 Video Tutorials
+        <table>
+          <tr>
+            <td>
+              <a href="https://www.youtube.com/watch?v=WHfef-NghN8" target="_blank">
+                <img src="https://img.youtube.com/vi/WHfef-NghN8/0.jpg" alt="Math Antics - Basic Set Theory" width="240">
+              </a>
+            </td>
+            <td>
+              <a href="https://www.youtube.com/watch?v=5ZhNmKb-dqk" target="_blank">
+                <img src="https://img.youtube.com/vi/5ZhNmKb-dqk/0.jpg" alt="Set Theory - All you need to know" width="240">
+              </a>
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <a href="https://www.youtube.com/watch?v=xZELQc11ACY" target="_blank">
+                <img src="https://img.youtube.com/vi/xZELQc11ACY/0.jpg" alt="Introduction to Set Theory (WASSCE)" width="240">
+              </a>
+            </td>
+            <td>
+              <a href="https://www.youtube.com/watch?v=09c7OxBF0i4" target="_blank">
+                <img src="https://img.youtube.com/vi/09c7OxBF0i4/0.jpg" alt="Set Theory - The Ultimate Revision Guide" width="240">
+              </a>
+            </td>
+          </tr>
+        </table>
         """,
         "Percentages": """
         A **percentage** is a number or ratio expressed as a fraction of 100.
@@ -4315,6 +4340,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
