@@ -4364,21 +4364,6 @@ def display_profile_page():
 
 def show_main_app():
     load_css()
-    # --- TEMPORARY ADMIN PROMOTION SCRIPT (REMOVE AFTER ONE USE) ---
-    if st.session_state.username == 'AdminTeacher': # <-- CHANGE HERE
-        try:
-            with engine.connect() as conn:
-                role_query = text("SELECT role FROM public.users WHERE username = 'AdminTeacher'") # <-- CHANGE HERE
-                current_role = conn.execute(role_query).scalar_one_or_none()
-                if current_role != 'admin':
-                    update_query = text("UPDATE public.users SET role = 'admin' WHERE username = 'AdminTeacher'") # <-- CHANGE HERE
-                    conn.execute(update_query)
-                    conn.commit()
-                    st.toast("Admin promotion successful! Please remove the temporary code.", icon="🎉")
-                    st.rerun()
-        except Exception as e:
-            st.error(f"An error occurred during admin promotion: {e}")
-    # --- END OF TEMPORARY SCRIPT ---
     
     if st.session_state.get('challenge_completed_toast', False):
         st.toast("🎉 Daily Challenge Completed! Great job!", icon="🎉")
@@ -4524,6 +4509,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
