@@ -4095,6 +4095,81 @@ def display_learning_resources(topic_options):
         - **Associative Property:** The operation is associative if $(a \\ast b) \\ast c = a \\ast (b \\ast c)$.
         - **Identity Element (e):** An element such that $a \\ast e = e \\ast a = a$.
         - **Inverse Element ($a^{-1}$):** An element such that $a \\ast a^{-1} = a^{-1} \\ast a = e$.
+        
+        ---
+        
+        ### 📄 Downloadable PDF
+        * **[Download PDF: Guide to Binary Operations](https://github.com/derricktogodui/mathfriend-app/releases/download/Learning_Resources/Binary.Operations.pdf)**
+        
+        <br>
+
+        ### 🎥 Video Tutorials
+
+        #### Introduction and Evaluation
+        <table>
+          <tr>
+            <td>
+              <a href="https://www.youtube.com/watch?v=vuiQ0fJRD8I" target="_blank">
+                <img src="https://img.youtube.com/vi/vuiQ0fJRD8I/0.jpg" alt="Intro to Binary Operations" width="240">
+              </a>
+            </td>
+            <td>
+              <a href="https://www.youtube.com/watch?v=ZhgWAJs3cZY" target="_blank">
+                <img src="https://img.youtube.com/vi/ZhgWAJs3cZY/0.jpg" alt="Evaluating Expressions" width="240">
+              </a>
+            </td>
+          </tr>
+        </table>
+
+        <br>
+
+        #### Properties of Binary Operations
+        <table>
+          <tr>
+            <td>
+              <a href="https://www.youtube.com/watch?v=-YnvSDdy_Hs" target="_blank">
+                <img src="https://img.youtube.com/vi/-YnvSDdy_Hs/0.jpg" alt="Commutative & Associative Properties" width="240">
+              </a>
+            </td>
+            <td>
+              <a href="https://www.youtube.com/watch?v=I6VzJ46yj0M" target="_blank">
+                <img src="https://img.youtube.com/vi/I6VzJ46yj0M/0.jpg" alt="Identity and Inverse Elements" width="240">
+              </a>
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <a href="https://www.youtube.com/watch?v=kl6mikVeY3Y" target="_blank">
+                <img src="https://img.youtube.com/vi/kl6mikVeY3Y/0.jpg" alt="Closure Property" width="240">
+              </a>
+            </td>
+          </tr>
+        </table>
+        
+        <br>
+
+        #### Solving Problems
+        <table>
+          <tr>
+            <td>
+              <a href="https://www.youtube.com/watch?v=Zd3_54eFkKc" target="_blank">
+                <img src="https://img.youtube.com/vi/Zd3_54eFkKc/0.jpg" alt="Solving for Unknowns" width="240">
+              </a>
+            </td>
+            <td>
+              <a href="https://www.youtube.com/watch?v=zvVUIxKJGC0" target="_blank">
+                <img src="https://img.youtube.com/vi/zvVUIxKJGC0/0.jpg" alt="Using Cayley Tables" width="240">
+              </a>
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <a href="https://youtu.be/061HMnF5Fls" target="_blank">
+                <img src="https://img.youtube.com/vi/061HMnF5Fls/0.jpg" alt="WASSCE Past Questions" width="240">
+              </a>
+            </td>
+          </tr>
+        </table>
         """,
         "Relations and Functions": """
         - **Relation:** A set of ordered pairs $(x, y)$.
@@ -4409,6 +4484,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
