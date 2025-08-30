@@ -4358,20 +4358,17 @@ def display_profile_page():
 def show_main_app():
     load_css()
     # --- TEMPORARY ADMIN PROMOTION SCRIPT (REMOVE AFTER ONE USE) ---
-    # This code will run once to fix the 'Teacher' account.
-    if st.session_state.username == 'Teacher':
+    if st.session_state.username == 'AdminTeacher': # <-- CHANGE HERE
         try:
             with engine.connect() as conn:
-                # Check if the role is already admin to prevent re-running
-                role_query = text("SELECT role FROM public.users WHERE username = 'Teacher'")
+                role_query = text("SELECT role FROM public.users WHERE username = 'AdminTeacher'") # <-- CHANGE HERE
                 current_role = conn.execute(role_query).scalar_one_or_none()
-
                 if current_role != 'admin':
-                    update_query = text("UPDATE public.users SET role = 'admin' WHERE username = 'Teacher'")
+                    update_query = text("UPDATE public.users SET role = 'admin' WHERE username = 'AdminTeacher'") # <-- CHANGE HERE
                     conn.execute(update_query)
                     conn.commit()
                     st.toast("Admin promotion successful! Please remove the temporary code.", icon="🎉")
-                    st.rerun() # Rerun to apply changes immediately
+                    st.rerun()
         except Exception as e:
             st.error(f"An error occurred during admin promotion: {e}")
     # --- END OF TEMPORARY SCRIPT ---
@@ -4515,6 +4512,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
