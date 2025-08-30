@@ -89,21 +89,6 @@ def create_and_verify_tables():
             conn.execute(text('''CREATE TABLE IF NOT EXISTS user_status
                          (username TEXT PRIMARY KEY, is_online BOOLEAN, last_seen TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP)'''))
             
-            # --- INSIDE create_and_verify_tables() ---
-            
-            conn.execute(text('''CREATE TABLE IF NOT EXISTS user_achievements (
-                                ...
-                            )'''))
-            
-            # --- ADD THIS NEW TABLE (if it's not already there) ---
-            conn.execute(text('''CREATE TABLE IF NOT EXISTS app_config (
-                                config_key TEXT PRIMARY KEY,
-                                config_value TEXT
-                            )'''))
-            # --- END OF NEW TABLE ---
-
-            conn.execute(text('''CREATE TABLE IF NOT EXISTS learning_resources (
-                                ...
             # --- Daily Challenge Tables ONLY ---
             conn.execute(text('''CREATE TABLE IF NOT EXISTS daily_challenges (
                                 id SERIAL PRIMARY KEY,
@@ -135,23 +120,18 @@ def create_and_verify_tables():
                                 badge_icon TEXT,
                                 unlocked_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
                             )'''))
+
+            # --- NEW TABLE FOR APP-WIDE SETTINGS LIKE ANNOUNCEMENTS ---
+            conn.execute(text('''CREATE TABLE IF NOT EXISTS app_config (
+                                config_key TEXT PRIMARY KEY,
+                                config_value TEXT
+                            )'''))
+            # --- END OF NEW TABLE ---
             
             conn.execute(text('''CREATE TABLE IF NOT EXISTS learning_resources (
                                 topic TEXT PRIMARY KEY,
                                 content TEXT
                             )'''))
-            
-            # --- NEW TABLE FOR PRACTICE QUESTIONS (THIS WAS MISSING) ---
-            conn.execute(text('''CREATE TABLE IF NOT EXISTS daily_practice_questions (
-                                id SERIAL PRIMARY KEY,
-                                topic TEXT NOT NULL,
-                                question_text TEXT NOT NULL,
-                                answer_text TEXT NOT NULL,
-                                explanation_text TEXT,
-                                is_active BOOLEAN DEFAULT TRUE,
-                                created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-                            )'''))
-            # --- END OF NEW TABLE ---
 
             # --- CORRECTED Head-to-Head Duel Tables ---
             conn.execute(text('''
@@ -181,9 +161,8 @@ def create_and_verify_tables():
                     UNIQUE(duel_id, question_index)
                 )
             '''))
-
+            
             # --- Populate daily_challenges if it's empty ---
-            # ... (The rest of the function is unchanged)
             result = conn.execute(text("SELECT COUNT(*) FROM daily_challenges")).scalar_one()
             if result == 0:
                 print("Populating daily_challenges table for the first time.")
@@ -5019,6 +4998,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
