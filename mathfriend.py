@@ -4420,6 +4420,62 @@ def display_profile_page():
             elif change_password(st.session_state.username, current_password, new_password): st.success("Password changed successfully!")
             else: st.error("Incorrect current password")
 
+def display_admin_panel():
+    st.title("⚙️ Admin Panel: Mission Control")
+
+    tab1, tab2, tab3 = st.tabs(["📊 User Management", "🎯 Daily Challenges", "🎮 Game Management"])
+
+    with tab1:
+        st.subheader("User Overview")
+        
+        all_users = get_all_users_summary()
+        if not all_users:
+            st.info("No users have registered yet.")
+        else:
+            # Convert to DataFrame for better display
+            df = pd.DataFrame(all_users)
+            df['last_seen'] = pd.to_datetime(df['last_seen']).dt.strftime('%Y-%m-%d %H:%M')
+            df.rename(columns={
+                'username': 'Username',
+                'role': 'Role',
+                'full_name': 'Full Name',
+                'school': 'School',
+                'quizzes_taken': 'Quizzes Taken',
+                'last_seen': 'Last Seen'
+            }, inplace=True)
+            st.dataframe(df, use_container_width=True)
+
+        st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
+        st.subheader("🏆 Manually Award an Achievement")
+
+        with st.form("award_achievement_form", clear_on_submit=True):
+            user_list = [user['username'] for user in all_users]
+            selected_user = st.selectbox("Select User", user_list)
+            
+            all_achievements = get_all_achievements()
+            selected_achievement = st.selectbox("Select Achievement to Award", all_achievements)
+            
+            # A simple way to assign an icon
+            badge_icon = st.text_input("Badge Icon (e.g., 🌟, 💡, 🏅)", value="🏅")
+
+            if st.form_submit_button("Award Badge", type="primary"):
+                if selected_user and selected_achievement:
+                    success = award_achievement_to_user(selected_user, selected_achievement, badge_icon)
+                    if success:
+                        st.success(f"Successfully awarded '{selected_achievement}' to {selected_user}!")
+                    else:
+                        st.warning(f"{selected_user} already has the '{selected_achievement}' badge.")
+                else:
+                    st.error("Please select a user and an achievement.")
+
+    with tab2:
+        st.subheader("Manage Daily Challenges")
+        st.info("Feature coming soon: Add, edit, and delete daily challenges.")
+
+    with tab3:
+        st.subheader("Manage Active Games")
+        st.info("Feature coming soon: View and force-end stuck duels.")
+
 # Replace your existing show_main_app function with this one.
 
 def show_main_app():
@@ -4569,6 +4625,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
