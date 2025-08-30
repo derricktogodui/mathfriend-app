@@ -239,6 +239,13 @@ def get_user_profile(username):
         profile = result.mappings().first()
         return dict(profile) if profile else None
 
+def get_user_role(username):
+    """Fetches the role of a user from the database."""
+    with engine.connect() as conn:
+        query = text("SELECT role FROM public.users WHERE username = :username")
+        result = conn.execute(query, {"username": username}).scalar_one_or_none()
+        return result
+
 def update_user_profile(username, full_name, school, age, bio):
     with engine.connect() as conn:
         query = text("""
@@ -4397,6 +4404,11 @@ def show_main_app():
             "📊 Dashboard", "📝 Quiz", "🏆 Leaderboard", "⚔️ Math Game", "💬 Blackboard", 
             "👤 Profile", "📚 Learning Resources"
         ]
+        
+        # Check the user's role from the database
+        user_role = get_user_role(st.session_state.username)
+        if user_role == 'admin':
+            page_options.append("⚙️ Admin Panel")
         is_in_duel = st.session_state.get("page") == "duel"
         selected_page = st.radio("Menu", page_options, label_visibility="collapsed", disabled=is_in_duel)
         if is_in_duel:
@@ -4512,6 +4524,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
