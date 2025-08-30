@@ -199,7 +199,7 @@ def create_and_verify_tables():
         print("Database tables created or verified successfully, including corrected Duel tables.")
     except Exception as e:
         st.error(f"Database setup error: {e}")
-create_and_verify_tables()
+#create_and_verify_tables()
 
 
 # --- Core Backend Functions (PostgreSQL) ---
@@ -245,6 +245,66 @@ def get_user_role(username):
         query = text("SELECT role FROM public.users WHERE username = :username")
         result = conn.execute(query, {"username": username}).scalar_one_or_none()
         return result
+
+# --- NEW ADMIN BACKEND FUNCTIONS ---
+
+def get_all_users_summary():
+    """Fetches a summary of all users for the admin panel."""
+    with engine.connect() as conn:
+        query = text("""
+            SELECT 
+                u.username,
+                u.role,
+                p.full_name,
+                p.school,
+                (SELECT COUNT(*) FROM quiz_results qr WHERE qr.username = u.username) as quizzes_taken,
+                (SELECT last_seen FROM user_status us WHERE us.username = u.username) as last_seen
+            FROM users u
+            LEFT JOIN user_profiles p ON u.username = p.username
+            ORDER BY last_seen DESC NULLS LAST;
+        """)
+        result = conn.execute(query).mappings().fetchall()
+        return [dict(row) for row in result]
+
+def get_all_achievements():
+    """Returns a list of all possible achievement names."""
+    # In a more advanced system, this could come from a database table.
+    # For now, we can hard-code them based on the check_and_award_achievements function.
+    
+    # --- NOTE: This list must be manually kept in sync with your achievement logic ---
+    base_achievements = ["First Step", "Century Scorer"]
+    topic_masters = [f"{topic} Master" for topic in [
+        "Sets", "Percentages", "Fractions", "Indices", "Surds", "Binary Operations",
+        "Relations and Functions", "Sequence and Series", "Word Problems", "Shapes (Geometry)",
+        "Algebra Basics", "Linear Algebra", "Logarithms", "Probability", "Binomial Theorem",
+        "Polynomial Functions", "Trigonometry", "Vectors", "Statistics", "Coordinate Geometry",
+        "Introduction to Calculus", "Number Bases", "Modulo Arithmetic"
+    ]]
+    return sorted(base_achievements + topic_masters)
+
+def award_achievement_to_user(username, achievement_name, badge_icon):
+    """Manually inserts an achievement for a user, avoiding duplicates."""
+    with engine.connect() as conn:
+        # First, check if the user already has this achievement
+        check_query = text("""
+            SELECT 1 FROM user_achievements 
+            WHERE username = :username AND achievement_name = :achievement_name
+        """)
+        exists = conn.execute(check_query, {"username": username, "achievement_name": achievement_name}).first()
+        
+        if not exists:
+            insert_query = text("""
+                INSERT INTO user_achievements (username, achievement_name, badge_icon)
+                VALUES (:username, :achievement_name, :badge_icon)
+            """)
+            conn.execute(insert_query, {
+                "username": username,
+                "achievement_name": achievement_name,
+                "badge_icon": badge_icon
+            })
+            conn.commit()
+            return True # Indicates success
+        return False # Indicates user already had it
 
 def update_user_profile(username, full_name, school, age, bio):
     with engine.connect() as conn:
@@ -4509,6 +4569,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
