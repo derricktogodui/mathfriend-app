@@ -416,6 +416,29 @@ def get_performance_over_time():
         result = conn.execute(query).mappings().fetchall()
         return [dict(row) for row in result]
 
+# --- NEW BACKEND FUNCTIONS FOR APP CONFIG ---
+
+def get_config_value(key, default=None):
+    """Fetches a specific configuration value from the app_config table."""
+    with engine.connect() as conn:
+        query = text("SELECT config_value FROM app_config WHERE config_key = :key")
+        result = conn.execute(query, {"key": key}).scalar_one_or_none()
+        return result if result else default
+
+def set_config_value(key, value):
+    """Inserts or updates a configuration value in the app_config table."""
+    with engine.connect() as conn:
+        query = text("""
+            INSERT INTO app_config (config_key, config_value)
+            VALUES (:key, :value)
+            ON CONFLICT (config_key) DO UPDATE SET
+                config_value = EXCLUDED.config_value;
+        """)
+        conn.execute(query, {"key": key, "value": value})
+        conn.commit()
+
+# --- END OF NEW BACKEND FUNCTIONS ---
+
 # --- NEW ADMIN BACKEND FUNCTION FOR DELETING USERS ---
 
 def delete_user_and_all_data(username):
@@ -3726,6 +3749,10 @@ def load_css():
     </style>
     """, unsafe_allow_html=True)
 def display_dashboard(username):
+    announcement = get_config_value("announcement_text")
+    if announcement:
+        st.info(f"📣 **Announcement:** {announcement}")
+        st.markdown("---")
     # --- Gamification Section ---
     challenge = get_or_create_daily_challenge(username)
     if challenge:
@@ -4682,13 +4709,11 @@ def display_profile_page():
 def display_admin_panel():
     st.title("⚙️ Admin Panel: Mission Control")
 
-    tab1, tab2, tab3, tab4 = st.tabs(["📊 User Management", "🎯 Daily Challenges", "🎮 Game Management", "✍️ Practice Questions"])
+    tabs = st.tabs(["📊 User Management", "🎯 Daily Challenges", "🎮 Game Management", "✍️ Practice Questions", "📣 Announcements"])
 
-    with tab1:
-        # This tab code remains the same
-        st.subheader("User Overview")
-        # ... (user management code from previous steps)
-        # (The rest of this tab is unchanged)
+    with tabs[0]: # User Management
+        # ... (all your existing User Management code)
+        st.subheader("📊 User Overview")
         all_users = get_all_users_summary()
         if not all_users:
             st.info("No users have registered yet.")
@@ -4696,10 +4721,7 @@ def display_admin_panel():
             df = pd.DataFrame(all_users)
             if 'last_seen' in df.columns and not df['last_seen'].isnull().all():
                 df['last_seen'] = pd.to_datetime(df['last_seen']).dt.strftime('%Y-%m-%d %H:%M')
-            df.rename(columns={
-                'username': 'Username', 'role': 'Role', 'full_name': 'Full Name',
-                'school': 'School', 'quizzes_taken': 'Quizzes Taken', 'last_seen': 'Last Seen'
-            }, inplace=True)
+            df.rename(columns={'username': 'Username', 'role': 'Role', 'full_name': 'Full Name', 'school': 'School', 'quizzes_taken': 'Quizzes Taken', 'last_seen': 'Last Seen'}, inplace=True)
             st.dataframe(df, use_container_width=True)
         st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
         st.subheader("🛠️ Administrative Actions")
@@ -4729,17 +4751,15 @@ def display_admin_panel():
                 delete_popover = st.popover("Delete User", use_container_width=True)
                 with delete_popover:
                     st.warning(f"This is permanent. Are you sure you want to delete **{selected_user_delete}** and all their data?")
-                    if st.button("Yes, permanently delete", type="primary", key=f"del_confirm_{selected_user_delete}", use_container_width=True):
+                    if st.button("Yes, permanently delete this user", type="primary", key=f"del_confirm_{selected_user_delete}", use_container_width=True):
                         delete_user_and_all_data(selected_user_delete)
                         st.success(f"User {selected_user_delete} has been deleted.")
                         st.rerun()
 
-    with tab2:
-        # This tab code remains the same
+    with tabs[1]: # Daily Challenges
+        # ... (all your existing Daily Challenges code)
         st.subheader("Manage Daily Challenges")
-        # ... (daily challenges management code from previous steps)
-        # (The rest of this tab is unchanged)
-        st.info("Here you can control the pool of challenges randomly assigned to students each day.")
+        st.info("Here you can control the pool of challenges that are randomly assigned to students each day.")
         st.markdown("---")
         st.subheader("Add New Challenge")
         with st.form("new_challenge_form", clear_on_submit=True):
@@ -4778,11 +4798,9 @@ def display_admin_panel():
                                 st.success(f"Challenge {challenge['id']} deleted!")
                                 st.rerun()
 
-    with tab3:
-        # This tab code remains the same
+    with tabs[2]: # Game Management
+        # ... (all your existing Game Management code)
         st.subheader("Manage Active Duels")
-        # ... (game management code from previous steps)
-        # (The rest of this tab is unchanged)
         st.info("This panel shows all duels currently in progress. If a game appears to be stuck, you can use the 'Force End Duel' button to resolve it.")
         active_duels = get_all_active_duels_admin()
         if not active_duels:
@@ -4801,11 +4819,10 @@ def display_admin_panel():
                         st.success(f"Duel ID {duel['id']} has been ended.")
                         st.rerun()
 
-    # --- THIS IS THE NEW PRACTICE QUESTIONS TAB ---
-    with tab4:
+    with tabs[3]: # Practice Questions
+        # ... (all your existing Practice Questions code)
         st.subheader("Manage Practice Questions / Assignments")
-        st.info("Use this section to post special questions or assignments for your students. You can use another AI to generate LaTeX and paste it here.")
-
+        st.info("Use this section to post special questions or assignments for your students.")
         st.markdown("---")
         st.subheader("Add New Question/Assignment")
         with st.form("new_practice_q_form", clear_on_submit=True):
@@ -4813,18 +4830,14 @@ def display_admin_panel():
             pq_question = st.text_area("Question Text (Supports Markdown & LaTeX)", height=200)
             pq_answer = st.text_area("Answer Text", height=100)
             pq_explanation = st.text_area("Detailed Explanation (Optional)", height=200)
-
             if st.form_submit_button("Add Practice Question", type="primary"):
                 if pq_topic and pq_question and pq_answer:
                     add_practice_question(pq_topic, pq_question, pq_answer, pq_explanation)
                     st.success("New practice question added!")
                     st.rerun()
-                else:
-                    st.error("Title, Question, and Answer are required.")
-        
+                else: st.error("Title, Question, and Answer are required.")
         st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
         st.subheader("Existing Practice Questions")
-        
         all_practice_q = get_all_practice_questions()
         if not all_practice_q:
             st.warning("No practice questions have been added yet.")
@@ -4836,7 +4849,6 @@ def display_admin_panel():
                     with st.expander("View Answer & Explanation"):
                         st.markdown(f"**Answer:** {q['answer_text']}")
                         st.markdown(f"**Explanation:** {q.get('explanation_text') or 'N/A'}")
-
                     c1, c2 = st.columns(2)
                     if c1.button("Activate/Deactivate", key=f"pq_toggle_{q['id']}", use_container_width=True):
                         toggle_practice_question_status(q['id'])
@@ -4845,6 +4857,26 @@ def display_admin_panel():
                         delete_practice_question(q['id'])
                         st.success(f"Question {q['id']} deleted.")
                         st.rerun()
+    
+    # --- THIS IS THE NEW ANNOUNCEMENTS TAB ---
+    with tabs[4]:
+        st.subheader("📣 Site-Wide Announcements")
+        st.info("Post a message that will appear at the top of every student's dashboard.")
+
+        current_announcement = get_config_value("announcement_text", "")
+        
+        with st.form("announcement_form"):
+            new_announcement = st.text_area("Announcement Message (Markdown is supported)", value=current_announcement, height=150)
+            
+            c1, c2 = st.columns(2)
+            if c1.form_submit_button("Post / Update Announcement", type="primary", use_container_width=True):
+                set_config_value("announcement_text", new_announcement)
+                st.success("Announcement has been posted!")
+                st.rerun()
+            if c2.form_submit_button("Clear Announcement", use_container_width=True):
+                set_config_value("announcement_text", "")
+                st.warning("Announcement has been cleared.")
+                st.rerun()
 # Replace your existing show_main_app function with this one.
 
 def show_main_app():
@@ -4998,6 +5030,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
