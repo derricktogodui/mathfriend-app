@@ -306,6 +306,33 @@ def award_achievement_to_user(username, achievement_name, badge_icon):
             return True # Indicates success
         return False # Indicates user already had it
 
+# --- NEW ADMIN BACKEND FUNCTIONS FOR GAME MANAGEMENT ---
+
+def get_all_active_duels_admin():
+    """Fetches all duels with 'active' status for the admin panel."""
+    with engine.connect() as conn:
+        query = text("""
+            SELECT id, player1_username, player2_username, topic, player1_score, player2_score, last_action_at
+            FROM duels
+            WHERE status = 'active'
+            ORDER BY last_action_at ASC
+        """)
+        result = conn.execute(query).mappings().fetchall()
+        return [dict(row) for row in result]
+
+def force_end_duel_admin(duel_id):
+    """Allows an admin to forcefully end a duel by setting its status to 'expired'."""
+    with engine.connect() as conn:
+        query = text("""
+            UPDATE duels
+            SET status = 'expired', finished_at = CURRENT_TIMESTAMP
+            WHERE id = :id AND status = 'active'
+        """)
+        conn.execute(query, {"id": duel_id})
+        conn.commit()
+
+# --- END OF GAME MANAGEMENT FUNCTIONS ---
+
 # --- NEW ADMIN BACKEND FUNCTIONS FOR CHALLENGES ---
 
 def get_all_challenges_admin():
@@ -4565,8 +4592,33 @@ def display_admin_panel():
                                 st.rerun()
 
     with tab3:
-        st.subheader("Manage Active Games")
-        st.info("Feature coming soon: View and force-end stuck duels.")
+        st.subheader("Manage Active Duels")
+        st.info("""
+        This panel shows all duels currently in progress. If a game appears to be stuck 
+        (e.g., a player has disconnected), you can use the 'Force End Duel' button to resolve it.
+        """)
+
+        active_duels = get_all_active_duels_admin()
+
+        if not active_duels:
+            st.success("✅ No active duels at the moment.")
+        else:
+            st.warning(f"There are currently {len(active_duels)} duel(s) in progress.")
+            for duel in active_duels:
+                with st.container(border=True):
+                    p1 = duel['player1_username']
+                    p2 = duel['player2_username']
+                    score1 = duel['player1_score']
+                    score2 = duel['player2_score']
+                    
+                    st.markdown(f"**Duel ID:** `{duel['id']}` | **Topic:** `{duel['topic']}`")
+                    st.markdown(f"**Players:** `{p1}` (Score: {score1}) vs. `{p2}` (Score: {score2})")
+                    st.caption(f"Last Action: {duel['last_action_at'].strftime('%Y-%m-%d %H:%M:%S')}")
+
+                    if st.button("🔴 Force End Duel", key=f"end_duel_{duel['id']}", use_container_width=True):
+                        force_end_duel_admin(duel['id'])
+                        st.success(f"Duel ID {duel['id']} has been ended.")
+                        st.rerun()
 
 # Replace your existing show_main_app function with this one.
 
@@ -4721,6 +4773,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
