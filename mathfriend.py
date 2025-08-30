@@ -4748,21 +4748,19 @@ def display_admin_panel():
     tabs = st.tabs(tab_names)
 
     # --- TAB 1: USER MANAGEMENT (WITH DETAILED STUDENT REPORTS) ---
-   with tabs[0]:
-        st.subheader("📊 User Management")
+    with tabs[0]:
+        st.subheader("User Management")
         all_users = get_all_users_summary()
-        admin_username = st.session_state.username
-        
-        st.info("View a summary of all users, select a specific student for a detailed progress report, or perform administrative actions.")
+        user_list = [user['username'] for user in all_users]
 
-        # --- DETAILED STUDENT REPORT SECTION ---
+        st.info("View a summary of all users, select a specific student for a detailed progress report, or perform administrative actions.")
+        
         st.markdown("---")
         st.subheader("🔍 Detailed Student Report")
 
-        if not all_users:
+        if not user_list:
             st.warning("No users have registered yet to generate a report.")
         else:
-            user_list = [user['username'] for user in all_users]
             selected_user_report = st.selectbox("Select a student to view their detailed report", user_list)
             if selected_user_report:
                 with st.container(border=True):
@@ -4791,29 +4789,23 @@ def display_admin_panel():
         st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
         st.subheader("🛠️ Administrative Actions")
 
-        # --- NEW UNIFIED ACTION CENTER ---
-        if not all_users:
+        if not user_list:
             st.warning("No users to manage yet.")
         else:
-            user_list_for_action = [user['username'] for user in all_users]
-            selected_user_action = st.selectbox("Select a user to manage", user_list_for_action, key="action_user_select")
-
+            selected_user_action = st.selectbox("Select a user to perform an action on", user_list, key="action_user_select")
             if selected_user_action:
                 st.markdown(f"#### Actions for: `{selected_user_action}`")
 
-                # Edit Profile Expander
                 with st.expander("✏️ Edit User Profile"):
                     profile = get_user_profile(selected_user_action) or {}
                     with st.form(key=f"edit_profile_{selected_user_action}"):
                         full_name = st.text_input("Full Name", value=profile.get('full_name', ''), key=f"name_{selected_user_action}")
                         school = st.text_input("School", value=profile.get('school', ''), key=f"school_{selected_user_action}")
                         if st.form_submit_button("Save Profile Changes"):
-                            # We get age and bio from profile to avoid changing them here
                             update_user_profile(selected_user_action, full_name, school, profile.get('age', 18), profile.get('bio', ''))
                             st.success(f"Profile for {selected_user_action} updated!")
                             st.rerun()
-                
-                # Reset Password Expander
+
                 with st.expander("🔑 Reset Password"):
                     with st.form(key=f"reset_pw_{selected_user_action}"):
                         st.warning(f"This will set a new temporary password for {selected_user_action}.")
@@ -4825,7 +4817,6 @@ def display_admin_panel():
                             else:
                                 st.error("Password cannot be blank.")
                 
-                # Suspend/Unsuspend User Expander
                 with st.expander("⚖️ Suspend / Unsuspend Account"):
                     user_data_query = text("SELECT is_active FROM public.users WHERE username = :username")
                     with engine.connect() as conn:
@@ -4842,7 +4833,6 @@ def display_admin_panel():
                             toggle_user_suspension(selected_user_action)
                             st.rerun()
 
-                # Award Badge and Delete User
                 with st.expander("🏆 Award an Achievement"):
                      with st.form("award_achievement_form_single", clear_on_submit=True):
                         st.markdown(f"Awarding badge to **{selected_user_action}**")
@@ -4854,13 +4844,14 @@ def display_admin_panel():
                             if success: st.success(f"Awarded '{selected_achievement}' to {selected_user_action}!")
                             else: st.warning(f"{selected_user_action} already has that badge.")
 
-                if selected_user_action != admin_username:
+                if selected_user_action != st.session_state.username:
                     with st.expander("❌ Delete User"):
                         st.error(f"This is permanent and cannot be undone.")
                         if st.button(f"Permanently Delete {selected_user_action}", type="primary"):
                             delete_user_and_all_data(selected_user_action)
                             st.success(f"User {selected_user_action} has been deleted.")
                             st.rerun()
+
     # --- TAB 2: DAILY CHALLENGES ---
     with tabs[1]:
         st.subheader("Manage Daily Challenges")
@@ -5192,6 +5183,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
