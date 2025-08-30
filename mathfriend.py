@@ -415,6 +415,30 @@ def get_performance_over_time():
         result = conn.execute(query).mappings().fetchall()
         return [dict(row) for row in result]
 
+# --- NEW ADMIN BACKEND FUNCTION FOR DELETING USERS ---
+
+def delete_user_and_all_data(username):
+    """Deletes a user and all of their associated data across all tables."""
+    with engine.connect() as conn:
+        with conn.begin():  # Start a transaction
+            # Anonymize duel records instead of deleting them to preserve game history
+            conn.execute(text("UPDATE duels SET player1_username = 'deleted_user' WHERE player1_username = :u"), {"u": username})
+            conn.execute(text("UPDATE duels SET player2_username = 'deleted_user' WHERE player2_username = :u"), {"u": username})
+            conn.execute(text("UPDATE duel_questions SET answered_by = 'deleted_user' WHERE answered_by = :u"), {"u": username})
+
+            # Delete from all other tables
+            tables_to_delete_from = [
+                "user_achievements", "seen_questions", "user_daily_progress",
+                "user_status", "user_profiles", "quiz_results", "public.users"
+            ]
+            for table in tables_to_delete_from:
+                # Note: We use public.users to be specific
+                conn.execute(text(f"DELETE FROM {table} WHERE username = :username"), {"username": username})
+        # The transaction is automatically committed here if no errors occurred
+    return True
+
+# --- END OF USER DELETION FUNCTION ---
+
 # --- NEW ADVANCED ANALYTICS BACKEND FUNCTIONS ---
 
 def get_topic_performance_summary():
@@ -4599,28 +4623,46 @@ def display_admin_panel():
     tab1, tab2, tab3, tab4 = st.tabs(["📊 User Management", "🎯 Daily Challenges", "🎮 Game Management", "📈 Analytics"])
 
     with tab1:
-        # This tab code remains the same
         st.subheader("User Overview")
+        
         all_users = get_all_users_summary()
         if not all_users:
             st.info("No users have registered yet.")
         else:
-            df = pd.DataFrame(all_users)
-            if 'last_seen' in df.columns and not df['last_seen'].isnull().all():
-                df['last_seen'] = pd.to_datetime(df['last_seen']).dt.strftime('%Y-%m-%d %H:%M')
-            df.rename(columns={
-                'username': 'Username', 'role': 'Role', 'full_name': 'Full Name',
-                'school': 'School', 'quizzes_taken': 'Quizzes Taken', 'last_seen': 'Last Seen'
-            }, inplace=True)
-            st.dataframe(df, use_container_width=True)
+            # Display each user in a container with a delete button
+            for user in all_users:
+                # Don't show the currently logged-in admin in the list to prevent self-deletion
+                if user['username'] == st.session_state.username:
+                    continue
+
+                with st.container(border=True):
+                    c1, c2 = st.columns([4, 1])
+                    with c1:
+                        st.markdown(f"**Username:** `{user['username']}` | **Role:** `{user['role']}`")
+                        st.text(f"Name: {user.get('full_name') or 'N/A'} | School: {user.get('school') or 'N/A'}")
+                        st.caption(f"Quizzes Taken: {user['quizzes_taken']} | Last Seen: {pd.to_datetime(user['last_seen']).strftime('%Y-%m-%d %H:%M') if user['last_seen'] else 'Never'}")
+                    
+                    with c2:
+                        delete_button = st.popover("Delete User", use_container_width=True)
+                        with delete_button:
+                            st.warning(f"Are you sure you want to permanently delete **{user['username']}** and all their data?")
+                            if st.button("Yes, I am sure", type="primary", key=f"del_confirm_{user['username']}", use_container_width=True):
+                                delete_user_and_all_data(user['username'])
+                                st.success(f"User {user['username']} has been deleted.")
+                                st.rerun()
+
         st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
         st.subheader("🏆 Manually Award an Achievement")
+
         with st.form("award_achievement_form", clear_on_submit=True):
-            user_list = [user['username'] for user in all_users]
+            user_list = [user['username'] for user in all_users if user['username'] != st.session_state.username]
             selected_user = st.selectbox("Select User", user_list)
+            
             all_achievements = get_all_achievements()
             selected_achievement = st.selectbox("Select Achievement to Award", all_achievements)
+            
             badge_icon = st.text_input("Badge Icon (e.g., 🌟, 💡, 🏅)", value="🏅")
+
             if st.form_submit_button("Award Badge", type="primary"):
                 if selected_user and selected_achievement:
                     success = award_achievement_to_user(selected_user, selected_achievement, badge_icon)
@@ -4909,6 +4951,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
