@@ -4552,6 +4552,10 @@ def show_main_app():
             display_profile_page()
         elif selected_page == "📚 Learning Resources":
             display_learning_resources(topic_options)
+        # --- AND ADD THIS FINAL BLOCK RIGHT AFTER IT ---
+        elif selected_page == "⚙️ Admin Panel":
+            display_admin_panel()
+        # --- END OF BLOCK ---
         
     st.markdown('</div>', unsafe_allow_html=True)
 def show_login_or_signup_page():
@@ -4625,6 +4629,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
