@@ -4712,6 +4712,8 @@ def display_admin_panel():
             st.info("Not enough quiz data yet to analyze topic performance.")
         else:
             df_perf = pd.DataFrame(topic_perf_data)
+            # --- FIX: Convert the column to a numeric type first ---
+            df_perf['avg_accuracy'] = pd.to_numeric(df_perf['avg_accuracy'])
             df_perf['avg_accuracy'] = df_perf['avg_accuracy'].round(1)
             
             c1, c2 = st.columns(2)
@@ -4907,6 +4909,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
