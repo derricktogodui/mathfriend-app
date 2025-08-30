@@ -89,6 +89,21 @@ def create_and_verify_tables():
             conn.execute(text('''CREATE TABLE IF NOT EXISTS user_status
                          (username TEXT PRIMARY KEY, is_online BOOLEAN, last_seen TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP)'''))
             
+            # --- INSIDE create_and_verify_tables() ---
+            
+            conn.execute(text('''CREATE TABLE IF NOT EXISTS user_achievements (
+                                ...
+                            )'''))
+            
+            # --- ADD THIS NEW TABLE (if it's not already there) ---
+            conn.execute(text('''CREATE TABLE IF NOT EXISTS app_config (
+                                config_key TEXT PRIMARY KEY,
+                                config_value TEXT
+                            )'''))
+            # --- END OF NEW TABLE ---
+
+            conn.execute(text('''CREATE TABLE IF NOT EXISTS learning_resources (
+                                ...
             # --- Daily Challenge Tables ONLY ---
             conn.execute(text('''CREATE TABLE IF NOT EXISTS daily_challenges (
                                 id SERIAL PRIMARY KEY,
@@ -5004,6 +5019,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
