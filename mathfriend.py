@@ -77,7 +77,9 @@ def create_and_verify_tables():
     try:
         with engine.connect() as conn:
             # --- Standard Tables ---
-            conn.execute(text('''CREATE TABLE IF NOT EXISTS users (username TEXT PRIMARY KEY, password TEXT)'''))
+            # --- MODIFIED LINE: Added the 'role' column to the users table ---
+            conn.execute(text('''CREATE TABLE IF NOT EXISTS users (username TEXT PRIMARY KEY, password TEXT, role TEXT DEFAULT 'student')'''))
+            
             conn.execute(text('''CREATE TABLE IF NOT EXISTS quiz_results
                          (id SERIAL PRIMARY KEY, username TEXT, topic TEXT, score INTEGER,
                           questions_answered INTEGER, timestamp TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP)'''))
@@ -118,6 +120,12 @@ def create_and_verify_tables():
                                 unlocked_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
                             )'''))
             
+            # --- NEW TABLE ADDED: To store editable learning resources ---
+            conn.execute(text('''CREATE TABLE IF NOT EXISTS learning_resources (
+                                topic TEXT PRIMARY KEY,
+                                content TEXT
+                            )'''))
+
             # --- CORRECTED Head-to-Head Duel Tables ---
             conn.execute(text('''
                 CREATE TABLE IF NOT EXISTS duels (
@@ -4484,6 +4492,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
