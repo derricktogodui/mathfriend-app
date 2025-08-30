@@ -497,11 +497,52 @@ def get_duel_topic_popularity():
         result = conn.execute(query).mappings().fetchall()
         return [dict(row) for row in result]
 
-# --- END OF ADVANCED ANALYTICS FUNCTIONS ---
+# --- NEW ADMIN BACKEND FUNCTIONS FOR PRACTICE QUESTIONS ---
 
-# --- END OF ANALYTICS FUNCTIONS ---
+def get_active_practice_questions():
+    """Fetches all practice questions marked as active for the student view."""
+    with engine.connect() as conn:
+        query = text("""
+            SELECT id, topic, question_text, answer_text, explanation_text 
+            FROM daily_practice_questions 
+            WHERE is_active = TRUE 
+            ORDER BY created_at DESC
+        """)
+        result = conn.execute(query).mappings().fetchall()
+        return [dict(row) for row in result]
 
-# --- END OF CHALLENGE ADMIN FUNCTIONS ---
+def get_all_practice_questions():
+    """Fetches all practice questions for the admin view."""
+    with engine.connect() as conn:
+        query = text("SELECT * FROM daily_practice_questions ORDER BY created_at DESC")
+        result = conn.execute(query).mappings().fetchall()
+        return [dict(row) for row in result]
+
+def add_practice_question(topic, question, answer, explanation):
+    """Adds a new practice question to the database."""
+    with engine.connect() as conn:
+        query = text("""
+            INSERT INTO daily_practice_questions (topic, question_text, answer_text, explanation_text)
+            VALUES (:topic, :question, :answer, :explanation)
+        """)
+        conn.execute(query, {"topic": topic, "question": question, "answer": answer, "explanation": explanation})
+        conn.commit()
+
+def toggle_practice_question_status(question_id):
+    """Flips the is_active status of a question."""
+    with engine.connect() as conn:
+        query = text("UPDATE daily_practice_questions SET is_active = NOT is_active WHERE id = :id")
+        conn.execute(query, {"id": question_id})
+        conn.commit()
+
+def delete_practice_question(question_id):
+    """Deletes a practice question from the database."""
+    with engine.connect() as conn:
+        query = text("DELETE FROM daily_practice_questions WHERE id = :id")
+        conn.execute(query, {"id": question_id})
+        conn.commit()
+
+# --- END OF PRACTICE QUESTION FUNCTIONS ---
 
 def update_user_profile(username, full_name, school, age, bio):
     with engine.connect() as conn:
@@ -4218,6 +4259,24 @@ def display_leaderboard(topic_options):
             st.info(f"No scores recorded for **{leaderboard_topic}** in this time period. Be the first!")
 def display_learning_resources(topic_options):
     st.header("📚 Learning Resources")
+
+    # --- INSIDE display_learning_resources(), right after the st.header() line ---
+
+    # --- ADD THIS BLOCK TO SHOW PRACTICE QUESTIONS FROM THE DATABASE ---
+    practice_questions = get_active_practice_questions()
+    if practice_questions:
+        st.subheader("⭐ Teacher's Corner: Practice & Assignments")
+        with st.container(border=True):
+            for q in practice_questions:
+                st.markdown(f"**{q['topic']}**")
+                st.markdown(q['question_text'])
+                with st.expander("Show Answer and Explanation"):
+                    st.success(f"**Answer:** {q['answer_text']}")
+                    if q['explanation_text']:
+                        st.info(f"**Explanation:** {q['explanation_text']}")
+                st.markdown("---")
+        st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
+    # --- END OF BLOCK ---
     st.write("A summary of key concepts and formulas for each topic. Click a topic to expand it.")
 
     topics_content = {
@@ -4617,19 +4676,22 @@ def display_profile_page():
             elif change_password(st.session_state.username, current_password, new_password): st.success("Password changed successfully!")
             else: st.error("Incorrect current password")
 
+# Replace your existing display_admin_panel function with this one
+
 def display_admin_panel():
     st.title("⚙️ Admin Panel: Mission Control")
 
-    tab1, tab2, tab3, tab4 = st.tabs(["📊 User Management", "🎯 Daily Challenges", "🎮 Game Management", "📈 Analytics"])
+    tab1, tab2, tab3, tab4 = st.tabs(["📊 User Management", "🎯 Daily Challenges", "🎮 Game Management", "✍️ Practice Questions"])
 
     with tab1:
-        st.subheader("📊 User Overview")
-        
+        # This tab code remains the same
+        st.subheader("User Overview")
+        # ... (user management code from previous steps)
+        # (The rest of this tab is unchanged)
         all_users = get_all_users_summary()
         if not all_users:
             st.info("No users have registered yet.")
         else:
-            # --- THIS BRINGS BACK THE DATAFRAME FOR A CLEAR OVERVIEW ---
             df = pd.DataFrame(all_users)
             if 'last_seen' in df.columns and not df['last_seen'].isnull().all():
                 df['last_seen'] = pd.to_datetime(df['last_seen']).dt.strftime('%Y-%m-%d %H:%M')
@@ -4638,13 +4700,9 @@ def display_admin_panel():
                 'school': 'School', 'quizzes_taken': 'Quizzes Taken', 'last_seen': 'Last Seen'
             }, inplace=True)
             st.dataframe(df, use_container_width=True)
-
         st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
         st.subheader("🛠️ Administrative Actions")
-
-        # Create two columns for the two separate actions
         col1, col2 = st.columns(2)
-
         with col1:
             st.markdown("#### 🏆 Award an Achievement")
             user_list = [user['username'] for user in all_users]
@@ -4653,38 +4711,34 @@ def display_admin_panel():
                 all_achievements = get_all_achievements()
                 selected_achievement = st.selectbox("Select Achievement", all_achievements, key="award_achieve")
                 badge_icon = st.text_input("Badge Icon (e.g., 🌟)", value="🏅", key="award_icon")
-
                 if st.form_submit_button("Award Badge", type="primary"):
                     if selected_user_award and selected_achievement:
                         success = award_achievement_to_user(selected_user_award, selected_achievement, badge_icon)
-                        if success:
-                            st.success(f"Awarded '{selected_achievement}' to {selected_user_award}!")
-                        else:
-                            st.warning(f"{selected_user_award} already has that badge.")
-                    else:
-                        st.error("Please select a user and an achievement.")
-        
+                        if success: st.success(f"Awarded '{selected_achievement}' to {selected_user_award}!")
+                        else: st.warning(f"{selected_user_award} already has that badge.")
+                    else: st.error("Please select a user and an achievement.")
         with col2:
             st.markdown("#### ❌ Delete a User")
             admin_username = st.session_state.username
             user_list_for_delete = [user['username'] for user in all_users if user['username'] != admin_username]
-            
             if not user_list_for_delete:
                 st.info("No other users to delete.")
             else:
                 selected_user_delete = st.selectbox("Select User to Delete", user_list_for_delete, key="delete_user")
-                
                 delete_popover = st.popover("Delete User", use_container_width=True)
                 with delete_popover:
-                    st.warning(f"This is permanent and cannot be undone. Are you sure you want to delete **{selected_user_delete}** and all their data?")
-                    if st.button("Yes, permanently delete this user", type="primary", key=f"del_confirm_{selected_user_delete}", use_container_width=True):
+                    st.warning(f"This is permanent. Are you sure you want to delete **{selected_user_delete}** and all their data?")
+                    if st.button("Yes, permanently delete", type="primary", key=f"del_confirm_{selected_user_delete}", use_container_width=True):
                         delete_user_and_all_data(selected_user_delete)
                         st.success(f"User {selected_user_delete} has been deleted.")
                         st.rerun()
+
     with tab2:
         # This tab code remains the same
         st.subheader("Manage Daily Challenges")
-        st.info("Here you can control the pool of challenges that are randomly assigned to students each day.")
+        # ... (daily challenges management code from previous steps)
+        # (The rest of this tab is unchanged)
+        st.info("Here you can control the pool of challenges randomly assigned to students each day.")
         st.markdown("---")
         st.subheader("Add New Challenge")
         with st.form("new_challenge_form", clear_on_submit=True):
@@ -4696,8 +4750,7 @@ def display_admin_panel():
                     add_new_challenge(new_desc, new_topic, new_target)
                     st.success("New challenge added!")
                     st.rerun()
-                else:
-                    st.error("All fields are required.")
+                else: st.error("All fields are required.")
         st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
         st.subheader("Existing Challenges")
         all_challenges = get_all_challenges_admin()
@@ -4727,6 +4780,8 @@ def display_admin_panel():
     with tab3:
         # This tab code remains the same
         st.subheader("Manage Active Duels")
+        # ... (game management code from previous steps)
+        # (The rest of this tab is unchanged)
         st.info("This panel shows all duels currently in progress. If a game appears to be stuck, you can use the 'Force End Duel' button to resolve it.")
         active_duels = get_all_active_duels_admin()
         if not active_duels:
@@ -4745,67 +4800,50 @@ def display_admin_panel():
                         st.success(f"Duel ID {duel['id']} has been ended.")
                         st.rerun()
 
-    # --- THIS IS THE NEW, FULLY BUILT-OUT ANALYTICS TAB ---
+    # --- THIS IS THE NEW PRACTICE QUESTIONS TAB ---
     with tab4:
-        st.subheader("App Analytics & Insights")
-        kpis = get_admin_kpis()
-        c1, c2, c3 = st.columns(3)
-        c1.metric("Total Users", kpis.get("total_users", 0))
-        c2.metric("Total Quizzes Taken", kpis.get("total_quizzes", 0))
-        c3.metric("Total Duels Played", kpis.get("total_duels", 0))
+        st.subheader("Manage Practice Questions / Assignments")
+        st.info("Use this section to post special questions or assignments for your students. You can use another AI to generate LaTeX and paste it here.")
+
+        st.markdown("---")
+        st.subheader("Add New Question/Assignment")
+        with st.form("new_practice_q_form", clear_on_submit=True):
+            pq_topic = st.text_input("Topic or Title", placeholder="e.g., Week 5 Assignment on Surds")
+            pq_question = st.text_area("Question Text (Supports Markdown & LaTeX)", height=200)
+            pq_answer = st.text_area("Answer Text", height=100)
+            pq_explanation = st.text_area("Detailed Explanation (Optional)", height=200)
+
+            if st.form_submit_button("Add Practice Question", type="primary"):
+                if pq_topic and pq_question and pq_answer:
+                    add_practice_question(pq_topic, pq_question, pq_answer, pq_explanation)
+                    st.success("New practice question added!")
+                    st.rerun()
+                else:
+                    st.error("Title, Question, and Answer are required.")
         
         st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
+        st.subheader("Existing Practice Questions")
         
-        st.subheader("Topic Performance Analysis")
-        topic_perf_data = get_topic_performance_summary()
-        if not topic_perf_data:
-            st.info("Not enough quiz data yet to analyze topic performance.")
+        all_practice_q = get_all_practice_questions()
+        if not all_practice_q:
+            st.warning("No practice questions have been added yet.")
         else:
-            df_perf = pd.DataFrame(topic_perf_data)
-            # --- FIX: Convert the column to a numeric type first ---
-            df_perf['avg_accuracy'] = pd.to_numeric(df_perf['avg_accuracy'])
-            df_perf['avg_accuracy'] = df_perf['avg_accuracy'].round(1)
-            
-            c1, c2 = st.columns(2)
-            with c1:
-                st.write("🧠 **Strongest Topics** (Highest Accuracy)")
-                st.dataframe(df_perf.head(5).rename(columns={'topic': 'Topic', 'avg_accuracy': 'Accuracy %', 'times_taken': 'Times Taken'}), use_container_width=True)
-            with c2:
-                st.write("🤔 **Weakest Topics** (Lowest Accuracy)")
-                st.dataframe(df_perf.tail(5).sort_values(by='avg_accuracy', ascending=True).rename(columns={'topic': 'Topic', 'avg_accuracy': 'Accuracy %', 'times_taken': 'Times Taken'}), use_container_width=True)
+            for q in all_practice_q:
+                with st.container(border=True):
+                    st.markdown(f"**ID:** {q['id']} | **Title:** {q['topic']} | **Status:** {'Active ✅' if q['is_active'] else 'Inactive ❌'}")
+                    st.markdown(f"**Question:** {q['question_text']}")
+                    with st.expander("View Answer & Explanation"):
+                        st.markdown(f"**Answer:** {q['answer_text']}")
+                        st.markdown(f"**Explanation:** {q.get('explanation_text') or 'N/A'}")
 
-        st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
-
-        st.subheader("Activity & Engagement")
-        c1, c2 = st.columns(2)
-        with c1:
-            st.write("📅 **Overall App Activity** (Quizzes per Day)")
-            activity_data = get_daily_activity()
-            if activity_data:
-                df_activity = pd.DataFrame(activity_data)
-                fig_activity = px.bar(df_activity, x="date", y="quiz_count", title="Quizzes Taken Per Day")
-                st.plotly_chart(fig_activity, use_container_width=True)
-            else:
-                st.info("No daily activity to display yet.")
-        
-        with c2:
-            st.write("⚔️ **Most Popular Duel Topics**")
-            duel_pop_data = get_duel_topic_popularity()
-            if duel_pop_data:
-                df_duel_pop = pd.DataFrame(duel_pop_data)
-                fig_duel_pop = px.pie(df_duel_pop, names="topic", values="duel_count", title="Duel Topic Distribution")
-                st.plotly_chart(fig_duel_pop, use_container_width=True)
-            else:
-                st.info("No duels have been played yet.")
-
-        st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
-        st.subheader("🏆 Top 10 Most Active Students")
-        active_student_data = get_most_active_students()
-        if active_student_data:
-            df_active = pd.DataFrame(active_student_data)
-            st.dataframe(df_active.rename(columns={'username': 'Username', 'quiz_count': 'Total Quizzes Taken'}), use_container_width=True)
-        else:
-            st.info("No student activity to rank yet.")
+                    c1, c2 = st.columns(2)
+                    if c1.button("Activate/Deactivate", key=f"pq_toggle_{q['id']}", use_container_width=True):
+                        toggle_practice_question_status(q['id'])
+                        st.rerun()
+                    if c2.button("Delete", key=f"pq_delete_{q['id']}", use_container_width=True, type="secondary"):
+                        delete_practice_question(q['id'])
+                        st.success(f"Question {q['id']} deleted.")
+                        st.rerun()
 # Replace your existing show_main_app function with this one.
 
 def show_main_app():
@@ -4959,6 +4997,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
