@@ -77,9 +77,13 @@ def create_and_verify_tables():
     try:
         with engine.connect() as conn:
             # --- Standard Tables ---
-            # --- MODIFIED LINE: Added the 'role' column to the users table ---
-            conn.execute(text('''CREATE TABLE IF NOT EXISTS users (username TEXT PRIMARY KEY, password TEXT, role TEXT DEFAULT 'student')'''))
-            
+            # --- CORRECTED CODE BLOCK FOR 'users' TABLE ---
+            # First, ensure the users table exists with its original columns.
+            conn.execute(text('''CREATE TABLE IF NOT EXISTS users (username TEXT PRIMARY KEY, password TEXT)'''))
+            # Second, safely add the new 'role' column ONLY if it doesn't already exist.
+            conn.execute(text('''ALTER TABLE users ADD COLUMN IF NOT EXISTS role TEXT DEFAULT 'student' '''))
+            # --- END OF CORRECTION ---
+
             conn.execute(text('''CREATE TABLE IF NOT EXISTS quiz_results
                          (id SERIAL PRIMARY KEY, username TEXT, topic TEXT, score INTEGER,
                           questions_answered INTEGER, timestamp TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP)'''))
@@ -160,6 +164,7 @@ def create_and_verify_tables():
             result = conn.execute(text("SELECT COUNT(*) FROM daily_challenges")).scalar_one()
             if result == 0:
                 print("Populating daily_challenges table for the first time.")
+                # ... (rest of the code for populating challenges is unchanged)
                 challenges = [
                     ("Answer 5 questions correctly on any topic.", "Any", 5),
                     ("Complete any quiz with a score of 4 or more.", "Any", 4),
@@ -4492,6 +4497,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
