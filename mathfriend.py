@@ -4709,26 +4709,61 @@ def display_profile_page():
 def display_admin_panel():
     st.title("⚙️ Admin Panel: Mission Control")
 
-    tabs = st.tabs(["📊 User Management", "🎯 Daily Challenges", "🎮 Game Management", "✍️ Practice Questions", "📣 Announcements"])
+    tab_names = [
+        "📊 User Management", 
+        "🎯 Daily Challenges", 
+        "🎮 Game Management", 
+        "✍️ Practice Questions",
+        "📣 Announcements",
+        "📈 Analytics"
+    ]
+    tabs = st.tabs(tab_names)
 
-    with tabs[0]: # User Management
-        # ... (all your existing User Management code)
-        st.subheader("📊 User Overview")
+    # --- TAB 1: USER MANAGEMENT (WITH DETAILED STUDENT REPORTS) ---
+    with tabs[0]:
+        st.subheader("User Management")
         all_users = get_all_users_summary()
-        if not all_users:
-            st.info("No users have registered yet.")
+        user_list = [user['username'] for user in all_users]
+
+        st.info("View a summary of all users, select a specific student for a detailed progress report, or perform administrative actions.")
+        
+        st.markdown("---")
+        st.subheader("🔍 Detailed Student Report")
+
+        if not user_list:
+            st.warning("No users have registered yet to generate a report.")
         else:
-            df = pd.DataFrame(all_users)
-            if 'last_seen' in df.columns and not df['last_seen'].isnull().all():
-                df['last_seen'] = pd.to_datetime(df['last_seen']).dt.strftime('%Y-%m-%d %H:%M')
-            df.rename(columns={'username': 'Username', 'role': 'Role', 'full_name': 'Full Name', 'school': 'School', 'quizzes_taken': 'Quizzes Taken', 'last_seen': 'Last Seen'}, inplace=True)
-            st.dataframe(df, use_container_width=True)
+            selected_user_report = st.selectbox("Select a student to view their detailed report", user_list)
+            if selected_user_report:
+                with st.container(border=True):
+                    profile = get_user_profile(selected_user_report)
+                    st.markdown(f"#### Report for: `{selected_user_report}`")
+                    if profile:
+                        st.write(f"**Name:** {profile.get('full_name', 'N/A')} | **School:** {profile.get('school', 'N/A')}")
+                    
+                    st.markdown("**Topic Performance**")
+                    topic_perf_df = get_topic_performance(selected_user_report)
+                    if not topic_perf_df.empty:
+                        fig = px.bar(topic_perf_df, y='Accuracy', labels={'Accuracy': 'Accuracy (%)'})
+                        st.plotly_chart(fig, use_container_width=True)
+                    else:
+                        st.info(f"{selected_user_report} has not completed any quizzes yet.")
+
+                    with st.expander("View Full Quiz History"):
+                        history = get_user_quiz_history(selected_user_report)
+                        if history:
+                            df_history = pd.DataFrame(history)
+                            df_history['timestamp'] = pd.to_datetime(df_history['timestamp']).dt.strftime('%Y-%m-%d %H:%M')
+                            st.dataframe(df_history.rename(columns={'topic':'Topic', 'score':'Score', 'questions_answered':'Total', 'timestamp':'Date'}), use_container_width=True)
+                        else:
+                            st.info("No quiz history found.")
+        
         st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
         st.subheader("🛠️ Administrative Actions")
+
         col1, col2 = st.columns(2)
         with col1:
             st.markdown("#### 🏆 Award an Achievement")
-            user_list = [user['username'] for user in all_users]
             with st.form("award_achievement_form", clear_on_submit=True):
                 selected_user_award = st.selectbox("Select User to Award", user_list, key="award_user")
                 all_achievements = get_all_achievements()
@@ -4740,6 +4775,7 @@ def display_admin_panel():
                         if success: st.success(f"Awarded '{selected_achievement}' to {selected_user_award}!")
                         else: st.warning(f"{selected_user_award} already has that badge.")
                     else: st.error("Please select a user and an achievement.")
+        
         with col2:
             st.markdown("#### ❌ Delete a User")
             admin_username = st.session_state.username
@@ -4756,8 +4792,8 @@ def display_admin_panel():
                         st.success(f"User {selected_user_delete} has been deleted.")
                         st.rerun()
 
-    with tabs[1]: # Daily Challenges
-        # ... (all your existing Daily Challenges code)
+    # --- TAB 2: DAILY CHALLENGES ---
+    with tabs[1]:
         st.subheader("Manage Daily Challenges")
         st.info("Here you can control the pool of challenges that are randomly assigned to students each day.")
         st.markdown("---")
@@ -4798,8 +4834,8 @@ def display_admin_panel():
                                 st.success(f"Challenge {challenge['id']} deleted!")
                                 st.rerun()
 
-    with tabs[2]: # Game Management
-        # ... (all your existing Game Management code)
+    # --- TAB 3: GAME MANAGEMENT ---
+    with tabs[2]:
         st.subheader("Manage Active Duels")
         st.info("This panel shows all duels currently in progress. If a game appears to be stuck, you can use the 'Force End Duel' button to resolve it.")
         active_duels = get_all_active_duels_admin()
@@ -4819,10 +4855,10 @@ def display_admin_panel():
                         st.success(f"Duel ID {duel['id']} has been ended.")
                         st.rerun()
 
-    with tabs[3]: # Practice Questions
-        # ... (all your existing Practice Questions code)
+    # --- TAB 4: PRACTICE QUESTIONS ---
+    with tabs[3]:
         st.subheader("Manage Practice Questions / Assignments")
-        st.info("Use this section to post special questions or assignments for your students.")
+        st.info("Use this section to post special questions or assignments for your students. You can use another AI to generate LaTeX and paste it here.")
         st.markdown("---")
         st.subheader("Add New Question/Assignment")
         with st.form("new_practice_q_form", clear_on_submit=True):
@@ -4857,17 +4893,14 @@ def display_admin_panel():
                         delete_practice_question(q['id'])
                         st.success(f"Question {q['id']} deleted.")
                         st.rerun()
-    
-    # --- THIS IS THE NEW ANNOUNCEMENTS TAB ---
+        
+    # --- TAB 5: ANNOUNCEMENTS ---
     with tabs[4]:
         st.subheader("📣 Site-Wide Announcements")
         st.info("Post a message that will appear at the top of every student's dashboard.")
-
         current_announcement = get_config_value("announcement_text", "")
-        
         with st.form("announcement_form"):
             new_announcement = st.text_area("Announcement Message (Markdown is supported)", value=current_announcement, height=150)
-            
             c1, c2 = st.columns(2)
             if c1.form_submit_button("Post / Update Announcement", type="primary", use_container_width=True):
                 set_config_value("announcement_text", new_announcement)
@@ -4877,6 +4910,66 @@ def display_admin_panel():
                 set_config_value("announcement_text", "")
                 st.warning("Announcement has been cleared.")
                 st.rerun()
+    
+    # --- TAB 6: ANALYTICS ---
+    with tabs[5]:
+        st.subheader("📈 App Analytics & Insights")
+        kpis = get_admin_kpis()
+        c1, c2, c3 = st.columns(3)
+        c1.metric("Total Users", kpis.get("total_users", 0))
+        c2.metric("Total Quizzes Taken", kpis.get("total_quizzes", 0))
+        c3.metric("Total Duels Played", kpis.get("total_duels", 0))
+        
+        st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
+        
+        st.subheader("Topic Performance Analysis (All Students)")
+        topic_perf_data = get_topic_performance_summary()
+        if not topic_perf_data:
+            st.info("Not enough quiz data yet to analyze topic performance.")
+        else:
+            df_perf = pd.DataFrame(topic_perf_data)
+            df_perf['avg_accuracy'] = pd.to_numeric(df_perf['avg_accuracy'])
+            df_perf['avg_accuracy'] = df_perf['avg_accuracy'].round(1)
+            
+            c1, c2 = st.columns(2)
+            with c1:
+                st.write("🧠 **Strongest Topics** (Highest Accuracy)")
+                st.dataframe(df_perf.head(5).rename(columns={'topic': 'Topic', 'avg_accuracy': 'Accuracy %', 'times_taken': 'Times Taken'}), use_container_width=True)
+            with c2:
+                st.write("🤔 **Weakest Topics** (Lowest Accuracy)")
+                st.dataframe(df_perf.tail(5).sort_values(by='avg_accuracy', ascending=True).rename(columns={'topic': 'Topic', 'avg_accuracy': 'Accuracy %', 'times_taken': 'Times Taken'}), use_container_width=True)
+
+        st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
+        st.subheader("Activity & Engagement")
+        c1, c2 = st.columns(2)
+        with c1:
+            st.write("📅 **Overall App Activity** (Quizzes per Day)")
+            activity_data = get_daily_activity()
+            if activity_data:
+                df_activity = pd.DataFrame(activity_data)
+                fig_activity = px.bar(df_activity, x="date", y="quiz_count", title="Quizzes Taken Per Day")
+                st.plotly_chart(fig_activity, use_container_width=True)
+            else:
+                st.info("No daily activity to display yet.")
+        
+        with c2:
+            st.write("⚔️ **Most Popular Duel Topics**")
+            duel_pop_data = get_duel_topic_popularity()
+            if duel_pop_data:
+                df_duel_pop = pd.DataFrame(duel_pop_data)
+                fig_duel_pop = px.pie(df_duel_pop, names="topic", values="duel_count", title="Duel Topic Distribution")
+                st.plotly_chart(fig_duel_pop, use_container_width=True)
+            else:
+                st.info("No duels have been played yet.")
+
+        st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
+        st.subheader("🏆 Top 10 Most Active Students")
+        active_student_data = get_most_active_students()
+        if active_student_data:
+            df_active = pd.DataFrame(active_student_data)
+            st.dataframe(df_active.rename(columns={'username': 'Username', 'quiz_count': 'Total Quizzes Taken'}), use_container_width=True)
+        else:
+            st.info("No student activity to rank yet.")
 # Replace your existing show_main_app function with this one.
 
 def show_main_app():
@@ -5030,6 +5123,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
