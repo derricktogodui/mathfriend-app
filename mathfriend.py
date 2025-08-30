@@ -3952,6 +3952,16 @@ def display_learning_resources(topic_options):
         - **Number of Subsets:** A set with $n$ elements has $2^n$ subsets.
         - **Venn Diagrams:** For two sets A and B, the key formula is:
           $$ |A \\cup B| = |A| + |B| - |A \\cap B| $$
+        
+        ---
+        **Additional Resources for Sets:**
+        * **[Download PDF: Comprehensive Guide to Sets](https://github.com/derricktogodui/mathfriend-app/releases/download/Learning_Resources/Sets.pdf)**
+        
+        * **Watch Video Explanations:**
+            [![Math Antics - Basic Set Theory](https://img.youtube.com/vi/WHfef-NghN8/0.jpg)](https://www.youtube.com/watch?v=WHfef-NghN8)
+            [![Set Theory - All you need to know](https://img.youtube.com/vi/5ZhNmKb-dqk/0.jpg)](https://www.youtube.com/watch?v=5ZhNmKb-dqk)
+            [![Introduction to Set Theory (WASSCE)](https://img.youtube.com/vi/xZELQc11ACY/0.jpg)](https://www.youtube.com/watch?v=xZELQc11ACY)
+            [![Set Theory - The Ultimate Revision Guide](https://img.youtube.com/vi/09c7OxBF0i4/0.jpg)](https://www.youtube.com/watch?v=09c7OxBF0i4)
         """,
         "Percentages": """
         A **percentage** is a number or ratio expressed as a fraction of 100.
@@ -4305,6 +4315,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
