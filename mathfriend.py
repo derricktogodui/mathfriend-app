@@ -4853,21 +4853,37 @@ def display_admin_panel():
                             st.rerun()
 
     # --- TAB 2: DAILY CHALLENGES ---
+    # --- THIS IS THE NEW CODE FOR THE SECOND ADMIN TAB ---
     with tabs[1]:
         st.subheader("Manage Daily Challenges")
         st.info("Here you can control the pool of challenges that are randomly assigned to students each day.")
+
+        # Create a definitive list of topics for the dropdown
+        all_quiz_topics = sorted([
+            "Sets", "Percentages", "Fractions", "Indices", "Surds", "Binary Operations",
+            "Relations and Functions", "Sequence and Series", "Word Problems", "Shapes (Geometry)",
+            "Algebra Basics", "Linear Algebra", "Logarithms", "Probability", "Binomial Theorem",
+            "Polynomial Functions", "Rational Functions", "Trigonometry", "Vectors", "Statistics",
+            "Coordinate Geometry", "Introduction to Calculus", "Number Bases", "Modulo Arithmetic",
+            "Advanced Combo"
+        ])
+        challenge_topic_options = ["Any"] + all_quiz_topics
+
         st.markdown("---")
         st.subheader("Add New Challenge")
         with st.form("new_challenge_form", clear_on_submit=True):
             new_desc = st.text_input("Challenge Description", placeholder="e.g., Correctly answer 5 Algebra questions.")
-            new_topic = st.text_input("Topic Name (must match exactly, e.g., Algebra Basics)", placeholder="e.g., Algebra Basics or Any")
-            new_target = st.number_input("Target Count", min_value=1, value=5)
+            # Replaced st.text_input with st.selectbox
+            new_topic = st.selectbox("Topic", options=challenge_topic_options)
+            new_target = st.number_input("Target Count", min_value=1, value=3)
             if st.form_submit_button("Add Challenge", type="primary"):
                 if new_desc and new_topic and new_target:
                     add_new_challenge(new_desc, new_topic, new_target)
                     st.success("New challenge added!")
                     st.rerun()
-                else: st.error("All fields are required.")
+                else:
+                    st.error("All fields are required.")
+        
         st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
         st.subheader("Existing Challenges")
         all_challenges = get_all_challenges_admin()
@@ -4882,7 +4898,14 @@ def display_admin_panel():
                     with st.expander("Edit this challenge"):
                         with st.form(key=f"edit_form_{challenge['id']}"):
                             edit_desc = st.text_input("Description", value=challenge['description'], key=f"desc_{challenge['id']}")
-                            edit_topic = st.text_input("Topic", value=challenge['topic'], key=f"topic_{challenge['id']}")
+                            
+                            # Replaced st.text_input with st.selectbox for editing
+                            try:
+                                current_topic_index = challenge_topic_options.index(challenge['topic'])
+                            except ValueError:
+                                current_topic_index = 0 # Default to 'Any' if not found
+                            edit_topic = st.selectbox("Topic", options=challenge_topic_options, index=current_topic_index, key=f"topic_{challenge['id']}")
+                            
                             edit_target = st.number_input("Target", value=challenge['target_count'], min_value=1, key=f"target_{challenge['id']}")
                             c1, c2 = st.columns([3, 1])
                             if c1.form_submit_button("Save Changes"):
@@ -4893,7 +4916,6 @@ def display_admin_panel():
                                 delete_challenge(challenge['id'])
                                 st.success(f"Challenge {challenge['id']} deleted!")
                                 st.rerun()
-
     # --- TAB 3: GAME MANAGEMENT ---
     with tabs[2]:
         st.subheader("Manage Active Duels")
@@ -5183,6 +5205,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
