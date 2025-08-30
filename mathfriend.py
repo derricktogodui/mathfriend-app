@@ -375,6 +375,48 @@ def delete_challenge(challenge_id):
         conn.execute(query, {"id": challenge_id})
         conn.commit()
 
+# --- NEW ADMIN BACKEND FUNCTIONS FOR ANALYTICS ---
+
+def get_admin_kpis():
+    """Fetches key performance indicators for the admin dashboard."""
+    with engine.connect() as conn:
+        total_users = conn.execute(text("SELECT COUNT(*) FROM public.users")).scalar_one()
+        total_quizzes = conn.execute(text("SELECT COUNT(*) FROM quiz_results")).scalar_one()
+        total_duels = conn.execute(text("SELECT COUNT(*) FROM duels WHERE status != 'pending'")).scalar_one()
+        return {
+            "total_users": total_users,
+            "total_quizzes": total_quizzes,
+            "total_duels": total_duels
+        }
+
+def get_topic_popularity():
+    """Fetches the count of quizzes taken per topic."""
+    with engine.connect() as conn:
+        query = text("""
+            SELECT topic, COUNT(*) as quizzes_taken
+            FROM quiz_results
+            GROUP BY topic
+            ORDER BY quizzes_taken DESC;
+        """)
+        result = conn.execute(query).mappings().fetchall()
+        return [dict(row) for row in result]
+
+def get_performance_over_time():
+    """Fetches the average quiz accuracy per day."""
+    with engine.connect() as conn:
+        query = text("""
+            SELECT 
+                DATE_TRUNC('day', timestamp) as date,
+                AVG(CASE WHEN questions_answered > 0 THEN (score * 100.0 / questions_answered) ELSE 0 END) as average_accuracy
+            FROM quiz_results
+            GROUP BY DATE_TRUNC('day', timestamp)
+            ORDER BY date ASC;
+        """)
+        result = conn.execute(query).mappings().fetchall()
+        return [dict(row) for row in result]
+
+# --- END OF ANALYTICS FUNCTIONS ---
+
 # --- END OF CHALLENGE ADMIN FUNCTIONS ---
 
 def update_user_profile(username, full_name, school, age, bio):
@@ -4494,7 +4536,8 @@ def display_profile_page():
 def display_admin_panel():
     st.title("⚙️ Admin Panel: Mission Control")
 
-    tab1, tab2, tab3 = st.tabs(["📊 User Management", "🎯 Daily Challenges", "🎮 Game Management"])
+    # Added a new tab for Analytics
+    tab1, tab2, tab3, tab4 = st.tabs(["📊 User Management", "🎯 Daily Challenges", "🎮 Game Management", "📈 Analytics"])
 
     with tab1:
         st.subheader("User Overview")
@@ -4503,16 +4546,13 @@ def display_admin_panel():
         if not all_users:
             st.info("No users have registered yet.")
         else:
-            # Convert to DataFrame for better display
             df = pd.DataFrame(all_users)
-            df['last_seen'] = pd.to_datetime(df['last_seen']).dt.strftime('%Y-%m-%d %H:%M')
+            # Safely format the 'last_seen' column
+            if 'last_seen' in df.columns and not df['last_seen'].isnull().all():
+                df['last_seen'] = pd.to_datetime(df['last_seen']).dt.strftime('%Y-%m-%d %H:%M')
             df.rename(columns={
-                'username': 'Username',
-                'role': 'Role',
-                'full_name': 'Full Name',
-                'school': 'School',
-                'quizzes_taken': 'Quizzes Taken',
-                'last_seen': 'Last Seen'
+                'username': 'Username', 'role': 'Role', 'full_name': 'Full Name',
+                'school': 'School', 'quizzes_taken': 'Quizzes Taken', 'last_seen': 'Last Seen'
             }, inplace=True)
             st.dataframe(df, use_container_width=True)
 
@@ -4526,7 +4566,6 @@ def display_admin_panel():
             all_achievements = get_all_achievements()
             selected_achievement = st.selectbox("Select Achievement to Award", all_achievements)
             
-            # A simple way to assign an icon
             badge_icon = st.text_input("Badge Icon (e.g., 🌟, 💡, 🏅)", value="🏅")
 
             if st.form_submit_button("Award Badge", type="primary"):
@@ -4541,11 +4580,8 @@ def display_admin_panel():
 
     with tab2:
         st.subheader("Manage Daily Challenges")
-
-        st.info("""
-        Here you can control the pool of challenges that are randomly assigned to students each day.
-        """)
-
+        # ... (This tab is already built) ...
+        st.info("Here you can control the pool of challenges that are randomly assigned to students each day.")
         st.markdown("---")
         st.subheader("Add New Challenge")
         with st.form("new_challenge_form", clear_on_submit=True):
@@ -4593,24 +4629,17 @@ def display_admin_panel():
 
     with tab3:
         st.subheader("Manage Active Duels")
-        st.info("""
-        This panel shows all duels currently in progress. If a game appears to be stuck 
-        (e.g., a player has disconnected), you can use the 'Force End Duel' button to resolve it.
-        """)
-
+        # ... (This tab is already built) ...
+        st.info("This panel shows all duels currently in progress. If a game appears to be stuck, you can use the 'Force End Duel' button to resolve it.")
         active_duels = get_all_active_duels_admin()
-
         if not active_duels:
             st.success("✅ No active duels at the moment.")
         else:
             st.warning(f"There are currently {len(active_duels)} duel(s) in progress.")
             for duel in active_duels:
                 with st.container(border=True):
-                    p1 = duel['player1_username']
-                    p2 = duel['player2_username']
-                    score1 = duel['player1_score']
-                    score2 = duel['player2_score']
-                    
+                    p1 = duel['player1_username']; p2 = duel['player2_username']
+                    score1 = duel['player1_score']; score2 = duel['player2_score']
                     st.markdown(f"**Duel ID:** `{duel['id']}` | **Topic:** `{duel['topic']}`")
                     st.markdown(f"**Players:** `{p1}` (Score: {score1}) vs. `{p2}` (Score: {score2})")
                     st.caption(f"Last Action: {duel['last_action_at'].strftime('%Y-%m-%d %H:%M:%S')}")
@@ -4620,6 +4649,44 @@ def display_admin_panel():
                         st.success(f"Duel ID {duel['id']} has been ended.")
                         st.rerun()
 
+    # --- THIS IS THE NEW ANALYTICS TAB ---
+    with tab4:
+        st.subheader("App Analytics & Insights")
+
+        # Display Key Metrics
+        kpis = get_admin_kpis()
+        c1, c2, c3 = st.columns(3)
+        c1.metric("Total Users", kpis.get("total_users", 0))
+        c2.metric("Total Quizzes Taken", kpis.get("total_quizzes", 0))
+        c3.metric("Total Duels Played", kpis.get("total_duels", 0))
+
+        st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
+
+        # Display Topic Popularity
+        st.subheader("Quiz Topic Popularity")
+        topic_data = get_topic_popularity()
+        if not topic_data:
+            st.info("No quizzes have been taken yet.")
+        else:
+            df_topics = pd.DataFrame(topic_data)
+            fig_topics = px.bar(df_topics, x="quizzes_taken", y="topic", orientation='h',
+                                title="Most Popular Quiz Topics", labels={'quizzes_taken': 'Number of Quizzes Taken', 'topic': 'Topic'})
+            fig_topics.update_layout(yaxis={'categoryorder':'total ascending'})
+            st.plotly_chart(fig_topics, use_container_width=True)
+
+        st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
+
+        # Display Performance Over Time
+        st.subheader("Average Performance Over Time")
+        perf_data = get_performance_over_time()
+        if not perf_data:
+            st.info("No quiz data available to show performance trends.")
+        else:
+            df_perf = pd.DataFrame(perf_data)
+            df_perf['date'] = pd.to_datetime(df_perf['date'])
+            fig_perf = px.line(df_perf, x="date", y="average_accuracy", markers=True,
+                               title="Average Quiz Accuracy Per Day", labels={'date': 'Date', 'average_accuracy': 'Average Accuracy (%)'})
+            st.plotly_chart(fig_perf, use_container_width=True)
 # Replace your existing show_main_app function with this one.
 
 def show_main_app():
@@ -4773,6 +4840,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
