@@ -72,18 +72,15 @@ chat_client = get_stream_chat_client()
 
 # Replace your existing create_and_verify_tables function with this one.
 
+# Replace your existing create_and_verify_tables function with this one
+
 def create_and_verify_tables():
     """Creates, verifies, and populates necessary database tables."""
     try:
         with engine.connect() as conn:
             # --- Standard Tables ---
-            # --- CORRECTED CODE BLOCK FOR 'users' TABLE ---
-            # First, ensure the users table exists with its original columns.
             conn.execute(text('''CREATE TABLE IF NOT EXISTS users (username TEXT PRIMARY KEY, password TEXT)'''))
-            # Second, safely add the new 'role' column ONLY if it doesn't already exist.
             conn.execute(text('''ALTER TABLE users ADD COLUMN IF NOT EXISTS role TEXT DEFAULT 'student' '''))
-            # --- END OF CORRECTION ---
-
             conn.execute(text('''CREATE TABLE IF NOT EXISTS quiz_results
                          (id SERIAL PRIMARY KEY, username TEXT, topic TEXT, score INTEGER,
                           questions_answered INTEGER, timestamp TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP)'''))
@@ -124,11 +121,22 @@ def create_and_verify_tables():
                                 unlocked_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
                             )'''))
             
-            # --- NEW TABLE ADDED: To store editable learning resources ---
             conn.execute(text('''CREATE TABLE IF NOT EXISTS learning_resources (
                                 topic TEXT PRIMARY KEY,
                                 content TEXT
                             )'''))
+            
+            # --- NEW TABLE FOR PRACTICE QUESTIONS (THIS WAS MISSING) ---
+            conn.execute(text('''CREATE TABLE IF NOT EXISTS daily_practice_questions (
+                                id SERIAL PRIMARY KEY,
+                                topic TEXT NOT NULL,
+                                question_text TEXT NOT NULL,
+                                answer_text TEXT NOT NULL,
+                                explanation_text TEXT,
+                                is_active BOOLEAN DEFAULT TRUE,
+                                created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+                            )'''))
+            # --- END OF NEW TABLE ---
 
             # --- CORRECTED Head-to-Head Duel Tables ---
             conn.execute(text('''
@@ -158,13 +166,12 @@ def create_and_verify_tables():
                     UNIQUE(duel_id, question_index)
                 )
             '''))
-            # --- END OF CORRECTION ---
-            
+
             # --- Populate daily_challenges if it's empty ---
+            # ... (The rest of the function is unchanged)
             result = conn.execute(text("SELECT COUNT(*) FROM daily_challenges")).scalar_one()
             if result == 0:
                 print("Populating daily_challenges table for the first time.")
-                # ... (rest of the code for populating challenges is unchanged)
                 challenges = [
                     ("Answer 5 questions correctly on any topic.", "Any", 5),
                     ("Complete any quiz with a score of 4 or more.", "Any", 4),
@@ -199,7 +206,7 @@ def create_and_verify_tables():
         print("Database tables created or verified successfully, including corrected Duel tables.")
     except Exception as e:
         st.error(f"Database setup error: {e}")
-#create_and_verify_tables()
+create_and_verify_tables()
 
 
 # --- Core Backend Functions (PostgreSQL) ---
@@ -4997,6 +5004,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
