@@ -4623,56 +4623,64 @@ def display_admin_panel():
     tab1, tab2, tab3, tab4 = st.tabs(["📊 User Management", "🎯 Daily Challenges", "🎮 Game Management", "📈 Analytics"])
 
     with tab1:
-        st.subheader("User Overview")
+        st.subheader("📊 User Overview")
         
         all_users = get_all_users_summary()
         if not all_users:
             st.info("No users have registered yet.")
         else:
-            # Display each user in a container with a delete button
-            for user in all_users:
-                # Don't show the currently logged-in admin in the list to prevent self-deletion
-                if user['username'] == st.session_state.username:
-                    continue
-
-                with st.container(border=True):
-                    c1, c2 = st.columns([4, 1])
-                    with c1:
-                        st.markdown(f"**Username:** `{user['username']}` | **Role:** `{user['role']}`")
-                        st.text(f"Name: {user.get('full_name') or 'N/A'} | School: {user.get('school') or 'N/A'}")
-                        st.caption(f"Quizzes Taken: {user['quizzes_taken']} | Last Seen: {pd.to_datetime(user['last_seen']).strftime('%Y-%m-%d %H:%M') if user['last_seen'] else 'Never'}")
-                    
-                    with c2:
-                        delete_button = st.popover("Delete User", use_container_width=True)
-                        with delete_button:
-                            st.warning(f"Are you sure you want to permanently delete **{user['username']}** and all their data?")
-                            if st.button("Yes, I am sure", type="primary", key=f"del_confirm_{user['username']}", use_container_width=True):
-                                delete_user_and_all_data(user['username'])
-                                st.success(f"User {user['username']} has been deleted.")
-                                st.rerun()
+            # --- THIS BRINGS BACK THE DATAFRAME FOR A CLEAR OVERVIEW ---
+            df = pd.DataFrame(all_users)
+            if 'last_seen' in df.columns and not df['last_seen'].isnull().all():
+                df['last_seen'] = pd.to_datetime(df['last_seen']).dt.strftime('%Y-%m-%d %H:%M')
+            df.rename(columns={
+                'username': 'Username', 'role': 'Role', 'full_name': 'Full Name',
+                'school': 'School', 'quizzes_taken': 'Quizzes Taken', 'last_seen': 'Last Seen'
+            }, inplace=True)
+            st.dataframe(df, use_container_width=True)
 
         st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
-        st.subheader("🏆 Manually Award an Achievement")
+        st.subheader("🛠️ Administrative Actions")
 
-        with st.form("award_achievement_form", clear_on_submit=True):
-            user_list = [user['username'] for user in all_users if user['username'] != st.session_state.username]
-            selected_user = st.selectbox("Select User", user_list)
-            
-            all_achievements = get_all_achievements()
-            selected_achievement = st.selectbox("Select Achievement to Award", all_achievements)
-            
-            badge_icon = st.text_input("Badge Icon (e.g., 🌟, 💡, 🏅)", value="🏅")
+        # Create two columns for the two separate actions
+        col1, col2 = st.columns(2)
 
-            if st.form_submit_button("Award Badge", type="primary"):
-                if selected_user and selected_achievement:
-                    success = award_achievement_to_user(selected_user, selected_achievement, badge_icon)
-                    if success:
-                        st.success(f"Successfully awarded '{selected_achievement}' to {selected_user}!")
+        with col1:
+            st.markdown("#### 🏆 Award an Achievement")
+            user_list = [user['username'] for user in all_users]
+            with st.form("award_achievement_form", clear_on_submit=True):
+                selected_user_award = st.selectbox("Select User to Award", user_list, key="award_user")
+                all_achievements = get_all_achievements()
+                selected_achievement = st.selectbox("Select Achievement", all_achievements, key="award_achieve")
+                badge_icon = st.text_input("Badge Icon (e.g., 🌟)", value="🏅", key="award_icon")
+
+                if st.form_submit_button("Award Badge", type="primary"):
+                    if selected_user_award and selected_achievement:
+                        success = award_achievement_to_user(selected_user_award, selected_achievement, badge_icon)
+                        if success:
+                            st.success(f"Awarded '{selected_achievement}' to {selected_user_award}!")
+                        else:
+                            st.warning(f"{selected_user_award} already has that badge.")
                     else:
-                        st.warning(f"{selected_user} already has the '{selected_achievement}' badge.")
-                else:
-                    st.error("Please select a user and an achievement.")
-
+                        st.error("Please select a user and an achievement.")
+        
+        with col2:
+            st.markdown("#### ❌ Delete a User")
+            admin_username = st.session_state.username
+            user_list_for_delete = [user['username'] for user in all_users if user['username'] != admin_username]
+            
+            if not user_list_for_delete:
+                st.info("No other users to delete.")
+            else:
+                selected_user_delete = st.selectbox("Select User to Delete", user_list_for_delete, key="delete_user")
+                
+                delete_popover = st.popover("Delete User", use_container_width=True)
+                with delete_popover:
+                    st.warning(f"This is permanent and cannot be undone. Are you sure you want to delete **{selected_user_delete}** and all their data?")
+                    if st.button("Yes, permanently delete this user", type="primary", key=f"del_confirm_{selected_user_delete}", use_container_width=True):
+                        delete_user_and_all_data(selected_user_delete)
+                        st.success(f"User {selected_user_delete} has been deleted.")
+                        st.rerun()
     with tab2:
         # This tab code remains the same
         st.subheader("Manage Daily Challenges")
@@ -4951,6 +4959,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
