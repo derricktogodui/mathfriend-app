@@ -213,15 +213,23 @@ def hash_password(password):
 def check_password(hashed_password, user_password):
     return hashed_password == hash_password(user_password)
 
+# Replace your existing login_user function with this one
 def login_user(username, password):
     with engine.connect() as conn:
-        result = conn.execute(text("SELECT password FROM users WHERE username = :username"), {"username": username})
-        record = result.first()
+        # --- MODIFIED: Now checks if the user is active ---
+        query = text("SELECT password, is_active FROM public.users WHERE username = :username")
+        record = conn.execute(query, {"username": username}).first()
+        
+        if record and record[1] is False: # record[1] is the is_active column
+            st.error("This account has been suspended.")
+            return False
+
         if record and check_password(record[0], password):
             profile = get_user_profile(username)
             display_name = profile.get('full_name') if profile and profile.get('full_name') else username
             chat_client.upsert_user({"id": username, "name": display_name})
             return True
+            
         return False
 
 def signup_user(username, password):
@@ -566,6 +574,25 @@ def delete_practice_question(question_id):
         query = text("DELETE FROM daily_practice_questions WHERE id = :id")
         conn.execute(query, {"id": question_id})
         conn.commit()
+
+# --- NEW ADMIN BACKEND FUNCTIONS FOR USER ACTIONS ---
+
+def toggle_user_suspension(username):
+    """Flips the is_active status for a given user."""
+    with engine.connect() as conn:
+        query = text("UPDATE public.users SET is_active = NOT is_active WHERE username = :username")
+        conn.execute(query, {"username": username})
+        conn.commit()
+
+def reset_user_password_admin(username, new_password):
+    """Allows an admin to set a new password for a user."""
+    with engine.connect() as conn:
+        hashed_password = hash_password(new_password)
+        query = text("UPDATE public.users SET password = :password WHERE username = :username")
+        conn.execute(query, {"username": username, "password": hashed_password})
+        conn.commit()
+
+# --- END OF NEW USER ACTION FUNCTIONS ---
 
 # --- END OF PRACTICE QUESTION FUNCTIONS ---
 
@@ -4721,19 +4748,21 @@ def display_admin_panel():
     tabs = st.tabs(tab_names)
 
     # --- TAB 1: USER MANAGEMENT (WITH DETAILED STUDENT REPORTS) ---
-    with tabs[0]:
-        st.subheader("User Management")
+   with tabs[0]:
+        st.subheader("📊 User Management")
         all_users = get_all_users_summary()
-        user_list = [user['username'] for user in all_users]
-
-        st.info("View a summary of all users, select a specific student for a detailed progress report, or perform administrative actions.")
+        admin_username = st.session_state.username
         
+        st.info("View a summary of all users, select a specific student for a detailed progress report, or perform administrative actions.")
+
+        # --- DETAILED STUDENT REPORT SECTION ---
         st.markdown("---")
         st.subheader("🔍 Detailed Student Report")
 
-        if not user_list:
+        if not all_users:
             st.warning("No users have registered yet to generate a report.")
         else:
+            user_list = [user['username'] for user in all_users]
             selected_user_report = st.selectbox("Select a student to view their detailed report", user_list)
             if selected_user_report:
                 with st.container(border=True):
@@ -4762,37 +4791,76 @@ def display_admin_panel():
         st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
         st.subheader("🛠️ Administrative Actions")
 
-        col1, col2 = st.columns(2)
-        with col1:
-            st.markdown("#### 🏆 Award an Achievement")
-            with st.form("award_achievement_form", clear_on_submit=True):
-                selected_user_award = st.selectbox("Select User to Award", user_list, key="award_user")
-                all_achievements = get_all_achievements()
-                selected_achievement = st.selectbox("Select Achievement", all_achievements, key="award_achieve")
-                badge_icon = st.text_input("Badge Icon (e.g., 🌟)", value="🏅", key="award_icon")
-                if st.form_submit_button("Award Badge", type="primary"):
-                    if selected_user_award and selected_achievement:
-                        success = award_achievement_to_user(selected_user_award, selected_achievement, badge_icon)
-                        if success: st.success(f"Awarded '{selected_achievement}' to {selected_user_award}!")
-                        else: st.warning(f"{selected_user_award} already has that badge.")
-                    else: st.error("Please select a user and an achievement.")
-        
-        with col2:
-            st.markdown("#### ❌ Delete a User")
-            admin_username = st.session_state.username
-            user_list_for_delete = [user['username'] for user in all_users if user['username'] != admin_username]
-            if not user_list_for_delete:
-                st.info("No other users to delete.")
-            else:
-                selected_user_delete = st.selectbox("Select User to Delete", user_list_for_delete, key="delete_user")
-                delete_popover = st.popover("Delete User", use_container_width=True)
-                with delete_popover:
-                    st.warning(f"This is permanent. Are you sure you want to delete **{selected_user_delete}** and all their data?")
-                    if st.button("Yes, permanently delete this user", type="primary", key=f"del_confirm_{selected_user_delete}", use_container_width=True):
-                        delete_user_and_all_data(selected_user_delete)
-                        st.success(f"User {selected_user_delete} has been deleted.")
-                        st.rerun()
+        # --- NEW UNIFIED ACTION CENTER ---
+        if not all_users:
+            st.warning("No users to manage yet.")
+        else:
+            user_list_for_action = [user['username'] for user in all_users]
+            selected_user_action = st.selectbox("Select a user to manage", user_list_for_action, key="action_user_select")
 
+            if selected_user_action:
+                st.markdown(f"#### Actions for: `{selected_user_action}`")
+
+                # Edit Profile Expander
+                with st.expander("✏️ Edit User Profile"):
+                    profile = get_user_profile(selected_user_action) or {}
+                    with st.form(key=f"edit_profile_{selected_user_action}"):
+                        full_name = st.text_input("Full Name", value=profile.get('full_name', ''), key=f"name_{selected_user_action}")
+                        school = st.text_input("School", value=profile.get('school', ''), key=f"school_{selected_user_action}")
+                        if st.form_submit_button("Save Profile Changes"):
+                            # We get age and bio from profile to avoid changing them here
+                            update_user_profile(selected_user_action, full_name, school, profile.get('age', 18), profile.get('bio', ''))
+                            st.success(f"Profile for {selected_user_action} updated!")
+                            st.rerun()
+                
+                # Reset Password Expander
+                with st.expander("🔑 Reset Password"):
+                    with st.form(key=f"reset_pw_{selected_user_action}"):
+                        st.warning(f"This will set a new temporary password for {selected_user_action}.")
+                        new_pw = st.text_input("New Temporary Password", type="password")
+                        if st.form_submit_button("Reset Password", type="primary"):
+                            if new_pw:
+                                reset_user_password_admin(selected_user_action, new_pw)
+                                st.success(f"Password for {selected_user_action} has been reset.")
+                            else:
+                                st.error("Password cannot be blank.")
+                
+                # Suspend/Unsuspend User Expander
+                with st.expander("⚖️ Suspend / Unsuspend Account"):
+                    user_data_query = text("SELECT is_active FROM public.users WHERE username = :username")
+                    with engine.connect() as conn:
+                        is_active = conn.execute(user_data_query, {"username": selected_user_action}).scalar_one_or_none()
+
+                    if is_active:
+                        st.success(f"Account status for {selected_user_action} is currently **Active**.")
+                        if st.button("Suspend Account", key=f"suspend_{selected_user_action}", type="primary"):
+                            toggle_user_suspension(selected_user_action)
+                            st.rerun()
+                    else:
+                        st.warning(f"Account status for {selected_user_action} is currently **Suspended**.")
+                        if st.button("Unsuspend Account", key=f"unsuspend_{selected_user_action}"):
+                            toggle_user_suspension(selected_user_action)
+                            st.rerun()
+
+                # Award Badge and Delete User
+                with st.expander("🏆 Award an Achievement"):
+                     with st.form("award_achievement_form_single", clear_on_submit=True):
+                        st.markdown(f"Awarding badge to **{selected_user_action}**")
+                        all_achievements = get_all_achievements()
+                        selected_achievement = st.selectbox("Select Achievement", all_achievements)
+                        badge_icon = st.text_input("Badge Icon (e.g., 🌟)", value="🏅")
+                        if st.form_submit_button("Award Badge"):
+                            success = award_achievement_to_user(selected_user_action, selected_achievement, badge_icon)
+                            if success: st.success(f"Awarded '{selected_achievement}' to {selected_user_action}!")
+                            else: st.warning(f"{selected_user_action} already has that badge.")
+
+                if selected_user_action != admin_username:
+                    with st.expander("❌ Delete User"):
+                        st.error(f"This is permanent and cannot be undone.")
+                        if st.button(f"Permanently Delete {selected_user_action}", type="primary"):
+                            delete_user_and_all_data(selected_user_action)
+                            st.success(f"User {selected_user_action} has been deleted.")
+                            st.rerun()
     # --- TAB 2: DAILY CHALLENGES ---
     with tabs[1]:
         st.subheader("Manage Daily Challenges")
@@ -5124,6 +5192,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
