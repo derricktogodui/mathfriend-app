@@ -4337,83 +4337,212 @@ def display_learning_resources(topic_options):
 
     st.write("Select a topic to view notes, formulas, and interactive examples.")
     
-    # --- Topic Accordion ---
+    # --- Topic Dropdown Selector ---
     selected_topic = st.selectbox("Choose a topic to explore:", topic_options)
-
-    if selected_topic == "Shapes (Geometry)":
-        st.subheader("Shapes (Geometry)")
-        st.markdown("""
-        - **Rectangle:** Area = $l \\times w$; Perimeter = $2(l+w)$.
-        - **Circle:** Area = $\\pi r^2$; Circumference = $2\\pi r$.
-        - **Cylinder:** Volume = $\\pi r^2 h$; Surface Area = $2\\pi r h + 2\\pi r^2$.
-        - **Pythagoras' Theorem:** For a right-angled triangle, $a^2 + b^2 = c^2$, where $c$ is the hypotenuse.
-        """, unsafe_allow_html=True) # --- FIX: Added missing closing parenthesis and argument ---
-        
-        st.markdown("<hr>", unsafe_allow_html=True)
-        
-        interactive_pythagoras_calculator()
-        
-        st.markdown("<br>", unsafe_allow_html=True)
-        
-        interactive_check_your_understanding(
-            question="A rectangle has a length of 10m and a width of 5m. What is its perimeter?",
-            options=["50m", "30m", "15m"],
-            correct_answer="30m",
-            success_message="The perimeter is $2 \times (10 + 5) = 30m$.",
-            key="geometry_check"
-        )
     
-    elif selected_topic == "Sets":
+    st.markdown("---")
+    
+    # --- THIS IS THE COMPLETE IF/ELIF LADDER FOR ALL TOPICS ---
+
+    if selected_topic == "Sets":
         st.subheader("Sets")
-        st.markdown("""
-        A **set** is a well-defined collection of distinct objects.
-        - **Union ($A \\cup B$):** All elements that are in set A, or in set B, or in both.
-        - **Intersection ($A \\cap B$):** All elements that are in *both* set A and set B.
-        - **Complement ($A'$ or $A^c$):** All elements in the universal set ($\\mathcal{U}$) that are *not* in set A.
-        
-        ---
-        
-        ### 📄 Downloadable PDF
-        * **[Download PDF: Comprehensive Guide to Sets](https://github.com/derricktogodui/mathfriend-app/releases/download/Learning_Resources/Sets.pdf)**
-        
-        <br>
+        st.markdown(
+            """
+            A **set** is a well-defined collection of distinct objects.
+            - **Union ($A \\cup B$):** All elements that are in set A, or in set B, or in both.
+            - **Intersection ($A \\cap B$):** All elements that are in *both* set A and set B.
+            - **Complement ($A'$ or $A^c$):** All elements in the universal set ($\\mathcal{U}$) that are *not* in set A.
+            - **Number of Subsets:** A set with $n$ elements has $2^n$ subsets.
+            - **Venn Diagrams:** For two sets A and B, the key formula is:
+              $$ |A \\cup B| = |A| + |B| - |A \\cap B| $$
+            
+            ---
+            
+            ### 📄 Downloadable PDF
+            * **[Download PDF: Comprehensive Guide to Sets](https://github.com/derricktogodui/mathfriend-app/releases/download/Learning_Resources/Sets.pdf)**
+            
+            <br>
 
-        ### 🎥 Video Tutorials
-        <table>
-          <tr>
-            <td>
-              <a href="https://www.youtube.com/watch?v=WHfef-NghN8" target="_blank">
-                <img src="https://img.youtube.com/vi/WHfef-NghN8/0.jpg" alt="Math Antics - Basic Set Theory" width="240">
-              </a>
-            </td>
-            <td>
-              <a href="https://www.youtube.com/watch?v=5ZhNmKb-dqk" target="_blank">
-                <img src="https://img.youtube.com/vi/5ZhNmKb-dqk/0.jpg" alt="Set Theory - All you need to know" width="240">
-              </a>
-            </td>
-          </tr>
-          <tr>
-            <td>
-              <a href="https://www.youtube.com/watch?v=xZELQc11ACY" target="_blank">
-                <img src="https://img.youtube.com/vi/xZELQc11ACY/0.jpg" alt="Introduction to Set Theory (WASSCE)" width="240">
-              </a>
-            </td>
-            <td>
-              <a href="https://www.youtube.com/watch?v=09c7OxBF0i4" target="_blank">
-                <img src="https://img.youtube.com/vi/09c7OxBF0i4/0.jpg" alt="Set Theory - The Ultimate Revision Guide" width="240">
-              </a>
-            </td>
-          </tr>
-        </table>
-        """, unsafe_allow_html=True)
-
+            ### 🎥 Video Tutorials
+            <table>
+              <tr>
+                <td><a href="https://www.youtube.com/watch?v=WHfef-NghN8" target="_blank"><img src="https://img.youtube.com/vi/WHfef-NghN8/0.jpg" alt="Math Antics - Basic Set Theory" width="240"></a></td>
+                <td><a href="https://www.youtube.com/watch?v=5ZhNmKb-dqk" target="_blank"><img src="https://img.youtube.com/vi/5ZhNmKb-dqk/0.jpg" alt="Set Theory - All you need to know" width="240"></a></td>
+              </tr>
+              <tr>
+                <td><a href="https://www.youtube.com/watch?v=xZELQc11ACY" target="_blank"><img src="https://img.youtube.com/vi/xZELQc11ACY/0.jpg" alt="Introduction to Set Theory (WASSCE)" width="240"></a></td>
+                <td><a href="https://www.youtube.com/watch?v=09c7OxBF0i4" target="_blank"><img src="https://img.youtube.com/vi/09c7OxBF0i4/0.jpg" alt="Set Theory - The Ultimate Revision Guide" width="240"></a></td>
+              </tr>
+            </table>
+            """, unsafe_allow_html=True)
         st.markdown("<hr>", unsafe_allow_html=True)
-        
         interactive_venn_diagram_calculator()
 
-    # You can add more `elif selected_topic == "Topic Name":` blocks for other topics here
+    elif selected_topic == "Percentages":
+        st.subheader("Percentages")
+        st.markdown("""
+        A **percentage** is a number or ratio expressed as a fraction of 100.
+        - **Percentage of a number:** To find $p\\%$ of $N$, calculate $\\frac{p}{100} \\times N$.
+        - **Percentage Change:** $$ \\text{Percent Change} = \\frac{{\\text{New Value} - \\text{Old Value}}}{{\\text{Old Value}}} \\times 100\\% $$
+        """)
+        st.markdown("<hr>", unsafe_allow_html=True)
+        interactive_percentage_calculator()
+
+    elif selected_topic == "Shapes (Geometry)":
+        st.subheader("Shapes (Geometry)")
+        st.markdown("""
+        - **Pythagoras' Theorem:** For a right-angled triangle, $a^2 + b^2 = c^2$, where $c$ is the hypotenuse.
+        - **Rectangle:** Area = $l \\times w$; Perimeter = $2(l+w)$.
+        - **Circle:** Area = $\\pi r^2$; Circumference = $2\\pi r$.
+        """, unsafe_allow_html=True)
+        st.markdown("<hr>", unsafe_allow_html=True)
+        interactive_pythagoras_calculator()
+
+    elif selected_topic == "Surds":
+        st.subheader("Surds")
+        st.markdown(
+            """
+            A **surd** is an irrational root of a number (e.g., $\\sqrt{2}$).
+            - **Simplifying:** Find the largest perfect square factor. Example: $\\sqrt{50} = \\sqrt{25 \\times 2} = 5\\sqrt{2}$.
+            - **Rationalizing the Denominator:** Multiply the numerator and denominator by the conjugate. The conjugate of $(a + \\sqrt{b})$ is $(a - \\sqrt{b})$.
+            
+            ---
+            
+            ### 📄 Downloadable PDF
+            * **[Download PDF: Comprehensive Guide to Surds](https://github.com/derricktogodui/mathfriend-app/releases/download/Learning_Resources/Surds.pdf)**
+            
+            <br>
+
+            ### 🎥 Video Tutorials
+            (Your table of videos for Surds would go here)
+            """, unsafe_allow_html=True)
+        st.markdown("<hr>", unsafe_allow_html=True)
+        interactive_check_your_understanding(
+            question="What is the conjugate of $3 + \\sqrt{7}$?",
+            options=["$3 - \\sqrt{7}$", "$-3 + \\sqrt{7}$", "$9 - 7$"],
+            correct_answer="$3 - \\sqrt{7}$",
+            success_message="The conjugate is found by flipping the sign in the middle.",
+            key="surds_check"
+        )
+
+    elif selected_topic == "Binary Operations":
+        st.subheader("Binary Operations")
+        st.markdown(
+            """
+            A **binary operation** ($\\ast$) on a set is a rule for combining any two elements of the set to produce another element.
+            - **Commutative Property:** $a \\ast b = b \\ast a$.
+            - **Associative Property:** $(a \\ast b) \\ast c = a \\ast (b \\ast c)$.
+            - **Identity Element (e):** $a \\ast e = e \\ast a = a$.
+            
+            ---
+            
+            ### 📄 Downloadable PDF
+            * **[Download PDF: Guide to Binary Operations](https://github.com/derricktogodui/mathfriend-app/releases/download/Learning_Resources/Binary.Operations.pdf)**
+            
+            <br>
+            
+            ### 🎥 Video Tutorials
+            (Your table of videos for Binary Ops would go here)
+            """, unsafe_allow_html=True)
+            
+    # --- All other topics with their static content ---
     else:
-        st.info(f"Content for **{selected_topic}** is under construction. Interactive widgets are coming soon!")
+        # Create a dictionary on the fly for the remaining topics
+        # This uses the same content from your original file
+        remaining_topics_content = {
+            "Fractions": """
+            A **fraction** represents a part of a whole, written as $\\frac{{\\text{numerator}}}{{\\text{denominator}}}$.
+            - **Adding/Subtracting:** Find a common denominator, then add or subtract the numerators.
+            - **Multiplying:** Multiply the numerators and the denominators. $$\\frac{a}{b} \\times \\frac{c}{d} = \\frac{ac}{bd}$$
+            - **Dividing:** Invert the second fraction and multiply. $$\\frac{a}{b} \\div \\frac{c}{d} = \\frac{a}{b} \\times \\frac{d}{c} = \\frac{ad}{bc}$$
+            """,
+            "Indices": """
+            Indices (or exponents) show how many times a number is multiplied by itself.
+            - **Multiplication Rule:** $x^a \\times x^b = x^{a+b}$
+            - **Division Rule:** $x^a \\div x^b = x^{a-b}$
+            - **Power of a Power Rule:** $(x^a)^b = x^{ab}$
+            - **Negative Exponent:** $x^{-a} = \\frac{1}{x^a}$
+            """,
+            "Relations and Functions": """
+            - **Relation:** A set of ordered pairs $(x, y)$.
+            - **Function:** A special relation where each input ($x$) has exactly one output ($y$).
+            - **Domain:** The set of all possible input values ($x$).
+            - **Range:** The set of all actual output values ($y$).
+            """,
+            "Sequence and Series": """
+            - **Arithmetic Progression (AP):** A sequence with a *common difference* ($d$). Nth term: $a_n = a_1 + (n-1)d$
+            - **Geometric Progression (GP):** A sequence with a *common ratio* ($r$). Nth term: $a_n = a_1 r^{n-1}$
+            - **Sum to Infinity (GP):** For $|r| < 1$, $S_\\infty = \\frac{a_1}{1-r}$.
+            """,
+            "Word Problems": """
+            A systematic approach is key:
+            1.  **Read and Understand:** Identify what is given and what is being asked.
+            2.  **Define Variables:** Assign letters (e.g., $x, y$) to the unknown quantities.
+            3.  **Formulate Equations:** Translate the words into mathematical equations.
+            4.  **Solve** the system of equations.
+            """,
+            "Algebra Basics": """
+            - **Solving Quadratic Equations ($ax^2+bx+c=0$):** Use the quadratic formula: $$x = \\frac{{-b \\pm \\sqrt{{b^2-4ac}}}}{{2a}}$$
+            """,
+            "Linear Algebra": """
+            Focuses on vectors and matrices. For a 2x2 matrix $A = \\begin{pmatrix} a & b \\\\ c & d \\end{pmatrix}$:
+            - **Determinant:** $\det(A) = ad - bc$.
+            - **Inverse Matrix:** $A^{-1} = \\frac{1}{{\det(A)}} \\begin{pmatrix} d & -b \\\\ -c & a \\end{pmatrix}$.
+            """,
+            "Logarithms": """
+            A logarithm is the inverse operation to exponentiation. $\log_b(N) = x$ is the same as $b^x = N$.
+            - **Product Rule:** $\log_b(M) + \log_b(N) = \log_b(MN)$
+            - **Quotient Rule:** $\log_b(M) - \log_b(N) = \log_b(\\frac{M}{N})$
+            """,
+            "Probability": """
+            Probability measures the likelihood of an event. $$P(\\text{Event}) = \\frac{{\\text{Favorable Outcomes}}}{{\\text{Total Outcomes}}}$$
+            """,
+            "Binomial Theorem": """
+            Used to expand powers of binomials, like $(a+b)^n$. The $(r+1)^{th}$ term is $T_{r+1} = \\binom{n}{r} a^{n-r} b^r$.
+            """,
+            "Polynomial Functions": """
+            - **Remainder Theorem:** The remainder when a polynomial $P(x)$ is divided by $(x-a)$ is equal to $P(a)$.
+            - **Factor Theorem:** If $P(a)=0$, then $(x-a)$ is a factor of $P(x)$.
+            """,
+            "Rational Functions": """
+            A function that is the ratio of two polynomials, $f(x) = \\frac{{P(x)}}{{Q(x)}}$.
+            - **Vertical Asymptotes:** Occur at the x-values that make the denominator zero.
+            """,
+            "Trigonometry": """
+            - **SOH CAH TOA:** For right-angled triangles.
+            - **Identities:** $\sin^2\\theta + \cos^2\\theta = 1$.
+            - **Cosine Rule:** $c^2 = a^2 + b^2 - 2ab\cos(C)$.
+            """,
+            "Vectors": """
+            - **Magnitude:** The length of $\mathbf{v} = x\mathbf{i} + y\mathbf{j}$ is $|\mathbf{v}| = \\sqrt{x^2 + y^2}$.
+            - **Dot Product:** $\mathbf{a} \cdot \mathbf{b} = |\mathbf{a}| |\mathbf{b}| \cos\\theta$.
+            """,
+            "Statistics": """
+            - **Mean:** The average of a dataset. $\\frac{{\\sum x}}{{n}}$.
+            - **Median:** The middle value in a sorted dataset.
+            - **Mode:** The value that appears most frequently.
+            """,
+            "Coordinate Geometry": """
+            - **Distance Formula:** $d = \\sqrt{{(x_2 - x_1)^2 + (y_2 - y_1)^2}}$.
+            - **Midpoint Formula:** $(\\frac{{x_1+x_2}}{{2}}, \\frac{{y_1+y_2}}{{2}})$.
+            """,
+            "Introduction to Calculus": """
+            - **Derivative (Power Rule):** The derivative of $ax^n$ is $anx^{{n-1}}$.
+            - **Integral (Power Rule):** The integral of $ax^n$ is $\\frac{{a}}{{n+1}}x^{{n+1}} + C$.
+            """,
+            "Number Bases": """
+            - **Conversion to Base 10:** To convert $123_5$, calculate $(1 \\times 5^2) + (2 \\times 5^1) + (3 \\times 5^0)$.
+            - **Conversion from Base 10:** Use repeated division by the target base.
+            """,
+            "Modulo Arithmetic": """
+            Deals with remainders after division. $a \\equiv b \\pmod n$ means $a$ and $b$ have the same remainder when divided by $n$.
+            """
+        }
+        
+        # Display the content for the selected topic if it's in our dictionary
+        if selected_topic in remaining_topics_content:
+            st.subheader(selected_topic)
+            st.markdown(remaining_topics_content[selected_topic], unsafe_allow_html=True)
 
 def display_profile_page():
     st.header("👤 Your Profile")
@@ -4924,6 +5053,39 @@ def interactive_venn_diagram_calculator():
         
         st.latex(f"|A \\cup B| = |A| + |B| - |A \\cap B| \\implies {union_ab} = {total_a} + {total_b} - {both}")
 
+def interactive_percentage_calculator():
+    """An interactive widget for common percentage calculations."""
+    st.subheader("Percentage Calculator")
+    with st.container(border=True):
+        calc_type = st.radio("Choose a calculation:", ["Percentage of a Number", "Percentage Change"], horizontal=True)
+        
+        if calc_type == "Percentage of a Number":
+            c1, c2 = st.columns(2)
+            percent = c1.number_input("What is...", min_value=0.0, value=25.0, step=0.5, format="%.1f")
+            number = c2.number_input("percent of...?", min_value=0.0, value=150.0, step=1.0)
+            result = (percent / 100) * number
+            st.success(f"**Result:** {percent}% of {number} is **{result:.2f}**")
+
+        elif calc_type == "Percentage Change":
+            c1, c2 = st.columns(2)
+            old_val = c1.number_input("Original Value", min_value=0.1, value=200.0)
+            new_val = c2.number_input("New Value", min_value=0.0, value=250.0)
+            change = ((new_val - old_val) / old_val) * 100
+            st.success(f"**Result:** The percentage change is **{change:.2f}%**")
+
+def interactive_check_your_understanding(question, options, correct_answer, success_message, key):
+    """A widget for a quick, non-graded multiple-choice question."""
+    st.subheader("Check Your Understanding")
+    with st.container(border=True):
+        st.markdown(question)
+        user_choice = st.radio("Select your answer:", options, index=None, key=key)
+
+        if user_choice:
+            if user_choice == correct_answer:
+                st.success(f"**Correct!** {success_message}")
+            else:
+                st.error(f"**Not quite.** The correct answer is **{correct_answer}**. Try reading the section again!")
+
 # --- END OF INTERACTIVE WIDGETS ---
 
 def show_login_or_signup_page():
@@ -4997,6 +5159,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
