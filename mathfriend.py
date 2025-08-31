@@ -4833,16 +4833,24 @@ def display_admin_panel():
                             toggle_user_suspension(selected_user_action)
                             st.rerun()
 
-                with st.expander("🏆 Award an Achievement"):
+                with st.expander("🏆 Award a Special Badge"):
                      with st.form("award_achievement_form_single", clear_on_submit=True):
                         st.markdown(f"Awarding badge to **{selected_user_action}**")
-                        all_achievements = get_all_achievements()
-                        selected_achievement = st.selectbox("Select Achievement", all_achievements)
-                        badge_icon = st.text_input("Badge Icon (e.g., 🌟)", value="🏅")
+                        
+                        # --- THIS IS THE UPGRADE ---
+                        # Changed from a selectbox to a text input for custom badge names
+                        special_badge_name = st.text_input("Enter Special Badge Name", placeholder="e.g., Community Helper")
+                        
+                        badge_icon = st.text_input("Badge Icon (e.g., 🌟, 💡, 🏅)", value="🏅")
                         if st.form_submit_button("Award Badge"):
-                            success = award_achievement_to_user(selected_user_action, selected_achievement, badge_icon)
-                            if success: st.success(f"Awarded '{selected_achievement}' to {selected_user_action}!")
-                            else: st.warning(f"{selected_user_action} already has that badge.")
+                            if special_badge_name:
+                                success = award_achievement_to_user(selected_user_action, special_badge_name, badge_icon)
+                                if success: 
+                                    st.success(f"Awarded '{special_badge_name}' to {selected_user_action}!")
+                                else: 
+                                    st.warning(f"{selected_user_action} already has that badge.")
+                            else:
+                                st.error("Please enter a name for the special badge.")
 
                 if selected_user_action != st.session_state.username:
                     with st.expander("❌ Delete User"):
@@ -5205,6 +5213,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
