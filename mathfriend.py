@@ -4313,37 +4313,63 @@ def display_leaderboard(topic_options):
             )
         else:
             st.info(f"No scores recorded for **{leaderboard_topic}** in this time period. Be the first!")
+# Replace your existing display_learning_resources function with this one
+
 def display_learning_resources(topic_options):
-    st.header("📚 Learning Resources")
+    st.header("📚 Learning Resources & Interactive Lab")
 
-    # --- INSIDE display_learning_resources(), right after the st.header() line ---
-
-    # --- ADD THIS BLOCK TO SHOW PRACTICE QUESTIONS FROM THE DATABASE ---
+    # --- Teacher's Corner (from database) ---
     practice_questions = get_active_practice_questions()
     if practice_questions:
         st.subheader("⭐ Teacher's Corner: Practice & Assignments")
         with st.container(border=True):
             for q in practice_questions:
                 st.markdown(f"**{q['topic']}**")
-                st.markdown(q['question_text'])
+                st.markdown(q['question_text'], unsafe_allow_html=True)
                 with st.expander("Show Answer and Explanation"):
-                    st.success(f"**Answer:** {q['answer_text']}")
+                    st.success("**Answer:**")
+                    st.markdown(q['answer_text'], unsafe_allow_html=True)
                     if q['explanation_text']:
-                        st.info(f"**Explanation:** {q['explanation_text']}")
+                        st.info("**Explanation:**")
+                        st.markdown(q['explanation_text'], unsafe_allow_html=True)
                 st.markdown("---")
         st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
-    # --- END OF BLOCK ---
-    st.write("A summary of key concepts and formulas for each topic. Click a topic to expand it.")
 
-    topics_content = {
-        "Sets": """
+    st.write("Select a topic to view notes, formulas, and interactive examples.")
+    
+    # --- Topic Accordion ---
+    selected_topic = st.selectbox("Choose a topic to explore:", topic_options)
+
+    if selected_topic == "Shapes (Geometry)":
+        st.subheader("Shapes (Geometry)")
+        st.markdown("""
+        - **Rectangle:** Area = $l \\times w$; Perimeter = $2(l+w)$.
+        - **Circle:** Area = $\\pi r^2$; Circumference = $2\\pi r$.
+        - **Cylinder:** Volume = $\\pi r^2 h$; Surface Area = $2\\pi r h + 2\\pi r^2$.
+        - **Pythagoras' Theorem:** For a right-angled triangle, $a^2 + b^2 = c^2$, where $c$ is the hypotenuse.
+        """)
+        st.markdown("<hr>", unsafe_allow_html=True)
+        
+        # --- CALLING THE INTERACTIVE WIDGETS ---
+        interactive_pythagoras_calculator()
+        
+        st.markdown("<br>", unsafe_allow_html=True) # Add some space
+        
+        interactive_check_your_understanding(
+            question="A rectangle has a length of 10m and a width of 5m. What is its perimeter?",
+            options=["50m", "30m", "15m"],
+            correct_answer="30m",
+            success_message="The perimeter is $2 \times (10 + 5) = 30m$.",
+            key="geometry_check"
+        )
+    
+    elif selected_topic == "Sets":
+        st.subheader("Sets")
+        # All the markdown, PDFs, and videos for Sets go here
+        st.markdown("""
         A **set** is a well-defined collection of distinct objects.
         - **Union ($A \\cup B$):** All elements that are in set A, or in set B, or in both.
         - **Intersection ($A \\cap B$):** All elements that are in *both* set A and set B.
-        - **Complement ($A'$ or $A^c$):** All elements in the universal set ($\\mathcal{U}$) that are *not* in set A.
-        - **Number of Subsets:** A set with $n$ elements has $2^n$ subsets.
-        - **Venn Diagrams:** For two sets A and B, the key formula is:
-          $$ |A \\cup B| = |A| + |B| - |A \\cap B| $$
         
         ---
         
@@ -4353,345 +4379,13 @@ def display_learning_resources(topic_options):
         <br>
 
         ### 🎥 Video Tutorials
-        <table>
-          <tr>
-            <td>
-              <a href="https://www.youtube.com/watch?v=WHfef-NghN8" target="_blank">
-                <img src="https://img.youtube.com/vi/WHfef-NghN8/0.jpg" alt="Math Antics - Basic Set Theory" width="240">
-              </a>
-            </td>
-            <td>
-              <a href="https://www.youtube.com/watch?v=5ZhNmKb-dqk" target="_blank">
-                <img src="https://img.youtube.com/vi/5ZhNmKb-dqk/0.jpg" alt="Set Theory - All you need to know" width="240">
-              </a>
-            </td>
-          </tr>
-          <tr>
-            <td>
-              <a href="https://www.youtube.com/watch?v=xZELQc11ACY" target="_blank">
-                <img src="https://img.youtube.com/vi/xZELQc11ACY/0.jpg" alt="Introduction to Set Theory (WASSCE)" width="240">
-              </a>
-            </td>
-            <td>
-              <a href="https://www.youtube.com/watch?v=09c7OxBF0i4" target="_blank">
-                <img src="https://img.youtube.com/vi/09c7OxBF0i4/0.jpg" alt="Set Theory - The Ultimate Revision Guide" width="240">
-              </a>
-            </td>
-          </tr>
-        </table>
-        """,
-        "Percentages": """
-        A **percentage** is a number or ratio expressed as a fraction of 100.
-        - **Percentage of a number:** To find $p\\%$ of $N$, calculate $\\frac{p}{100} \\times N$.
-        - **Percentage Change:** Used to find the increase or decrease in a value.
-          $$ \\text{Percent Change} = \\frac{{\\text{New Value} - \\text{Old Value}}}{{\\text{Old Value}}} \\times 100\\% $$
-        - **Profit and Loss:**
-            - Profit \\% = $(\\frac{{\\text{Profit}}}{{\\text{Cost Price}}}) \\times 100\\%$
-            - Loss \\% = $(\\frac{{\\text{Loss}}}{{\\text{Cost Price}}}) \\times 100\\%$
-        - **Simple Interest:** $I = P \\times R \\times T$, where P=Principal, R=Rate (as decimal), T=Time.
-        """,
-        "Fractions": """
-        A **fraction** represents a part of a whole, written as $\\frac{{\\text{numerator}}}{{\\text{denominator}}}$.
-        - **Adding/Subtracting:** Find a common denominator, then add or subtract the numerators.
-        - **Multiplying:** Multiply the numerators and the denominators. $$\\frac{a}{b} \\times \\frac{c}{d} = \\frac{ac}{bd}$$
-        - **Dividing:** Invert the second fraction and multiply. $$\\frac{a}{b} \\div \\frac{c}{d} = \\frac{a}{b} \\times \\frac{d}{c} = \\frac{ad}{bc}$$
-        - **Order of Operations (BODMAS):** Brackets, Orders (powers/roots), Division, Multiplication, Addition, Subtraction.
-        """,
-        "Indices": """
-        Indices (or exponents) show how many times a number is multiplied by itself.
-        - **Multiplication Rule:** $x^a \\times x^b = x^{a+b}$
-        - **Division Rule:** $x^a \\div x^b = x^{a-b}$
-        - **Power of a Power Rule:** $(x^a)^b = x^{ab}$
-        - **Negative Exponent:** $x^{-a} = \\frac{1}{x^a}$
-        - **Fractional Exponent:** $x^{\\frac{1}{n}} = \\sqrt[n]{x}$
-        - **Zero Exponent:** $x^0 = 1$ (for any non-zero x)
-        """,
-        "Surds": """
-        A **surd** is an irrational root of a number (e.g., $\\sqrt{2}$).
-        - **Simplifying:** Find the largest perfect square factor. Example: $\\sqrt{50} = \\sqrt{25 \\times 2} = \\sqrt{25} \\times \\sqrt{2} = 5\\sqrt{2}$.
-        - **Operations:** You can only add or subtract 'like' surds. Example: $4\\sqrt{3} + 2\\sqrt{3} = 6\\sqrt{3}$.
-        - **Rationalizing the Denominator:** To remove a surd from the denominator, multiply the numerator and denominator by the conjugate. The conjugate of $(a + \\sqrt{b})$ is $(a - \\sqrt{b})$.
+        (Your table of videos for Sets would go here)
+        """, unsafe_allow_html=True)
 
-        ---
-        
-        ### 📄 Downloadable PDF
-        * **[Download PDF: Comprehensive Guide to Surds](https://github.com/derricktogodui/mathfriend-app/releases/download/Learning_Resources/Surds.pdf)**
-        
-        <br>
+    # You can add more `elif selected_topic == "Topic Name":` blocks for other topics here
+    else:
+        st.info(f"Content for **{selected_topic}** is under construction. Interactive widgets are coming soon!")
 
-        ### 🎥 Video Tutorials
-        
-        #### Simplifying and Operating with Surds
-        <table>
-          <tr>
-            <td>
-              <a href="https://www.youtube.com/watch?v=wzAotwNPhm8" target="_blank">
-                <img src="https://img.youtube.com/vi/wzAotwNPhm8/0.jpg" alt="Introduction to Surds" width="240">
-              </a>
-            </td>
-            <td>
-              <a href="https://www.youtube.com/watch?v=I_Mys8RNt30" target="_blank">
-                <img src="https://img.youtube.com/vi/I_Mys8RNt30/0.jpg" alt="Adding and Subtracting Surds" width="240">
-              </a>
-            </td>
-          </tr>
-          <tr>
-            <td>
-              <a href="https://www.youtube.com/watch?v=TN0n3yNj6do" target="_blank">
-                <img src="https://img.youtube.com/vi/TN0n3yNj6do/0.jpg" alt="Multiplying Surds" width="240">
-              </a>
-            </td>
-            <td>
-              <a href="https://www.youtube.com/watch?v=-5Z0xfYr0yE" target="_blank">
-                <img src="https://img.youtube.com/vi/-5Z0xfYr0yE/0.jpg" alt="Dividing and Rationalizing Surds" width="240">
-              </a>
-            </td>
-          </tr>
-           <tr>
-            <td>
-              <a href="https://www.youtube.com/watch?v=auYQ38gjJzk" target="_blank">
-                <img src="https://img.youtube.com/vi/auYQ38gjJzk/0.jpg" alt="Expanding Brackets with Surds" width="240">
-              </a>
-            </td>
-          </tr>
-        </table>
-
-        <br>
-        
-        #### Solving Radical Equations
-        <table>
-          <tr>
-            <td>
-              <a href="https://www.youtube.com/watch?v=g3rzuggIgIw" target="_blank">
-                <img src="https://img.youtube.com/vi/g3rzuggIgIw/0.jpg" alt="Solving Basic Radical Equations" width="240">
-              </a>
-            </td>
-            <td>
-              <a href="https://www.youtube.com/watch?v=lYwsQxNfkSA" target="_blank">
-                <img src="https://img.youtube.com/vi/lYwsQxNfkSA/0.jpg" alt="Equations with Two Square Roots" width="240">
-              </a>
-            </td>
-          </tr>
-           <tr>
-            <td>
-              <a href="https://www.youtube.com/watch?v=c0jONsjJ_eU" target="_blank">
-                <img src="https://img.youtube.com/vi/c0jONsjJ_eU/0.jpg" alt="Checking for Extraneous Solutions" width="240">
-              </a>
-            </td>
-          </tr>
-        </table>
-        """,
-        "Binary Operations": """
-        A **binary operation** ($\\ast$) on a set is a rule for combining any two elements of the set to produce another element.
-        - **Commutative Property:** The operation is commutative if $a \\ast b = b \\ast a$.
-        - **Associative Property:** The operation is associative if $(a \\ast b) \\ast c = a \\ast (b \\ast c)$.
-        - **Identity Element (e):** An element such that $a \\ast e = e \\ast a = a$.
-        - **Inverse Element ($a^{-1}$):** An element such that $a \\ast a^{-1} = a^{-1} \\ast a = e$.
-        
-        ---
-        
-        ### 📄 Downloadable PDF
-        * **[Download PDF: Guide to Binary Operations](https://github.com/derricktogodui/mathfriend-app/releases/download/Learning_Resources/Binary.Operations.pdf)**
-        
-        <br>
-
-        ### 🎥 Video Tutorials
-
-        #### Introduction and Evaluation
-        <table>
-          <tr>
-            <td>
-              <a href="https://www.youtube.com/watch?v=vuiQ0fJRD8I" target="_blank">
-                <img src="https://img.youtube.com/vi/vuiQ0fJRD8I/0.jpg" alt="Intro to Binary Operations" width="240">
-              </a>
-            </td>
-            <td>
-              <a href="https://www.youtube.com/watch?v=ZhgWAJs3cZY" target="_blank">
-                <img src="https://img.youtube.com/vi/ZhgWAJs3cZY/0.jpg" alt="Evaluating Expressions" width="240">
-              </a>
-            </td>
-          </tr>
-        </table>
-
-        <br>
-
-        #### Properties of Binary Operations
-        <table>
-          <tr>
-            <td>
-              <a href="https://www.youtube.com/watch?v=-YnvSDdy_Hs" target="_blank">
-                <img src="https://img.youtube.com/vi/-YnvSDdy_Hs/0.jpg" alt="Commutative & Associative Properties" width="240">
-              </a>
-            </td>
-            <td>
-              <a href="https://www.youtube.com/watch?v=I6VzJ46yj0M" target="_blank">
-                <img src="https://img.youtube.com/vi/I6VzJ46yj0M/0.jpg" alt="Identity and Inverse Elements" width="240">
-              </a>
-            </td>
-          </tr>
-          <tr>
-            <td>
-              <a href="https://www.youtube.com/watch?v=kl6mikVeY3Y" target="_blank">
-                <img src="https://img.youtube.com/vi/kl6mikVeY3Y/0.jpg" alt="Closure Property" width="240">
-              </a>
-            </td>
-          </tr>
-        </table>
-        
-        <br>
-
-        #### Solving Problems
-        <table>
-          <tr>
-            <td>
-              <a href="https://www.youtube.com/watch?v=Zd3_54eFkKc" target="_blank">
-                <img src="https://img.youtube.com/vi/Zd3_54eFkKc/0.jpg" alt="Solving for Unknowns" width="240">
-              </a>
-            </td>
-            <td>
-              <a href="https://www.youtube.com/watch?v=zvVUIxKJGC0" target="_blank">
-                <img src="https://img.youtube.com/vi/zvVUIxKJGC0/0.jpg" alt="Using Cayley Tables" width="240">
-              </a>
-            </td>
-          </tr>
-          <tr>
-            <td>
-              <a href="https://youtu.be/061HMnF5Fls" target="_blank">
-                <img src="https://img.youtube.com/vi/061HMnF5Fls/0.jpg" alt="WASSCE Past Questions" width="240">
-              </a>
-            </td>
-          </tr>
-        </table>
-        """,
-        "Relations and Functions": """
-        - **Relation:** A set of ordered pairs $(x, y)$.
-        - **Function:** A special relation where each input ($x$) has exactly one output ($y$).
-        - **Domain:** The set of all possible input values ($x$).
-        - **Range:** The set of all actual output values ($y$).
-        - **Composite Function $f(g(x))$:** The output of $g(x)$ becomes the input for $f(x)$. First evaluate $g(x)$, then apply $f$ to the result.
-        - **Inverse Function $f^{-1}(x)$:** The function that reverses $f(x)$. To find it: let $y=f(x)$, swap $x$ and $y$, then solve for $y$.
-        """,
-        "Sequence and Series": """
-        - **Arithmetic Progression (AP):** A sequence with a *common difference* ($d$).
-            - Nth term: $a_n = a_1 + (n-1)d$
-            - Sum of n terms: $S_n = \\frac{n}{2}(2a_1 + (n-1)d)$
-        - **Geometric Progression (GP):** A sequence with a *common ratio* ($r$).
-            - Nth term: $a_n = a_1 r^{n-1}$
-            - Sum of n terms: $S_n = \\frac{{a_1(r^n - 1)}}{{r-1}}$
-        - **Sum to Infinity (GP):** For $|r| < 1$, $S_\\infty = \\frac{a_1}{1-r}$.
-        """,
-        "Word Problems": """
-        A systematic approach is key for any student in Kumasi and beyond:
-        1.  **Read and Understand:** Identify what is given and what is being asked.
-        2.  **Define Variables:** Assign letters (e.g., $x, y$) to the unknown quantities.
-        3.  **Formulate Equations:** Translate the words into mathematical equations or inequalities.
-        4.  **Solve** the system of equations.
-        5.  **Check** your answer to ensure it makes sense in the context of the problem.
-        """,
-        "Shapes (Geometry)": """
-        - **Rectangle:** Area = $l \\times w$; Perimeter = $2(l+w)$.
-        - **Circle:** Area = $\\pi r^2$; Circumference = $2\\pi r$.
-        - **Cylinder:** Volume = $\\pi r^2 h$; Surface Area = $2\\pi r h + 2\\pi r^2$.
-        - **Pythagoras' Theorem:** For a right-angled triangle, $a^2 + b^2 = c^2$, where $c$ is the hypotenuse.
-        """,
-        "Algebra Basics": """
-        - **Change of Subject:** Rearranging a formula to isolate a different variable.
-        - **Factorization:** Expressing an algebraic expression as a product of its factors.
-        - **Solving Equations:**
-            - **Linear:** Isolate the variable.
-            - **Quadratic ($ax^2+bx+c=0$):** Solve by factorization, completing the square, or the quadratic formula: $$x = \\frac{{-b \\pm \\sqrt{{b^2-4ac}}}}{{2a}}$$
-        """,
-        "Linear Algebra": """
-        Focuses on vectors and matrices. For a 2x2 matrix $A = \\begin{pmatrix} a & b \\\\ c & d \\end{pmatrix}$:
-        - **Determinant:** $\det(A) = ad - bc$.
-        - **Matrix Multiplication:** Is done by row-by-column dot product. Not commutative ($AB \\neq BA$).
-        - **Inverse Matrix:** $A^{-1} = \\frac{1}{{\det(A)}} \\begin{pmatrix} d & -b \\\\ -c & a \\end{pmatrix}$. The inverse only exists if $\det(A) \\neq 0$.
-        """,
-        "Logarithms": """
-        A logarithm is the inverse operation to exponentiation. $\log_b(N) = x$ is the same as $b^x = N$.
-        - **Product Rule:** $\log_b(M) + \log_b(N) = \log_b(MN)$
-        - **Quotient Rule:** $\log_b(M) - \log_b(N) = \log_b(\\frac{M}{N})$
-        - **Power Rule:** $\log_b(M^p) = p \log_b(M)$
-        - **Change of Base:** $\log_b(a) = \\frac{{\log_c(a)}}{{\log_c(b)}}$
-        """,
-        "Probability": """
-        Probability measures the likelihood of an event. $$P(\\text{Event}) = \\frac{{\\text{Number of Favorable Outcomes}}}{{\\text{Total Number of Outcomes}}}$$
-        - **Range:** $0 \le P(E) \le 1$. $P(E)=0$ means impossible, $P(E)=1$ means certain.
-        - **Mutually Exclusive Events (OR):** $P(A \\text{ or } B) = P(A) + P(B)$.
-        - **Independent Events (AND):** $P(A \\text{ and } B) = P(A) \\times P(B)$.
-        """,
-        "Binomial Theorem": """
-        Used to expand powers of binomials, like $(a+b)^n$.
-        - **The Formula:** $(a+b)^n = \\sum_{k=0}^{n} \\binom{n}{k} a^{n-k} b^k$
-        - **Combinations:** The coefficient $\\binom{n}{k}$ is calculated as $\\frac{{n!}}{{k!(n-k)!}}$.
-        - **Finding the $(r+1)^{th}$ term:** The term is given by $T_{r+1} = \\binom{n}{r} a^{n-r} b^r$.
-        """,
-        "Polynomial Functions": """
-        Expressions involving variables with non-negative integer exponents.
-        - **Remainder Theorem:** The remainder when a polynomial $P(x)$ is divided by $(x-a)$ is equal to $P(a)$.
-        - **Factor Theorem:** If $P(a)=0$, then $(x-a)$ is a factor of $P(x)$. This is key to finding the roots of polynomials.
-        """,
-        "Rational Functions": """
-        A **Rational Function** is a function that is the ratio of two polynomials, $f(x) = \\frac{{P(x)}}{{Q(x)}}$, where $Q(x) \\neq 0$.
-        - **Domain:** All real numbers except for the x-values that make the denominator, $Q(x)$, equal to zero.
-        - **Vertical Asymptotes:** Occur at the x-values that make the denominator zero (after simplifying).
-        - **Horizontal Asymptotes:** Found by comparing the degrees of the numerator and denominator.
-        - **Holes:** Occur at x-values where a factor is cancelled from both the numerator and denominator.
-        """,
-        "Trigonometry": """
-        The study of relationships between the angles and sides of triangles.
-        - **SOH CAH TOA:** For right-angled triangles.
-        - **Identities:** $\sin^2\\theta + \cos^2\\theta = 1$ and $\tan\\theta = \\frac{{\sin\\theta}}{{\cos\\theta}}$.
-        - **Sine Rule:** $\\frac{a}{{\sin A}} = \\frac{b}{{\sin B}} = \\frac{c}{{\sin C}}$.
-        - **Cosine Rule:** $c^2 = a^2 + b^2 - 2ab\cos(C)$.
-        """,
-        "Vectors": """
-        A quantity having both magnitude (length) and direction.
-        - **Component Form:** A vector $\mathbf{v}$ can be written as $x\mathbf{i} + y\mathbf{j}$ or as a column vector $\\binom{x}{y}$.
-        - **Magnitude:** The length of $\mathbf{v} = x\mathbf{i} + y\mathbf{j}$ is $|\mathbf{v}| = \\sqrt{x^2 + y^2}$.
-        - **Scalar (Dot) Product:** $\mathbf{a} \cdot \mathbf{b} = a_1b_1 + a_2b_2$.
-        - **Angle Between Vectors:** $\cos\\theta = \\frac{{\mathbf{a} \cdot \mathbf{b}}}{{|\mathbf{a}| |\mathbf{b}|}}$.
-        """,
-         # --- ADD THE NEW TOPICS CONTENT HERE ---
-        "Statistics": """
-        **Statistics** deals with collecting, analyzing, and interpreting data.
-        - **Mean:** The average of a dataset. Calculated as $\\frac{{\\sum x}}{{n}}$.
-        - **Median:** The middle value in a sorted dataset.
-        - **Mode:** The value that appears most frequently in a dataset.
-        - **Range:** The difference between the highest and lowest values.
-        """,
-        "Coordinate Geometry": """
-        **Coordinate Geometry** uses coordinates to study geometric shapes.
-        - **Distance Formula:** The distance between $(x_1, y_1)$ and $(x_2, y_2)$ is $d = \\sqrt{{(x_2 - x_1)^2 + (y_2 - y_1)^2}}$.
-        - **Midpoint Formula:** The midpoint is $(\\frac{{x_1+x_2}}{{2}}, \\frac{{y_1+y_2}}{{2}})$.
-        - **Gradient (Slope):** The steepness of a line, $m = \\frac{{y_2-y_1}}{{x_2-x_1}}$.
-        """,
-        "Introduction to Calculus": """
-        **Calculus** is the study of continuous change.
-        - **Derivative:** Represents the instantaneous rate of change or the slope of a curve.
-            - **Power Rule:** The derivative of $ax^n$ is $anx^{{n-1}}$.
-        - **Integral:** Represents the area under a curve.
-            - **Power Rule (Integration):** The integral of $ax^n$ is $\\frac{{a}}{{n+1}}x^{{n+1}} + C$.
-        """,
-        "Number Bases": """
-        **Number Bases** are systems for representing numbers using a specific set of digits.
-        - **Base 10 (Decimal):** Uses digits 0-9.
-        - **Base 2 (Binary):** Uses digits 0-1.
-        - **Conversion to Base 10:** To convert $123_5$, calculate $(1 \\times 5^2) + (2 \\times 5^1) + (3 \\times 5^0)$.
-        - **Conversion from Base 10:** Use repeated division by the target base and record the remainders.
-        """,
-        "Modulo Arithmetic": """
-        **Modulo Arithmetic** deals with remainders after division.
-        - **Congruence:** $a \\equiv b \\pmod n$ means that $a$ and $b$ have the same remainder when divided by $n$.
-        - **Calculation:** $27 \\pmod 4 = 3$, because 27 divided by 4 is 6 with a remainder of 3.
-        - **Applications:** Used in clock arithmetic and cryptography.
-        """
-    }
-
-    for topic in topic_options:
-        if topic in topics_content:
-            with st.expander(f"**{topic}**", expanded=(topic == topic_options[0])):
-                st.markdown(topics_content[topic], unsafe_allow_html=True)
 def display_profile_page():
     st.header("👤 Your Profile")
     profile = get_user_profile(st.session_state.username) or {}
@@ -5142,6 +4836,40 @@ def show_main_app():
         # --- END OF BLOCK ---
         
     st.markdown('</div>', unsafe_allow_html=True)
+# --- NEW INTERACTIVE WIDGET FUNCTIONS ---
+
+def interactive_pythagoras_calculator():
+    """An interactive widget to calculate Pythagoras' Theorem."""
+    st.subheader("Pythagoras' Theorem Calculator")
+    with st.container(border=True):
+        st.markdown("Enter the lengths of the two shorter sides of a right-angled triangle (`a` and `b`) to find the length of the hypotenuse (`c`).")
+        col1, col2 = st.columns(2)
+        with col1:
+            a = st.number_input("Length of side **a**", min_value=0.1, value=3.0, step=0.1, format="%.2f")
+        with col2:
+            b = st.number_input("Length of side **b**", min_value=0.1, value=4.0, step=0.1, format="%.2f")
+        
+        c_squared = a**2 + b**2
+        c = math.sqrt(c_squared)
+
+        st.success(f"**Result:** The length of the hypotenuse **c** is **{c:.2f}**")
+        st.latex(f"c = \\sqrt{{a^2 + b^2}} = \\sqrt{{{a:.2f}^2 + {b:.2f}^2}} = \\sqrt{{{c_squared:.2f}}} \\approx {c:.2f}")
+
+def interactive_check_your_understanding(question, options, correct_answer, success_message, key):
+    """A widget for a quick, non-graded multiple-choice question."""
+    st.subheader("Check Your Understanding")
+    with st.container(border=True):
+        st.markdown(question)
+        user_choice = st.radio("Select your answer:", options, index=None, key=key)
+
+        if user_choice:
+            if user_choice == correct_answer:
+                st.success(f"**Correct!** {success_message}")
+            else:
+                st.error(f"**Not quite.** The correct answer is **{correct_answer}**. Try reading the section again!")
+
+# --- END OF INTERACTIVE WIDGETS ---
+
 def show_login_or_signup_page():
     load_css()
     st.markdown('<div class="login-container">', unsafe_allow_html=True)
@@ -5213,6 +4941,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
