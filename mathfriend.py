@@ -4373,18 +4373,53 @@ def display_learning_resources(topic_options):
         
         ---
         
+        # --- AND ADD THIS NEW ELIF BLOCK RIGHT AFTER IT ---
+    elif selected_topic == "Sets":
+        st.subheader("Sets")
+        # The original text, PDF, and video content for Sets
+        st.markdown("""
+        A **set** is a well-defined collection of distinct objects.
+        - **Union ($A \\cup B$):** All elements that are in set A, or in set B, or in both.
+        - **Intersection ($A \\cap B$):** All elements that are in *both* set A and set B.
+        - **Complement ($A'$ or $A^c$):** All elements in the universal set ($\\mathcal{U}$) that are *not* in set A.
+        
+        ---
+        
         ### 📄 Downloadable PDF
         * **[Download PDF: Comprehensive Guide to Sets](https://github.com/derricktogodui/mathfriend-app/releases/download/Learning_Resources/Sets.pdf)**
         
         <br>
 
         ### 🎥 Video Tutorials
-        (Your table of videos for Sets would go here)
+        <table>
+          <tr>
+            <td>
+              <a href="https://www.youtube.com/watch?v=WHfef-NghN8" target="_blank">
+                <img src="https://img.youtube.com/vi/WHfef-NghN8/0.jpg" alt="Math Antics - Basic Set Theory" width="240">
+              </a>
+            </td>
+            <td>
+              <a href="https://www.youtube.com/watch?v=5ZhNmKb-dqk" target="_blank">
+                <img src="https://img.youtube.com/vi/5ZhNmKb-dqk/0.jpg" alt="Set Theory - All you need to know" width="240">
+              </a>
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <a href="https://www.youtube.com/watch?v=xZELQc11ACY" target="_blank">
+                <img src="https://img.youtube.com/vi/xZELQc11ACY/0.jpg" alt="Introduction to Set Theory (WASSCE)" width="240">
+              </a>
+            </td>
+            <td>
+              <a href="https://www.youtube.com/watch?v=09c7OxBF0i4" target="_blank">
+                <img src="https://img.youtube.com/vi/09c7OxBF0i4/0.jpg" alt="Set Theory - The Ultimate Revision Guide" width="240">
+              </a>
+            </td>
+          </tr>
+        </table>
         """, unsafe_allow_html=True)
 
-    # You can add more `elif selected_topic == "Topic Name":` blocks for other topics here
-    else:
-        st.info(f"Content for **{selected_topic}** is under construction. Interactive widgets are coming soon!")
+        st.markdown("<hr>", unsafe_allow_html=True)
 
 def display_profile_page():
     st.header("👤 Your Profile")
@@ -4868,6 +4903,33 @@ def interactive_check_your_understanding(question, options, correct_answer, succ
             else:
                 st.error(f"**Not quite.** The correct answer is **{correct_answer}**. Try reading the section again!")
 
+def interactive_venn_diagram_calculator():
+    """An interactive widget for a two-set Venn diagram calculation."""
+    st.subheader("Venn Diagram Calculator")
+    with st.container(border=True):
+        st.markdown("Enter the number of elements in each part of the Venn diagram to see the totals.")
+        
+        c1, c2, c3 = st.columns(3)
+        with c1:
+            a_only = st.number_input("Only in Set A", min_value=0, value=10, step=1)
+        with c2:
+            b_only = st.number_input("Only in Set B", min_value=0, value=15, step=1)
+        with c3:
+            both = st.number_input("In Both A and B", min_value=0, value=5, step=1)
+            
+        total_a = a_only + both
+        total_b = b_only + both
+        union_ab = a_only + b_only + both
+
+        st.success(f"**Results:**")
+        
+        res_col1, res_col2, res_col3 = st.columns(3)
+        res_col1.metric("Total in Set A", f"|A| = {total_a}")
+        res_col2.metric("Total in Set B", f"|B| = {total_b}")
+        res_col3.metric("Total in A or B", f"|A U B| = {union_ab}")
+        
+        st.latex(f"|A \\cup B| = |A| + |B| - |A \\cap B| \\implies {union_ab} = {total_a} + {total_b} - {both}")
+
 # --- END OF INTERACTIVE WIDGETS ---
 
 def show_login_or_signup_page():
@@ -4941,6 +5003,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
