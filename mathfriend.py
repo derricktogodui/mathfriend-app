@@ -4347,13 +4347,13 @@ def display_learning_resources(topic_options):
         - **Circle:** Area = $\\pi r^2$; Circumference = $2\\pi r$.
         - **Cylinder:** Volume = $\\pi r^2 h$; Surface Area = $2\\pi r h + 2\\pi r^2$.
         - **Pythagoras' Theorem:** For a right-angled triangle, $a^2 + b^2 = c^2$, where $c$ is the hypotenuse.
-        """)
+        """, unsafe_allow_html=True) # --- FIX: Added missing closing parenthesis and argument ---
+        
         st.markdown("<hr>", unsafe_allow_html=True)
         
-        # --- CALLING THE INTERACTIVE WIDGETS ---
         interactive_pythagoras_calculator()
         
-        st.markdown("<br>", unsafe_allow_html=True) # Add some space
+        st.markdown("<br>", unsafe_allow_html=True)
         
         interactive_check_your_understanding(
             question="A rectangle has a length of 10m and a width of 5m. What is its perimeter?",
@@ -4365,18 +4365,6 @@ def display_learning_resources(topic_options):
     
     elif selected_topic == "Sets":
         st.subheader("Sets")
-        # All the markdown, PDFs, and videos for Sets go here
-        st.markdown("""
-        A **set** is a well-defined collection of distinct objects.
-        - **Union ($A \\cup B$):** All elements that are in set A, or in set B, or in both.
-        - **Intersection ($A \\cap B$):** All elements that are in *both* set A and set B.
-        
-        ---
-        
-        # --- AND ADD THIS NEW ELIF BLOCK RIGHT AFTER IT ---
-    elif selected_topic == "Sets":
-        st.subheader("Sets")
-        # The original text, PDF, and video content for Sets
         st.markdown("""
         A **set** is a well-defined collection of distinct objects.
         - **Union ($A \\cup B$):** All elements that are in set A, or in set B, or in both.
@@ -4420,6 +4408,12 @@ def display_learning_resources(topic_options):
         """, unsafe_allow_html=True)
 
         st.markdown("<hr>", unsafe_allow_html=True)
+        
+        interactive_venn_diagram_calculator()
+
+    # You can add more `elif selected_topic == "Topic Name":` blocks for other topics here
+    else:
+        st.info(f"Content for **{selected_topic}** is under construction. Interactive widgets are coming soon!")
 
 def display_profile_page():
     st.header("👤 Your Profile")
@@ -5003,6 +4997,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
