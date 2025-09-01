@@ -1929,8 +1929,9 @@ def _generate_surds_question(difficulty="Medium"):
         question = f"Solve for x: $\\sqrt{{x - {c}}} = {result}$"
         answer = str(x_val)
         hint = "To eliminate the square root, you must square both sides of the equation."
-        explanation = (f"1. Given: $\\sqrt{{x - {c}}} = {result}$.\n2. Square both sides: $(\\sqrt{{x - {c}}})^2 = {result}^2 \\implies x - {c} = {result**2}$.\n3. Add {c} to both sides: $x = {result**2} + {c} = {x_val}$."
+        explanation = (f"1. Given: $\\sqrt{{x - {c}}} = {result}$.\n2. Square both sides: $(\\sqrt{{x - {c}}})^2 = {result}^2 \\implies x - {c} = {result**2}$.\n3. Add {c} to both sides: $x = {result**2} + {c} = {x_val}$.")
         options = {answer, str(result + c), str(result**2), str(abs(result**2-c))}
+
 
     elif q_type == 'geometry':
         a, b = random.randint(2, 5), random.randint(6, 9)
@@ -5689,6 +5690,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
