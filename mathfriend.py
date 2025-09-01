@@ -4313,6 +4313,251 @@ def display_leaderboard(topic_options):
             )
         else:
             st.info(f"No scores recorded for **{leaderboard_topic}** in this time period. Be the first!")
+# --- NEW INTERACTIVE WIDGET FUNCTIONS (COMPLETE LIBRARY FOR ALL TOPICS) ---
+
+def interactive_check_your_understanding(q, opts, ans, msg, key):
+    """A generic widget for a quick, non-graded multiple-choice question."""
+    st.subheader("Check Your Understanding")
+    with st.container(border=True):
+        st.markdown(q)
+        choice = st.radio("Select:", opts, index=None, key=key)
+        if choice:
+            if choice == ans: st.success(f"**Correct!** {msg}")
+            else: st.error(f"**Not quite.** The correct answer is **{ans}**.")
+
+def interactive_venn_diagram_calculator():
+    st.subheader("Venn Diagram Calculator")
+    with st.container(border=True):
+        st.markdown("Enter the elements in each region to see the totals.")
+        c1, c2, c3 = st.columns(3)
+        a_only = c1.number_input("Only in Set A", 0, 1000, 10, key="v_a")
+        b_only = c2.number_input("Only in Set B", 0, 1000, 15, key="v_b")
+        both = c3.number_input("In Both A and B", 0, 1000, 5, key="v_both")
+        total_a, total_b, union_ab = a_only + both, b_only + both, a_only + b_only + both
+        st.success(f"**Results:** Total in A = **{total_a}**, Total in B = **{total_b}**, Total in A or B = **{union_ab}**")
+
+def interactive_percentage_calculator():
+    st.subheader("Percentage Calculator")
+    with st.container(border=True):
+        calc_type = st.radio("Choose a calculation:", ["% of Number", "% Change"], horizontal=True, key="p_calc")
+        if calc_type == "% of Number":
+            c1, c2 = st.columns(2)
+            p = c1.number_input("What is...", value=25.0); n = c2.number_input("percent of...?", value=150.0)
+            st.success(f"**Result:** {p}% of {n} is **{(p/100)*n:.2f}**")
+        else:
+            c1, c2 = st.columns(2)
+            ov = c1.number_input("Original Value", value=200.0, min_value=0.1); nv = c2.number_input("New Value", value=250.0)
+            if ov != 0: st.success(f"**Result:** The change is **{((nv-ov)/ov)*100:.2f}%**")
+
+def interactive_fraction_widget():
+    interactive_check_your_understanding(
+        "What is $\\frac{1}{2} \\div \\frac{1}{4}$?", ["1/8", "2", "1/2"], "2", 
+        "To divide by a fraction, you invert and multiply: $\\frac{1}{2} \\times \\frac{4}{1} = 2$.", "fractions_check"
+    )
+
+def interactive_indices_widget():
+    st.subheader("Laws of Indices Explorer")
+    with st.container(border=True):
+        c1, c2, c3, c4 = st.columns(4)
+        base = c1.number_input("Base (x)", 2, 10, 3)
+        p1 = c2.number_input("Power 1 (a)", 1, 10, 4)
+        p2 = c3.number_input("Power 2 (b)", 1, 10, 2)
+        op = c4.selectbox("Operation", ["Multiply", "Divide", "Power"])
+        if op == "Multiply":
+            st.latex(f"{base}^{p1} \\times {base}^{p2} = {base}^{{{p1+p2}}} = {base**(p1+p2)}")
+        elif op == "Divide":
+            st.latex(f"{base}^{p1} \\div {base}^{p2} = {base}^{{{p1-p2}}} = {base**(p1-p2)}")
+        else: # Power
+            st.latex(f"({base}^{p1})^{p2} = {base}^{{{p1*p2}}} = {base**(p1*p2)}")
+
+def interactive_surds_widget():
+    interactive_check_your_understanding(
+        "What is the conjugate of $5 + \\sqrt{3}$?", ["$5 - \\sqrt{3}$", "$-5 + \\sqrt{3}$", "22"],
+        "$5 - \\sqrt{3}$", "The conjugate is found by flipping the middle sign.", "surds_check"
+    )
+
+def interactive_binary_ops_widget():
+    interactive_check_your_understanding(
+        "For a binary operation defined by the table below, what is $b \\ast c$? <br> | * | a | b | c | <br> |---|---|---|---| <br> | **b** | c | a | **d** |",
+        ["a", "b", "c", "d"], "d", "Find the row for `b` and the column for `c`. They intersect at `d`.", "binary_check"
+    )
+
+def interactive_functions_widget():
+    st.subheader("Function Evaluator")
+    with st.container(border=True):
+        func_str = st.text_input("Enter a function f(x)", "2*x**2 + 3*x - 5")
+        x_val = st.number_input("Enter the value of x", value=3.0)
+        try:
+            x = x_val
+            result = eval(func_str, {"x": x, "math": math})
+            st.success(f"**Result:** $f({x_val}) = {result:.2f}$")
+        except Exception as e:
+            st.error(f"Invalid function or value. Please use Python syntax (e.g., 'x**2' for $x^2$).")
+
+def interactive_sequence_series_widget():
+    st.subheader("Sequence & Series Calculator")
+    with st.container(border=True):
+        seq_type = st.radio("Sequence Type", ["Arithmetic (AP)", "Geometric (GP)"], horizontal=True)
+        a = st.number_input("First Term (a)", value=5.0)
+        n = st.number_input("Term number (n)", min_value=1, value=10, step=1)
+        if seq_type == "Arithmetic (AP)":
+            d = st.number_input("Common Difference (d)", value=3.0)
+            nth_term = a + (n-1)*d
+            st.success(f"The **{n}th term** of this AP is **{nth_term:.2f}**")
+        else:
+            r = st.number_input("Common Ratio (r)", value=2.0)
+            nth_term = a * (r**(n-1))
+            st.success(f"The **{n}th term** of this GP is **{nth_term:.2f}**")
+
+def interactive_word_problems_widget():
+    interactive_check_your_understanding(
+        "If Kofi is twice as old as Ama, and their ages sum to 24, how old is Kofi?",
+        ["8", "12", "16", "20"], "16", "Let Ama's age be $x$. Kofi's age is $2x$. Then $x + 2x = 24 \implies 3x = 24 \implies x=8$. Kofi is $2 \times 8 = 16$.", "age_check"
+    )
+
+def interactive_pythagoras_calculator(): # You already have this one
+    st.subheader("Pythagoras' Theorem Calculator")
+    with st.container(border=True):
+        st.markdown("Enter the lengths of the two shorter sides (`a` and `b`) to find the hypotenuse (`c`).")
+        c1, c2 = st.columns(2)
+        a = c1.number_input("Side a", min_value=0.1, value=3.0, step=0.1); b = c2.number_input("Side b", min_value=0.1, value=4.0, step=0.1)
+        c = math.sqrt(a**2 + b**2)
+        st.success(f"**Result:** The hypotenuse **c** is **{c:.2f}**")
+
+def interactive_quadratic_calculator(): # You already have this one
+    st.subheader("Quadratic Formula Calculator")
+    with st.container(border=True):
+        st.markdown("For $ax^2 + bx + c = 0$, enter the coefficients.")
+        c1, c2, c3 = st.columns(3)
+        a = c1.number_input("a", value=1.0); b = c2.number_input("b", value=-5.0); c = c3.number_input("c", value=6.0)
+        if a != 0:
+            d = b**2 - 4*a*c
+            if d >= 0:
+                x1 = (-b + math.sqrt(d))/(2*a); x2 = (-b - math.sqrt(d))/(2*a)
+                st.success(f"**Roots:** $x_1 = {x1:.2f}$ and $x_2 = {x2:.2f}$")
+            else: st.warning("No real roots.")
+        else: st.error("'a' cannot be zero.")
+            
+def interactive_matrix_determinant_calculator():
+    st.subheader("2x2 Matrix Determinant Calculator")
+    with st.container(border=True):
+        st.latex("\\begin{pmatrix} a & b \\\\ c & d \\end{pmatrix}")
+        c1, c2 = st.columns(2)
+        a = c1.number_input("a", value=4.0); b = c2.number_input("b", value=7.0)
+        c = c1.number_input("c", value=2.0); d = c2.number_input("d", value=6.0)
+        det = a*d - b*c
+        st.success(f"**Determinant (ad - bc):** **{det:.2f}**")
+
+def interactive_logarithm_converter():
+    st.subheader("Logarithm & Exponential Form Converter")
+    with st.container(border=True):
+        c1, c2, c3 = st.columns(3)
+        b = c1.number_input("Base (b)", min_value=2, value=3)
+        x = c2.number_input("Exponent (x)", value=4)
+        N = b**x
+        st.success(f"**Result:** $log_{b}(N) = x \implies log_{{{b}}}({N}) = {x}$")
+        st.success(f"**And:** $b^x = N \implies {b}^{{{x}}} = {N}$")
+
+def interactive_probability_widget():
+    interactive_check_your_understanding(
+        "A bag has 3 red balls and 2 blue balls. What is the probability of picking a blue ball?",
+        ["2/3", "3/5", "2/5", "1/2"], "2/5", "Prob = Favorable / Total = 2 blue / 5 total balls.", "prob_check"
+    )
+
+def interactive_binomial_widget():
+    interactive_check_your_understanding(
+        "What is the coefficient of the $x^2$ term in the expansion of $(x+2)^3$?",
+        ["3", "4", "6", "12"], "6", "The term is $\\binom{3}{2}x^2(2)^1 = 3 \cdot x^2 \cdot 2 = 6x^2$.", "binom_check"
+    )
+    
+def interactive_polynomial_widget():
+    interactive_check_your_understanding(
+        "What is the remainder when $P(x) = x^2 - 2x + 5$ is divided by $(x-3)$?",
+        ["5", "8", "10", "20"], "8", "By the Remainder Theorem, the remainder is $P(3) = 3^2 - 2(3) + 5 = 9 - 6 + 5 = 8$.", "poly_check"
+    )
+
+def interactive_rational_functions_widget():
+    interactive_check_your_understanding(
+        "What is the vertical asymptote of the function $f(x) = \\frac{{x+1}}{{x-4}}$?",
+        ["x = -1", "x = 4", "y = 1", "y = 4"], "x = 4", "The vertical asymptote occurs where the denominator is zero. $x-4=0 \implies x=4$.", "rational_check"
+    )
+    
+def interactive_trigonometry_widget():
+    st.subheader("SOH CAH TOA Calculator")
+    with st.container(border=True):
+        side1 = st.number_input("Opposite side", min_value=0.1, value=3.0)
+        side2 = st.number_input("Adjacent side", min_value=0.1, value=4.0)
+        hyp = math.sqrt(side1**2 + side2**2)
+        angle_rad = math.asin(side1/hyp)
+        angle_deg = math.degrees(angle_rad)
+        st.success(f"**Results for Angle A:**")
+        st.latex(f"\\sin(A) = \\frac{{Opp}}{{Hyp}} = \\frac{{{side1}}}{{{hyp:.2f}}} \\approx {math.sin(angle_rad):.2f}")
+        st.latex(f"\\cos(A) = \\frac{{Adj}}{{Hyp}} = \\frac{{{side2}}}{{{hyp:.2f}}} \\approx {math.cos(angle_rad):.2f}")
+        st.latex(f"\\tan(A) = \\frac{{Opp}}{{Adj}} = \\frac{{{side1}}}{{{side2}}} \\approx {math.tan(angle_rad):.2f}")
+
+def interactive_vectors_widget():
+    st.subheader("2D Vector Magnitude Calculator")
+    with st.container(border=True):
+        c1, c2 = st.columns(2)
+        x = c1.number_input("x-component", value=3.0); y = c2.number_input("y-component", value=4.0)
+        mag = math.sqrt(x**2 + y**2)
+        st.success(f"**Magnitude:** The magnitude of $\\binom{{{x}}}{{{y}}}$ is **{mag:.2f}**.")
+    
+def interactive_statistics_widget():
+    st.subheader("Mean, Median, Mode Calculator")
+    with st.container(border=True):
+        data_str = st.text_input("Enter numbers separated by commas", "5, 10, 15, 10, 25")
+        try:
+            data = [float(x.strip()) for x in data_str.split(',')]
+            df = pd.Series(data)
+            c1, c2, c3 = st.columns(3)
+            c1.metric("Mean (Average)", f"{df.mean():.2f}")
+            c2.metric("Median (Middle)", f"{df.median():.2f}")
+            c3.metric("Mode (Most Frequent)", f"{df.mode().iloc[0] if not df.mode().empty else 'N/A'}")
+        except:
+            st.warning("Please enter a valid list of numbers.")
+
+def interactive_coord_geometry_widget():
+    st.subheader("Coordinate Geometry Calculator")
+    with st.container(border=True):
+        c1, c2 = st.columns(2)
+        x1 = c1.number_input("x1", value=1.0); y1 = c2.number_input("y1", value=2.0)
+        x2 = c1.number_input("x2", value=4.0); y2 = c2.number_input("y2", value=6.0)
+        dist = math.sqrt((x2-x1)**2 + (y2-y1)**2)
+        mid_x, mid_y = (x1+x2)/2, (y1+y2)/2
+        st.success(f"**Distance:** {dist:.2f}")
+        st.success(f"**Midpoint:** ({mid_x:.2f}, {mid_y:.2f})")
+
+def interactive_calculus_widget():
+    st.subheader("Simple Power Rule Differentiator")
+    with st.container(border=True):
+        c1, c2 = st.columns(2)
+        a = c1.number_input("Coefficient (a)", value=4.0); n = c2.number_input("Power (n)", value=3.0)
+        st.latex(f"\\frac{{d}}{{dx}}({a}x^{{{n}}}) = ({a*n})x^{{{n-1}}}")
+
+def interactive_number_bases_widget():
+    st.subheader("Number Base Converter (to Base 10)")
+    with st.container(border=True):
+        c1, c2 = st.columns(2)
+        num_str = c1.text_input("Number", "1011")
+        base = c2.number_input("From Base", min_value=2, max_value=16, value=2)
+        try:
+            result = int(num_str, base)
+            st.success(f"**Result:** ${num_str}_{{{base}}}$ is **{result}** in Base 10.")
+        except ValueError:
+            st.error("Invalid digit for the specified base.")
+            
+def interactive_modulo_widget():
+    st.subheader("Clock Arithmetic (Modulo) Calculator")
+    with st.container(border=True):
+        c1, c2 = st.columns(2)
+        start = c1.number_input("Start Time", min_value=1, max_value=12, value=3)
+        hours = c2.number_input("Hours Passed", min_value=0, value=15)
+        end_time = (start + hours - 1) % 12 + 1
+        st.success(f"**Result:** {hours} hours after {start} o'clock, it will be **{end_time} o'clock**.")
+
+# --- END OF INTERACTIVE WIDGETS ---
+
 def display_learning_resources(topic_options):
     st.header("📚 Learning Resources & Interactive Lab")
 
@@ -5108,250 +5353,6 @@ def display_admin_panel():
             st.dataframe(df_active.rename(columns={'username': 'Username', 'quiz_count': 'Total Quizzes Taken'}), use_container_width=True)
         else:
             st.info("No student activity to rank yet.")
-# --- NEW INTERACTIVE WIDGET FUNCTIONS (COMPLETE LIBRARY FOR ALL TOPICS) ---
-
-def interactive_check_your_understanding(q, opts, ans, msg, key):
-    """A generic widget for a quick, non-graded multiple-choice question."""
-    st.subheader("Check Your Understanding")
-    with st.container(border=True):
-        st.markdown(q)
-        choice = st.radio("Select:", opts, index=None, key=key)
-        if choice:
-            if choice == ans: st.success(f"**Correct!** {msg}")
-            else: st.error(f"**Not quite.** The correct answer is **{ans}**.")
-
-def interactive_venn_diagram_calculator():
-    st.subheader("Venn Diagram Calculator")
-    with st.container(border=True):
-        st.markdown("Enter the elements in each region to see the totals.")
-        c1, c2, c3 = st.columns(3)
-        a_only = c1.number_input("Only in Set A", 0, 1000, 10, key="v_a")
-        b_only = c2.number_input("Only in Set B", 0, 1000, 15, key="v_b")
-        both = c3.number_input("In Both A and B", 0, 1000, 5, key="v_both")
-        total_a, total_b, union_ab = a_only + both, b_only + both, a_only + b_only + both
-        st.success(f"**Results:** Total in A = **{total_a}**, Total in B = **{total_b}**, Total in A or B = **{union_ab}**")
-
-def interactive_percentage_calculator():
-    st.subheader("Percentage Calculator")
-    with st.container(border=True):
-        calc_type = st.radio("Choose a calculation:", ["% of Number", "% Change"], horizontal=True, key="p_calc")
-        if calc_type == "% of Number":
-            c1, c2 = st.columns(2)
-            p = c1.number_input("What is...", value=25.0); n = c2.number_input("percent of...?", value=150.0)
-            st.success(f"**Result:** {p}% of {n} is **{(p/100)*n:.2f}**")
-        else:
-            c1, c2 = st.columns(2)
-            ov = c1.number_input("Original Value", value=200.0, min_value=0.1); nv = c2.number_input("New Value", value=250.0)
-            if ov != 0: st.success(f"**Result:** The change is **{((nv-ov)/ov)*100:.2f}%**")
-
-def interactive_fraction_widget():
-    interactive_check_your_understanding(
-        "What is $\\frac{1}{2} \\div \\frac{1}{4}$?", ["1/8", "2", "1/2"], "2", 
-        "To divide by a fraction, you invert and multiply: $\\frac{1}{2} \\times \\frac{4}{1} = 2$.", "fractions_check"
-    )
-
-def interactive_indices_widget():
-    st.subheader("Laws of Indices Explorer")
-    with st.container(border=True):
-        c1, c2, c3, c4 = st.columns(4)
-        base = c1.number_input("Base (x)", 2, 10, 3)
-        p1 = c2.number_input("Power 1 (a)", 1, 10, 4)
-        p2 = c3.number_input("Power 2 (b)", 1, 10, 2)
-        op = c4.selectbox("Operation", ["Multiply", "Divide", "Power"])
-        if op == "Multiply":
-            st.latex(f"{base}^{p1} \\times {base}^{p2} = {base}^{{{p1+p2}}} = {base**(p1+p2)}")
-        elif op == "Divide":
-            st.latex(f"{base}^{p1} \\div {base}^{p2} = {base}^{{{p1-p2}}} = {base**(p1-p2)}")
-        else: # Power
-            st.latex(f"({base}^{p1})^{p2} = {base}^{{{p1*p2}}} = {base**(p1*p2)}")
-
-def interactive_surds_widget():
-    interactive_check_your_understanding(
-        "What is the conjugate of $5 + \\sqrt{3}$?", ["$5 - \\sqrt{3}$", "$-5 + \\sqrt{3}$", "22"],
-        "$5 - \\sqrt{3}$", "The conjugate is found by flipping the middle sign.", "surds_check"
-    )
-
-def interactive_binary_ops_widget():
-    interactive_check_your_understanding(
-        "For a binary operation defined by the table below, what is $b \\ast c$? <br> | * | a | b | c | <br> |---|---|---|---| <br> | **b** | c | a | **d** |",
-        ["a", "b", "c", "d"], "d", "Find the row for `b` and the column for `c`. They intersect at `d`.", "binary_check"
-    )
-
-def interactive_functions_widget():
-    st.subheader("Function Evaluator")
-    with st.container(border=True):
-        func_str = st.text_input("Enter a function f(x)", "2*x**2 + 3*x - 5")
-        x_val = st.number_input("Enter the value of x", value=3.0)
-        try:
-            x = x_val
-            result = eval(func_str, {"x": x, "math": math})
-            st.success(f"**Result:** $f({x_val}) = {result:.2f}$")
-        except Exception as e:
-            st.error(f"Invalid function or value. Please use Python syntax (e.g., 'x**2' for $x^2$).")
-
-def interactive_sequence_series_widget():
-    st.subheader("Sequence & Series Calculator")
-    with st.container(border=True):
-        seq_type = st.radio("Sequence Type", ["Arithmetic (AP)", "Geometric (GP)"], horizontal=True)
-        a = st.number_input("First Term (a)", value=5.0)
-        n = st.number_input("Term number (n)", min_value=1, value=10, step=1)
-        if seq_type == "Arithmetic (AP)":
-            d = st.number_input("Common Difference (d)", value=3.0)
-            nth_term = a + (n-1)*d
-            st.success(f"The **{n}th term** of this AP is **{nth_term:.2f}**")
-        else:
-            r = st.number_input("Common Ratio (r)", value=2.0)
-            nth_term = a * (r**(n-1))
-            st.success(f"The **{n}th term** of this GP is **{nth_term:.2f}**")
-
-def interactive_word_problems_widget():
-    interactive_check_your_understanding(
-        "If Kofi is twice as old as Ama, and their ages sum to 24, how old is Kofi?",
-        ["8", "12", "16", "20"], "16", "Let Ama's age be $x$. Kofi's age is $2x$. Then $x + 2x = 24 \implies 3x = 24 \implies x=8$. Kofi is $2 \times 8 = 16$.", "age_check"
-    )
-
-def interactive_pythagoras_calculator(): # You already have this one
-    st.subheader("Pythagoras' Theorem Calculator")
-    with st.container(border=True):
-        st.markdown("Enter the lengths of the two shorter sides (`a` and `b`) to find the hypotenuse (`c`).")
-        c1, c2 = st.columns(2)
-        a = c1.number_input("Side a", min_value=0.1, value=3.0, step=0.1); b = c2.number_input("Side b", min_value=0.1, value=4.0, step=0.1)
-        c = math.sqrt(a**2 + b**2)
-        st.success(f"**Result:** The hypotenuse **c** is **{c:.2f}**")
-
-def interactive_quadratic_calculator(): # You already have this one
-    st.subheader("Quadratic Formula Calculator")
-    with st.container(border=True):
-        st.markdown("For $ax^2 + bx + c = 0$, enter the coefficients.")
-        c1, c2, c3 = st.columns(3)
-        a = c1.number_input("a", value=1.0); b = c2.number_input("b", value=-5.0); c = c3.number_input("c", value=6.0)
-        if a != 0:
-            d = b**2 - 4*a*c
-            if d >= 0:
-                x1 = (-b + math.sqrt(d))/(2*a); x2 = (-b - math.sqrt(d))/(2*a)
-                st.success(f"**Roots:** $x_1 = {x1:.2f}$ and $x_2 = {x2:.2f}$")
-            else: st.warning("No real roots.")
-        else: st.error("'a' cannot be zero.")
-            
-def interactive_matrix_determinant_calculator():
-    st.subheader("2x2 Matrix Determinant Calculator")
-    with st.container(border=True):
-        st.latex("\\begin{pmatrix} a & b \\\\ c & d \\end{pmatrix}")
-        c1, c2 = st.columns(2)
-        a = c1.number_input("a", value=4.0); b = c2.number_input("b", value=7.0)
-        c = c1.number_input("c", value=2.0); d = c2.number_input("d", value=6.0)
-        det = a*d - b*c
-        st.success(f"**Determinant (ad - bc):** **{det:.2f}**")
-
-def interactive_logarithm_converter():
-    st.subheader("Logarithm & Exponential Form Converter")
-    with st.container(border=True):
-        c1, c2, c3 = st.columns(3)
-        b = c1.number_input("Base (b)", min_value=2, value=3)
-        x = c2.number_input("Exponent (x)", value=4)
-        N = b**x
-        st.success(f"**Result:** $log_{b}(N) = x \implies log_{{{b}}}({N}) = {x}$")
-        st.success(f"**And:** $b^x = N \implies {b}^{{{x}}} = {N}$")
-
-def interactive_probability_widget():
-    interactive_check_your_understanding(
-        "A bag has 3 red balls and 2 blue balls. What is the probability of picking a blue ball?",
-        ["2/3", "3/5", "2/5", "1/2"], "2/5", "Prob = Favorable / Total = 2 blue / 5 total balls.", "prob_check"
-    )
-
-def interactive_binomial_widget():
-    interactive_check_your_understanding(
-        "What is the coefficient of the $x^2$ term in the expansion of $(x+2)^3$?",
-        ["3", "4", "6", "12"], "6", "The term is $\\binom{3}{2}x^2(2)^1 = 3 \cdot x^2 \cdot 2 = 6x^2$.", "binom_check"
-    )
-    
-def interactive_polynomial_widget():
-    interactive_check_your_understanding(
-        "What is the remainder when $P(x) = x^2 - 2x + 5$ is divided by $(x-3)$?",
-        ["5", "8", "10", "20"], "8", "By the Remainder Theorem, the remainder is $P(3) = 3^2 - 2(3) + 5 = 9 - 6 + 5 = 8$.", "poly_check"
-    )
-
-def interactive_rational_functions_widget():
-    interactive_check_your_understanding(
-        "What is the vertical asymptote of the function $f(x) = \\frac{{x+1}}{{x-4}}$?",
-        ["x = -1", "x = 4", "y = 1", "y = 4"], "x = 4", "The vertical asymptote occurs where the denominator is zero. $x-4=0 \implies x=4$.", "rational_check"
-    )
-    
-def interactive_trigonometry_widget():
-    st.subheader("SOH CAH TOA Calculator")
-    with st.container(border=True):
-        side1 = st.number_input("Opposite side", min_value=0.1, value=3.0)
-        side2 = st.number_input("Adjacent side", min_value=0.1, value=4.0)
-        hyp = math.sqrt(side1**2 + side2**2)
-        angle_rad = math.asin(side1/hyp)
-        angle_deg = math.degrees(angle_rad)
-        st.success(f"**Results for Angle A:**")
-        st.latex(f"\\sin(A) = \\frac{{Opp}}{{Hyp}} = \\frac{{{side1}}}{{{hyp:.2f}}} \\approx {math.sin(angle_rad):.2f}")
-        st.latex(f"\\cos(A) = \\frac{{Adj}}{{Hyp}} = \\frac{{{side2}}}{{{hyp:.2f}}} \\approx {math.cos(angle_rad):.2f}")
-        st.latex(f"\\tan(A) = \\frac{{Opp}}{{Adj}} = \\frac{{{side1}}}{{{side2}}} \\approx {math.tan(angle_rad):.2f}")
-
-def interactive_vectors_widget():
-    st.subheader("2D Vector Magnitude Calculator")
-    with st.container(border=True):
-        c1, c2 = st.columns(2)
-        x = c1.number_input("x-component", value=3.0); y = c2.number_input("y-component", value=4.0)
-        mag = math.sqrt(x**2 + y**2)
-        st.success(f"**Magnitude:** The magnitude of $\\binom{{{x}}}{{{y}}}$ is **{mag:.2f}**.")
-    
-def interactive_statistics_widget():
-    st.subheader("Mean, Median, Mode Calculator")
-    with st.container(border=True):
-        data_str = st.text_input("Enter numbers separated by commas", "5, 10, 15, 10, 25")
-        try:
-            data = [float(x.strip()) for x in data_str.split(',')]
-            df = pd.Series(data)
-            c1, c2, c3 = st.columns(3)
-            c1.metric("Mean (Average)", f"{df.mean():.2f}")
-            c2.metric("Median (Middle)", f"{df.median():.2f}")
-            c3.metric("Mode (Most Frequent)", f"{df.mode().iloc[0] if not df.mode().empty else 'N/A'}")
-        except:
-            st.warning("Please enter a valid list of numbers.")
-
-def interactive_coord_geometry_widget():
-    st.subheader("Coordinate Geometry Calculator")
-    with st.container(border=True):
-        c1, c2 = st.columns(2)
-        x1 = c1.number_input("x1", value=1.0); y1 = c2.number_input("y1", value=2.0)
-        x2 = c1.number_input("x2", value=4.0); y2 = c2.number_input("y2", value=6.0)
-        dist = math.sqrt((x2-x1)**2 + (y2-y1)**2)
-        mid_x, mid_y = (x1+x2)/2, (y1+y2)/2
-        st.success(f"**Distance:** {dist:.2f}")
-        st.success(f"**Midpoint:** ({mid_x:.2f}, {mid_y:.2f})")
-
-def interactive_calculus_widget():
-    st.subheader("Simple Power Rule Differentiator")
-    with st.container(border=True):
-        c1, c2 = st.columns(2)
-        a = c1.number_input("Coefficient (a)", value=4.0); n = c2.number_input("Power (n)", value=3.0)
-        st.latex(f"\\frac{{d}}{{dx}}({a}x^{{{n}}}) = ({a*n})x^{{{n-1}}}")
-
-def interactive_number_bases_widget():
-    st.subheader("Number Base Converter (to Base 10)")
-    with st.container(border=True):
-        c1, c2 = st.columns(2)
-        num_str = c1.text_input("Number", "1011")
-        base = c2.number_input("From Base", min_value=2, max_value=16, value=2)
-        try:
-            result = int(num_str, base)
-            st.success(f"**Result:** ${num_str}_{{{base}}}$ is **{result}** in Base 10.")
-        except ValueError:
-            st.error("Invalid digit for the specified base.")
-            
-def interactive_modulo_widget():
-    st.subheader("Clock Arithmetic (Modulo) Calculator")
-    with st.container(border=True):
-        c1, c2 = st.columns(2)
-        start = c1.number_input("Start Time", min_value=1, max_value=12, value=3)
-        hours = c2.number_input("Hours Passed", min_value=0, value=15)
-        end_time = (start + hours - 1) % 12 + 1
-        st.success(f"**Result:** {hours} hours after {start} o'clock, it will be **{end_time} o'clock**.")
-
-# --- END OF INTERACTIVE WIDGETS ---
 
 # Replace your existing show_main_app function with this one.
 
@@ -5506,6 +5507,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
