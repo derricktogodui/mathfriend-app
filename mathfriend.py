@@ -134,6 +134,13 @@ def create_and_verify_tables():
                                 content TEXT
                             )'''))
 
+            conn.execute(text('''CREATE TABLE IF NOT EXISTS friends (
+                                user1_username TEXT NOT NULL,
+                                user2_username TEXT NOT NULL,
+                                status TEXT NOT NULL, -- 'pending', 'accepted'
+                                PRIMARY KEY (user1_username, user2_username)
+                            )'''))
+            
             # --- CORRECTED Head-to-Head Duel Tables ---
             conn.execute(text('''
                 CREATE TABLE IF NOT EXISTS duels (
@@ -201,7 +208,7 @@ def create_and_verify_tables():
         print("Database tables created or verified successfully, including corrected Duel tables.")
     except Exception as e:
         st.error(f"Database setup error: {e}")
-#create_and_verify_tables()
+create_and_verify_tables()
 
 
 # --- Core Backend Functions (PostgreSQL) ---
@@ -5213,6 +5220,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
