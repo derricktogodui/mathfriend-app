@@ -4570,9 +4570,11 @@ def display_learning_resources(topic_options):
                 st.markdown(f"**{q['topic']}**")
                 st.markdown(q['question_text'], unsafe_allow_html=True)
                 with st.expander("Show Answer and Explanation"):
-                    st.success("**Answer:**"); st.markdown(q['answer_text'], unsafe_allow_html=True)
+                    st.success("**Answer:**") 
+                    st.markdown(q['answer_text'], unsafe_allow_html=True)
                     if q['explanation_text']:
-                        st.info("**Explanation:**"); st.markdown(q['explanation_text'], unsafe_allow_html=True)
+                        st.info("**Explanation:**")
+                        st.markdown(q['explanation_text'], unsafe_allow_html=True)
                 st.markdown("---")
         st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
 
@@ -4581,9 +4583,7 @@ def display_learning_resources(topic_options):
     selected_topic = st.selectbox("Choose a topic to explore:", [t for t in topic_options if t != "Advanced Combo"])
     st.markdown("---")
 
-    # --- This dictionary holds the original, static content from your file. ---
-    st.write("A summary of key concepts and formulas for each topic. Click a topic to expand it.")
-
+    # This dictionary holds the static content (notes, videos, etc.)
     topics_content = {
         "Sets": """
         A **set** is a well-defined collection of distinct objects.
@@ -4896,12 +4896,11 @@ def display_learning_resources(topic_options):
         """,
         "Vectors": """
         A quantity having both magnitude (length) and direction.
-        - **Component Form:** A vector $\mathbf{v}$ can be written as $x\mathbf{i} + y\mathbf{j}$ or as a column vector $\\binom{x}{y}$.
-        - **Magnitude:** The length of $\mathbf{v} = x\mathbf{i} + y\mathbf{j}$ is $|\mathbf{v}| = \\sqrt{x^2 + y^2}$.
-        - **Scalar (Dot) Product:** $\mathbf{a} \cdot \mathbf{b} = a_1b_1 + a_2b_2$.
-        - **Angle Between Vectors:** $\cos\\theta = \\frac{{\mathbf{a} \cdot \mathbf{b}}}{{|\mathbf{a}| |\mathbf{b}|}}$.
+        - **Component Form:** A vector $\\mathbf{v}$ can be written as $x\\mathbf{i} + y\\mathbf{j}$ or as a column vector $\\binom{x}{y}$.
+        - **Magnitude:** The length of $\\mathbf{v} = x\\mathbf{i} + y\\mathbf{j}$ is $|\\mathbf{v}| = \\sqrt{x^2 + y^2}$.
+        - **Scalar (Dot) Product:** $\\mathbf{a} \\cdot \\mathbf{b} = a_1b_1 + a_2b_2$.
+        - **Angle Between Vectors:** $\\cos\\theta = \\frac{{\\mathbf{a} \\cdot \\mathbf{b}}}{{|\\mathbf{a}| |\\mathbf{b}|}}$.
         """,
-         # --- ADD THE NEW TOPICS CONTENT HERE ---
         "Statistics": """
         **Statistics** deals with collecting, analyzing, and interpreting data.
         - **Mean:** The average of a dataset. Calculated as $\\frac{{\\sum x}}{{n}}$.
@@ -4937,50 +4936,46 @@ def display_learning_resources(topic_options):
         """
     }
 
-    # --- Master dictionary mapping topics to their widgets ---
-    # --- CORRECTED Master dictionary mapping topics to their widgets ---
-topic_widgets = {
-    # Topics with fully interactive custom widgets
-    "Sets": interactive_venn_diagram_calculator,
-    "Percentages": interactive_percentage_calculator,
-    "Shapes (Geometry)": interactive_pythagoras_calculator,
-    "Algebra Basics": interactive_quadratic_calculator,
-    "Linear Algebra": interactive_matrix_determinant_calculator,
-    "Logarithms": interactive_logarithm_converter,
-    "Trigonometry": interactive_trigonometry_widget,
-    "Vectors": interactive_vectors_widget,
-    "Statistics": interactive_statistics_widget,
-    "Coordinate Geometry": interactive_coord_geometry_widget,
-    "Introduction to Calculus": interactive_calculus_widget,
-    "Number Bases": interactive_number_bases_widget,
-    "Modulo Arithmetic": interactive_modulo_widget,
-    "Relations and Functions": interactive_functions_widget,
-    "Sequence and Series": interactive_sequence_series_widget,
-    "Indices": interactive_indices_widget,  # Corrected from lambda
-    
-    # Topics that correctly use the generic "Check Your Understanding" widget
-    "Surds": lambda: interactive_check_your_understanding("What is the conjugate of $5 + \\sqrt{3}$?", ["$5 - \\sqrt{3}$", "$-5 + \\sqrt{3}$", "22"], "$5 - \\sqrt{3}$", "The conjugate is found by flipping the middle sign.", "surds_check"),
-    "Fractions": lambda: interactive_check_your_understanding("What is $\\frac{1}{2} \\div \\frac{1}{4}$?", ["1/8", "2", "1/2"], "2", "To divide by a fraction, invert and multiply.", "fractions_check"),
-    "Binary Operations": lambda: interactive_check_your_understanding("If $a \\ast b = 2a + b$, what is $3 \\ast 4$?", ["10", "11", "7"], "10", "$2(3) + 4 = 6 + 4 = 10$.", "binary_check"),
-    "Word Problems": lambda: interactive_check_your_understanding("If Kofi's age plus twice Ama's age is 20, and Kofi is 10, how old is Ama?", ["5", "10", "15"], "5", "Let Ama's age be A. $10 + 2A = 20 \implies 2A = 10 \implies A=5$.", "word_problem_check"),
-    "Probability": lambda: interactive_check_your_understanding("A bag has 3 red and 2 blue balls. P(blue)?", ["2/3", "3/5", "2/5"], "2/5", "Favorable / Total = 2 / 5.", "prob_check"),
-    "Binomial Theorem": lambda: interactive_check_your_understanding("What is the second coefficient in the expansion of $(x+y)^4$?", ["1", "4", "6"], "4", "The coefficients are 1, 4, 6, 4, 1.", "binom_check"),
-    "Polynomial Functions": lambda: interactive_check_your_understanding("Remainder when $x^2+1$ is divided by $(x-1)$?", ["1", "2", "0"], "2", "The remainder is $P(1) = 1^2 + 1 = 2$.", "poly_check"),
-    "Rational Functions": lambda: interactive_check_your_understanding("Vertical asymptote of $f(x) = \\frac{1}{x-2}$?", ["x=2", "y=2", "x=1"], "x=2", "The denominator is zero at x=2.", "rational_check")
-}
-    # Corrected Code
-if selected_topic in topics_content:
-    st.subheader(selected_topic)
-    # Display the static content
-    st.markdown(topics_content[selected_topic], unsafe_allow_html=True) # CORRECTED
-    
-    # Display the corresponding interactive widget
-    if selected_topic in topic_widgets:
-        st.markdown("<hr>", unsafe_allow_html=True)
-        topic_widgets[selected_topic]()
+    # CORRECTED Master dictionary mapping topics to their proper widgets
+    topic_widgets = {
+        "Sets": interactive_venn_diagram_calculator,
+        "Percentages": interactive_percentage_calculator,
+        "Shapes (Geometry)": interactive_pythagoras_calculator,
+        "Algebra Basics": interactive_quadratic_calculator,
+        "Linear Algebra": interactive_matrix_determinant_calculator,
+        "Logarithms": interactive_logarithm_converter,
+        "Trigonometry": interactive_trigonometry_widget,
+        "Vectors": interactive_vectors_widget,
+        "Statistics": interactive_statistics_widget,
+        "Coordinate Geometry": interactive_coord_geometry_widget,
+        "Introduction to Calculus": interactive_calculus_widget,
+        "Number Bases": interactive_number_bases_widget,
+        "Modulo Arithmetic": interactive_modulo_widget,
+        "Relations and Functions": interactive_functions_widget,
+        "Sequence and Series": interactive_sequence_series_widget,
+        "Indices": interactive_indices_widget,
+        "Fractions": interactive_fraction_widget, # Calling the correct function
+        "Surds": interactive_surds_widget, # Calling the correct function
+        "Binary Operations": interactive_binary_ops_widget, # Calling the correct function
+        "Word Problems": interactive_word_problems_widget, # Calling the correct function
+        "Probability": interactive_probability_widget, # Calling the correct function
+        "Binomial Theorem": interactive_binomial_widget, # Calling the correct function
+        "Polynomial Functions": interactive_polynomial_widget, # Calling the correct function
+        "Rational Functions": interactive_rational_functions_widget, # Calling the correct function
+    }
+
+    # This is the final, corrected logic block
+    if selected_topic in topics_content:
+        st.subheader(selected_topic)
+        # Display the static content
+        st.markdown(topics_content[selected_topic], unsafe_allow_html=True)
+        
+        # Display the corresponding interactive widget
+        if selected_topic in topic_widgets:
+            st.markdown("<hr>", unsafe_allow_html=True)
+            topic_widgets[selected_topic]()
     else:
         st.info("Select a topic to begin.")
-
 def display_profile_page():
     st.header("👤 Your Profile")
     
@@ -5507,6 +5502,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
