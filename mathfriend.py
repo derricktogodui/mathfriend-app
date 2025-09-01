@@ -4319,7 +4319,7 @@ def interactive_check_your_understanding(q, opts, ans, msg, key):
     """A generic widget for a quick, non-graded multiple-choice question."""
     st.subheader("Check Your Understanding")
     with st.container(border=True):
-        st.markdown(q)
+        st.markdown(q, unsafe_allow_html=True)
         choice = st.radio("Select:", opts, index=None, key=key)
         if choice:
             if choice == ans: st.success(f"**Correct!** {msg}")
@@ -5502,6 +5502,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
