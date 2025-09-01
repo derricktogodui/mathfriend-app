@@ -70,19 +70,10 @@ def get_stream_chat_client():
 
 chat_client = get_stream_chat_client()
 
-# Replace your existing create_and_verify_tables function with this one.
-
-# Replace your existing create_and_verify_tables function with this one
-
-# TEMPORARY VERSION - USE THIS ONLY ONCE
 def create_and_verify_tables():
     """Creates, verifies, and populates necessary database tables."""
     try:
         with engine.connect() as conn:
-            
-            # --- THIS IS THE NEW, TEMPORARY LINE TO RESET THE TABLE ---
-            conn.execute(text("DELETE FROM daily_challenges;"))
-            # -----------------------------------------------------------
 
             # --- Standard Tables ---
             conn.execute(text('''CREATE TABLE IF NOT EXISTS users (username TEXT PRIMARY KEY, password TEXT)'''))
@@ -5735,6 +5726,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
