@@ -208,7 +208,7 @@ def create_and_verify_tables():
         print("Database tables created or verified successfully, including corrected Duel tables.")
     except Exception as e:
         st.error(f"Database setup error: {e}")
-create_and_verify_tables()
+#create_and_verify_tables()
 
 
 # --- Core Backend Functions (PostgreSQL) ---
@@ -329,6 +329,21 @@ def get_friends_list(username):
         """)
         result = conn.execute(query, {"username": username}).fetchall()
         return [row[0] for row in result]
+
+def get_or_create_private_chat_channel(user1, user2):
+    """Creates a unique, private chat channel for two users."""
+    # Sort usernames to create a consistent channel ID
+    sorted_users = sorted([user1, user2])
+    channel_id = f"private-{sorted_users[0]}-{sorted_users[1]}"
+    
+    channel = chat_client.channel("messaging", channel_id=channel_id)
+    
+    # Ensure both users are members of the channel
+    if not channel.query(members={"id": {"$in": [user1, user2]}}).members:
+         channel.create(user1)
+         channel.add_members([user2])
+    
+    return channel
 
 # --- NEW ADMIN BACKEND FUNCTIONS ---
 
@@ -4844,10 +4859,12 @@ def display_profile_page():
                 with st.container(border=True):
                     c1, c2, c3 = st.columns([2,1,1])
                     c1.markdown(f"**{friend}** ({status_icon})")
-                    if c2.button("Message", key=f"msg_{friend}", use_container_width=True, disabled=True):
-                        # This is where private messaging logic would go in a future step
-                        st.info("Private messaging is coming soon!")
-                    if c3.button("Remove", key=f"remove_{friend}", use_container_width=True):
+                    # The message button is now enabled
+                    if c2.button("💬 Message", key=f"msg_{friend}", use_container_width=True):
+                        st.session_state.page = "private_chat"
+                        st.session_state.private_chat_with = friend
+                        st.rerun()
+                    if c3.button("🗑️ Remove", key=f"remove_{friend}", use_container_width=True):
                         decline_or_remove_friend(st.session_state.username, friend)
                         st.rerun()
 
@@ -4860,12 +4877,51 @@ def display_profile_page():
                 st.warning("No users found matching that name.")
             else:
                 for result_user in results:
-                     if result_user not in friends:
+                     if result_user not in friends and result_user not in pending_requests:
                         if st.button(f"➕ Add {result_user} as Friend", key=f"add_{result_user}"):
                             send_friend_request(st.session_state.username, result_user)
                             st.success(f"Friend request sent to {result_user}!")
                             time.sleep(1)
                             st.rerun()
+def display_private_chat_page():
+    """Renders a private 1-on-1 chat screen."""
+    friend_username = st.session_state.get("private_chat_with")
+    if not friend_username:
+        st.error("No user selected for chat.")
+        if st.button("Back to Profile"):
+            st.session_state.page = "profile"
+            st.rerun()
+        return
+
+    st.header(f"💬 Chat with {friend_username}")
+    
+    # Use our backend function to get the private channel
+    channel = get_or_create_private_chat_channel(st.session_state.username, friend_username)
+    
+    # The rest of this is similar to the public Blackboard
+    state = channel.query(watch=False, state=True, messages={"limit": 100})
+    messages = state['messages']
+
+    for msg in messages:
+        user_id = msg["user"].get("id", "Unknown")
+        user_name = msg["user"].get("name", user_id)
+        is_current_user = (user_id == st.session_state.username)
+        
+        with st.chat_message(name="user" if is_current_user else "assistant"):
+            if not is_current_user:
+                st.markdown(f"**{user_name}**")
+            st.markdown(msg["text"])
+            
+    if prompt := st.chat_input(f"Message {friend_username}..."):
+        channel.send_message({"text": prompt}, user_id=st.session_state.username)
+        st.rerun()
+
+    st.markdown("---")
+    if st.button("⬅️ Back to Profile"):
+        st.session_state.page = "profile"
+        del st.session_state.private_chat_with
+        st.rerun()
+
 # Replace your existing display_admin_panel function with this one
 
 def display_admin_panel():
@@ -5244,6 +5300,8 @@ def show_main_app():
     
     if st.session_state.get("page") == "duel":
         display_duel_page()
+    elif st.session_state.get("page") == "private_chat":
+        display_private_chat_page()
     else:
         topic_options = [
             "Sets", "Percentages", "Fractions", "Indices", "Surds", 
@@ -5347,6 +5405,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
