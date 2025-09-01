@@ -1279,6 +1279,57 @@ def save_seen_question(username, question_id):
         conn.execute(query, {"username": username, "question_id": question_id})
         conn.commit()
 
+# --- NEW BACKEND FUNCTIONS FOR ADAPTIVE LEARNING ---
+
+def get_skill_score(username, topic):
+    """Fetches a user's skill score for a specific topic, creating it if it doesn't exist."""
+    with engine.connect() as conn:
+        query = text("SELECT skill_score FROM user_skill_levels WHERE username = :username AND topic = :topic")
+        result = conn.execute(query, {"username": username, "topic": topic}).scalar_one_or_none()
+        
+        if result is None:
+            # If the user has never played this topic, create a default entry
+            insert_query = text("""
+                INSERT INTO user_skill_levels (username, topic, skill_score)
+                VALUES (:username, :topic, 50)
+                ON CONFLICT (username, topic) DO NOTHING;
+            """)
+            conn.execute(insert_query, {"username": username, "topic": topic})
+            conn.commit()
+            return 50 # Return the default starting score
+        return result
+
+def update_skill_score(username, topic, score, questions_answered):
+    """Updates a user's skill score based on their latest quiz performance."""
+    if questions_answered == 0:
+        return # Cannot update score with no questions answered
+
+    accuracy = (score / questions_answered) * 100
+    current_skill = get_skill_score(username, topic)
+
+    # --- The Learning Algorithm ---
+    # A simple algorithm: high accuracy pushes the score towards 100, low accuracy pushes it towards 0.
+    # The 'learning_rate' determines how quickly the score changes.
+    learning_rate = 0.25 
+    
+    # The new score is a weighted average of the current skill and the recent performance
+    new_skill = current_skill * (1 - learning_rate) + accuracy * learning_rate
+    
+    # Clamp the score between 1 and 100 to prevent it from going out of bounds
+    new_skill = max(1, min(100, int(new_skill)))
+
+    with engine.connect() as conn:
+        query = text("""
+            UPDATE user_skill_levels 
+            SET skill_score = :new_score 
+            WHERE username = :username AND topic = :topic
+        """)
+        conn.execute(query, {"new_score": new_skill, "username": username, "topic": topic})
+        conn.commit()
+
+# --- END OF ADAPTIVE LEARNING FUNCTIONS ---
+
+
 # ADD THESE THREE NEW FUNCTIONS
 
 def check_and_award_achievements(username, topic):
@@ -3518,6 +3569,69 @@ def _generate_modulo_arithmetic_question(difficulty="Medium"):
 
     return {"question": question, "options": _finalize_options(options), "answer": answer, "hint": hint, "explanation": explanation, "difficulty": difficulty}
 
+def get_adaptive_question(topic, username):
+    """
+    The new "brain" of the quiz. It gets a question based on the user's skill level.
+    """
+    skill_score = get_skill_score(username, topic)
+
+    if skill_score < 40:
+        difficulty = "Easy"
+    elif skill_score < 75:
+        difficulty = "Medium"
+    else:
+        difficulty = "Hard"
+
+    # This dictionary maps topic strings to their specific generator functions.
+    generators = {
+        "Sets": _generate_sets_question, 
+        "Percentages": _generate_percentages_question,
+        "Fractions": _generate_fractions_question, 
+        "Indices": _generate_indices_question,
+        "Surds": _generate_surds_question, 
+        "Binary Operations": _generate_binary_ops_question,
+        "Relations and Functions": _generate_relations_functions_question,
+        "Sequence and Series": _generate_sequence_series_question,
+        "Word Problems": _generate_word_problems_question,
+        "Shapes (Geometry)": _generate_shapes_question,
+        "Algebra Basics": _generate_algebra_basics_question,
+        "Linear Algebra": _generate_linear_algebra_question,
+        "Logarithms": _generate_logarithms_question,
+        "Probability": _generate_probability_question,
+        "Binomial Theorem": _generate_binomial_theorem_question,
+        "Polynomial Functions": _generate_polynomial_functions_question,
+        "Rational Functions": _generate_rational_functions_question,
+        "Trigonometry": _generate_trigonometry_question,
+        "Vectors": _generate_vectors_question,
+        "Statistics": _generate_statistics_question,
+        "Coordinate Geometry": _generate_coordinate_geometry_question,
+        "Introduction to Calculus": _generate_calculus_question,
+        "Number Bases": _generate_number_bases_question,
+        "Modulo Arithmetic": _generate_modulo_arithmetic_question,
+    }
+    
+    generator_func = generators.get(topic)
+    if not generator_func:
+        return {"question": f"Questions for **{topic}** are coming soon!", "options": ["OK"], "answer": "OK", "hint": "Under development."}
+
+    # --- Logic to prevent repeating questions ---
+    seen_ids = get_seen_questions(username)
+    
+    # Try up to 10 times to find a new, unseen question
+    for _ in range(10):
+        # Pass the selected difficulty to the generator
+        candidate_question = generator_func(difficulty=difficulty)
+        
+        question_text = candidate_question.get("stem", candidate_question.get("question", ""))
+        q_id = get_question_id(question_text)
+        
+        if q_id not in seen_ids:
+            save_seen_question(username, q_id)
+            return candidate_question
+    
+    # Fallback if no new question is found after 10 tries
+    return generator_func(difficulty=difficulty)
+
 # --- ADVANCED COMBO HELPER FUNCTIONS ---
 
 def _combo_geometry_algebra():
@@ -3842,57 +3956,6 @@ def generate_question(topic):
     # If we fail to find a new question after 10 tries, return a fallback message
     return {"question": "Wow! You've seen a lot of questions. We're digging deep for a new one...", "options": ["OK"], "answer": "OK", "hint": "Generating a fresh challenge!"}
         
-
-# --- NEW BACKEND FUNCTIONS FOR ADAPTIVE LEARNING ---
-
-def get_skill_score(username, topic):
-    """Fetches a user's skill score for a specific topic, creating it if it doesn't exist."""
-    with engine.connect() as conn:
-        query = text("SELECT skill_score FROM user_skill_levels WHERE username = :username AND topic = :topic")
-        result = conn.execute(query, {"username": username, "topic": topic}).scalar_one_or_none()
-        
-        if result is None:
-            # If the user has never played this topic, create a default entry
-            insert_query = text("""
-                INSERT INTO user_skill_levels (username, topic, skill_score)
-                VALUES (:username, :topic, 50)
-                ON CONFLICT (username, topic) DO NOTHING;
-            """)
-            conn.execute(insert_query, {"username": username, "topic": topic})
-            conn.commit()
-            return 50 # Return the default starting score
-        return result
-
-def update_skill_score(username, topic, score, questions_answered):
-    """Updates a user's skill score based on their latest quiz performance."""
-    if questions_answered == 0:
-        return # Cannot update score with no questions answered
-
-    accuracy = (score / questions_answered) * 100
-    current_skill = get_skill_score(username, topic)
-
-    # --- The Learning Algorithm ---
-    # A simple algorithm: high accuracy pushes the score towards 100, low accuracy pushes it towards 0.
-    # The 'learning_rate' determines how quickly the score changes.
-    learning_rate = 0.25 
-    
-    # The new score is a weighted average of the current skill and the recent performance
-    new_skill = current_skill * (1 - learning_rate) + accuracy * learning_rate
-    
-    # Clamp the score between 1 and 100 to prevent it from going out of bounds
-    new_skill = max(1, min(100, int(new_skill)))
-
-    with engine.connect() as conn:
-        query = text("""
-            UPDATE user_skill_levels 
-            SET skill_score = :new_score 
-            WHERE username = :username AND topic = :topic
-        """)
-        conn.execute(query, {"new_score": new_skill, "username": username, "topic": topic})
-        conn.commit()
-
-# --- END OF ADAPTIVE LEARNING FUNCTIONS ---
-
 # --- UI DISPLAY FUNCTIONS ---
 def confetti_animation():
     html("""<script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.5.1/dist/confetti.browser.min.js"></script><script>confetti();</script>""")
@@ -5690,6 +5753,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
