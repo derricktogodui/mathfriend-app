@@ -4694,44 +4694,48 @@ def display_learning_resources(topic_options):
                 st.markdown(topics_content[topic], unsafe_allow_html=True)
 def display_profile_page():
     st.header("👤 Your Profile")
-    profile = get_user_profile(st.session_state.username) or {}
-    with st.form("profile_form"):
-        st.subheader("Edit Profile")
-        full_name = st.text_input("Full Name", value=profile.get('full_name', ''))
-        school = st.text_input("School", value=profile.get('school', ''))
-        age = st.number_input("Age", min_value=5, max_value=100, value=profile.get('age', 18))
-        bio = st.text_area("Bio", value=profile.get('bio', ''))
-        if st.form_submit_button("Save Profile", type="primary"):
-            if update_user_profile(st.session_state.username, full_name, school, age, bio):
-                st.success("Profile updated!"); st.rerun()
-    st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
-    # ADD THIS BLOCK
-    st.subheader("🏆 My Achievements")
-    achievements = get_user_achievements(st.session_state.username)
-    if not achievements:
-        st.info("Your trophy case is empty for now. Keep playing to earn badges!")
-    else:
-        # Create a grid layout for the badges
-        cols = st.columns(4)
-        for i, achievement in enumerate(achievements):
-            col = cols[i % 4]
-            with col:
-                with st.container(border=True):
-                    st.markdown(f"<div style='font-size: 3rem; text-align: center;'>{achievement['badge_icon']}</div>", unsafe_allow_html=True)
-                    st.markdown(f"<div style='font-size: 1rem; text-align: center; font-weight: bold;'>{achievement['achievement_name']}</div>", unsafe_allow_html=True)
-                    st.markdown(f"<div style='font-size: 0.8rem; text-align: center; color: grey;'>Unlocked: {achievement['unlocked_at'].strftime('%b %d, %Y')}</div>", unsafe_allow_html=True)
     
-    st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
-    with st.form("password_form"):
-        st.subheader("Change Password")
-        current_password = st.text_input("Current Password", type="password")
-        new_password = st.text_input("New Password", type="password")
-        confirm_new_password = st.text_input("Confirm New Password", type="password")
-        if st.form_submit_button("Change Password", type="primary"):
-            if new_password != confirm_new_password: st.error("New passwords don't match!")
-            elif change_password(st.session_state.username, current_password, new_password): st.success("Password changed successfully!")
-            else: st.error("Incorrect current password")
+    tab1, tab2 = st.tabs(["📝 My Profile", "🏆 My Achievements"])
 
+    # --- TAB 1: PROFILE EDITING ---
+    with tab1:
+        profile = get_user_profile(st.session_state.username) or {}
+        with st.form("profile_form"):
+            st.subheader("Edit Profile")
+            full_name = st.text_input("Full Name", value=profile.get('full_name', ''))
+            school = st.text_input("School", value=profile.get('school', ''))
+            age = st.number_input("Age", min_value=5, max_value=100, value=profile.get('age', 18))
+            bio = st.text_area("Bio", value=profile.get('bio', ''))
+            if st.form_submit_button("Save Profile", type="primary"):
+                if update_user_profile(st.session_state.username, full_name, school, age, bio):
+                    st.success("Profile updated!"); st.rerun()
+
+        st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
+        with st.form("password_form"):
+            st.subheader("Change Password")
+            current_password = st.text_input("Current Password", type="password")
+            new_password = st.text_input("New Password", type="password")
+            confirm_new_password = st.text_input("Confirm New Password", type="password")
+            if st.form_submit_button("Change Password", type="primary"):
+                if new_password != confirm_new_password: st.error("New passwords don't match!")
+                elif change_password(st.session_state.username, current_password, new_password): st.success("Password changed successfully!")
+                else: st.error("Incorrect current password")
+
+    # --- TAB 2: ACHIEVEMENTS ---
+    with tab2:
+        st.subheader("🏆 My Achievements")
+        achievements = get_user_achievements(st.session_state.username)
+        if not achievements:
+            st.info("Your trophy case is empty for now. Keep playing to earn badges!")
+        else:
+            cols = st.columns(4)
+            for i, achievement in enumerate(achievements):
+                col = cols[i % 4]
+                with col:
+                    with st.container(border=True):
+                        st.markdown(f"<div style='font-size: 3rem; text-align: center;'>{achievement['badge_icon']}</div>", unsafe_allow_html=True)
+                        st.markdown(f"<div style='font-size: 1rem; text-align: center; font-weight: bold;'>{achievement['achievement_name']}</div>", unsafe_allow_html=True)
+                        st.markdown(f"<div style='font-size: 0.8rem; text-align: center; color: grey;'>Unlocked: {achievement['unlocked_at'].strftime('%b %d, %Y')}</div>", unsafe_allow_html=True)
 # Replace your existing display_admin_panel function with this one
 
 def display_admin_panel():
@@ -5213,6 +5217,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
