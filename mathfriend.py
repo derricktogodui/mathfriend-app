@@ -4693,42 +4693,46 @@ def display_learning_resources(topic_options):
     }
 
     # --- Master dictionary mapping topics to their widgets ---
-    topic_widgets = {
-        "Sets": interactive_venn_diagram_calculator,
-        "Percentages": interactive_percentage_calculator,
-        "Shapes (Geometry)": interactive_pythagoras_calculator,
-        "Algebra Basics": interactive_quadratic_calculator,
-        "Linear Algebra": interactive_matrix_determinant_calculator,
-        "Logarithms": interactive_logarithm_converter,
-        "Trigonometry": interactive_trigonometry_widget,
-        "Vectors": interactive_vectors_widget,
-        "Statistics": interactive_statistics_widget,
-        "Coordinate Geometry": interactive_coord_geometry_widget,
-        "Introduction to Calculus": interactive_calculus_widget,
-        "Number Bases": interactive_number_bases_widget,
-        "Modulo Arithmetic": interactive_modulo_widget,
-        "Relations and Functions": interactive_functions_widget,
-        "Sequence and Series": interactive_sequence_series_widget,
-        "Surds": lambda: interactive_check_your_understanding("What is the conjugate of $5 + \\sqrt{3}$?", ["$5 - \\sqrt{3}$", "$-5 + \\sqrt{3}$", "22"], "$5 - \\sqrt{3}$", "The conjugate is found by flipping the middle sign.", "surds_check"),
-        "Fractions": lambda: interactive_check_your_understanding("What is $\\frac{1}{2} \\div \\frac{1}{4}$?", ["1/8", "2", "1/2"], "2", "To divide by a fraction, invert and multiply.", "fractions_check"),
-        "Indices": lambda: interactive_check_your_understanding("What is $x^5 \\times x^3$?", ["$x^8$", "$x^{15}$", "$2x^8$"], "$x^8$", "When multiplying powers with the same base, you add the exponents.", "indices_check"),
-        "Binary Operations": lambda: interactive_check_your_understanding("If $a \\ast b = 2a + b$, what is $3 \\ast 4$?", ["10", "11", "7"], "10", "$2(3) + 4 = 6 + 4 = 10$.", "binary_check"),
-        "Word Problems": lambda: interactive_check_your_understanding("If Kofi's age plus twice Ama's age is 20, and Kofi is 10, how old is Ama?", ["5", "10", "15"], "5", "Let Ama's age be A. $10 + 2A = 20 \implies 2A = 10 \implies A=5$.", "word_problem_check"),
-        "Probability": lambda: interactive_check_your_understanding("A bag has 3 red and 2 blue balls. P(blue)?", ["2/3", "3/5", "2/5"], "2/5", "Favorable / Total = 2 / 5.", "prob_check"),
-        "Binomial Theorem": lambda: interactive_check_your_understanding("What is the second coefficient in the expansion of $(x+y)^4$?", ["1", "4", "6"], "4", "The coefficients are 1, 4, 6, 4, 1.", "binom_check"),
-        "Polynomial Functions": lambda: interactive_check_your_understanding("Remainder when $x^2+1$ is divided by $(x-1)$?", ["1", "2", "0"], "2", "The remainder is $P(1) = 1^2 + 1 = 2$.", "poly_check"),
-        "Rational Functions": lambda: interactive_check_your_understanding("Vertical asymptote of $f(x) = \\frac{1}{x-2}$?", ["x=2", "y=2", "x=1"], "x=2", "The denominator is zero at x=2.", "rational_check")
-    }
-
-    if selected_topic in topics_content:
-        st.subheader(selected_topic)
-        # Display the static content
-        st.markdown(original_notes[selected_topic], unsafe_allow_html=True)
-        
-        # Display the corresponding interactive widget
-        if selected_topic in topic_widgets:
-            st.markdown("<hr>", unsafe_allow_html=True)
-            topic_widgets[selected_topic]()
+    # --- CORRECTED Master dictionary mapping topics to their widgets ---
+topic_widgets = {
+    # Topics with fully interactive custom widgets
+    "Sets": interactive_venn_diagram_calculator,
+    "Percentages": interactive_percentage_calculator,
+    "Shapes (Geometry)": interactive_pythagoras_calculator,
+    "Algebra Basics": interactive_quadratic_calculator,
+    "Linear Algebra": interactive_matrix_determinant_calculator,
+    "Logarithms": interactive_logarithm_converter,
+    "Trigonometry": interactive_trigonometry_widget,
+    "Vectors": interactive_vectors_widget,
+    "Statistics": interactive_statistics_widget,
+    "Coordinate Geometry": interactive_coord_geometry_widget,
+    "Introduction to Calculus": interactive_calculus_widget,
+    "Number Bases": interactive_number_bases_widget,
+    "Modulo Arithmetic": interactive_modulo_widget,
+    "Relations and Functions": interactive_functions_widget,
+    "Sequence and Series": interactive_sequence_series_widget,
+    "Indices": interactive_indices_widget,  # Corrected from lambda
+    
+    # Topics that correctly use the generic "Check Your Understanding" widget
+    "Surds": lambda: interactive_check_your_understanding("What is the conjugate of $5 + \\sqrt{3}$?", ["$5 - \\sqrt{3}$", "$-5 + \\sqrt{3}$", "22"], "$5 - \\sqrt{3}$", "The conjugate is found by flipping the middle sign.", "surds_check"),
+    "Fractions": lambda: interactive_check_your_understanding("What is $\\frac{1}{2} \\div \\frac{1}{4}$?", ["1/8", "2", "1/2"], "2", "To divide by a fraction, invert and multiply.", "fractions_check"),
+    "Binary Operations": lambda: interactive_check_your_understanding("If $a \\ast b = 2a + b$, what is $3 \\ast 4$?", ["10", "11", "7"], "10", "$2(3) + 4 = 6 + 4 = 10$.", "binary_check"),
+    "Word Problems": lambda: interactive_check_your_understanding("If Kofi's age plus twice Ama's age is 20, and Kofi is 10, how old is Ama?", ["5", "10", "15"], "5", "Let Ama's age be A. $10 + 2A = 20 \implies 2A = 10 \implies A=5$.", "word_problem_check"),
+    "Probability": lambda: interactive_check_your_understanding("A bag has 3 red and 2 blue balls. P(blue)?", ["2/3", "3/5", "2/5"], "2/5", "Favorable / Total = 2 / 5.", "prob_check"),
+    "Binomial Theorem": lambda: interactive_check_your_understanding("What is the second coefficient in the expansion of $(x+y)^4$?", ["1", "4", "6"], "4", "The coefficients are 1, 4, 6, 4, 1.", "binom_check"),
+    "Polynomial Functions": lambda: interactive_check_your_understanding("Remainder when $x^2+1$ is divided by $(x-1)$?", ["1", "2", "0"], "2", "The remainder is $P(1) = 1^2 + 1 = 2$.", "poly_check"),
+    "Rational Functions": lambda: interactive_check_your_understanding("Vertical asymptote of $f(x) = \\frac{1}{x-2}$?", ["x=2", "y=2", "x=1"], "x=2", "The denominator is zero at x=2.", "rational_check")
+}
+    # Corrected Code
+if selected_topic in topics_content:
+    st.subheader(selected_topic)
+    # Display the static content
+    st.markdown(topics_content[selected_topic], unsafe_allow_html=True) # CORRECTED
+    
+    # Display the corresponding interactive widget
+    if selected_topic in topic_widgets:
+        st.markdown("<hr>", unsafe_allow_html=True)
+        topic_widgets[selected_topic]()
     else:
         st.info("Select a topic to begin.")
 
@@ -5502,6 +5506,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
