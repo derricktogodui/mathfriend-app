@@ -1328,56 +1328,6 @@ def update_gamification_progress(username, topic, score):
     update_daily_challenge_progress(username, topic, score)
     check_and_award_achievements(username, topic)
 
-# --- NEW BACKEND FUNCTIONS FOR ADAPTIVE LEARNING ---
-
-def get_skill_score(username, topic):
-    """Fetches a user's skill score for a specific topic, creating it if it doesn't exist."""
-    with engine.connect() as conn:
-        query = text("SELECT skill_score FROM user_skill_levels WHERE username = :username AND topic = :topic")
-        result = conn.execute(query, {"username": username, "topic": topic}).scalar_one_or_none()
-        
-        if result is None:
-            # If the user has never played this topic, create a default entry
-            insert_query = text("""
-                INSERT INTO user_skill_levels (username, topic, skill_score)
-                VALUES (:username, :topic, 50)
-                ON CONFLICT (username, topic) DO NOTHING;
-            """)
-            conn.execute(insert_query, {"username": username, "topic": topic})
-            conn.commit()
-            return 50 # Return the default starting score
-        return result
-
-def update_skill_score(username, topic, score, questions_answered):
-    """Updates a user's skill score based on their latest quiz performance."""
-    if questions_answered == 0:
-        return # Cannot update score with no questions answered
-
-    accuracy = (score / questions_answered) * 100
-    current_skill = get_skill_score(username, topic)
-
-    # --- The Learning Algorithm ---
-    # A simple algorithm: high accuracy pushes the score towards 100, low accuracy pushes it towards 0.
-    # The 'learning_rate' determines how quickly the score changes.
-    learning_rate = 0.25 
-    
-    # The new score is a weighted average of the current skill and the recent performance
-    new_skill = current_skill * (1 - learning_rate) + accuracy * learning_rate
-    
-    # Clamp the score between 1 and 100 to prevent it from going out of bounds
-    new_skill = max(1, min(100, int(new_skill)))
-
-    with engine.connect() as conn:
-        query = text("""
-            UPDATE user_skill_levels 
-            SET skill_score = :new_score 
-            WHERE username = :username AND topic = :topic
-        """)
-        conn.execute(query, {"new_score": new_skill, "username": username, "topic": topic})
-        conn.commit()
-
-# --- END OF ADAPTIVE LEARNING FUNCTIONS ---
-
 # --- UTILITY FUNCTIONS FOR QUESTION GENERATION ---
 def _get_fraction_latex_code(f: Fraction):
     if f.denominator == 1: return str(f.numerator)
@@ -3893,6 +3843,56 @@ def generate_question(topic):
     return {"question": "Wow! You've seen a lot of questions. We're digging deep for a new one...", "options": ["OK"], "answer": "OK", "hint": "Generating a fresh challenge!"}
         
 
+# --- NEW BACKEND FUNCTIONS FOR ADAPTIVE LEARNING ---
+
+def get_skill_score(username, topic):
+    """Fetches a user's skill score for a specific topic, creating it if it doesn't exist."""
+    with engine.connect() as conn:
+        query = text("SELECT skill_score FROM user_skill_levels WHERE username = :username AND topic = :topic")
+        result = conn.execute(query, {"username": username, "topic": topic}).scalar_one_or_none()
+        
+        if result is None:
+            # If the user has never played this topic, create a default entry
+            insert_query = text("""
+                INSERT INTO user_skill_levels (username, topic, skill_score)
+                VALUES (:username, :topic, 50)
+                ON CONFLICT (username, topic) DO NOTHING;
+            """)
+            conn.execute(insert_query, {"username": username, "topic": topic})
+            conn.commit()
+            return 50 # Return the default starting score
+        return result
+
+def update_skill_score(username, topic, score, questions_answered):
+    """Updates a user's skill score based on their latest quiz performance."""
+    if questions_answered == 0:
+        return # Cannot update score with no questions answered
+
+    accuracy = (score / questions_answered) * 100
+    current_skill = get_skill_score(username, topic)
+
+    # --- The Learning Algorithm ---
+    # A simple algorithm: high accuracy pushes the score towards 100, low accuracy pushes it towards 0.
+    # The 'learning_rate' determines how quickly the score changes.
+    learning_rate = 0.25 
+    
+    # The new score is a weighted average of the current skill and the recent performance
+    new_skill = current_skill * (1 - learning_rate) + accuracy * learning_rate
+    
+    # Clamp the score between 1 and 100 to prevent it from going out of bounds
+    new_skill = max(1, min(100, int(new_skill)))
+
+    with engine.connect() as conn:
+        query = text("""
+            UPDATE user_skill_levels 
+            SET skill_score = :new_score 
+            WHERE username = :username AND topic = :topic
+        """)
+        conn.execute(query, {"new_score": new_skill, "username": username, "topic": topic})
+        conn.commit()
+
+# --- END OF ADAPTIVE LEARNING FUNCTIONS ---
+
 # --- UI DISPLAY FUNCTIONS ---
 def confetti_animation():
     html("""<script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.5.1/dist/confetti.browser.min.js"></script><script>confetti();</script>""")
@@ -5690,6 +5690,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
