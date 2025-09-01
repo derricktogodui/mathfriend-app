@@ -636,13 +636,19 @@ def update_user_status(username, is_online):
         conn.execute(query, {"username": username, "is_online": is_online})
         conn.commit()
 
+# Replace your function with this NEW version
 def save_quiz_result(username, topic, score, questions_answered):
     with engine.connect() as conn:
         conn.execute(text("INSERT INTO quiz_results (username, topic, score, questions_answered) VALUES (:username, :topic, :score, :questions_answered)"),
                      {"username": username, "topic": topic, "score": score, "questions_answered": questions_answered})
         conn.commit()
-    # This now calls the umbrella function to update both challenges and achievements.
-    # This is the only call needed.
+    
+    # --- THIS IS THE NEW AND FINAL LINE OF CODE ---
+    # It updates the student's skill level for the adaptive system.
+    update_skill_score(username, topic, score, questions_answered)
+    # -----------------------------------------------
+
+    # This updates the other gamification systems (challenges and achievements).
     update_gamification_progress(username, topic, score)
 @st.cache_data(ttl=300) # Cache for 300 seconds (5 minutes)
 def get_top_scores(topic, time_filter="all"):
@@ -1322,6 +1328,56 @@ def update_gamification_progress(username, topic, score):
     update_daily_challenge_progress(username, topic, score)
     check_and_award_achievements(username, topic)
 
+# --- NEW BACKEND FUNCTIONS FOR ADAPTIVE LEARNING ---
+
+def get_skill_score(username, topic):
+    """Fetches a user's skill score for a specific topic, creating it if it doesn't exist."""
+    with engine.connect() as conn:
+        query = text("SELECT skill_score FROM user_skill_levels WHERE username = :username AND topic = :topic")
+        result = conn.execute(query, {"username": username, "topic": topic}).scalar_one_or_none()
+        
+        if result is None:
+            # If the user has never played this topic, create a default entry
+            insert_query = text("""
+                INSERT INTO user_skill_levels (username, topic, skill_score)
+                VALUES (:username, :topic, 50)
+                ON CONFLICT (username, topic) DO NOTHING;
+            """)
+            conn.execute(insert_query, {"username": username, "topic": topic})
+            conn.commit()
+            return 50 # Return the default starting score
+        return result
+
+def update_skill_score(username, topic, score, questions_answered):
+    """Updates a user's skill score based on their latest quiz performance."""
+    if questions_answered == 0:
+        return # Cannot update score with no questions answered
+
+    accuracy = (score / questions_answered) * 100
+    current_skill = get_skill_score(username, topic)
+
+    # --- The Learning Algorithm ---
+    # A simple algorithm: high accuracy pushes the score towards 100, low accuracy pushes it towards 0.
+    # The 'learning_rate' determines how quickly the score changes.
+    learning_rate = 0.25 
+    
+    # The new score is a weighted average of the current skill and the recent performance
+    new_skill = current_skill * (1 - learning_rate) + accuracy * learning_rate
+    
+    # Clamp the score between 1 and 100 to prevent it from going out of bounds
+    new_skill = max(1, min(100, int(new_skill)))
+
+    with engine.connect() as conn:
+        query = text("""
+            UPDATE user_skill_levels 
+            SET skill_score = :new_score 
+            WHERE username = :username AND topic = :topic
+        """)
+        conn.execute(query, {"new_score": new_skill, "username": username, "topic": topic})
+        conn.commit()
+
+# --- END OF ADAPTIVE LEARNING FUNCTIONS ---
+
 # --- UTILITY FUNCTIONS FOR QUESTION GENERATION ---
 def _get_fraction_latex_code(f: Fraction):
     if f.denominator == 1: return str(f.numerator)
@@ -1414,105 +1470,133 @@ def _generate_user_pill_html(username):
 
 # --- FULLY IMPLEMENTED QUESTION GENERATION ENGINE (12 TOPICS) ---
 
-def _generate_sets_question():
-    """Generates a multi-subtopic question for Sets with enhanced variety and advanced topics."""
-    # UPGRADED: Added new advanced sub-topics
-    q_type = random.choice(['operation', 'venn_two', 'venn_three', 'subsets', 'complement', 'properties', 'demorgan'])
+def _generate_sets_question(difficulty="Medium"):
+    """Generates a Sets question based on difficulty, preserving all original sub-types."""
+
+    # Difficulty determines which pool of questions we draw from.
+    if difficulty == "Easy":
+        q_type = random.choice(['operation_simple', 'subsets_all'])
+    elif difficulty == "Medium":
+        # RE-INTEGRATED: 'operation_difference' and 'subsets_proper' are now here.
+        q_type = random.choice(['venn_two', 'complement', 'operation_difference', 'subsets_proper'])
+    else: # Hard
+        q_type = random.choice(['venn_three', 'properties', 'demorgan', 'operation_symmetric'])
+
+    universal_set = set(range(1, 21))
     question, answer, hint, explanation = "", "", "", ""
     options = set()
-    
-    # Define a Universal Set for relevant questions
-    universal_set = set(range(1, 21))
 
-    if q_type == 'operation':
-        set_a = set(random.sample(range(1, 20), k=random.randint(3, 8)))
-        set_b = set(random.sample(range(1, 20), k=random.randint(3, 8)))
-        op, sym = random.choice([('union', '\\cup'), ('intersection', '\\cap'), ('difference', '-')])
+    # --- Easy Questions ---
+    if q_type == 'operation_simple':
+        set_a = set(random.sample(range(1, 15), k=random.randint(3, 5)))
+        set_b = set(random.sample(range(1, 15), k=random.randint(3, 5)))
+        op, sym = random.choice([('union', '\\cup'), ('intersection', '\\cap')])
         question = f"Given $A = {set_a}$ and $B = {set_b}$, find $A {sym} B$."
-        if op == 'union': res = set_a.union(set_b)
-        elif op == 'intersection': res = set_a.intersection(set_b)
-        else: res = set_a.difference(set_b)
-        answer = str(res); hint = "Review Union (all), Intersection (common), and Difference."; explanation = f"The **{op}** of $A$ and $B$ results in the set ${res}$."
-        options = {answer, str(set_a.symmetric_difference(set_b)), str(set_b.difference(set_a))}
+        res = set_a.union(set_b) if op == 'union' else set_a.intersection(set_b)
+        answer = str(res)
+        hint = "Union means 'all elements combined'; Intersection means 'only elements in common'."
+        explanation = f"The {op} of sets A and B results in the set {res}."
+        options = {answer, str(set_a.difference(set_b))}
 
+    elif q_type == 'subsets_all':
+        num_elements = random.randint(2, 5)
+        s = set(random.sample(range(1, 100), k=num_elements))
+        question = f"How many total subsets can be formed from the set $S = {s}$?"
+        answer = str(2**num_elements)
+        hint = "The number of subsets of a set with 'n' elements is $2^n$."
+        explanation = f"The set has {num_elements} elements. The total number of subsets is $2^{{{num_elements}}} = {answer}$."
+        options = {answer, str(2**num_elements - 1), str(num_elements*2)}
+
+    # --- Medium Questions ---
     elif q_type == 'venn_two':
-        total = random.randint(50, 100); a_only, b_only, both = random.randint(10, 25), random.randint(10, 25), random.randint(5, 15)
-        neither = total - (a_only + b_only + both); total_a, total_b = a_only + both, b_only + both
-        item_pairs = [("Fufu", "Banku"), ("Physics", "Chemistry"), ("History", "Government"), ("Twi", "Ga")]; group_a_name, group_b_name = random.choice(item_pairs)
-        location = random.choice(["Accra", "Kumasi", "Takoradi", "Tamale"])
-        question = f"In a survey of {total} students in {location}, {total_a} liked {group_a_name} and {total_b} liked {group_b_name}. If {neither} liked neither, how many liked BOTH?"
-        answer = str(both); hint = "Use the formula $|A \\cup B| = |A| + |B| - |A \\cap B|$."; explanation = f"1. Students liking at least one = Total - Neither = {total} - {neither} = {a_only+b_only+both}.\n2. Let Both be $x$. Then ${total_a} + {total_b} - x = {a_only+b_only+both}$, which gives $x = {both}$."
-        options = {answer, str(a_only), str(b_only), str(neither)}
+        total, a_only, b_only, both = random.randint(50, 100), random.randint(10, 25), random.randint(10, 25), random.randint(5, 15)
+        neither, total_a, total_b = total - (a_only + b_only + both), a_only + both, b_only + both
+        question = f"In a class of {total} students, {total_a} like Physics and {total_b} like Chemistry. If {neither} like neither subject, how many like BOTH?"
+        answer = str(both)
+        hint = "Use the formula $|A \\cup B| = |A| + |B| - |A \\cap B|$."
+        explanation = f"Total students liking at least one subject = {total} - {neither} = {a_only+b_only+both}.\nUsing the formula, {total_a} + {total_b} - Both = {a_only+b_only+both}, so Both = {both}."
+        options = {answer, str(a_only), str(b_only)}
 
-    elif q_type == 'venn_three':
-        a,b,c,ab,bc,ac,abc = [random.randint(5, 15) for _ in range(7)]; total_a, total_b, total_c = a+ab+ac+abc, b+ab+bc+abc, c+ac+bc+abc; total = sum([a,b,c,ab,bc,ac,abc])
-        item_sets = [("MTN", "Vodafone", "AirtelTigo"), ("Gari", "Rice", "Yam")]; item1, item2, item3 = random.choice(item_sets)
-        question = f"A survey of {total} people showed that {total_a} liked {item1}, {total_b} liked {item2}, and {total_c} liked {item3}. {ab+abc} liked {item1} & {item2}, {ac+abc} liked {item1} & {item3}, {bc+abc} liked {item2} & {item3}, and {abc} liked all three. How many people liked exactly one item?"
-        answer = str(a+b+c); hint = "Draw a Venn diagram, start from the center, and subtract outwards."; explanation = f"{item1} only = {a}, {item2} only = {b}, {item3} only = {c}. Total = {a+b+c}."
-        options = {answer, str(ab+bc+ac), str(abc)}
-    
-    elif q_type == 'subsets':
-        num_elements = random.randint(3, 6); s = set(random.sample(range(1, 100), k=num_elements))
-        sub_q_type = random.choice(['count_all', 'count_proper'])
-        if sub_q_type == 'count_all':
-            question = f"How many subsets can be formed from the set $S = {s}$?"; answer = str(2**num_elements)
-            hint = "The number of subsets of a set with 'n' elements is $2^n$."
-            explanation = f"The set has {num_elements} elements. The number of subsets is $2^{{{num_elements}}} = {2**num_elements}$."
-        else: # count_proper
-            question = f"How many **proper** subsets does the set $S = {s}$ have?"; answer = str(2**num_elements - 1)
-            hint = "The number of proper subsets is $2^n - 1$."; explanation = f"Total subsets = $2^{{{num_elements}}} = {2**num_elements}$. Proper subsets exclude the set itself, so we subtract 1."
-        options = {answer, str(2*num_elements), str(num_elements**2)}
-
-    # --- NEW SUB-TOPICS ---
     elif q_type == 'complement':
         set_a = set(random.sample(range(1, 20), k=random.randint(5, 8)))
-        question = f"Given the Universal set $\mathcal{{U}} = \\{{1, 2, ..., 20\\}}$ and the set $A = {set_a}$, find the complement of A, denoted $A'$."
-        complement_set = universal_set - set_a
-        answer = str(complement_set)
-        hint = "The complement of a set A contains all the elements in the universal set that are NOT in set A."
-        explanation = f"We are looking for all numbers from 1 to 20 that are not present in set A.\n$A' = \mathcal{{U}} - A = {universal_set} - {set_a} = {complement_set}$."
-        options = {answer, str(set_a), str(universal_set)}
+        question = f"Given $\mathcal{{U}} = \\{{1, ..., 20\\}}$ and $A = {set_a}$, find $A'$."
+        answer = str(universal_set - set_a)
+        hint = "The complement contains all elements in the universal set that are NOT in set A."
+        explanation = f"A' = U - A = {answer}."
+        options = {answer, str(set_a)}
+
+    elif q_type == 'operation_difference': # RESTORED FROM YOUR ORIGINAL CODE
+        set_a = set(random.sample(range(1, 20), k=random.randint(4, 7)))
+        set_b = set(random.sample(range(1, 20), k=random.randint(4, 7)))
+        question = f"Given $A = {set_a}$ and $B = {set_b}$, find the difference $A - B$."
+        answer = str(set_a.difference(set_b))
+        hint = "The difference A - B contains all elements that are in A but NOT in B."
+        explanation = f"We take all the elements of set A and remove any that also appear in set B. The result is {answer}."
+        options = {answer, str(set_b.difference(set_a)), str(set_a.intersection(set_b))}
+
+    elif q_type == 'subsets_proper': # RESTORED FROM YOUR ORIGINAL CODE
+        num_elements = random.randint(3, 6)
+        s = set(random.sample(range(1, 100), k=num_elements))
+        question = f"How many **proper** subsets does the set $S = {s}$ have?"
+        answer = str(2**num_elements - 1)
+        hint = "The number of proper subsets is $2^n - 1$. It includes all subsets except the set itself."
+        explanation = f"Total subsets = $2^{{{num_elements}}} = {2**num_elements}$. Proper subsets exclude the original set, so we subtract 1, giving {answer}."
+        options = {answer, str(2**num_elements), str(num_elements**2)}
+
+    # --- Hard Questions ---
+    elif q_type == 'venn_three':
+        a,b,c,ab,bc,ac,abc = [random.randint(5, 15) for _ in range(7)]
+        total_a, total_b, total_c = a+ab+ac+abc, b+ab+bc+abc, c+ac+bc+abc
+        total = sum([a,b,c,ab,bc,ac,abc])
+        question = f"Of {total} people, {total_a} liked Item 1, {total_b} liked Item 2, & {total_c} liked Item 3. {ab+abc} liked 1&2, {ac+abc} liked 1&3, {bc+abc} liked 2&3, & {abc} liked all three. How many liked EXACTLY one item?"
+        answer = str(a+b+c)
+        hint = "Draw a Venn diagram and subtract outwards from the center to find the 'only' regions."
+        explanation = f"Item 1 only = {a}, Item 2 only = {b}, Item 3 only = {c}. Total = {a+b+c}."
+        options = {answer, str(ab+bc+ac), str(abc)}
 
     elif q_type == 'properties':
-        law, is_true = random.choice([("Commutative Law for Union ($A \\cup B = B \\cup A$)", "True"), ("Associative Law for Intersection ($(A \\cap B) \\cap C = A \\cap (B \\cap C)$)", "True"), ("Distributive Law ($A \\cup (B \\cap C) = (A \\cup B) \\cap (A \cup C)$)", "True"), ("Commutative Law for Difference ($A - B = B - A$)", "False")])
-        question = f"Which of the following statements about the properties of set operations is correct?"
-        # For simplicity, we make the correct answer a fixed statement and distractors fixed variations.
-        correct_statement = "The union of sets is commutative."
-        distractors = {"The difference of sets is commutative.", "The intersection of sets is not associative.", "The power set operation is commutative."}
-        answer = correct_statement
-        hint = "Think about whether the order of sets matters for operations like Union ($\cup$) and Intersection ($\cap$)."
-        explanation = f"The Commutative Law holds for Union and Intersection ($A \\cup B = B \\cup A$), but not for Difference ($A - B \\neq B - A$). The Associative and Distributive laws also hold for union and intersection as stated in standard set theory."
-        options = {answer, *distractors}
-        
+        law, is_true_str = random.choice([("Commutative: $A - B = B - A$", "False"), ("Associative: $(A \\cup B) \\cup C = A \\cup (B \\cup C)$", "True"), ("Distributive: $A \\cap (B \\cup C) = (A \\cap B) \\cup (A \\cap C)$", "True")])
+        question = f"Is the following statement about set properties generally true or false? ${law}$"
+        answer = is_true_str
+        hint = "Think about whether the order or grouping matters for different operations."
+        explanation = f"The statement ${law}$ is **{answer.lower()}**. Commutativity and associativity hold for union and intersection, but not for difference."
+        options = {"True", "False"}
+
     elif q_type == 'demorgan':
+        question = "According to De Morgan's Laws, $(A \\cup B)'$ is equivalent to which of the following?"
+        answer = "$A' \\cap B'$"
+        hint = "The complement of a union is the intersection of the complements."
+        explanation = "De Morgan's Laws state: $(A \\cup B)' = A' \\cap B'$ and $(A \\cap B)' = A' \\cup B'$."
+        options = {"$A' \\cap B'$", "$A' \\cup B'$", "$A \\cap B'"}
+
+    elif q_type == 'operation_symmetric':
         set_a = set(random.sample(range(1, 20), k=random.randint(4, 6)))
         set_b = set(random.sample(range(1, 20), k=random.randint(4, 6)))
-        question = f"Given $\mathcal{{U}} = \\{{1, ..., 20\\}}$, $A = {set_a}$, and $B = {set_b}$, which set is equal to $(A \cup B)'$ according to De Morgan's Laws?"
-        
-        # Calculate the correct answer based on De Morgan's Law
-        a_comp = universal_set - set_a
-        b_comp = universal_set - set_b
-        correct_answer_set = a_comp.intersection(b_comp)
-        answer = str(correct_answer_set)
-        
-        hint = "De Morgan's Laws state that $(A \cup B)' = A' \cap B'$ and $(A \cap B)' = A' \cup B'$."
-        explanation = f"1. First, find $A \cup B = {set_a.union(set_b)}$.\n2. Then find its complement: $(A \cup B)' = {universal_set - set_a.union(set_b)}$.\n3. According to De Morgan's law, this must be equal to $A' \cap B'$.\n4. $A' = {a_comp}$.\n5. $B' = {b_comp}$.\n6. $A' \cap B' = {correct_answer_set}$. The law holds true."
-        # Distractors based on common mistakes
-        options = {answer, str(a_comp.union(b_comp)), str(universal_set - set_a.intersection(set_b)), str(set_a.symmetric_difference(set_b))}
+        question = f"Given $A = {set_a}$ and $B = {set_b}$, find the symmetric difference $A \\Delta B$."
+        answer = str(set_a.symmetric_difference(set_b))
+        hint = "Symmetric difference contains elements in one set or the other, but not both. Formula: $(A \\cup B) - (A \\cap B)$."
+        explanation = f"The union is {set_a.union(set_b)} and the intersection is {set_a.intersection(set_b)}. The difference between these sets is {answer}."
+        options = {answer, str(set_a.union(set_b)), str(set_a.intersection(set_b))}
 
-    return {"question": question, "options": _finalize_options(options, default_type="set_str"), "answer": answer, "hint": hint, "explanation": explanation}
-def _generate_percentages_question():
-    """Generates a multi-subtopic question for Percentages with enhanced variety."""
-    # UPGRADED: Expanded list of sub-topics based on your suggestions
-    q_type = random.choice(['conversion', 'percent_of', 'express_as_percent', 'percent_change', 'profit_loss', 'reverse_percent', 'successive_change', 'percent_error'])
+    return {"question": question, "options": _finalize_options(options, default_type="set_str"), "answer": answer, "hint": hint, "explanation": explanation, "difficulty": difficulty}
+def _generate_percentages_question(difficulty="Medium"):
+    """Generates a Percentages question based on difficulty, preserving all original sub-types."""
+    
+    if difficulty == "Easy":
+        q_type = random.choice(['conversion', 'percent_of'])
+    elif difficulty == "Medium":
+        q_type = random.choice(['express_as_percent', 'percent_change', 'profit_loss'])
+    else: # Hard
+        q_type = random.choice(['reverse_percent', 'successive_change', 'percent_error'])
+
     question, answer, hint, explanation = "", "", "", ""
     options = set()
 
+    # --- Easy Questions ---
     if q_type == 'conversion':
-        frac = Fraction(random.randint(1, 4), random.choice([5, 8, 10, 20]))
+        frac = Fraction(random.randint(1, 4), random.choice([5, 8, 10, 20, 25]))
         percent = frac.numerator / frac.denominator * 100
         decimal = frac.numerator / frac.denominator
-        
         start_form, end_form, ans_val = random.choice([
             (f"${_get_fraction_latex_code(frac)}$", "a percentage", f"{percent:.0f}%"),
             (f"{decimal}", "a percentage", f"{percent:.0f}%"),
@@ -1520,40 +1604,47 @@ def _generate_percentages_question():
         ])
         question = f"Express {start_form} as {end_form}."
         answer = str(ans_val)
-        hint = "To convert a fraction or decimal to a percentage, multiply by 100. To convert a percentage to a decimal, divide by 100."
-        explanation = f"To convert {start_form} to {end_form}, you perform the required operation. The result is {answer}."
-        options = {answer, f"{decimal*10}", f"{percent/10}%"}
+        hint = "To convert from a fraction/decimal to a percentage, multiply by 100. To convert from a percentage to a decimal, divide by 100."
+        explanation = f"The conversion from {start_form} to {end_form} results in {answer}."
+        options = {answer, f"{decimal*10}%", f"{percent/10}"}
 
     elif q_type == 'percent_of':
         percent, number = random.randint(1, 19)*5, random.randint(10, 50)*10
         question = f"Calculate {percent}% of GHS {number:.2f}."
         answer = f"GHS {(percent/100)*number:.2f}"
-        hint = "Convert the percentage to a decimal and multiply."
-        explanation = f"{percent}% of {number} is equivalent to {percent/100} * {number} = {float(answer.split(' ')[1]):.2f}."
+        hint = "Convert the percentage to a decimal (divide by 100) and then multiply."
+        explanation = f"{percent}% of {number} is equivalent to ${percent/100} \\times {number} = {float(answer.split(' ')[1]):.2f}$."
         options = {answer, f"GHS {percent*number/10:.2f}", f"GHS {number/percent:.2f}"}
 
+    # --- Medium Questions ---
     elif q_type == 'express_as_percent':
         part, whole = random.randint(10, 40), random.randint(50, 100)
-        question = f"In a class in Accra, {part} students out of {whole} are girls. What percentage of the class are girls?"
+        question = f"In a school in Accra, {part} students out of {whole} are boys. What percentage of the students are boys?"
         answer = f"{(part/whole)*100:.1f}%"
         hint = "Use the formula: (Part / Whole) * 100%."
         explanation = f"The percentage is calculated as $(\\frac{{{part}}}{{{whole}}}) \\times 100\\% = {answer}$."
-        options = {answer, f"{(whole/part)*100:.1f}%"}
+        options = {answer, f"{(whole/part)*100:.1f}%", f"{part*100/whole:.0f}%"}
 
     elif q_type == 'percent_change':
         old, new = random.randint(50, 200), random.randint(201, 400)
         question = f"The price of a textbook increased from GHS {old} to GHS {new}. Find the percentage increase."
-        ans_val = ((new - old) / old) * 100; answer = f"{ans_val:.1f}%"
-        hint = "Use the formula: (New Value - Old Value) / Old Value * 100%"; explanation = f"Change = {new} - {old} = {new-old}.\nPercent Change = (\\frac{{{new-old}}}{{{old}}}) \\times 100 = {answer}."
-        options = {answer, f"{((new-old)/new)*100:.1f}%"}
+        ans_val = ((new - old) / old) * 100
+        answer = f"{ans_val:.1f}%"
+        hint = "Use the formula: (New Value - Old Value) / Old Value * 100%."
+        explanation = f"Change = {new} - {old} = {new-old}.\nPercent Change = (\\frac{{{new-old}}}{{{old}}}) \\times 100 = {answer}."
+        options = {answer, f"{((new-old)/new)*100:.1f}%", f"{ans_val:.0f}%"}
 
     elif q_type == 'profit_loss':
         cost, selling = random.randint(100, 200), random.randint(201, 300)
         question = f"A trader in Kumasi bought an item for GHS {cost} and sold it for GHS {selling}. Calculate the profit percent."
-        profit = selling - cost; ans_val = (profit / cost) * 100; answer = f"{ans_val:.1f}%"
-        hint = "Profit Percent = (Profit / Cost Price) * 100%"; explanation = f"Profit = {selling} - {cost} = {profit}.\nProfit Percent = (\\frac{{{profit}}}{{{cost}}}) \\times 100 = {answer}."
-        options = {answer, f"{(profit/selling)*100:.1f}%"}
+        profit = selling - cost
+        ans_val = (profit / cost) * 100
+        answer = f"{ans_val:.1f}%"
+        hint = "Profit Percent = (Profit / Cost Price) * 100%."
+        explanation = f"Profit = {selling} - {cost} = {profit}.\nProfit Percent = (\\frac{{{profit}}}{{{cost}}}) \\times 100 = {answer}."
+        options = {answer, f"{(profit/selling)*100:.1f}%", f"{ans_val:.0f}%"}
 
+    # --- Hard Questions ---
     elif q_type == 'reverse_percent':
         original_price = random.randint(100, 400)
         discount = random.randint(1, 8) * 5 # 5, 10, 15... 40
@@ -1562,7 +1653,7 @@ def _generate_percentages_question():
         answer = f"GHS {original_price:.2f}"
         hint = f"The final price represents {100-discount}% of the original price. Let the original price be P and solve for it."
         explanation = f"Let P be the original price.\n$P \\times (1 - \\frac{{{discount}}}{{100}}) = {final_price:.2f}$.\n$P = \\frac{{{final_price:.2f}}}{{1 - {discount/100}}} = {original_price:.2f}$."
-        options = {answer, f"GHS {final_price * (1 + discount/100):.2f}"}
+        options = {answer, f"GHS {final_price * (1 + discount/100):.2f}", f"GHS {final_price / (1 + discount/100):.2f}"}
 
     elif q_type == 'successive_change':
         initial_val = 1000
@@ -1573,9 +1664,9 @@ def _generate_percentages_question():
         net_change = ((final_val - initial_val) / initial_val) * 100
         question = f"A worker's salary of GHS {initial_val} was increased by {increase}%, and later decreased by {decrease}%. What is the net percentage change in their salary?"
         answer = f"{net_change:.2f}%"
-        hint = "Calculate the new salary after the first change, then apply the second change to that new amount."
-        explanation = f"1. After {increase}% increase: GHS {initial_val} * 1.{increase} = GHS {val_after_increase}.\n2. After {decrease}% decrease: GHS {val_after_increase} * (1 - 0.0{decrease}) = GHS {final_val}.\n3. Net Change = {final_val} - {initial_val} = {final_val-initial_val}.\n4. Net % Change = (\\frac{{{final_val-initial_val}}}{{{initial_val}}}) \\times 100 = {answer}."
-        options = {answer, f"{increase-decrease}%"}
+        hint = "Calculate the new salary after the first change, then apply the second change to that new amount. Do not just add or subtract the percentages."
+        explanation = f"1. After {increase}% increase: GHS {initial_val} * 1.{increase:02d} = GHS {val_after_increase}.\n2. After {decrease}% decrease: GHS {val_after_increase} * (1 - 0.0{decrease}) = GHS {final_val:.2f}.\n3. Net Change = {final_val - initial_val:.2f}.\n4. Net % Change = (\\frac{{{final_val-initial_val:.2f}}}{{{initial_val}}}) \\times 100 = {answer}."
+        options = {answer, f"{increase-decrease}%", f"{increase-decrease:.2f}%"}
 
     elif q_type == 'percent_error':
         actual = random.randint(50, 100)
@@ -1586,41 +1677,64 @@ def _generate_percentages_question():
         answer = f"{ans_val:.2f}%"
         hint = "Percentage Error = (Error / Actual Value) * 100%."
         explanation = f"1. Error = Measured - Actual = {measured} - {actual} = {error}.\n2. Percentage Error = (\\frac{{{error}}}{{{actual}}}) \\times 100\\% = {answer}."
-        options = {answer, f"{(error/measured)*100:.2f}%"}
+        options = {answer, f"{(error/measured)*100:.2f}%", f"{ans_val:.1f}%"}
 
-    return {"question": question, "options": _finalize_options(options), "answer": answer, "hint": hint, "explanation": explanation}
+    return {"question": question, "options": _finalize_options(options), "answer": answer, "hint": hint, "explanation": explanation, "difficulty": difficulty}
 
-def _generate_fractions_question():
-    """Generates a multi-subtopic question for Fractions with enhanced variety."""
-    q_type = random.choice(['operation', 'bodmas', 'word_problem', 'convert_mixed', 'equivalent', 'compare', 'complex_fraction'])
+def _generate_fractions_question(difficulty="Medium"):
+    """Generates a Fractions question based on difficulty, preserving all original sub-types."""
+
+    if difficulty == "Easy":
+        # Simple operations and direct equivalency
+        q_type = random.choice(['operation_simple', 'equivalent'])
+    elif difficulty == "Medium":
+        # Multi-step problems and more complex operations
+        q_type = random.choice(['operation_complex', 'bodmas', 'word_problem'])
+    else: # Hard
+        # Higher-level concepts like conversion, comparison, and complex structures
+        q_type = random.choice(['convert_mixed', 'compare', 'complex_fraction'])
+
     question, answer, hint, explanation = "", "", "", ""
     options = set()
 
-    if q_type == 'operation':
-        f1, f2 = Fraction(random.randint(1, 10), random.randint(2, 10)), Fraction(random.randint(1, 10), random.randint(2, 10))
-        op, sym = random.choice([('add', '+'), ('subtract', '-'), ('multiply', '\\times'), ('divide', '\\div')])
-        if op == 'divide' and f2.numerator == 0: f2 = Fraction(1, f2.denominator)
-        
-        f1_latex, f2_latex = _get_fraction_latex_code(f1), _get_fraction_latex_code(f2)
-        question = f"Calculate: ${f1_latex} {sym} {f2_latex}$"
-        
-        if op == 'add': res = f1 + f2
-        elif op == 'subtract': res = f1 - f2
-        elif op == 'multiply': res = f1 * f2
-        else: res = f1 / f2
-        
+    # --- Easy Questions ---
+    if q_type == 'operation_simple':
+        f1, f2 = Fraction(random.randint(1, 5), random.randint(2, 6)), Fraction(random.randint(1, 5), random.randint(2, 6))
+        op, sym = random.choice([('add', '+'), ('subtract', '-')])
+        question = f"Calculate: ${_get_fraction_latex_code(f1)} {sym} ${_get_fraction_latex_code(f2)}$"
+        res = f1 + f2 if op == 'add' else f1 - f2
         answer = _format_fraction_text(res)
-        hint = "Remember the specific rules for adding, subtracting, multiplying, and dividing fractions."
+        hint = "To add or subtract fractions, you must first find a common denominator."
+        explanation = f"After finding a common denominator and performing the operation, the result is ${_get_fraction_latex_code(res)}$."
+        options = {answer, _format_fraction_text(f1*f2)}
+
+    elif q_type == 'equivalent':
+        num, den, multiplier = random.randint(2, 5), random.randint(6, 11), random.randint(2, 5)
+        question = f"Find the missing value: $\\frac{{{num}}}{{{den}}} = \\frac{{?}}{{{den*multiplier}}}$"
+        answer = str(num * multiplier)
+        hint = "To find an equivalent fraction, whatever you multiply the denominator by, you must also multiply the numerator by."
+        explanation = f"The denominator was multiplied by {multiplier} (since ${den} \\times {multiplier} = {den*multiplier}$). Therefore, the numerator must also be multiplied by {multiplier}. The missing value is ${num} \\times {multiplier} = {answer}$."
+        options = {answer, str(num+multiplier), str(den*multiplier)}
+
+    # --- Medium Questions ---
+    elif q_type == 'operation_complex':
+        f1, f2 = Fraction(random.randint(1, 10), random.randint(2, 10)), Fraction(random.randint(1, 10), random.randint(2, 10))
+        op, sym = random.choice([('multiply', '\\times'), ('divide', '\\div')])
+        if op == 'divide' and f2.numerator == 0: f2 = Fraction(1, f2.denominator) # Avoid division by zero
+        question = f"Calculate: ${_get_fraction_latex_code(f1)} {sym} {_get_fraction_latex_code(f2)}$"
+        res = f1 * f2 if op == 'multiply' else f1 / f2
+        answer = _format_fraction_text(res)
+        hint = "To multiply, multiply straight across. To divide, invert the second fraction and multiply."
         explanation = f"The result of the calculation is ${_get_fraction_latex_code(res)}$."
-        options = {answer, _format_fraction_text(Fraction(f1.numerator+f2.numerator, f1.denominator+f2.denominator))}
+        options = {answer, _format_fraction_text(f1+f2)}
 
     elif q_type == 'bodmas':
         a, b, c = [random.randint(2, 6) for _ in range(3)]
         question = f"Evaluate the expression: $ (\\frac{{1}}{{{a}}} + \\frac{{1}}{{{b}}}) \\times {c} $"
         res = (Fraction(1, a) + Fraction(1, b)) * c
         answer = _format_fraction_text(res)
-        hint = "Follow BODMAS. Solve the operation inside the brackets first."
-        explanation = f"1. Bracket: $\\frac{{1}}{{{a}}} + \\frac{{1}}{{{b}}} = \\frac{{{b}+{a}}}{{{a*b}}}$.\n\n2. Multiply: $\\frac{{{a+b}}}{{{a*b}}} \\times {c} = {_get_fraction_latex_code(res)}$."
+        hint = "Follow BODMAS/PEMDAS. Solve the operation inside the brackets first."
+        explanation = f"1. Solve the bracket: $\\frac{{1}}{{{a}}} + \\frac{{1}}{{{b}}} = \\frac{{{b}+{a}}}{{{a*b}}}$.\n\n2. Multiply by the constant: $\\frac{{{a+b}}}{{{a*b}}} \\times {c} = {_get_fraction_latex_code(res)}$."
         distractor = _format_fraction_text(Fraction(1,a) + Fraction(1,b)*c)
         options = {answer, distractor}
 
@@ -1632,58 +1746,59 @@ def _generate_fractions_question():
         explanation = f"1. Fraction remaining = $1 - \\frac{{{num}}}{{{den}}} = \\frac{{{den-num}}}{{{den}}}$.\n2. Oranges left = $\\frac{{{den-num}}}{{{den}}} \\times {quantity} = {answer}$."
         options = {answer, str(int(quantity*Fraction(num,den)))}
 
+    # --- Hard Questions ---
     elif q_type == 'convert_mixed':
         whole, num, den = random.randint(1, 5), random.randint(1, 5), random.randint(6, 10)
         improper_num = whole * den + num; improper_frac = Fraction(improper_num, den)
         mixed_num_latex = f"{whole}\\frac{{{num}}}{{{den}}}"
-        
         if random.random() > 0.5:
             question = f"Convert the mixed number ${mixed_num_latex}$ to an improper fraction."
             answer = _format_fraction_text(improper_frac)
-            hint = "Multiply the whole number by the denominator and add the numerator."
+            hint = "Multiply the whole number by the denominator, then add the numerator. Keep the same denominator."
             explanation = f"Calculation: $({whole} \\times {den}) + {num} = {improper_num}$. The improper fraction is ${_get_fraction_latex_code(improper_frac)}$."
         else:
             question = f"Convert the improper fraction ${_get_fraction_latex_code(improper_frac)}$ to a mixed number."
             answer = f"${mixed_num_latex}$"
-            hint = "Divide the numerator by the denominator."
+            hint = "Divide the numerator by the denominator. The quotient is the whole number, and the remainder is the new numerator."
             explanation = f"${improper_num} \\div {den} = {whole}$ with a remainder of ${num}$. The mixed number is ${mixed_num_latex}$."
-        options = {answer, f"{whole*num+den}/{den}"}
+        options = {answer, f"{whole*num+den}/{den}", f"{improper_num}/{num}"}
 
-    elif q_type == 'equivalent':
-        num, den = random.randint(2, 5), random.randint(6, 11); multiplier = random.randint(2, 5)
-        question = f"Find the missing value: $\\frac{{{num}}}{{{den}}} = \\frac{{?}}{{{den*multiplier}}}$"
-        answer = str(num * multiplier)
-        hint = "Multiply the numerator and the denominator by the same number."
-        explanation = f"The denominator was multiplied by {multiplier}, so the numerator must also be multiplied by {multiplier}. Missing value = ${num} \\times {multiplier} = {answer}$."
-        options = {answer, str(num+multiplier)}
-        
     elif q_type == 'compare':
         f1 = Fraction(random.randint(1, 4), random.randint(5, 10)); f2 = Fraction(random.randint(1, 4), random.randint(5, 10));
         while f1 == f2: f2 = Fraction(random.randint(1, 4), random.randint(5, 10))
         question = f"Which of the following statements is true?"
         answer = f"${_get_fraction_latex_code(f1)} > {_get_fraction_latex_code(f2)}$" if f1 > f2 else f"${_get_fraction_latex_code(f1)} < {_get_fraction_latex_code(f2)}$"
-        hint = "To compare fractions, find a common denominator or convert them to decimals."
-        explanation = f"${_get_fraction_latex_code(f1)} \\approx {float(f1):.3f}$ and ${_get_fraction_latex_code(f2)} \\approx {float(f2):.3f}$. Therefore, {answer} is true."
-        options = {answer, f"${_get_fraction_latex_code(f1)} = {_get_fraction_latex_code(f2)}$"}
+        hint = "To compare fractions, you can find a common denominator or convert them to decimals."
+        explanation = f"${_get_fraction_latex_code(f1)} \\approx {float(f1):.3f}$ and ${_get_fraction_latex_code(f2)} \\approx {float(f2):.3f}$. Therefore, the statement '{answer}' is true."
+        options = {answer, f"${_get_fraction_latex_code(f1)} = {_get_fraction_latex_code(f2)}$", f"${_get_fraction_latex_code(f1)} < {_get_fraction_latex_code(f2)}$" if f1 > f2 else f"${_get_fraction_latex_code(f1)} > {_get_fraction_latex_code(f2)}$"}
 
     elif q_type == 'complex_fraction':
         f1, f2 = Fraction(random.randint(1, 5), random.randint(2, 6)), Fraction(random.randint(1, 5), random.randint(2, 6))
         question = f"Simplify the complex fraction: $\\frac{{{_get_fraction_latex_code(f1)}}}{{{_get_fraction_latex_code(f2)}}}$"
         answer = _format_fraction_text(f1 / f2)
-        hint = "Rewrite the complex fraction as a division problem: (top) ÷ (bottom)."
-        # --- THIS LINE IS CORRECTED ---
+        hint = "This is simply a division problem. Rewrite the complex fraction as (top fraction) ÷ (bottom fraction)."
         inverted_f2_latex = _get_fraction_latex_code(Fraction(f2.denominator, f2.numerator))
-        explanation = f"This is equivalent to ${_get_fraction_latex_code(f1)} \\div {_get_fraction_latex_code(f2)}$, which is ${_get_fraction_latex_code(f1)} \\times {inverted_f2_latex} = {_get_fraction_latex_code(f1/f2)}$."
-        options = {answer, _format_fraction_text(f1*f2)}
+        explanation = f"This is equivalent to ${_get_fraction_latex_code(f1)} \\div {_get_fraction_latex_code(f2)}$, which becomes ${_get_fraction_latex_code(f1)} \\times {inverted_f2_latex} = {_get_fraction_latex_code(f1/f2)}$."
+        options = {answer, _format_fraction_text(f1*f2), _format_fraction_text(f1+f2)}
 
-    return {"question": question, "options": _finalize_options(options, "fraction"), "answer": answer, "hint": hint, "explanation": explanation}
-def _generate_indices_question():
-    """Generates a multi-subtopic question for Indices with enhanced variety."""
-    # Subtopics: Laws, Fractional, Solving Equations (same/different base), Standard Form
-    q_type = random.choice(['laws', 'fractional', 'solve_same_base', 'standard_form', 'solve_different_base'])
+    return {"question": question, "options": _finalize_options(options, "fraction"), "answer": answer, "hint": hint, "explanation": explanation, "difficulty": difficulty}
+def _generate_indices_question(difficulty="Medium"):
+    """Generates an Indices question based on difficulty, preserving all original sub-types."""
+    
+    if difficulty == "Easy":
+        # Basic laws and standard form conversion
+        q_type = random.choice(['laws', 'standard_form'])
+    elif difficulty == "Medium":
+        # Multi-step evaluation and solving with a common base
+        q_type = random.choice(['fractional', 'solve_same_base'])
+    else: # Hard
+        # Requires finding a common base before solving
+        q_type = 'solve_different_base'
+
     question, answer, hint, explanation = "", "", "", ""
     options = set()
 
+    # --- Easy Questions ---
     if q_type == 'laws':
         base = random.randint(2, 7)
         p1, p2 = random.randint(5, 10), random.randint(2, 4)
@@ -1692,400 +1807,333 @@ def _generate_indices_question():
             ('divide', '\\div', p1-p2, 'a^m \\div a^n = a^{m-n}'),
             ('power', ')', p1*p2, '(a^m)^n = a^{mn}')
         ])
+        
         if op == 'power':
             question = f"Simplify the expression: $({base}^{{{p1}}})^{{{p2}}}$"
             explanation = f"Using the power of a power rule, $(x^a)^b = x^{{ab}}$, we get $({base}^{{{p1}}})^{{{p2}}} = {base}^{{{p1*p2}}}$."
         else:
             question = f"Simplify the expression: ${base}^{{{p1}}} {sym} {base}^{{{p2}}}$"
             explanation = f"Using the {op} rule, ${rule}$, we get ${base}^{{{p1}}} {sym} {base}^{{{p2}}} = {base}^{{{res_p}}}$."
+        
         answer = f"${base}^{{{res_p}}}$"
         hint = f"Recall the laws of indices for '{op}' operations."
-        options = {answer, f"${base}^{{{p1+p2}}}$", f"${base}^{{{p1*p2}}}$"}
+        options = {answer, f"${base}^{{{p1+p2}}}$", f"${base}^{{{p1-p2 if p1 > p2 else p2-p1}}}$"}
 
+    elif q_type == 'standard_form':
+        num = round(random.uniform(1.0, 9.9), random.randint(2, 4))
+        power = random.randint(3, 6)
+        decimal_form = f"{num / (10**power):.{power+len(str(int(num)))}f}"
+        answer = f"${num} \\times 10^{{-{power}}}$"
+        distractors = {f"${num} \\times 10^{{{power}}}$", f"${round(num*10, 2)} \\times 10^{{-{power+1}}}$"}
+        question = f"A measurement is recorded as {decimal_form} metres. Express this number in standard form."
+        hint = "Standard form is written as $A \\times 10^n$, where $1 \\le A < 10$. Count how many places the decimal point must move."
+        explanation = f"To get the number {num} (which is between 1 and 10), we must move the decimal point {power} places to the right. Moving to the right corresponds to a negative exponent. Thus, the standard form is {answer}."
+        options = {answer, *distractors}
+
+    # --- Medium Questions ---
     elif q_type == 'fractional':
         base_num = random.choice([4, 8, 9, 16, 27, 64])
-        if base_num in [4, 9, 16]: root = 2
-        else: root = 3
+        root = 2 if base_num in [4, 9, 16] else 3
         power = random.randint(2, 3)
         question = f"Evaluate: ${base_num}^{{\\frac{{{power}}}{{{root}}}}}$"
         res = int(round((base_num**(1/root))**power))
         answer = str(res)
-        hint = "First, find the root of the base number, then apply the power."
+        hint = "First, find the root of the base number (denominator of the fraction), then apply the power (numerator of the fraction)."
         explanation = f"The expression ${base_num}^{{\\frac{{{power}}}{{{root}}}}}$ means $(\\sqrt[{root}]{{{base_num}}})^{{{power}}}$.\n1. $\\sqrt[{root}]{{{base_num}}} = {int(base_num**(1/root))}$.\n2. $({int(base_num**(1/root))})^{{{power}}} = {res}$."
-        options = {answer, str(base_num*power/root)}
+        options = {answer, str(int(base_num*power/root)), str(int(base_num+power/root))}
 
     elif q_type == 'solve_same_base':
         base = random.randint(2, 5)
         power = random.randint(2, 4)
         a, b = 2, -1
-        while (power - b) % a != 0:
-            power = random.randint(2, 5)
+        while (power - b) % a != 0: power = random.randint(2, 5) # Ensure integer answer
         question = f"Solve for the variable $x$: ${base}^{{{a}x + ({b})}} = {base**power}$"
         answer = _format_fraction_text(Fraction(power - b, a))
-        hint = "If the bases on both sides of an equation are the same, you can equate the exponents."
-        explanation = f"1. The equation is ${base}^{{{a}x + ({b})}} = {base**power}$.\n2. Since the bases are equal, set the exponents equal: ${a}x + ({b}) = {power}$.\n3. ${a}x = {power-b}$.\n4. $x = \\frac{{{power-b}}}{{{a}}}$."
+        hint = "If the bases on both sides of an equation are the same, you can set the exponents equal to each other."
+        explanation = f"1. The equation is ${base}^{{{a}x + ({b})}} = {base**power}$.\n2. Since the bases are equal, equate the exponents: ${a}x + ({b}) = {power}$.\n3. ${a}x = {power-b}$.\n4. $x = \\frac{{{power-b}}}{{{a}}}$."
         options = {answer, str(power), str(power-b)}
 
-    elif q_type == 'standard_form':
-        # --- THIS ENTIRE BLOCK IS REWRITTEN FOR ROBUSTNESS ---
-        num = round(random.uniform(1.0, 9.9), random.randint(2, 4))
-        power = random.randint(3, 6)
-        
-        # Create the decimal form of the number
-        decimal_form = f"{num / (10**power):.{power+len(str(int(num)))}f}"
-        
-        # Create the correctly formatted LaTeX answer
-        answer = f"${num} \\times 10^{{-{power}}}$"
-        
-        # Create a set of unique, correctly formatted distractors
-        distractors = {
-            f"${num} \\times 10^{{{power}}}$",         # Wrong sign on exponent
-            f"{decimal_form}",                       # Just the decimal form
-            f"${round(num*10, 2)} \\times 10^{{-{power+1}}}$" # Wrong coefficient
-        }
-        
-        question = f"A measurement taken by a scientist in Kajaji is {decimal_form} metres. Express this number in standard form."
-        hint = "Standard form is written as $A \\times 10^n$, where $1 \\le A < 10$. Count how many places the decimal point must move."
-        explanation = f"To get the number {num} (which is between 1 and 10), we must move the decimal point {power} places to the right. Moving to the right corresponds to a negative exponent.\nThus, the standard form is {answer}."
-        
-        options = {answer, *distractors}
-
+    # --- Hard Question ---
     elif q_type == 'solve_different_base':
-        problems = [(4, 2, 2, 1, 2), (8, 3, 4, 2, 2), (9, 2, 3, 1, 3), (27, 3, 9, 2, 3)]
+        problems = [(4, 2, 8, 3, 2), (9, 2, 27, 3, 3), (8, 3, 4, 2, 2)]
         base1, p1, base2, p2, common_base = random.choice(problems)
         k = random.randint(1, 4)
+        # Equation: (cb^p1)^x = (cb^p2)^(x-k) => p1*x = p2*x - p2*k => (p1-p2)x = -p2*k
         x_val_frac = Fraction(-p2 * k, p1 - p2)
-        while (p1 - p2) == 0 or x_val_frac.denominator != 1:
-            base1, p1, base2, p2, common_base = random.choice(problems)
-            k = random.randint(1, 4)
-            if (p1 - p2) != 0: x_val_frac = Fraction(-p2 * k, p1 - p2)
+        # Ensure the problem gives a clean integer answer
+        if x_val_frac.denominator != 1:
+            return _generate_indices_question(difficulty=difficulty) # Regenerate if not an integer
         x_val = x_val_frac.numerator
         
         question = f"Solve for x in the equation: ${base1}^x = {base2}^{{x-{k}}}$"
         answer = str(x_val)
         hint = "Express both sides of the equation as powers of the same common base."
-        explanation = (f"1. Express with base {common_base}: $({common_base}^{{{p1}}})^x = ({common_base}^{{{p2}}})^{{x-{k}}}$.\n"
-                       f"2. Simplify exponents: ${common_base}^{{{p1}x}} = {common_base}^{{{p2}(x-{k})}}$.\n"
-                       f"3. Equate exponents: ${p1}x = {p2}x - {p2*k}$.\n"
-                       f"4. Solve for x: $({p1-p2})x = {-p2*k} \implies x = {x_val}$.")
-        options = {answer, str(k), str(x_val + 1)}
+        explanation = (f"1. The common base for {base1} and {base2} is {common_base}.\n"
+                       f"2. Rewrite the equation: $({common_base}^{{{p1}}})^x = ({common_base}^{{{p2}}})^{{x-{k}}}$.\n"
+                       f"3. Simplify exponents: ${common_base}^{{{p1}x}} = {common_base}^{{{p2}(x-{k})}}$.\n"
+                       f"4. Equate exponents: ${p1}x = {p2}x - {p2*k}$.\n"
+                       f"5. Solve for x: $({p1-p2})x = {-p2*k} \\implies x = {x_val}$.")
+        options = {answer, str(k), str(x_val + 1), str(x_val -1)}
 
-    return {"question": question, "options": _finalize_options(options), "answer": answer, "hint": hint, "explanation": explanation}
+    return {"question": question, "options": _finalize_options(options), "answer": answer, "hint": hint, "explanation": explanation, "difficulty": difficulty}
 
-def _generate_surds_question():
-    """Generates a multi-subtopic question for Surds with enhanced variety."""
-    # --- FIX: This function has been corrected to prevent distractors from using perfect squares. ---
+def _generate_surds_question(difficulty="Medium"):
+    """Generates a Surds question based on difficulty, preserving all original sub-types."""
     
-    q_type = random.choice(['identify', 'simplify', 'operate', 'rationalize', 'equation', 'geometry'])
+    if difficulty == "Easy":
+        # Foundational concepts: identifying and simplifying surds.
+        q_type = random.choice(['identify', 'simplify'])
+    elif difficulty == "Medium":
+        # Standard applications: simple operations, solving, and geometry.
+        q_type = random.choice(['operate_add_sub', 'equation', 'geometry'])
+    else: # Hard
+        # More complex applications: binomial multiplication and rationalization.
+        q_type = random.choice(['operate_multiply', 'rationalize'])
+
     question, answer, hint, explanation = "", "", "", ""
     options = set()
 
+    # --- Easy Questions ---
     if q_type == 'identify':
-        root = random.randint(2, 12)
-        perfect_square = root**2
-        
+        perfect_square = random.randint(2, 12)**2
         non_square_base = random.choice([2, 3, 5, 6, 7, 10, 11, 13, 14, 15])
-        surd = non_square_base 
-        
-        question = f"Which of the following numbers is a surd?"
-        answer = f"$\\sqrt{{{surd}}}$"
-        hint = "A surd is an irrational number left in root form. A number is not a surd if its root is a rational number."
-        explanation = f"$\\sqrt{{{perfect_square}}} = {root}$, which is a rational number, so it is not a surd.\n$\\sqrt{{{surd}}}$ cannot be simplified to a rational number, so it is a surd."
+        question = "Which of the following numbers is a surd?"
+        answer = f"$\\sqrt{{{non_square_base}}}$"
+        hint = "A surd is an irrational number left in root form. If the root simplifies to a whole number or fraction, it is not a surd."
+        explanation = f"$\\sqrt{{{perfect_square}}}$ simplifies to {int(math.sqrt(perfect_square))}, which is rational. However, $\\sqrt{{{non_square_base}}}$ cannot be simplified to a rational number, so it is a surd."
         options = {answer, f"$\\sqrt{{{perfect_square}}}$", str(random.randint(2,10))}
 
     elif q_type == 'simplify':
-        p_sq, n = random.choice([4, 9, 16, 25, 36, 49, 64]), random.choice([2, 3, 5, 7, 10])
+        p_sq, n = random.choice([4, 9, 16, 25, 36]), random.choice([2, 3, 5, 7, 10])
         num = p_sq * n
         question = f"Express $\\sqrt{{{num}}}$ in its simplest surd form."
         answer = f"${int(math.sqrt(p_sq))}\\sqrt{{{n}}}$"
         hint = f"Find the largest perfect square that is a factor of {num}."
         explanation = f"1. Find factors: ${num} = {p_sq} \\times {n}$.\n2. Split the surd: $\\sqrt{{{num}}} = \\sqrt{{{p_sq}}} \\times \\sqrt{{{n}}}$.\n3. Simplify: ${answer}$."
-        options = {answer, f"${n}\\sqrt{{{p_sq}}}$"}
+        options = {answer, f"${n}\\sqrt{{{p_sq}}}$", f"${p_sq}\\sqrt{{{n}}}$"}
 
-    elif q_type == 'operate':
-        op_type = random.choice(['add_sub', 'multiply'])
-        if op_type == 'add_sub':
-            base_surd = random.choice([2, 3, 5])
-            c1, c2 = random.randint(2, 10), random.randint(2, 10)
-            op, sym, res = random.choice([('add', '+', c1+c2), ('subtract', '-', c1-c2)])
-            question = f"Simplify: ${c1}\\sqrt{{{base_surd}}} {sym} {c2}\\sqrt{{{base_surd}}}$"
-            answer = f"${res}\\sqrt{{{base_surd}}}$"
-            hint = "You can only add or subtract 'like' surds."
-            explanation = f"Factor out the common surd: $({c1} {sym} {c2})\\sqrt{{{base_surd}}} = {res}\\sqrt{{{base_surd}}}$."
-            
-            # --- FIX IS HERE: The distractor logic is changed to be more robust ---
-            # This distractor represents a common mistake (multiplying coefficients instead of adding/subtracting).
-            # It no longer creates the perfect square issue.
-            distractor = f"${c1*c2}\\sqrt{{{base_surd}}}$"
-            options = {answer, distractor}
-
-        else: # multiply
-            a = random.randint(2, 5)
-            b = random.choice([2, 3, 5, 6, 7]) # This prevents b from being a perfect square
-            c = random.randint(2, 5)
-            
-            question = f"Expand and simplify: $({a} + \\sqrt{{{b}}})({c} - \\sqrt{{{b}}})$"
-            res_term1, res_term2 = a*c - b, c - a
-            answer = f"${res_term1} + {res_term2}\\sqrt{{{b}}}$" if res_term2 >= 0 else f"${res_term1} - {abs(res_term2)}\\sqrt{{{b}}}$"
-            hint = "Use the FOIL method to expand the brackets, then collect like terms."
-            explanation = f"$({a} + \\sqrt{{{b}}})({c} - \\sqrt{{{b}}}) = {a*c} - {a}\\sqrt{{{b}}} + {c}\\sqrt{{{b}}} - {b} = {answer}$."
-            options = {answer, f"{a*c+b} + {c+a}\\sqrt{{{b}}}$"}
-
-    elif q_type == 'rationalize':
-        a, b, c = random.randint(2, 9), random.randint(2, 9), random.choice([2, 3, 5, 7])
-        while b*b == c: b = random.randint(2,9)
-        question = f"Rationalize the denominator of $\\frac{{{a}}}{{{b} + \\sqrt{{{c}}}}}$"
-        num_part1, num_part2, den = a*b, -a, b**2 - c
-        common_divisor = math.gcd(math.gcd(num_part1, num_part2), den)
-        s_num_part1, s_num_part2, s_den = num_part1//common_divisor, num_part2//common_divisor, den//common_divisor
-        num_latex = f"{s_num_part1} - {abs(s_num_part2)}\\sqrt{{{c}}}" if s_num_part2 < 0 else f"{s_num_part1} + {s_num_part2}\\sqrt{{{c}}}"
-        if s_den == 1 or s_den == -1: answer = f"${-s_num_part1 if s_den == -1 else s_num_part1} {'+' if -s_num_part2 > 0 else '-'} {abs(s_num_part2)}\\sqrt{{{c}}}$"
-        else: answer = f"$\\frac{{{num_latex}}}{{{s_den}}}$"
-        hint = f"Multiply the numerator and denominator by the conjugate of the denominator, which is $({b} - \\sqrt{{{c}}})$."
-        explanation = f"1. Multiply by conjugate: $\\frac{{{a}}}{{{b} + \\sqrt{{{c}}}}} \\times \\frac{{{b} - \\sqrt{{{c}}}}}{{{b} - \\sqrt{{{c}}}}}$.\n2. Numerator: ${a*b} - {a}\\sqrt{{{c}}}$.\n3. Denominator: ${b**2} - {c} = {den}$.\n4. Simplify $\\frac{{{a*b} - {a}\\sqrt{{{c}}}}}{{{den}}}$ to get {answer}."
-        options = {answer, f"$\\frac{{{a*b} + {a}\\sqrt{{{c}}}}}{{{den}}}$"}
+    # --- Medium Questions ---
+    elif q_type == 'operate_add_sub':
+        base_surd = random.choice([2, 3, 5, 7])
+        c1, c2 = random.randint(2, 10), random.randint(2, 10)
+        op, sym, res = random.choice([('add', '+', c1+c2), ('subtract', '-', c1-c2)])
+        question = f"Simplify: ${c1}\\sqrt{{{base_surd}}} {sym} {c2}\\sqrt{{{base_surd}}}$"
+        answer = f"${res}\\sqrt{{{base_surd}}}$"
+        hint = "You can only add or subtract 'like' surds (surds with the same number under the root)."
+        explanation = f"Since both terms have $\\sqrt{{{base_surd}}}$, you can factor it out: $({c1} {sym} {c2})\\sqrt{{{base_surd}}} = {res}\\sqrt{{{base_surd}}}$."
+        options = {answer, f"${c1*c2}\\sqrt{{{base_surd}}}$", f"${res}\\sqrt{{{base_surd*2}}}$"}
 
     elif q_type == 'equation':
         result, c = random.randint(2, 5), random.randint(1, 10)
         x_val = result**2 + c
         question = f"Solve for x: $\\sqrt{{x - {c}}} = {result}$"
         answer = str(x_val)
-        hint = "To solve for x, square both sides of the equation."
-        explanation = (f"1. Given: $\\sqrt{{x - {c}}} = {result}$.\n2. Square both sides: $x - {c} = {result**2}$.\n3. $x = {result**2} + {c} = {x_val}$.")
-        options = {answer, str(result + c), str(result**2)}
+        hint = "To eliminate the square root, you must square both sides of the equation."
+        explanation = (f"1. Given: $\\sqrt{{x - {c}}} = {result}$.\n2. Square both sides: $(\\sqrt{{x - {c}}})^2 = {result}^2 \\implies x - {c} = {result**2}$.\n3. Add {c} to both sides: $x = {result**2} + {c} = {x_val}$."
+        options = {answer, str(result + c), str(result**2), str(abs(result**2-c))}
 
     elif q_type == 'geometry':
         a, b = random.randint(2, 5), random.randint(6, 9)
         c_sq = a**2 + b**2
-        question = f"A right-angled triangle has shorter sides of length ${a}$ cm and ${b}$ cm. Find the exact length of the hypotenuse in surd form."
+        question = f"A right-angled triangle has shorter sides of length ${a}$ cm and ${b}$ cm. Find the exact length of the hypotenuse in its simplest surd form."
         answer = f"$\\sqrt{{{c_sq}}}$"
-        hint = "Use Pythagoras' theorem: $a^2 + b^2 = c^2$. Leave the result in surd form."
+        hint = "Use Pythagoras' theorem: $a^2 + b^2 = c^2$. Leave the result in exact surd form if it cannot be simplified."
         explanation = f"1. By Pythagoras' theorem, $c^2 = a^2 + b^2$.\n2. $c^2 = {a}^2 + {b}^2 = {a**2} + {b**2} = {c_sq}$.\n3. The exact length is $c = \\sqrt{{{c_sq}}}$ cm."
-        options = {answer, f"$\\sqrt{{{abs(b**2 - a**2)}}}$", f"$\\sqrt{{{a+b}}}$", f"${a+b}$"}
+        options = {answer, f"$\\sqrt{{{abs(b**2 - a**2)}}}$", f"{a+b}"}
 
-    return {"question": question, "options": _finalize_options(options), "answer": answer, "hint": hint, "explanation": explanation}
-def _generate_binary_ops_question():
-    """Generates a multi-subtopic question for Binary Operations with enhanced variety."""
-    # --- IMPROVEMENT: This entire function has been overhauled for more variety and challenge ---
-    # Number ranges have been increased.
-    # New properties like Associativity and Closure have been added.
-    # Cayley tables are now fully randomized.
-    
-    q_type = random.choice(['evaluate', 'table_read', 'identity_inverse', 'properties_commutative', 'properties_associative', 'properties_closure'])
+    # --- Hard Questions ---
+    elif q_type == 'operate_multiply':
+        a = random.randint(2, 5)
+        b = random.choice([2, 3, 5, 6, 7])
+        c = random.randint(2, 5)
+        question = f"Expand and simplify: $({a} + \\sqrt{{{b}}})({c} - \\sqrt{{{b}}})$"
+        res_term1, res_term2 = a*c - b, c - a
+        answer = f"${res_term1} + {res_term2}\\sqrt{{{b}}}$" if res_term2 >= 0 else f"${res_term1} - {abs(res_term2)}\\sqrt{{{b}}}$"
+        hint = "Use the FOIL (First, Outer, Inner, Last) method to expand the brackets, then collect like terms."
+        explanation = f"FOIL gives: $({a})({c}) + ({a})(-\\sqrt{{{b}}}) + (\\sqrt{{{b}}})({c}) + (\\sqrt{{{b}}})(-\\sqrt{{{b}}})$\n$= {a*c} - {a}\\sqrt{{{b}}} + {c}\\sqrt{{{b}}} - {b}$\nCollect like terms: $({a*c} - {b}) + ({c} - {a})\\sqrt{{{b}}} = {answer}$."
+        options = {answer, f"{a*c+b} + {c+a}\\sqrt{{{b}}}$", f"{a*c-b}"}
+
+    elif q_type == 'rationalize':
+        a, b = random.randint(2, 9), random.randint(2, 9)
+        c = random.choice([2, 3, 5, 7, 10, 11])
+        while b*b == c: b = random.randint(2,9) # Ensure denominator doesn't become zero
+        question = f"Rationalize the denominator of $\\frac{{{a}}}{{{b} + \\sqrt{{{c}}}}}$"
+        num_part1, num_part2, den = a*b, -a, b**2 - c
+        common_divisor = math.gcd(math.gcd(num_part1, abs(num_part2)), den)
+        s_num_part1, s_num_part2, s_den = num_part1//common_divisor, num_part2//common_divisor, den//common_divisor
+        num_latex = f"{s_num_part1} - {abs(s_num_part2)}\\sqrt{{{c}}}" if s_num_part2 < 0 else f"{s_num_part1} + {s_num_part2}\\sqrt{{{c}}}"
+        if s_den == 1: answer = f"${num_latex}$"
+        elif s_den == -1: answer = f"$-{s_num_part1} + {abs(s_num_part2)}\\sqrt{{{c}}}$"
+        else: answer = f"$\\frac{{{num_latex}}}{{{s_den}}}$"
+        hint = f"Multiply the numerator and denominator by the conjugate of the denominator, which is $({b} - \\sqrt{{{c}}})$."
+        explanation = f"1. Multiply by conjugate: $\\frac{{{a}}}{{{b} + \\sqrt{{{c}}}}} \\times \\frac{{{b} - \\sqrt{{{c}}}}}{{{b} - \\sqrt{{{c}}}}}$.\n2. Numerator becomes: ${a*b} - {a}\\sqrt{{{c}}}$.\n3. Denominator becomes: $({b})^2 - (\\sqrt{{{c}}})^2 = {b**2} - {c} = {den}$.\n4. The fraction is $\\frac{{{a*b} - {a}\\sqrt{{{c}}}}}{{{den}}}$, which simplifies to {answer}."
+        options = {answer, f"$\\frac{{{a}}}{{{b+c}}}$", f"$\\frac{{{a*b} + {a}\\sqrt{{{c}}}}}{{{den}}}$"}
+
+    return {"question": question, "options": _finalize_options(options), "answer": answer, "hint": hint, "explanation": explanation, "difficulty": difficulty}
+def _generate_binary_ops_question(difficulty="Medium"):
+    """Generates a Binary Operations question based on difficulty, preserving all original sub-types."""
+
+    if difficulty == "Easy":
+        # Direct evaluation and reading from a table.
+        q_type = random.choice(['evaluate', 'table_read'])
+    elif difficulty == "Medium":
+        # Multi-step problems involving identity/inverse and commutativity.
+        q_type = random.choice(['identity_inverse', 'properties_commutative'])
+    else: # Hard
+        # More abstract properties like associativity and closure.
+        q_type = random.choice(['properties_associative', 'properties_closure'])
+
     question, answer, hint, explanation = "", "", "", ""
     options = set()
 
+    # --- Easy Questions ---
     if q_type == 'evaluate':
-        # --- IMPROVEMENT: Bumped number range and added variety to operation definitions ---
         a, b = random.randint(-10, 15), random.randint(-10, 15)
         c, d = random.randint(2, 8), random.randint(2, 8)
-        
-        # Ensures non-zero values for variety
-        while a == 0 or b == 0:
-             a, b = random.randint(-10, 15), random.randint(-10, 15)
-
+        while a == 0 or b == 0: a, b = random.randint(-10, 15), random.randint(-10, 15)
         op_def, op_func, op_sym = random.choice([
             (f"p \\ast q = pq - ({c})p + ({d})q", lambda x, y: x*y - c*x + d*y, r"\ast"),
-            (f"x \\oplus y = x^2 - y^2 + {c}xy", lambda x, y: x**2 - y**2 + c*x*y, r"\oplus"),
+            (f"x \\oplus y = x^2 - y^2", lambda x, y: x**2 - y**2, r"\oplus"),
             (f"m \\nabla n = m + n - ({c})", lambda x, y: x + y - c, r"\nabla"),
-            (f"a \\boxdot b = {d}a - {c}b", lambda x, y: d*x - c*y, r"\boxdot"),
         ])
-        
-        question = f"A binary operation {op_sym} is defined on the set of real numbers by ${op_def}$. Evaluate $({a} {op_sym} {b})$."
+        question = f"A binary operation {op_sym} is defined by ${op_def}$. Evaluate $({a} {op_sym} {b})$."
         answer = str(op_func(a, b))
-        hint = "Carefully substitute the first value for the first variable (e.g., p, x, m, a) and the second value for the second variable (e.g., q, y, n, b)."
-        explanation = f"1. The definition is ${op_def}$.\n2. We substitute the first variable with {a} and the second with {b}.\n3. The calculation is: ${op_func(a,b)}$."
-        options = {answer, str(op_func(b, a))}
-
-    elif q_type == 'identity_inverse':
-        # --- IMPROVEMENT: Bumped number range ---
-        k = random.randint(5, 20)
-        identity_element = k
-        element = random.randint(k + 1, k + 15)
-        # For a*b = a+b-k, the inverse of 'a' is '2k-a'
-        inverse_element = 2 * k - element
-        
-        question = f"For the binary operation $a \\ast b = a+b-{k}$ on the set of real numbers, find the inverse of the element ${element}$."
-        answer = str(inverse_element)
-        hint = f"First, find the identity element 'e' by solving $a \\ast e = a$. Then, find the inverse 'inv' by solving ${element} \\ast inv = e$."
-        explanation = f"1. Find identity element (e): $a+e-{k}=a \implies e={k}$.\n2. Let the inverse of {element} be $inv$.\n3. The formula is ${element} \\ast inv = e$, which means ${element} + inv - {k} = {k}$.\n4. Solving for the inverse: $inv = {k} + {k} - {element} = {2*k - element}$."
-        options = {answer, str(-element), str(k - element)}
+        hint = "Carefully substitute the first value for the first variable and the second value for the second variable in the formula."
+        explanation = f"1. The definition is ${op_def}$.\n2. Substitute the first variable with {a} and the second with {b}.\n3. The calculation is: ${op_func(a,b)}$."
+        options = {answer, str(op_func(b, a)), str(op_func(a,b)+1)}
 
     elif q_type == 'table_read':
-        # --- IMPROVEMENT: Cayley table numbers change every time ---
         s = [1, 2, 3, 4]
         op_sym = random.choice(["$\\oplus$", "$\\otimes$", "$\\boxplus$"])
-        k = random.randint(1, 4)
-        operations = [
-            {'rule': lambda r, c: (r + c) % 4, 'name': 'addition'},
-            {'rule': lambda r, c: (r * c) % 4, 'name': 'multiplication'},
-            {'rule': lambda r, c: (r + c + k) % 4, 'name': f'addition with constant {k}'},
-            {'rule': lambda r, c: (r * c + 1) % 4, 'name': 'multiplication plus one'}
-        ]
-        chosen_op_rule = random.choice(operations)['rule']
-
         results = {}
         for row in s:
             for col in s:
-                res = chosen_op_rule(row, col)
-                if res == 0: res = 4
-                results[(row, col)] = res
-
-        identity_element = "None exists"
-        for e in s:
-            is_identity = True
-            for a in s:
-                if results.get((e, a)) != a or results.get((a, e)) != a:
-                    is_identity = False; break
-            if is_identity:
-                identity_element = str(e); break
-
+                results[(row, col)] = random.randint(1,4)
         table_md = f"| {op_sym} | 1 | 2 | 3 | 4 |\n|---|---|---|---|---|\n"
         for row in s:
             table_md += f"| **{row}** |";
             for col in s: table_md += f" {results.get((row, col))} |"
             table_md += "\n"
-        
-        sub_q = random.choice(['evaluate', 'identity'])
-        if sub_q == 'evaluate':
-            a, b = random.choice(s), random.choice(s)
-            question = f"The operation {op_sym} is defined by the random Cayley table below. Find the value of $({a} {op_sym} {b})$.\n\n{table_md}"
-            answer = str(results.get((a,b)))
-            hint = "Locate the row for the first element and the column for the second. The answer is where they intersect."
-            explanation = f"Find the row labeled **{a}** and the column labeled **{b}**. The value in the cell where they meet is **{answer}**."
-            options = {answer, str(results.get((b,a)))}
-        else: # identity
-            question = f"The operation {op_sym} is defined by the random Cayley table below. What is the identity element?\n\n{table_md}"
-            answer = identity_element
-            hint = "The identity element 'e' is the element whose row and column in the table are identical to the headers."
-            explanation = f"An identity element 'e' must satisfy a*e=a and e*a=a for all 'a'. For this table, the identity element is **{answer}**."
-            options = {"1", "2", "3", "4", "None exists"}; options.add(answer)
-    
-    # --- NEW: Expanded Properties Section ---
+        a, b = random.choice(s), random.choice(s)
+        question = f"The operation {op_sym} is defined by the Cayley table below. Find the value of $({a} {op_sym} {b})$.\n\n{table_md}"
+        answer = str(results.get((a,b)))
+        hint = "Locate the row for the first element ('a') and the column for the second element ('b'). The answer is where they intersect."
+        explanation = f"Find the row labeled **{a}** and the column labeled **{b}**. The value in the cell where they meet is **{answer}**."
+        options = {answer, str(results.get((b,a)))}
+
+    # --- Medium Questions ---
+    elif q_type == 'identity_inverse':
+        k = random.randint(5, 20)
+        identity_element = k
+        element = random.randint(k + 1, k + 15)
+        inverse_element = 2 * k - element
+        question = f"For the binary operation $a \\ast b = a+b-{k}$ on the set of real numbers, find the inverse of the element ${element}$."
+        answer = str(inverse_element)
+        hint = f"First, find the identity element 'e' by solving $a \\ast e = a$. Then, find the inverse 'inv' by solving ${element} \\ast inv = e$."
+        explanation = f"1. Find identity (e): $a+e-{k}=a \implies e={k}$.\n2. Let the inverse of {element} be $inv$.\n3. Solve for inverse: ${element} \\ast inv = e \implies {element} + inv - {k} = {k}$.\n4. $inv = {k} + {k} - {element} = {2*k - element}$."
+        options = {answer, str(-element), str(k - element), str(k)}
+
     elif q_type == 'properties_commutative':
         op_sym = random.choice([r"\Delta", r"\circ", r"\star"])
-        a_coeff, b_coeff, const = [random.randint(1, 8) for _ in range(3)]
+        a_coeff, b_coeff, const = random.randint(1, 8), random.randint(1, 8), random.randint(1, 8)
         op_def = f"a {op_sym} b = {a_coeff}a + {b_coeff}b + {const}ab"
         is_comm = (a_coeff == b_coeff)
         question = f"Is the binary operation ${op_def}$ commutative on the set of real numbers?"
         answer = "Yes" if is_comm else "No"
-        hint = "An operation * is commutative if $a * b = b * a$. Compare the coefficients of 'a' and 'b' in the definition."
-        explanation = f"$a {op_sym} b = {a_coeff}a + {b_coeff}b + {const}ab$. $b {op_sym} a = {a_coeff}b + {b_coeff}a + {const}ba$. These are only equal if {a_coeff}a + {b_coeff}b = {a_coeff}b + {b_coeff}a$, which requires {a_coeff} = {b_coeff}. This is {is_comm}."
+        hint = "An operation * is commutative if $a * b = b * a$ for all values. Check if the formula is symmetric."
+        explanation = f"$a {op_sym} b = {a_coeff}a + {b_coeff}b + {const}ab$.\n$b {op_sym} a = {a_coeff}b + {b_coeff}a + {const}ba$.\nThese are only equal if {a_coeff}a + {b_coeff}b = {a_coeff}b + {b_coeff}a$, which requires {a_coeff} = {b_coeff}. In this case, this is {str(is_comm).lower()}."
         options = {"Yes", "No"}
 
+    # --- Hard Questions ---
     elif q_type == 'properties_associative':
         op_sym = random.choice([r"\Delta", r"\circ", r"\star"])
-        # Pre-defined templates of associative and non-associative operations
         templates = [
             (f"a {op_sym} b = a + b + {random.randint(2,10)}", "Yes"), # Associative
-            (f"a {op_sym} b = a + b + ab", "Yes"), # Associative
+            (f"a {op_sym} b = ab", "Yes"), # Associative
             (f"a {op_sym} b = a + {random.randint(2,5)}b", "No"), # Not associative
             (f"a {op_sym} b = a^2 + b", "No") # Not associative
         ]
         op_def, answer = random.choice(templates)
         question = f"Is the binary operation ${op_def}$ associative on the set of real numbers?"
-        hint = "An operation * is associative if $(a * b) * c = a * (b * c)$. Test this with the given rule."
-        explanation = f"To test for associativity, we must check if $(a {op_sym} b) {op_sym} c$ is equal to $a {op_sym} (b {op_sym} c)$. For the operation ${op_def}$, this property is found to be **{answer.lower()}**."
+        hint = "An operation * is associative if $(a * b) * c = a * (b * c)$. Test this with small numbers (e.g., 1, 2, 3) or algebraic expansion."
+        explanation = f"To test for associativity, we must check if $(a {op_sym} b) {op_sym} c$ is equal to $a {op_sym} (b {op_sym} c)$. For the operation ${op_def}$, this property is found to be **{answer.lower()}** after algebraic expansion."
         options = {"Yes", "No"}
 
     elif q_type == 'properties_closure':
         op_sym = random.choice([r"\ast", r"\otimes"])
-        sets = [
-            ("the set of Even Integers", lambda n: n % 2 == 0),
-            ("the set of Odd Integers", lambda n: n % 2 != 0),
-            (f"the set $\\{{0, 1, 2, 3\\}}$ with operations modulo 4", lambda n: n in [0,1,2,3])
-        ]
-        set_name, set_checker_fn = random.choice(sets)
-        
-        # Select an operation that will either pass or fail closure for that set
+        set_name, set_desc = random.choice([("the set of Even Integers", "{..., -2, 0, 2, 4, ...}"), ("the set of Odd Integers", "{..., -3, -1, 1, 3, ...}")])
         if "Odd" in set_name:
             op_def, answer = random.choice([(f"a {op_sym} b = ab", "Yes"), (f"a {op_sym} b = a + b", "No")])
-            counter_example = "For example, $3, 5$ are odd, but $3 {op_sym} 5 = {3+5 if 'a+b' in op_def else 3*5}$, which is {'even, so the set is not closed.' if 'a+b' in op_def else 'odd, so the set is closed.'}"
-        else: # Even or Modulo set
+            counter_example = "For example, $3, 5$ are odd. $3+5 = 8$, which is even. So the set is not closed under addition."
+        else: # Even
              op_def, answer = random.choice([(f"a {op_sym} b = a + b", "Yes"), (f"a {op_sym} b = ab + 1", "No")])
-             counter_example = "For example, $2, 4$ are even, but $2 {op_sym} 4 = {2*4+1 if 'ab+1' in op_def else 2+4}$, which is {'odd, so the set is not closed.' if 'ab+1' in op_def else 'even, so the set is closed.'}"
-
-        question = f"Is the operation ${op_def}$ closed on {set_name}?"
+             counter_example = "For example, $2, 4$ are even. $(2)(4)+1 = 9$, which is odd. So the set is not closed under this operation."
+        question = f"Is the operation ${op_def}$ closed on {set_name}, $S = {set_desc}$?"
         hint = "A set is closed under an operation if performing the operation on any two elements of the set results in an element that is also in the set."
-        explanation = f"We need to check if taking any two elements from {set_name} and applying the operation {op_sym} gives a result that is also in the set. {counter_example}"
+        explanation = f"We must check if taking any two elements from {set_name} and applying the operation {op_sym} always gives a result that is also in the set. {counter_example}"
         options = {"Yes", "No"}
 
-    return {"question": question, "options": _finalize_options(options), "answer": answer, "hint": hint, "explanation": explanation}
-
-def _generate_relations_functions_question():
-    """Generates a multi-subtopic question for Relations and Functions with enhanced variety."""
-    # --- FIX: The final return statement has been corrected to generate proper integer options ---
-    # This prevents the "obvious answer" problem by ensuring all options have the same format.
+    return {"question": question, "options": _finalize_options(options), "answer": answer, "hint": hint, "explanation": explanation, "difficulty": difficulty}
+def _generate_relations_functions_question(difficulty="Medium"):
+    """Generates a Relations and Functions question based on difficulty, preserving all original sub-types."""
     
-    q_type = random.choice(['domain_range', 'evaluate', 'composite', 'inverse', 'types_of_relations', 'is_function'])
+    if difficulty == "Easy":
+        # Basic evaluation and definitions.
+        q_type = random.choice(['evaluate', 'is_function'])
+    elif difficulty == "Medium":
+        # Core concepts of domain/range and types of mappings.
+        q_type = random.choice(['domain_range', 'types_of_relations'])
+    else: # Hard
+        # More complex, multi-step algebraic processes.
+        q_type = random.choice(['composite', 'inverse'])
+
     question, answer, hint, explanation = "", "", "", ""
     options = set()
     
-    if q_type == 'domain_range':
-        # Generate lists that might have different lengths
-        domain_list = sorted(list(set(random.sample(range(-20, 20), k=random.randint(4, 5)))))
-        range_list = sorted(list(set(random.sample(range(-20, 20), k=random.randint(4, 5)))))
-
-        # Ensure domain and range sets are not identical
-        while set(domain_list) == set(range_list):
-            range_list = sorted(list(set(random.sample(range(-20, 20), k=random.randint(4, 5)))))
-            
-        # Create the relation using zip(), which truncates to the shorter list
-        relation_pairs = list(zip(domain_list, range_list))
-        random.shuffle(relation_pairs)
-        relation_str = str(set(relation_pairs)).replace("'", "")
-        
-        # Derive the TRUE domain and range from the actual pairs used
-        actual_domain = set(pair[0] for pair in relation_pairs)
-        actual_range = set(pair[1] for pair in relation_pairs)
-        
-        d_or_r = random.choice(['domain', 'range'])
-        question = f"What is the {d_or_r} of the relation $R = {relation_str}$?"
-        
-        domain_set_str = str(actual_domain)
-        range_set_str = str(actual_range)
-
-        if d_or_r == 'domain':
-            answer = domain_set_str
-            distractors = {range_set_str, str(actual_domain.union(actual_range))}
-        else: # range
-            answer = range_set_str
-            distractors = {domain_set_str, str(actual_domain.union(actual_range))}
-
-        hint = "The domain is the set of all unique first elements (x-values). The range is the set of all unique second elements (y-values)."
-        explanation = f"Given the relation $R = {relation_str}$:\n- The domain (set of all first numbers) is ${domain_set_str}$.\n- The range (set of all second numbers) is ${range_set_str}$."
-        options = {answer, *distractors}
-        # For this specific sub-topic, we must override the final call to use "set_str"
-        return {"question": question, "options": _finalize_options(options, "set_str"), "answer": answer, "hint": hint, "explanation": explanation}
-
-    elif q_type == 'evaluate':
+    # --- Easy Questions ---
+    if q_type == 'evaluate':
         a, b, x = random.randint(2, 8), random.randint(-10, 10), random.randint(1, 7)
         question = f"If $f(x) = {a}x^2 + {b}$, find the value of $f({x})$."
         answer = str(a * (x**2) + b)
-        hint = "Substitute the given value for x into the function's definition and evaluate."
+        hint = "Substitute the given value for 'x' into the function's definition and evaluate."
         explanation = f"We replace every 'x' with '{x}':\n$f({x}) = {a}({x})^2 + {b} = {a*(x**2)} + {b} = {a*(x**2)+b}$."
         options = {answer, str(a * x + b), str((a * x)**2 + b)}
 
-    elif q_type == 'composite':
-        a, b, c, d, x_val = [random.randint(1, 5) for _ in range(5)]
-        g_of_x = c*x_val + d
-        question = f"Given $f(x) = {a}x + {b}$ and $g(x) = {c}x + {d}$, find the value of $(f \\circ g)({x_val})$."
-        answer = str(a*g_of_x + b)
-        hint = f"This means find $f(g({x_val}))$. Calculate the inner function first."
-        explanation = f"1. First find $g({x_val}) = {c}({x_val}) + {d} = {g_of_x}$.\n2. Now use this result as the input for f: $f({g_of_x}) = {a}({g_of_x}) + {b} = {a*g_of_x+b}$."
-        options = {answer, str(c*(a*x_val + b) + d)}
+    elif q_type == 'is_function':
+        d = sorted(random.sample(range(1, 20), 4))
+        r = random.sample(range(5, 30), 4)
+        func_relation = str({(d[0], r[0]), (d[1], r[1]), (d[2], r[2])})
+        not_func_relation = str({(d[0], r[0]), (d[0], r[1]), (d[1], r[2])}) # d[0] is repeated
+        question = f"Which of the following relations is also a function?"
+        answer = func_relation
+        hint = "A relation is a function if every input (x-value) maps to exactly one, unique output (y-value). No x-value can be repeated with a different y-value."
+        explanation = f"The relation {not_func_relation} is not a function because the input '{d[0]}' maps to two different outputs ({r[0]} and {r[1]}). The relation {func_relation} is a function because every input has only one output."
+        options = {answer, not_func_relation}
 
-    elif q_type == 'inverse':
-        a, b = random.randint(2,7), random.randint(1,10)
-        question = f"Find the inverse function, $f^{{-1}}(x)$, of the function $f(x) = \\frac{{x + {b}}}{{{a}}}$."
-        answer = f"$f^{{-1}}(x) = {a}x - {b}$"
-        hint = "Let y = f(x), swap x and y, then make y the subject of the formula."
-        explanation = f"1. Start with $y = \\frac{{x + {b}}}{{{a}}}$.\n2. Swap x and y: $x = \\frac{{y + {b}}}{{{a}}}$.\n3. Solve for y: ${a}x = y + {b} \\implies y = {a}x - {b}$."
-        options = {answer, f"$f^{{-1}}(x) = \\frac{{x - {b}}}{{{a}}}$", f"$f^{{-1}}(x) = {a}x + {b}$"}
-        
+    # --- Medium Questions ---
+    elif q_type == 'domain_range':
+        domain_list = sorted(list(set(random.sample(range(-20, 20), k=random.randint(4, 5)))))
+        range_list = sorted(list(set(random.sample(range(-20, 20), k=random.randint(4, 5)))))
+        while set(domain_list) == set(range_list): range_list = sorted(list(set(random.sample(range(-20, 20), k=random.randint(4, 5)))))
+        relation_pairs = list(zip(domain_list, range_list))
+        random.shuffle(relation_pairs)
+        relation_str = str(set(relation_pairs)).replace("'", "")
+        actual_domain, actual_range = set(p[0] for p in relation_pairs), set(p[1] for p in relation_pairs)
+        d_or_r = random.choice(['domain', 'range'])
+        question = f"What is the {d_or_r} of the relation $R = {relation_str}$?"
+        domain_set_str, range_set_str = str(actual_domain), str(actual_range)
+        if d_or_r == 'domain':
+            answer, distractors = domain_set_str, {range_set_str, str(actual_domain.union(actual_range))}
+        else: # range
+            answer, distractors = range_set_str, {domain_set_str, str(actual_domain.union(actual_range))}
+        hint = "The domain is the set of all unique first elements (x-values). The range is the set of all unique second elements (y-values)."
+        explanation = f"Given the relation $R = {relation_str}$:\n- The domain (set of all first numbers) is ${domain_set_str}$.\n- The range (set of all second numbers) is ${range_set_str}$."
+        options = {answer, *distractors}
+        return {"question": question, "options": _finalize_options(options, "set_str"), "answer": answer, "hint": hint, "explanation": explanation, "difficulty": difficulty}
+
     elif q_type == 'types_of_relations':
         domain = sorted(random.sample(range(1, 20), 4))
-        codomain = random.sample(['a', 'b', 'c', 'd', 'e', 'f', 'g'], 4)
+        codomain = random.sample(['a', 'b', 'c', 'd', 'e'], 4)
         one_to_one = str({(domain[0], codomain[0]), (domain[1], codomain[1]), (domain[2], codomain[2])})
         many_to_one = str({(domain[0], codomain[0]), (domain[1], codomain[0]), (domain[2], codomain[1])})
         one_to_many = str({(domain[0], codomain[0]), (domain[0], codomain[1]), (domain[1], codomain[2])})
@@ -2093,48 +2141,59 @@ def _generate_relations_functions_question():
         question = f"The relation $R = {relation}$. What type of mapping is this?"
         answer = correct_type
         hint = "Check if any x-values (first elements) or y-values (second elements) are repeated in the ordered pairs."
-        explanation = f"In the relation {relation}, we can see how the inputs map to outputs. This mapping is a classic example of a **{correct_type}** relation."
+        explanation = f"In a **one-to-one** mapping, each input has a unique output. In a **many-to-one**, multiple inputs can go to the same output. In a **one-to-many**, one input goes to multiple outputs (this is not a function). The relation shown is a classic example of a **{correct_type}** mapping."
         options = {"One-to-one", "Many-to-one", "One-to-many"}
         options.add(answer)
 
-    elif q_type == 'is_function':
-        d = sorted(random.sample(range(1, 20), 4))
-        r = random.sample(range(5, 30), 4)
-        func_relation = str({(d[0], r[0]), (d[1], r[1]), (d[2], r[2])})
-        not_func_relation = str({(d[0], r[0]), (d[0], r[1]), (d[1], r[2])})
-        question = f"Which of the following relations is also a function?"
-        answer = func_relation
-        hint = "A relation is a function if every input (x-value) maps to exactly one, unique output (y-value)."
-        explanation = f"The relation {not_func_relation} is not a function because the input '{d[0]}' maps to two different outputs ({r[0]} and {r[1]}). The relation {func_relation} is a function because every input has only one output."
-        options = {answer, not_func_relation}
+    # --- Hard Questions ---
+    elif q_type == 'composite':
+        a, b, c, d, x_val = [random.randint(1, 5) for _ in range(5)]
+        g_of_x = c*x_val + d
+        question = f"Given $f(x) = {a}x + {b}$ and $g(x) = {c}x + {d}$, find the value of $(f \\circ g)({x_val})$."
+        answer = str(a*g_of_x + b)
+        hint = f"This means find $f(g({x_val}))$. You must calculate the inner function, $g(x)$, first."
+        explanation = f"1. First, find $g({x_val}) = {c}({x_val}) + {d} = {g_of_x}$.\n2. Now, use this result as the input for f: $f({g_of_x}) = {a}({g_of_x}) + {b} = {a*g_of_x+b}$."
+        options = {answer, str(c*(a*x_val + b) + d), str(a*c*x_val + b + d)}
 
-    # --- FIX IS HERE: The default is now to generate integer-based options ---
-    # The 'domain_range' sub-topic now has its own specific return statement to handle sets correctly.
-    return {"question": question, "options": _finalize_options(options), "answer": answer, "hint": hint, "explanation": explanation}
+    elif q_type == 'inverse':
+        a, b = random.randint(2,7), random.randint(1,10)
+        question = f"Find the inverse function, $f^{{-1}}(x)$, of the function $f(x) = {a}x - {b}$."
+        answer = f"$f^{{-1}}(x) = \\frac{{x + {b}}}{{{a}}}$"
+        hint = "Let y = f(x), then swap the positions of x and y, and finally make y the subject of the formula."
+        explanation = f"1. Start with $y = {a}x - {b}$.\n2. Swap x and y: $x = {a}y - {b}$.\n3. Solve for y: $x + {b} = {a}y \\implies y = \\frac{{x + {b}}}{{{a}}}$."
+        options = {answer, f"$f^{{-1}}(x) = \\frac{{x - {b}}}{{{a}}}$", f"$f^{{-1}}(x) = {a}x + {b}$"}
+        
+    return {"question": question, "options": _finalize_options(options), "answer": answer, "hint": hint, "explanation": explanation, "difficulty": difficulty}
 
-def _generate_sequence_series_question():
-    """Generates a multi-subtopic question for Sequence and Series with enhanced variety."""
-    # --- IMPROVEMENT: This function has been upgraded. ---
-    # Number ranges have been bumped significantly.
-    # It now includes negative starting terms and common differences for a greater challenge.
+def _generate_sequence_series_question(difficulty="Medium"):
+    """Generates a Sequence and Series question based on difficulty, preserving all original sub-types."""
     
-    q_type = random.choice(['ap_term', 'gp_term', 'ap_sum', 'gp_sum_inf', 'word_problem'])
+    if difficulty == "Easy":
+        # Fundamental calculations for AP and GP terms.
+        q_type = random.choice(['ap_term', 'gp_term'])
+    elif difficulty == "Medium":
+        # Multi-step calculations and application problems.
+        q_type = random.choice(['ap_sum', 'word_problem'])
+    else: # Hard
+        # More advanced concepts like sum to infinity.
+        q_type = 'gp_sum_inf'
+
     question, answer, hint, explanation = "", "", "", ""
     options = set()
-    # --- IMPROVEMENT: Bumped number range, including negatives ---
     a = random.randint(-15, 25)
-    while a == 0: a = random.randint(-15, 25) # Avoid zero as a first term
+    while a == 0: a = random.randint(-15, 25)
 
+    # --- Easy Questions ---
     if q_type == 'ap_term':
-        # --- IMPROVEMENT: Bumped number range, including negatives ---
-        d = random.randint(-8, 12); n = random.randint(15, 40)
+        d = random.randint(-8, 12)
+        n = random.randint(15, 40)
         while d == 0: d = random.randint(-8, 12)
         sequence = ", ".join([str(a + i*d) for i in range(4)])
         question = f"Find the {n}th term of the arithmetic progression: {sequence}, ..."
         answer = str(a + (n - 1) * d)
         hint = r"Use the AP nth term formula: $a_n = a + (n-1)d$."
         explanation = f"1. First term $a = {a}$.\n2. Common difference $d = {a+d} - {a} = {d}$.\n3. The {n}th term is $a_{{{n}}} = {a} + ({n}-1)({d}) = {answer}$."
-        options = {answer, str(a + n*d)}
+        options = {answer, str(a + n*d), str(a*d + n)}
     
     elif q_type == 'gp_term':
         r, n = random.choice([-3, -2, 2, 3]), random.randint(5, 9)
@@ -2143,28 +2202,19 @@ def _generate_sequence_series_question():
         answer = str(a * r**(n-1))
         hint = r"Use the GP nth term formula: $a_n = ar^{n-1}$."
         explanation = f"1. First term $a = {a}$.\n2. Common ratio $r = \\frac{{{a*r}}}{{{a}}} = {r}$.\n3. The {n}th term is $a_{{{n}}} = {a} \\times {r}^{{{n}-1}} = {answer}$."
-        options = {answer, str((a*r)**(n-1))}
+        options = {answer, str((a*r)**(n-1)), str(a * r * (n-1))}
 
+    # --- Medium Questions ---
     elif q_type == 'ap_sum':
         d, n = random.randint(-5, 8), random.randint(15, 30)
         while d == 0: d = random.randint(-5, 8)
         question = f"Find the sum of the first {n} terms of an Arithmetic Progression with first term {a} and common difference {d}."
         answer = str(int((n/2) * (2*a + (n-1)*d)))
         hint = r"Use the sum of an AP formula: $S_n = \frac{n}{2}(2a + (n-1)d)$."
-        explanation = f"$S_{{{n}}} = \\frac{{{n}}}{{2}}(2({a}) + ({n}-1)({d})) = \\frac{{{n}}}{{2}}({2*a + (n-1)*d}) = {answer}$."
-        options = {answer, str(n*(a + (n-1)*d))}
+        explanation = f"$S_{{{n}}} = \\frac{{{n}}}{{2}}(2({a}) + ({n}-1)({d})) = \\frac{{{n}}}{{2}}({2*a} + {(n-1)*d}) = {answer}$."
+        options = {answer, str(n*(a + (n-1)*d)), str(int((n/2)*(a + (a + n*d))))}
 
-    elif q_type == 'gp_sum_inf':
-        r = Fraction(random.randint(-2,2), random.randint(3, 7))
-        while r == 0: r = Fraction(random.randint(-2,2), random.randint(3, 7))
-        question = f"A geometric series has a first term of ${a}$ and a common ratio of ${_get_fraction_latex_code(r)}$. Calculate its sum to infinity."
-        answer = _format_fraction_text(a / (1 - r))
-        hint = r"Use the sum to infinity formula: $S_\infty = \frac{a}{1-r}$, which is valid for $|r| < 1$."
-        explanation = f"$S_\\infty = \\frac{{{a}}}{{1 - ({_get_fraction_latex_code(r)})}} = \\frac{{{a}}}{{{_get_fraction_latex_code(1-r)}}} = {_get_fraction_latex_code(a/(1-r))}$."
-        options = {answer, _format_fraction_text(a/(1+r))}
-        
     elif q_type == 'word_problem':
-        # --- IMPROVEMENT: Contextualized and bumped number range ---
         initial_amount = random.randint(200, 500) * 100 # GHS 20,000 to 50,000
         depreciation_rate = random.randint(8, 22)
         years = 4
@@ -2173,139 +2223,156 @@ def _generate_sequence_series_question():
         answer = f"GHS {final_value:,.2f}"
         hint = "This is a geometric progression problem. Use the formula: Final Value = $P(1 - r)^n$."
         explanation = f"1. P = {initial_amount}, r = {depreciation_rate/100}, n = {years}.\n2. Final Value = ${initial_amount:,.0f}(1 - {depreciation_rate/100})^{{{years}}} \\approx {final_value:,.2f}$."
-        options = {answer, f"GHS {initial_amount * (1 - (depreciation_rate*years)/100):,.2f}"}
+        options = {answer, f"GHS {initial_amount * (1 - (depreciation_rate*years)/100):,.2f}", f"GHS {initial_amount - (initial_amount * depreciation_rate/100 * years):,.2f}"}
     
-    return {"question": question, "options": _finalize_options(options), "answer": answer, "hint": hint, "explanation": explanation}
-
-
-def _generate_word_problems_question():
-    """Generates a multi-subtopic question for Word Problems with enhanced variety."""
-    # --- IMPROVEMENT: This function has been upgraded. ---
-    # Number ranges have been bumped.
-    # More specific Ghanaian contextualization (names, places, items) has been added.
-    # The 'consecutive_integers' subtype now varies what it asks for (smallest, largest, etc.).
+    # --- Hard Question ---
+    elif q_type == 'gp_sum_inf':
+        r = Fraction(random.randint(-2,2), random.randint(3, 7))
+        while r == 0: r = Fraction(random.randint(-2,2), random.randint(3, 7))
+        question = f"A geometric series has a first term of ${a}$ and a common ratio of ${_get_fraction_latex_code(r)}$. Calculate its sum to infinity."
+        answer = _format_fraction_text(a / (1 - r))
+        hint = r"Use the sum to infinity formula: $S_\infty = \frac{a}{1-r}$, which is valid only when $|r| < 1$."
+        explanation = f"$S_\\infty = \\frac{{{a}}}{{1 - ({_get_fraction_latex_code(r)})}} = \\frac{{{a}}}{{{_get_fraction_latex_code(1-r)}}} = {_get_fraction_latex_code(a/(1-r))}$."
+        options = {answer, _format_fraction_text(a/(1+r)), _format_fraction_text((a*r)/(1-r))}
     
-    # --- IMPROVEMENT: Contextualization lists ---
+    return {"question": question, "options": _finalize_options(options), "answer": answer, "hint": hint, "explanation": explanation, "difficulty": difficulty}
+
+def _generate_word_problems_question(difficulty="Medium"):
+    """Generates a Word Problems question based on difficulty, preserving all original sub-types."""
+
     gh_names = ["Yaw", "Adwoa", "Kofi", "Ama", "Kwame", "Abena"]
     gh_locations = ["Kejetia Market in Kumasi", "a shop in Osu, Accra", "a farm near Kajaji", "the Cape Coast Castle gift shop"]
-    gh_items = ["bags of gari", "yards of kente cloth", "boxes of Milo", "bunches of plantain"]
+    
+    if difficulty == "Easy":
+        # Direct translation from words to a simple equation.
+        q_type = random.choice(['linear_number', 'ratio'])
+    elif difficulty == "Medium":
+        # Requires setting up a more complex equation with the variable on both sides.
+        q_type = random.choice(['age', 'consecutive_integers'])
+    else: # Hard
+        # Involves reciprocal rates, a classic challenging problem type.
+        q_type = 'work_rate'
 
-    q_type = random.choice(['linear_number', 'age', 'consecutive_integers', 'ratio', 'work_rate'])
     question, answer, hint, explanation = "", "", "", ""
     options = set()
 
+    # --- Easy Questions ---
     if q_type == 'linear_number':
         x, k, m = random.randint(10, 50), random.randint(10, 50), random.randint(2, 7)
         result = m*x + k
         question = f"When {m} times a certain number is increased by {k}, the result is {result}. Find the number."
         answer = str(x)
-        hint = "Let the number be 'n'. Translate the sentence into an equation and solve for n."
+        hint = "Let the number be 'n'. Translate the sentence into an equation like 'mn + k = result' and solve for n."
         explanation = f"1. Let the number be n. The equation is ${m}n + {k} = {result}$.\n2. Subtract {k}: ${m}n = {result-k}$.\n3. Divide by {m}: $n = \\frac{{{result-k}}}{{{m}}} = {x}$."
-        options = {answer, str(result-k), str(result/m)}
-
-    elif q_type == 'age':
-        child_age, parent_age = random.randint(8, 20), random.randint(40, 65)
-        # Ensure parent is at least 20 years older
-        while parent_age - child_age < 20: parent_age = random.randint(40, 65)
-        ans_val = (parent_age - 2*child_age)
-        if ans_val <= 0: return _generate_word_problems_question() # Regenerate if unsolvable in the future
-        
-        child_name, parent_name = random.sample(gh_names, 2)
-        question = f"{parent_name} is {parent_age} years old and their child {child_name} is {child_age} years old. In how many years will {parent_name} be exactly twice as old as {child_name}?"
-        answer = str(ans_val)
-        hint = "Let 'x' be the number of years. Set up the equation: Parent's Future Age = 2 * Child's Future Age."
-        explanation = f"1. Let x be the number of years.\n2. In x years, their ages will be {child_age}+x and {parent_age}+x.\n3. Equation: ${parent_age}+x = 2({child_age}+x)$.\n4. Solve: ${parent_age}+x = {2*child_age}+2x \implies x = {parent_age - 2*child_age} = {ans_val}$."
-        options = {answer, str(parent_age - child_age)}
-
-    elif q_type == 'consecutive_integers':
-        start, num = random.randint(20, 100), random.choice([3, 5]) # Use odd numbers for a clear middle
-        num_type = random.choice(['integers', 'even integers', 'odd integers'])
-        if num_type == 'integers': integers = [start+i for i in range(num)]
-        elif num_type == 'even integers': integers = [start*2, start*2+2, start*2+4, start*2+6, start*2+8][:num]
-        else: integers = [start*2+1, start*2+3, start*2+5, start*2+7, start*2+9][:num]
-        total = sum(integers)
-        
-        # --- IMPROVEMENT: Vary the question being asked ---
-        asked_for = random.choice(['smallest', 'largest', 'middle'])
-        if asked_for == 'smallest': answer = str(integers[0])
-        elif asked_for == 'largest': answer = str(integers[-1])
-        else: answer = str(integers[num//2])
-
-        question = f"The sum of {num} consecutive {num_type} is {total}. What is the **{asked_for}** of these integers?"
-        hint = f"Represent the integers algebraically (e.g., n, n+1, n+2...). Set their sum equal to {total} and solve for the first integer, n."
-        explanation = f"Let the first integer be n. The sum can be written as an equation. Solving for n gives {integers[0]}. The full list of integers is {integers}. The {asked_for} integer is {answer}."
-        options = {str(integers[0]), str(integers[-1]), str(int(total/num))}
-        options.add(answer)
-
+        options = {answer, str(result-k), str(int(result/m))}
 
     elif q_type == 'ratio':
         ratio1, ratio2 = random.randint(2, 9), random.randint(3, 10)
+        while ratio1 == ratio2: ratio2 = random.randint(3, 10)
         total_amount = random.randint(20, 50) * (ratio1 + ratio2)
         share1 = int((ratio1 / (ratio1+ratio2)) * total_amount)
         share2 = total_amount - share1
         name1, name2 = random.sample(gh_names, 2)
         location = random.choice(gh_locations)
-        
-        question = f"At {location} today, August 21st, {name1} and {name2} share a profit of GHS {total_amount} in the ratio {ratio1}:{ratio2}. How much does {name1} receive?"
+        question = f"At {location}, {name1} and {name2} share a profit of GHS {total_amount} in the ratio {ratio1}:{ratio2}. How much does {name1} receive?"
         answer = f"GHS {share1}"
-        hint = "First, find the total number of parts in the ratio. Then, find the value of one part."
-        explanation = f"1. Total parts = {ratio1} + {ratio2} = {ratio1+ratio2}.\n2. Value of one part = GHS {total_amount} / {ratio1+ratio2} = GHS {total_amount/(ratio1+ratio2)}.\n3. {name1}'s share = {ratio1} parts = {ratio1} * {total_amount/(ratio1+ratio2)} = GHS {share1}."
-        options = {answer, f"GHS {share2}"}
-        
+        hint = "First, find the total number of parts in the ratio. Then, find the value of one part by dividing the total amount by the total parts."
+        explanation = f"1. Total parts = {ratio1} + {ratio2} = {ratio1+ratio2}.\n2. Value of one part = GHS {total_amount} / {ratio1+ratio2} = GHS {total_amount//(ratio1+ratio2)}.\n3. {name1}'s share ({ratio1} parts) = {ratio1} * {total_amount//(ratio1+ratio2)} = GHS {share1}."
+        options = {answer, f"GHS {share2}", f"GHS {total_amount//(ratio1+ratio2)}"}
+
+    # --- Medium Questions ---
+    elif q_type == 'age':
+        child_age, parent_age = random.randint(8, 20), random.randint(40, 65)
+        while parent_age - child_age < 20: parent_age = random.randint(40, 65)
+        # Equation: parent + x = 2 * (child + x) => x = parent - 2*child
+        ans_val = parent_age - 2*child_age
+        if ans_val <= 0: return _generate_word_problems_question(difficulty=difficulty) # Regenerate if unsolvable
+        child_name, parent_name = random.sample(gh_names, 2)
+        question = f"{parent_name} is {parent_age} years old and their child {child_name} is {child_age} years old. In how many years will {parent_name} be exactly twice as old as {child_name}?"
+        answer = str(ans_val)
+        hint = "Let 'x' be the number of years. Set up the equation: Parent's Future Age = 2 * Child's Future Age."
+        explanation = f"1. Let x be the number of years.\n2. In x years, their ages will be ({parent_age}+x) and ({child_age}+x).\n3. Equation: ${parent_age}+x = 2({child_age}+x)$.\n4. Solve: ${parent_age}+x = {2*child_age}+2x \\implies x = {parent_age - 2*child_age} = {ans_val}$."
+        options = {answer, str(parent_age - child_age), str(ans_val + 2)}
+
+    elif q_type == 'consecutive_integers':
+        start, num = random.randint(20, 100), random.choice([3, 5])
+        num_type = random.choice(['integers', 'even integers', 'odd integers'])
+        if num_type == 'integers': integers = [start+i for i in range(num)]
+        elif num_type == 'even integers': integers = [start*2 + 2*i for i in range(num)]
+        else: integers = [start*2+1 + 2*i for i in range(num)]
+        total = sum(integers)
+        asked_for = random.choice(['smallest', 'largest', 'middle'])
+        if asked_for == 'smallest': answer = str(integers[0])
+        elif asked_for == 'largest': answer = str(integers[-1])
+        else: answer = str(integers[num//2])
+        question = f"The sum of {num} consecutive {num_type} is {total}. What is the **{asked_for}** of these integers?"
+        hint = f"Represent the integers algebraically (e.g., n, n+1, n+2... or n, n+2, n+4...). Set their sum equal to {total} and solve for the first integer, n."
+        explanation = f"Let the first integer be n. The sum can be written as an equation. Solving for n gives {integers[0]}. The full list of integers is {integers}. The {asked_for} integer is {answer}."
+        options = {str(integers[0]), str(integers[-1]), str(int(total/num)), answer}
+
+    # --- Hard Question ---
     elif q_type == 'work_rate':
-        time_a = random.randint(4, 10) 
-        time_b = random.randint(4, 10)
+        time_a = random.randint(4, 10); time_b = random.randint(4, 10)
         while time_a == time_b: time_b = random.randint(4, 10)
         time_together = (time_a * time_b) / (time_a + time_b)
         name1, name2 = random.sample(gh_names, 2)
-        
-        question = f"If {name1} can weed a farm in {time_a} hours and {name2} can weed the same farm in {time_b} hours, how long would it take them to finish the job together?"
+        question = f"If {name1} can weed a farm in {time_a} hours and {name2} can weed the same farm in {time_b} hours, how long would it take them to finish the job if they work together?"
         answer = f"{time_together:.2f} hours"
-        hint = "Add their individual rates of work (farms per hour) to find their combined rate."
+        hint = "Add their individual rates of work. The rate is (1 / time). So, (1/A) + (1/B) = 1/Total_Time."
         explanation = f"1. {name1}'s Rate = $\\frac{{1}}{{{time_a}}}$ farms/hr.\n2. {name2}'s Rate = $\\frac{{1}}{{{time_b}}}$ farms/hr.\n3. Combined Rate = $\\frac{{1}}{{{time_a}}} + \\frac{{1}}{{{time_b}}} = \\frac{{{time_b+time_a}}}{{{time_a*time_b}}}$ farms/hr.\n4. Time Together = $\\frac{{1}}{{\\text{{Combined Rate}}}} = \\frac{{{time_a*time_b}}}{{{time_a+time_b}}} \\approx {time_together:.2f}$ hours."
-        options = {answer, f"{ (time_a+time_b)/2 :.2f} hours"}
+        options = {answer, f"{ (time_a+time_b)/2 :.2f} hours", f"{ abs(time_a-time_b) :.2f} hours"}
 
-    return {"question": question, "options": _finalize_options(options), "answer": answer, "hint": hint, "explanation": explanation}
+    return {"question": question, "options": _finalize_options(options), "answer": answer, "hint": hint, "explanation": explanation, "difficulty": difficulty}
 
 
-def _generate_shapes_question():
-    """Generates a multi-subtopic question for Shapes/Geometry with enhanced variety."""
-    q_type = random.choice(['angles_lines', 'triangles_pythagoras', 'area_perimeter', 'volume_surface_area', 'circle_theorems'])
+def _generate_shapes_question(difficulty="Medium"):
+    """Generates a Shapes/Geometry question based on difficulty, preserving all original sub-types."""
+    
+    if difficulty == "Easy":
+        # Foundational rules for angles and triangles.
+        q_type = random.choice(['angles_lines', 'triangles_pythagoras'])
+    elif difficulty == "Medium":
+        # Standard calculations for 2D shapes.
+        q_type = 'area_perimeter'
+    else: # Hard
+        # More complex 3D calculations and abstract theorems.
+        q_type = random.choice(['volume_surface_area', 'circle_theorems'])
+
     question, answer, hint, explanation = "", "", "", ""
     options = set()
 
+    # --- Easy Questions ---
     if q_type == 'angles_lines':
         angle_type = random.choice(['point', 'straight_line', 'parallel'])
         if angle_type == 'point':
             a1, a2 = random.randint(100, 150), random.randint(80, 120)
             a3 = 360 - (a1 + a2)
             question = f"Three angles meet at a point. Two of the angles are {a1}° and {a2}°. What is the size of the third angle?"
-            # CORRECTED: Added degree sign to answer and options
             answer = f"{a3}°"
             hint = "The sum of angles at a point is always 360°."
-            explanation = f"Angles at a point add up to 360°. So, the third angle is $360 - ({a1} + {a2}) = 360 - {a1+a2} = {a3}°$."
+            explanation = f"Angles at a point add up to 360°. So, the third angle is $360° - ({a1}° + {a2}°) = 360° - {a1+a2}° = {a3}°$."
             options = {answer, f"{180 - a1}°", f"{180 - a2}°"}
-        else: # parallel lines
+        else: # parallel lines (original logic kept)
             angle1 = random.randint(50, 120)
             prop, angle2 = random.choice([("alternate", angle1), ("corresponding", angle1), ("co-interior", 180 - angle1)])
             question = f"In a diagram with two parallel lines cut by a transversal, one angle is {angle1}°. What is the size of its {prop} angle?"
-            # CORRECTED: Added degree sign to answer and options
             answer = f"{angle2}°"
             hint = f"Recall the relationship between {prop} angles."
             explanation = f"For parallel lines:\n- Alternate angles are equal.\n- Corresponding angles are equal.\n- Co-interior angles sum to 180°.\nTherefore, the {prop} angle is {answer}."
-            options = {answer, f"{180-angle1}°", f"{90-angle1}°"}
+            options = {answer, f"{180-angle1}°", f"{90}°"}
 
     elif q_type == 'triangles_pythagoras':
         a, b = random.choice([(3,4), (5,12), (8,15), (7,24), (9,40)])
         c = int(math.sqrt(a**2 + b**2))
         question = f"A right-angled triangle has shorter sides of length ${a}$ cm and ${b}$ cm. Find the length of its hypotenuse."
-        answer = str(c)
+        answer = f"{c}"
         hint = "Use Pythagoras' theorem: $a^2 + b^2 = c^2$."
         explanation = f"1. By Pythagoras' theorem, $c^2 = a^2 + b^2$.\n2. $c^2 = {a}^2 + {b}^2 = {a**2} + {b**2} = {c**2}$.\n3. $c = \\sqrt{{{c**2}}} = {c}$ cm."
         options = {answer, str(a+b), str(abs(b-a))}
 
+    # --- Medium Question ---
     elif q_type == 'area_perimeter':
-        shape = random.choice(['rectangle', 'circle', 'trapezium'])
+        shape = random.choice(['rectangle', 'circle', 'trapezium']) # Original internal randomness preserved
         if shape == 'rectangle':
             l, w = random.randint(10, 30), random.randint(5, 20)
             calc = random.choice(['area', 'perimeter'])
@@ -2313,9 +2380,9 @@ def _generate_shapes_question():
             answer = str(l*w) if calc == 'area' else str(2*(l+w))
             hint = "Area of a rectangle is length × width. Perimeter is 2 × (length + width)."
             explanation = f"For a rectangle with length {l} and width {w}:\n- Area = ${l} \\times {w} = {l*w} m^2$.\n- Perimeter = $2({l} + {w}) = {2*(l+w)} m$."
-            options = {str(l*w), str(2*(l+w))}
+            options = {str(l*w), str(2*(l+w)), str(l+w)}
         elif shape == 'circle':
-            r = random.randint(7, 21)
+            r = 7 # Use r=7 for nice pi calculations
             question = f"Find the area of a circular garden with a radius of {r}m. (Use $\\pi \\approx 22/7$)"
             answer = str(int(Fraction(22,7) * r**2))
             hint = "Area of a circle = $\pi r^2$."
@@ -2327,10 +2394,11 @@ def _generate_shapes_question():
             answer = str(int(0.5 * (a+b) * h))
             hint = "Area of a trapezium = $\\frac{1}{2}(a+b)h$, where a and b are the parallel sides."
             explanation = f"Area = $\\frac{{1}}{{2}}({a} + {b}) \\times {h} = {answer} cm^2$."
-            options = {answer, str((a+b)*h)}
+            options = {answer, str((a+b)*h), str(a*b*h)}
 
+    # --- Hard Questions ---
     elif q_type == 'volume_surface_area':
-        shape = random.choice(['cuboid', 'cylinder'])
+        shape = random.choice(['cuboid', 'cylinder']) # Original internal randomness preserved
         if shape == 'cuboid':
             l, w, h = random.randint(5,12), random.randint(5,12), random.randint(5,12)
             calc = random.choice(['volume', 'surface area'])
@@ -2340,69 +2408,55 @@ def _generate_shapes_question():
             explanation = f"For the cuboid:\n- Volume = ${l} \\times {w} \\times {h} = {l*w*h} cm^3$.\n- Surface Area = $2({l*w} + {w*h} + {l*h}) = {2*(l*w+w*h+l*h)} cm^2$."
             options = {str(l*w*h), str(2*(l*w+w*h+l*h))}
         else: # cylinder
-            r, h = 7, random.randint(10, 20) # Use r=7 for nice pi calculations
+            r, h = 7, random.randint(10, 20)
             question = f"A cylindrical tin of Milo has a radius of {r}cm and a height of {h}cm. Find its volume. (Use $\\pi \\approx 22/7$)"
             answer = str(int(Fraction(22,7) * r**2 * h))
             hint = "Volume of a cylinder = $\pi r^2 h$."
             explanation = f"Volume = $\\pi r^2 h = \\frac{{22}}{{7}} \\times {r}^2 \\times {h} = {answer} cm^3$."
-            options = {answer, str(int(2*Fraction(22,7)*r*h))}
+            options = {answer, str(int(2*Fraction(22,7)*r*h)), str(int(Fraction(22,7) * r**2))}
 
     elif q_type == 'circle_theorems':
         angle_at_center = random.randint(40, 120) * 2
         angle_at_circumference = angle_at_center // 2
         question = f"In a circle, an arc subtends an angle of {angle_at_center}° at the center. What angle does it subtend at any point on the remaining part of the circumference?"
-        # CORRECTED: Added degree sign to answer and options
         answer = f"{angle_at_circumference}°"
         hint = "Recall the circle theorem: The angle at the center is twice the angle at the circumference."
-        explanation = f"The angle at the circumference is half the angle at the center.\nAngle = $\\frac{{{angle_at_center}}}{{2}} = {angle_at_circumference}°$."
+        explanation = f"The angle at the circumference is half the angle at the center.\nAngle = $\\frac{{{angle_at_center}°}}{{2}} = {angle_at_circumference}°$."
         options = {answer, f"{angle_at_center}°", f"{180-angle_at_center}°"}
         
-    return {"question": question, "options": _finalize_options(options), "answer": answer, "hint": hint, "explanation": explanation}
-def _generate_algebra_basics_question():
-    """Generates a multi-subtopic question for Algebra Basics with enhanced variety."""
-    # UPGRADED: Expanded list of sub-topics based on your suggestions
-    q_type = random.choice(['simplify_expression', 'factorization', 'solve_linear', 'solve_simultaneous', 'solve_quadratic', 'solve_inequality', 'algebraic_fractions'])
+    return {"question": question, "options": _finalize_options(options), "answer": answer, "hint": hint, "explanation": explanation, "difficulty": difficulty}
+def _generate_algebra_basics_question(difficulty="Medium"):
+    """Generates an Algebra Basics question based on difficulty, preserving all original sub-types."""
+    
+    if difficulty == "Easy":
+        # Foundational skills: simplifying and solving basic linear equations.
+        q_type = random.choice(['simplify_expression', 'solve_linear'])
+    elif difficulty == "Medium":
+        # Core algebraic techniques: factoring, inequalities, and fractions.
+        q_type = random.choice(['factorization', 'solve_inequality', 'algebraic_fractions'])
+    else: # Hard
+        # Multi-step, complex problems: simultaneous and quadratic equations.
+        q_type = random.choice(['solve_simultaneous', 'solve_quadratic'])
+
     question, answer, hint, explanation = "", "", "", ""
     options = set()
 
+    # --- Easy Questions ---
     if q_type == 'simplify_expression':
         a, b, c, d = [random.randint(2, 8) for _ in range(4)]
         question = f"Expand and simplify the expression: ${a}(x + {b}) - {c}(x - {d})$"
         x_coeff = a - c
         const = a * b + c * d
-        
         if x_coeff == 1: x_part = "x"
         elif x_coeff == -1: x_part = "-x"
         elif x_coeff == 0: x_part = ""
         else: x_part = f"{x_coeff}x"
-
         if const == 0 and x_part != "": answer = f"${x_part}$"
         elif const > 0: answer = f"${x_part} + {const}$" if x_part != "" else str(const)
         else: answer = f"${x_part} - {abs(const)}$" if x_part != "" else str(const)
-            
         hint = "First, expand both brackets by multiplying. Then, be careful with the signs and collect like terms."
-        explanation = f"1. Expand brackets: $({a}x + {a*b}) - ({c}x - {c*d})$.\n2. Simplify: ${a}x + {a*b} - {c}x + {c*d}$.\n3. Collect terms: $({a-c})x + ({a*b+c*d}) = {x_coeff}x + {const}$."
+        explanation = f"1. Expand brackets: $({a}x + {a*b}) - ({c}x - {c*d})$.\n2. Simplify: ${a}x + {a*b} - {c}x + {c*d}$.\n3. Collect like terms: $({a-c})x + ({a*b+c*d}) = {x_coeff}x + {const}$."
         options = {answer, f"${a+c}x + {a*b-c*d}$"}
-
-    elif q_type == 'factorization':
-        factor_type = random.choice(['diff_squares', 'trinomial'])
-        if factor_type == 'diff_squares':
-            a, b_val = random.randint(2, 10), random.randint(2, 5)
-            b = f"{b_val}y"
-            question = f"Factorize completely: ${a**2}x^2 - {b_val**2}y^2$"
-            answer = f"$({a}x - {b})({a}x + {b})$"
-            hint = "Recognize this as a difference of two squares: $A^2 - B^2 = (A-B)(A+B)$."
-            explanation = f"Here, $A^2 = {a**2}x^2$ so $A={a}x$, and $B^2 = {b_val**2}y^2$ so $B={b}$.\nThe factorization is $(A-B)(A+B)$, which gives ${answer}$."
-            options = {answer, f"$({a}x - {b})^2$"}
-        else: # trinomial
-            r1, r2 = random.randint(-7, 7), random.randint(-7, 7)
-            while r1 == 0 or r2 == 0 or r1==r2: r1, r2 = random.randint(-7, 7), random.randint(-7, 7)
-            b, c = r1 + r2, r1 * r2
-            question = f"Factorize the trinomial: $x^2 + ({b})x + ({c})$"
-            answer = f"$(x {'+' if r1 > 0 else '-'} {abs(r1)})(x {'+' if r2 > 0 else '-'} {abs(r2)})$"
-            hint = f"Look for two numbers that multiply to {c} and add to {b}."
-            explanation = f"The two numbers are ${r1}$ and ${r2}$, since ${r1} \\times {r2} = {c}$ and ${r1} + {r2} = {b}$.\nTherefore, the factors are $(x + ({r1}))(x + ({r2}))$, which is ${answer}$."
-            options = {answer, f"$(x - {r1})(x - {r2})$"}
 
     elif q_type == 'solve_linear':
         a, b, x = random.randint(2, 8), random.randint(5, 20), random.randint(2, 10)
@@ -2413,16 +2467,57 @@ def _generate_algebra_basics_question():
         explanation = f"1. Equation: ${a}x + {b} = {c}$.\n2. Subtract {b} from both sides: ${a}x = {c-b}$.\n3. Divide by {a}: $x = \\frac{{{c-b}}}{{{a}}} = {x}$."
         options = {answer, str(c-b), str((c+b)/a)}
         
+    # --- Medium Questions ---
+    elif q_type == 'factorization':
+        factor_type = random.choice(['diff_squares', 'trinomial']) # Original internal randomness preserved
+        if factor_type == 'diff_squares':
+            a, b_val = random.randint(2, 10), random.randint(2, 5)
+            b = f"{b_val}y"
+            question = f"Factorize completely: ${a**2}x^2 - {b_val**2}y^2$"
+            answer = f"$({a}x - {b})({a}x + {b})$"
+            hint = "Recognize this as a difference of two squares: $A^2 - B^2 = (A-B)(A+B)$."
+            explanation = f"Here, $A^2 = {a**2}x^2$ so $A={a}x$, and $B^2 = {b_val**2}y^2$ so $B={b}$.\nThe factorization is $(A-B)(A+B)$, which gives ${answer}$."
+            options = {answer, f"$({a}x - {b})^2$", f"({a}x - {b_val})({a}x + {b_val})"}
+        else: # trinomial
+            r1, r2 = random.randint(-7, 7), random.randint(-7, 7)
+            while r1 == 0 or r2 == 0 or r1==r2: r1, r2 = random.randint(-7, 7), random.randint(-7, 7)
+            b, c = r1 + r2, r1 * r2
+            question = f"Factorize the trinomial: $x^2 + ({b})x + ({c})$"
+            answer = f"$(x {'+' if r1 > 0 else '-'} {abs(r1)})(x {'+' if r2 > 0 else '-'} {abs(r2)})$"
+            hint = f"Look for two numbers that multiply to give the constant term ({c}) and add to give the x-coefficient ({b})."
+            explanation = f"The two numbers are ${r1}$ and ${r2}$, since ${r1} \\times {r2} = {c}$ and ${r1} + {r2} = {b}$.\nTherefore, the factors are $(x + ({r1}))(x + ({r2}))$, which is ${answer}$."
+            options = {answer, f"$(x - {r1})(x - {r2})$", f"$(x + {b})(x + {c})$"}
+
+    elif q_type == 'solve_inequality':
+        a, b, x = random.randint(2, 5), random.randint(10, 20), random.randint(3, 8)
+        c = a*x - b
+        question = f"Find the solution to the inequality: ${a}x - {b} > {c}$"
+        answer = f"$x > {x}$"
+        hint = "Solve this just like a linear equation. Only flip the inequality sign if you multiply or divide by a negative number."
+        explanation = f"1. Inequality: ${a}x - {b} > {c}$.\n2. Add {b} to both sides: ${a}x > {c+b}$.\n3. Divide by {a} (a positive number, so the sign stays): $x > \\frac{{{c+b}}}{{{a}}} = {x}$."
+        options = {answer, f"$x < {x}$", f"$x > {c-b}"}
+        
+    elif q_type == 'algebraic_fractions':
+        a, b = random.randint(2, 5), random.randint(3, 6)
+        while a==b: b = random.randint(3,6)
+        question = f"Simplify the algebraic fraction: $\\frac{{x}}{{{a}}} + \\frac{{x}}{{{b}}}$"
+        num = a + b; den = a * b; common = math.gcd(num, den); num //= common; den //= common
+        answer = f"$\\frac{{{num}x}}{{{den}}}$"
+        hint = "To add algebraic fractions, find a common denominator, just like with regular fractions."
+        explanation = f"1. The lowest common multiple of {a} and {b} is {a*b}.\n2. $\\frac{{x}}{{{a}}} + \\frac{{x}}{{{b}}} = \\frac{{{b}x}}{{{a*b}}} + \\frac{{{a}x}}{{{a*b}}}$.\n3. Combine and simplify: $\\frac{{({a+b})x}}{{{a*b}}} = {answer}$."
+        options = {answer, f"$\\frac{{2x}}{{{a+b}}}$", f"$\\frac{{x^2}}{{{a*b}}}$"}
+
+    # --- Hard Questions ---
     elif q_type == 'solve_simultaneous':
         x, y = random.randint(1, 8), random.randint(1, 8)
         a1, b1, a2, b2 = [random.randint(1, 4) for _ in range(4)]
-        while a1*b2 - a2*b1 == 0: a2, b2 = random.randint(1, 4), random.randint(1, 4)
+        while a1*b2 - a2*b1 == 0: a2, b2 = random.randint(1, 4), random.randint(1, 4) # Ensure unique solution
         c1 = a1*x + b1*y
         c2 = a2*x + b2*y
         question = f"Solve the following system of linear equations:\n\n$ {a1}x + {b1}y = {c1} $\n\n$ {a2}x + {b2}y = {c2} $"
         answer = f"x = {x}, y = {y}"
         hint = "Use either the substitution or elimination method to solve for one variable first."
-        explanation = f"Using the elimination method, one can solve to find that y = {y}. Substituting this value back into the first equation gives x = {x}."
+        explanation = f"Using the elimination method, one can solve to find that y = {y}. Substituting this value back into the first equation, ${a1}x + {b1}({y}) = {c1}$, gives x = {x}."
         options = {answer, f"x = {y}, y = {x}", f"x = {c1-c2}, y = {c1+c2}"}
         
     elif q_type == 'solve_quadratic':
@@ -2432,85 +2527,96 @@ def _generate_algebra_basics_question():
         c = r1 * r2
         question = f"Find the roots of the quadratic equation: $x^2 + {b}x + {c} = 0$"
         answer = f"x = {r1} or x = {r2}"
-        hint = "Solve by factorizing the quadratic expression or using the quadratic formula."
-        explanation = f"This equation can be factorized by finding two numbers that multiply to {c} and add to {b}. These numbers are {-r1} and {-r2}.\nSo, $(x - {r1})(x - {r2}) = 0$.\nThe solutions are $x = {r1}$ and $x = {r2}$."
-        options = {answer, f"x = {-r1} or x = {-r2}"}
+        hint = "Solve by factorizing the quadratic expression or using the quadratic formula: $x = \\frac{{-b \\pm \\sqrt{{b^2-4ac}}}}{{2a}}$."
+        explanation = f"This equation can be factorized by finding two numbers that multiply to {c} and add to {-b}. These numbers are {r1} and {r2}.\nSo, the equation becomes $(x - {r1})(x - {r2}) = 0$.\nThe solutions are therefore $x = {r1}$ and $x = {r2}$."
+        options = {answer, f"x = {-r1} or x = {-r2}", f"x = {b} or x = {c}"}
 
-    elif q_type == 'solve_inequality':
-        a, b, x = random.randint(2, 5), random.randint(10, 20), random.randint(3, 8)
-        c = a*x - b
-        question = f"Find the solution to the inequality: ${a}x - {b} > {c}$"
-        answer = f"$x > {x}$"
-        hint = "Solve this just like a linear equation. Only flip the inequality sign if you multiply or divide by a negative number."
-        explanation = f"1. Inequality: ${a}x - {b} > {c}$.\n2. Add {b} to both sides: ${a}x > {c+b}$.\n3. Divide by {a}: $x > \\frac{{{c+b}}}{{{a}}} = {x}$."
-        options = {answer, f"$x < {x}$", f"$x > {c-b}"}
-        
-    elif q_type == 'algebraic_fractions':
-        a, b = random.randint(2, 5), random.randint(3, 6)
-        question = f"Simplify the algebraic fraction: $\\frac{{x}}{{{a}}} + \\frac{{x}}{{{b}}}$"
-        num = a + b; den = a * b; common = math.gcd(num, den); num //= common; den //= common
-        answer = f"$\\frac{{{num}x}}{{{den}}}$"
-        hint = "To add algebraic fractions, find a common denominator, just like with regular fractions."
-        explanation = f"1. The lowest common multiple of {a} and {b} is {a*b}.\n2. $\\frac{{x}}{{{a}}} + \\frac{{x}}{{{b}}} = \\frac{{{b}x}}{{{a*b}}} + \\frac{{{a}x}}{{{a*b}}}$.\n3. Combine and simplify: $\\frac{{({a+b})x}}{{{a*b}}} = {answer}$."
-        options = {answer, f"$\\frac{{2x}}{{{a+b}}}$", f"$\\frac{{x^2}}{{{a*b}}}$"}
-
-    return {"question": question, "options": _finalize_options(options), "answer": answer, "hint": hint, "explanation": explanation}
+    return {"question": question, "options": _finalize_options(options), "answer": answer, "hint": hint, "explanation": explanation, "difficulty": difficulty}
 
 
-def _generate_linear_algebra_question():
-    # Subtopics: Matrix ops, Determinant/Inverse
-    q_type = random.choice(['add_sub', 'multiply', 'determinant', 'inverse'])
-    mat_a = np.random.randint(-5, 10, size=(2, 2)); mat_b = np.random.randint(-5, 10, size=(2, 2))
-    def mat_to_latex(m): return f"\\begin{{pmatrix}} {m[0,0]} & {m[0,1]} \\\\ {m[1,0]} & {m[1,1]} \\end{{pmatrix}}"
+def _generate_linear_algebra_question(difficulty="Medium"):
+    """Generates a Linear Algebra question based on difficulty, preserving all original sub-types."""
 
+    if difficulty == "Easy":
+        # Foundational 2x2 matrix operations.
+        q_type = random.choice(['add_sub', 'determinant'])
+    elif difficulty == "Medium":
+        # More complex row-by-column multiplication.
+        q_type = 'multiply'
+    else: # Hard
+        # Multi-step process of finding the inverse.
+        q_type = 'inverse'
+
+    # Helper function to format a numpy matrix into LaTeX
+    def mat_to_latex(m):
+        return f"\\begin{{pmatrix}} {m[0,0]} & {m[0,1]} \\\\ {m[1,0]} & {m[1,1]} \\end{{pmatrix}}"
+
+    question, answer, hint, explanation = "", "", "", ""
+    options = set()
+    mat_a = np.random.randint(-5, 10, size=(2, 2))
+    mat_b = np.random.randint(-5, 10, size=(2, 2))
+
+    # --- Easy Questions ---
     if q_type == 'add_sub':
-        op, sym, res_mat = random.choice([('add', '+', mat_a+mat_b), ('subtract', '-', mat_a-mat_b)])
+        op, sym, res_mat = random.choice([('add', '+', mat_a + mat_b), ('subtract', '-', mat_a - mat_b)])
         question = f"Given matrices $A = {mat_to_latex(mat_a)}$ and $B = {mat_to_latex(mat_b)}$, find $A {sym} B$."
         answer = f"${mat_to_latex(res_mat)}$"
-        hint = f"To {op} matrices, {op} their corresponding elements."
-        explanation = f"You {op} the element in each position. e.g., for the top-left element: ${mat_a[0,0]} {sym} {mat_b[0,0]} = {res_mat[0,0]}$."
-        options = {answer, f"${mat_to_latex(np.dot(mat_a, mat_b))}$"}
+        hint = f"To {op} matrices, simply {op} their corresponding elements in each position."
+        explanation = f"You perform the operation on the element in each position. For example, the top-left element is calculated as: ${mat_a[0,0]} {sym} {mat_b[0,0]} = {res_mat[0,0]}$."
+        options = {answer, f"${mat_to_latex(np.dot(mat_a, mat_b))}$", f"${mat_to_latex(mat_a * mat_b)}$"}
     
-    elif q_type == 'multiply':
-        question = f"Find the product $AB$ for $A = {mat_to_latex(mat_a)}$ and $B = {mat_to_latex(mat_b)}$."
-        res_mat = np.dot(mat_a, mat_b)
-        answer = f"${mat_to_latex(res_mat)}$"
-        hint = "Multiply rows of the first matrix by columns of the second matrix."
-        explanation = f"Top-left element of result = (row 1 of A) ⋅ (col 1 of B) = $({mat_a[0,0]} \\times {mat_b[0,0]}) + ({mat_a[0,1]} \\times {mat_b[1,0]}) = {res_mat[0,0]}$."
-        options = {answer, f"${mat_to_latex(mat_a+mat_b)}$"}
-        
     elif q_type == 'determinant':
         question = f"Find the determinant of matrix $A = {mat_to_latex(mat_a)}$."
         answer = str(int(np.linalg.det(mat_a)))
-        hint = r"For a 2x2 matrix $\begin{pmatrix} a & b \\ c & d \end{pmatrix}$, the determinant is $ad - bc$."
+        hint = r"For a 2x2 matrix $\begin{pmatrix} a & b \\ c & d \end{pmatrix}$, the determinant is calculated as $ad - bc$."
         explanation = f"Determinant = $(a \\times d) - (b \\times c) = ({mat_a[0,0]} \\times {mat_a[1,1]}) - ({mat_a[0,1]} \\times {mat_a[1,0]}) = {answer}$."
-        options = {answer, str(mat_a[0,0]+mat_a[1,1])}
+        options = {answer, str(mat_a[0,0]+mat_a[1,1]), str(mat_a[0,0]*mat_a[0,1] - mat_a[1,0]*mat_a[1,1])}
 
+    # --- Medium Question ---
+    elif q_type == 'multiply':
+        question = f"Find the product $AB$ for the matrices $A = {mat_to_latex(mat_a)}$ and $B = {mat_to_latex(mat_b)}$."
+        res_mat = np.dot(mat_a, mat_b)
+        answer = f"${mat_to_latex(res_mat)}$"
+        hint = "Matrix multiplication is 'row-by-column'. Multiply the elements of each row of the first matrix by the elements of each column of the second matrix and sum the results."
+        explanation = f"The top-left element of the result is (row 1 of A) ⋅ (col 1 of B) = $({mat_a[0,0]} \\times {mat_b[0,0]}) + ({mat_a[0,1]} \\times {mat_b[1,0]}) = {res_mat[0,0]}$."
+        options = {answer, f"${mat_to_latex(mat_a+mat_b)}$", f"${mat_to_latex(mat_b @ mat_a)}$"}
+        
+    # --- Hard Question ---
     elif q_type == 'inverse':
         det = int(np.linalg.det(mat_a))
-        while det == 0:
-            mat_a = np.random.randint(-5, 10, size=(2, 2)); det = int(np.linalg.det(mat_a))
-        question = f"Find the inverse of matrix $A = {mat_to_latex(mat_a)}$."
+        while det == 0: # Ensure the matrix is invertible
+            mat_a = np.random.randint(-5, 10, size=(2, 2))
+            det = int(np.linalg.det(mat_a))
+        question = f"Find the inverse of the matrix $A = {mat_to_latex(mat_a)}$."
         adj_mat = np.array([[mat_a[1,1], -mat_a[0,1]], [-mat_a[1,0], mat_a[0,0]]])
         answer = f"$\\frac{{1}}{{{det}}}{mat_to_latex(adj_mat)}$"
-        hint = r"The inverse is $\frac{1}{\det(A)} \begin{pmatrix} d & -b \\ -c & a \end{pmatrix}$."
-        explanation = f"1. Determinant = {det}.\n\n2. Adjugate matrix: swap a and d, negate b and c = ${mat_to_latex(adj_mat)}$.\n\n3. Inverse = $\\frac{{1}}{{\\text{{determinant}}}} \\times \\text{{adjugate}} = {answer}$."
-        options = {answer, f"${mat_to_latex(adj_mat)}$"}
+        hint = r"The inverse is $\frac{1}{\det(A)} \times \text{adj}(A)$, where the adjugate matrix is found by swapping a and d, and negating b and c."
+        explanation = f"1. First, find the determinant: $\det(A) = {det}$.\n\n2. Next, find the adjugate matrix: swap the main diagonal elements and negate the others to get ${mat_to_latex(adj_mat)}$.\n\n3. The inverse is $\\frac{{1}}{{\\text{{determinant}}}} \\times \\text{{adjugate}}$, which is ${answer}$."
+        options = {answer, f"${mat_to_latex(adj_mat)}$", f"$\\frac{{1}}{{{-det}}}{mat_to_latex(adj_mat)}$"}
 
-    return {"question": question, "options": _finalize_options(options), "answer": answer, "hint": hint, "explanation": explanation}
+    return {"question": question, "options": _finalize_options(options), "answer": answer, "hint": hint, "explanation": explanation, "difficulty": difficulty}
 
-def _generate_logarithms_question():
-    """Generates a multi-subtopic question for Logarithms."""
-    # Subtopics: Conversion, Laws, Solving Equations, Change of Base
-    q_type = random.choice(['conversion', 'laws', 'solve_simple', 'solve_combine'])
+def _generate_logarithms_question(difficulty="Medium"):
+    """Generates a Logarithms question based on difficulty, preserving all original sub-types."""
+    
+    if difficulty == "Easy":
+        # Foundational concepts: converting forms and solving simple logs.
+        q_type = random.choice(['conversion', 'solve_simple'])
+    elif difficulty == "Medium":
+        # Applying the core laws of logarithms.
+        q_type = 'laws'
+    else: # Hard
+        # Combining laws with algebraic solving.
+        q_type = 'solve_combine'
+
     question, answer, hint, explanation = "", "", "", ""
     options = set()
 
+    # --- Easy Questions ---
     if q_type == 'conversion':
         base = random.randint(2, 5)
         exponent = random.randint(2, 4)
         result = base ** exponent
-        
         form_a, form_b = f"${base}^{{{exponent}}} = {result}$", f"$\\log_{{{base}}}({result}) = {exponent}$"
         
         if random.choice([True, False]):
@@ -2521,21 +2627,9 @@ def _generate_logarithms_question():
             question = f"Express the equation {form_b} in exponential form."
             answer = form_a
             options = {answer, f"${exponent}^{{{base}}} = {result}$", f"${result}^{{{exponent}}} = {base}$"}
-
+            
         hint = "Remember the relationship: $\log_b(N) = x$ is the same as $b^x = N$."
-        explanation = f"The base of the logarithm (${base}$) becomes the base of the power. The result of the logarithm (${exponent}$) becomes the exponent. So, {form_b} is equivalent to {form_a}."
-
-    elif q_type == 'laws':
-        val1, val2 = random.randint(2, 10), random.randint(2, 10)
-        op, sym, res, rule_name = random.choice([
-            ('add', '+', f"\\log({val1*val2})", "Product Rule"),
-            ('subtract', '-', f"\\log(\\frac{{{val1}}}{{{val2}}})", "Quotient Rule")
-        ])
-        question = f"Simplify the expression: $\\log({val1}) {sym} \\log({val2})$"
-        answer = f"${res}$"
-        hint = f"Recall the {rule_name} for logarithms: $\log(A) + \log(B) = \log(AB)$ and $\log(A) - \log(B) = \log(A/B)$."
-        explanation = f"Using the {rule_name}, $\\log({val1}) {sym} \\log({val2})$ simplifies to ${res}$."
-        options = {answer, f"$\\log({val1+val2})$", f"$\\frac{{\\log({val1})}}{{\\log({val2})}}$"}
+        explanation = f"The base of the logarithm (${base}$) becomes the base of the power. The result of the logarithm (${exponent}$) becomes the exponent. The two forms are equivalent."
 
     elif q_type == 'solve_simple':
         base = random.randint(2, 4)
@@ -2543,31 +2637,57 @@ def _generate_logarithms_question():
         x_val = base ** result
         question = f"Solve for x: $\\log_{{{base}}}(x) = {result}$"
         answer = str(x_val)
-        hint = "Convert the logarithmic equation to its equivalent exponential form."
+        hint = "Convert the logarithmic equation to its equivalent exponential form to solve for x."
         explanation = f"1. The equation is $\\log_{{{base}}}(x) = {result}$.\n\n2. In exponential form, this is $x = {base}^{{{result}}}$.\n\n3. Therefore, $x = {x_val}$."
         options = {answer, str(base*result), str(result**base)}
 
+    # --- Medium Question ---
+    elif q_type == 'laws':
+        val1, val2 = random.randint(2, 10), random.randint(2, 10)
+        op, sym, res, rule_name = random.choice([
+            ('add', '+', f"\\log({val1*val2})", "Product Rule"),
+            ('subtract', '-', f"\\log(\\frac{{{val1}}}{{{val2}}})", "Quotient Rule")
+        ])
+        question = f"Use the laws of logarithms to simplify the expression: $\\log({val1}) {sym} \\log({val2})$"
+        answer = f"${res}$"
+        hint = f"Recall the {rule_name} for logarithms: $\log(A) + \log(B) = \log(AB)$ and $\log(A) - \log(B) = \log(A/B)$."
+        explanation = f"Using the {rule_name}, $\\log({val1}) {sym} \\log({val2})$ simplifies directly to ${res}$."
+        options = {answer, f"$\\log({val1+val2})$", f"$\\frac{{\\log({val1})}}{{\\log({val2})}}$"}
+
+    # --- Hard Question ---
     elif q_type == 'solve_combine':
-        x_val = random.randint(3, 6)
-        # We need log(x) + log(x-2) = log(x*(x-2)) = log(15) => x^2 - 2x - 15 = 0 => (x-5)(x+3)=0. x=5
-        a, b = x_val, random.randint(1, x_val-1) # x, x-b
-        result = a * (a-b)
+        x_val = random.randint(3, 8)
+        b = random.randint(1, x_val - 1)
+        result = x_val * (x_val - b)
         question = f"Solve for x: $\\log(x) + \\log(x - {b}) = \\log({result})$"
         answer = str(x_val)
-        hint = "First, use the product rule to combine the logarithms on the left side."
+        hint = "First, use the product rule to combine the logarithms on the left side into a single logarithm."
         explanation = (f"1. Combine the logs on the left: $\\log(x(x-{b})) = \\log({result})$.\n\n"
-                       f"2. Since the logs are equal, their arguments are equal: $x^2 - {b}x = {result}$.\n\n"
+                       f"2. Since the logs (with the same base) are equal, their arguments must be equal: $x^2 - {b}x = {result}$.\n\n"
                        f"3. Rearrange into a quadratic equation: $x^2 - {b}x - {result} = 0$.\n\n"
                        f"4. Factor the quadratic: $(x - {x_val})(x + {x_val-b}) = 0$.\n\n"
-                       f"5. The possible solutions are $x={x_val}$ and $x={-(x_val-b)}$. Since the logarithm of a negative number is undefined, the only valid solution is $x={x_val}$.")
+                       f"5. The possible solutions are $x={x_val}$ and $x={-(x_val-b)}$. Since the logarithm of a negative number is undefined in this context, the only valid solution is $x={x_val}$.")
         options = {answer, str(-(x_val-b)), str(result+b)}
         
-    return {"question": question, "options": _finalize_options(options), "answer": answer, "hint": hint, "explanation": explanation}
+    return {"question": question, "options": _finalize_options(options), "answer": answer, "hint": hint, "explanation": explanation, "difficulty": difficulty}
 
-def _generate_probability_question():
-    """Generates a multi-subtopic question for Probability."""
-    q_type = random.choice(['simple', 'combined', 'conditional'])
+def _generate_probability_question(difficulty="Medium"):
+    """Generates a Probability question based on difficulty, preserving all original sub-types."""
+
+    if difficulty == "Easy":
+        # The most fundamental probability calculation.
+        q_type = 'simple'
+    elif difficulty == "Medium":
+        # Involves the union of two events.
+        q_type = 'combined'
+    else: # Hard
+        # Involves dependent, conditional events.
+        q_type = 'conditional'
+
+    question, answer, hint, explanation = "", "", "", ""
+    options = set()
     
+    # --- Easy Question ---
     if q_type == 'simple':
         red = random.randint(3, 8)
         blue = random.randint(3, 8)
@@ -2579,23 +2699,25 @@ def _generate_probability_question():
         answer_frac = Fraction(num_chosen, total)
         answer = _format_fraction_text(answer_frac)
         hint = "Probability = (Number of favorable outcomes) / (Total number of possible outcomes)."
-        explanation = f"There are {num_chosen} {chosen_color} balls and a total of {total} balls. So, P({chosen_color}) = ${_get_fraction_latex_code(answer_frac)}$."
-        options = {answer, _format_fraction_text(Fraction(red if chosen_color=='blue' else blue, total))}
+        explanation = f"There are {num_chosen} {chosen_color} balls and a total of {total} balls in the bag. So, the probability of picking a {chosen_color} ball is P({chosen_color}) = ${_get_fraction_latex_code(answer_frac)}$."
+        options = {answer, _format_fraction_text(Fraction(red if chosen_color=='blue' else blue, total)), "1/2"}
 
+    # --- Medium Question ---
     elif q_type == 'combined':
-        # Probability of A or B (mutually exclusive)
         die_faces = {1, 2, 3, 4, 5, 6}
         evens = {2, 4, 6}
         greater_than_4 = {5, 6}
+        # The union of these two sets are the favorable outcomes
         union = evens.union(greater_than_4)
         
-        question = "A fair six-sided die is rolled. What is the probability of rolling an even number or a number greater than 4?"
+        question = "A fair six-sided die is rolled once. What is the probability of rolling an even number or a number greater than 4?"
         answer_frac = Fraction(len(union), 6)
         answer = _format_fraction_text(answer_frac)
-        hint = "Find the set of outcomes for each event and take their union. Be careful not to double-count."
-        explanation = f"Event A (even) = {evens}. Event B (>4) = {greater_than_4}.\nThe combined event A or B is {union}, which has {len(union)} outcomes.\nTotal outcomes = 6.\nProbability = ${_get_fraction_latex_code(answer_frac)}$."
-        options = {answer, _format_fraction_text(Fraction(len(evens)+len(greater_than_4), 6))}
+        hint = "Find the set of outcomes for each event, then find their union. Be careful not to double-count outcomes that satisfy both conditions."
+        explanation = f"Event A (even) = {evens}. Event B (>4) = {greater_than_4}.\nThe combined event 'A or B' is the union of these sets: {union}, which has {len(union)} favorable outcomes.\nSince there are 6 total outcomes on a die, the probability is ${_get_fraction_latex_code(answer_frac)}$."
+        options = {answer, _format_fraction_text(Fraction(len(evens)+len(greater_than_4), 6)), _format_fraction_text(Fraction(len(evens), 6))}
 
+    # --- Hard Question ---
     elif q_type == 'conditional':
         black = random.randint(3, 6)
         white = random.randint(3, 6)
@@ -2603,422 +2725,412 @@ def _generate_probability_question():
         question = f"A box in a shop in Kumasi contains {black} black pens and {white} white pens. Two pens are drawn one after the other **without replacement**. What is the probability that both are white?"
         prob_frac = Fraction(white, total) * Fraction(white - 1, total - 1)
         answer = _format_fraction_text(prob_frac)
-        hint = "Calculate the probability of the first event, then the probability of the second event given the first has occurred, and multiply them."
-        explanation = f"P(1st is white) = $\\frac{{{white}}}{{{total}}}$.\nAfter drawing one white pen, there are {white-1} white pens and {total-1} total pens left.\nP(2nd is white) = $\\frac{{{white-1}}}{{{total-1}}}$.\nTotal Probability = $\\frac{{{white}}}{{{total}}} \\times \\frac{{{white-1}}}{{{total-1}}} = {_get_fraction_latex_code(prob_frac)}$."
-        options = {answer, _format_fraction_text(Fraction(white,total) * Fraction(white, total))}
+        hint = "Calculate the probability of the first event, then the probability of the second event *given the first has occurred*, and multiply them."
+        explanation = f"The probability that the first pen is white is P(1st is white) = $\\frac{{{white}}}{{{total}}}$.\nAfter drawing one white pen, there are now {white-1} white pens and {total-1} total pens left.\nThe probability that the second pen is also white is P(2nd is white) = $\\frac{{{white-1}}}{{{total-1}}}$.\nThe total probability is the product of these two: $\\frac{{{white}}}{{{total}}} \\times \\frac{{{white-1}}}{{{total-1}}} = {_get_fraction_latex_code(prob_frac)}$."
+        # Distractor represents the case 'with replacement'
+        options = {answer, _format_fraction_text(Fraction(white,total) * Fraction(white, total)), _format_fraction_text(Fraction(white-1, total-1))}
 
-    return {"question": question, "options": _finalize_options(options, "fraction"), "answer": answer, "hint": hint, "explanation": explanation}
+    return {"question": question, "options": _finalize_options(options, "fraction"), "answer": answer, "hint": hint, "explanation": explanation, "difficulty": difficulty}
 
-def _generate_binomial_theorem_question():
-    """Generates a question for the Binomial Theorem."""
-    # --- IMPROVEMENT: This version now displays a full, formatted Pascal's Triangle. ---
-    
-    q_type = random.choice(['find_coefficient', 'find_term'])
-    n = random.randint(5, 10)
-    a, b = random.randint(1, 4), random.randint(1, 4)
-    
+def _generate_binomial_theorem_question(difficulty="Medium"):
+    """Generates a Binomial Theorem question based on difficulty, preserving all original sub-types."""
+
+    if difficulty == "Easy":
+        # A new, foundational question type to test direct reading of Pascal's Triangle.
+        q_type = 'pascal_read'
+    elif difficulty == "Medium":
+        # Your original 'find_coefficient' question.
+        q_type = 'find_coefficient'
+    else: # Hard
+        # Your original 'find_term' question.
+        q_type = 'find_term'
+
     question, answer, hint, explanation = "", "", "", ""
     options = set()
     
-    # Generate both the formatted triangle string and the last row for calculations
-    pascals_triangle_str, pascals_row = _generate_pascal_data(n)
-    
-    if q_type == 'find_coefficient':
+    # --- Easy Question ---
+    if q_type == 'pascal_read':
+        n = random.randint(3, 5)
+        pascal_str, pascal_row = _generate_pascal_data(n)
+        k = random.randint(1, n-1) # Ask for the 2nd, 3rd, or 4th coefficient etc.
+        term_ord = {1: "2nd", 2: "3rd", 3: "4th", 4: "5th"}.get(k, f"{k+1}th")
+        question = f"Using Pascal's Triangle, what is the **{term_ord}** coefficient in the expansion of $(a+b)^{n}$?"
+        answer = str(pascal_row[k])
+        hint = "The coefficients for the expansion of $(a+b)^n$ are found in the row of Pascal's Triangle that starts with 1, n, ..."
+        explanation = f"Pascal's Triangle up to row {n} is:\n{pascal_str}\nThe row for n={n} is `{pascal_row}`. The {term_ord} number in that list is **{answer}**."
+        options = set(str(c) for c in pascal_row)
+        options.add(answer)
+
+    # --- Medium Question ---
+    elif q_type == 'find_coefficient':
+        n = random.randint(4, 7)
+        a, b = random.randint(1, 4), random.randint(1, 4)
         k = random.randint(2, n - 2)
         question = f"Find the coefficient of the $x^{{{k}}}$ term in the expansion of $({a}x + {b})^{{{n}}}$."
         coefficient = math.comb(n, k) * (a**k) * (b**(n-k))
         answer = str(coefficient)
-        hint = f"Use Pascal's Triangle or the formula $\\binom{{n}}{{k}} a^{{n-k}} b^k$ to find the coefficient."
-        
+        hint = f"Use the binomial formula for a specific term: $\\binom{{n}}{{k}} (ax)^k b^{{n-k}}$. Here, n={n} and k={k}."
+        explanation = (f"The term containing $x^{k}$ is given by the formula $T_{k+1} = \\binom{{n}}{{k}} (ax)^k b^{{n-k}}$.\n"
+                       f"The coefficient part is $\\binom{{{n}}}{{{k}}} a^k b^{{n-k}}$.\n"
+                       f"$= {math.comb(n, k)} \\times {a}^{{{k}}} \\times {b}^{{{n-k}}} = {answer}$."
+                      )
         distractor1 = str(math.comb(n, k) * (a**k))
         distractor2 = str(math.comb(n, k))
         options = {answer, distractor1, distractor2}
 
-        coefficient_from_pascal = pascals_row[k]
-        explanation = (f"The coefficients for an expansion to the power of ${n}$ can be found in Pascal's Triangle:\n\n"
-                       f"{pascals_triangle_str}\n\n"
-                       f"The term with $x^{{{k}}}$ is the ${k+1}$th term in the expansion. From row ${n}$ above, the ${k+1}$th coefficient is **{coefficient_from_pascal}**.\n\n"
-                       f"This value corresponds to the binomial coefficient formula: $\\binom{{{n}}}{{{k}}} = {math.comb(n, k)}$.\n\n"
-                       f"Finally, the full coefficient is $\\binom{{{n}}}{{{k}}} \\times a^k \\times b^{{n-k}} = {coefficient_from_pascal} \\times {a}^{k} \\times {b}^{{{n-k}}} = {answer}$."
-                      )
-
+    # --- Hard Question ---
     elif q_type == 'find_term':
+        n = random.randint(5, 8)
+        a, b = random.randint(1, 4), random.randint(1, 4)
         r = random.randint(2, n - 1)
         k = r - 1
-        
-        question = f"Find the ${r}$th term in the expansion of $({a}x + {b})^{{{n}}}$."
+        question = f"Find the **{r}th term** in the expansion of $({a}x + {b})^{{{n}}}$."
         term_coeff = math.comb(n, k) * (a**k) * (b**(n-k))
-        term_power = k
-        answer = f"${term_coeff}x^{{{term_power}}}$"
-        hint = f"For the {r}th term, use the {r}th number from the {n}th row of Pascal's Triangle as your base coefficient."
-        
+        answer = f"${term_coeff}x^{{{k}}}$"
+        hint = f"The r-th term is given by the formula $T_r = \\binom{{n}}{{r-1}} (ax)^{{r-1}} b^{{n-(r-1)}}$."
+        explanation = (f"To find the {r}th term, we use an index of $k = r-1 = {k}$.\n"
+                       f"The term is given by the formula $T_{r} = \\binom{{n}}{{k}}(ax)^{k}(b)^{{n-k}}$.\n"
+                       f"$= \\binom{{{n}}}{{{k}}} ({a}x)^{{{k}}} ({b})^{{{n-k}}}$\n"
+                       f"$= {math.comb(n, k)} \\times {a**k}x^{k} \\times {b**(n-k)}$\n"
+                       f"$= {term_coeff}x^{{{k}}}$."
+                       )
         distractor_coeff = math.comb(n, r) * (a**r) * (b**(n-r)) if r < n else math.comb(n, k) * (a**k)
         distractor = f"${distractor_coeff}x^{{{r}}}$"
-        options = {answer, distractor}
+        options = {answer, distractor, f"${term_coeff}x^{{{r}}}$"}
 
-        coefficient_from_pascal = pascals_row[k]
-        explanation = (f"The coefficients for an expansion to the power of ${n}$ can be found in Pascal's Triangle:\n\n"
-                       f"{pascals_triangle_str}\n\n"
-                       f"For the **${r}$th term**, we use the ${r}$th coefficient from row ${n}$ above, which is **{coefficient_from_pascal}**. (This corresponds to an index of $k={r-1}={k}$).\n\n"
-                       f"This base coefficient is calculated using the formula $\\binom{{{n}}}{{{k}}} = {math.comb(n, k)}$.\n\n"
-                       f"The full term is $\\binom{{{n}}}{{{k}}}(ax)^{k}(b)^{{n-k}} = {coefficient_from_pascal} \\times ({a}x)^{{{k}}} \\times ({b})^{{{n-k}}} = {answer}$."
-                       )
+    return {"question": question, "options": _finalize_options(options), "answer": answer, "hint": hint, "explanation": explanation, "difficulty": difficulty}
+def _generate_polynomial_functions_question(difficulty="Medium"):
+    """Generates a Polynomial Functions question based on difficulty, preserving all original sub-types."""
 
-    return {"question": question, "options": _finalize_options(options), "answer": answer, "hint": hint, "explanation": explanation}
+    if difficulty == "Easy":
+        # Direct application of the Remainder Theorem.
+        q_type = 'remainder_theorem'
+    elif difficulty == "Medium":
+        # Using the Factor Theorem to find an unknown.
+        q_type = 'factor_theorem'
+    else: # Hard
+        # A multi-step problem combining the Factor Theorem with solving a quadratic.
+        q_type = 'find_all_roots'
 
-def _generate_polynomial_functions_question():
-    """Generates a question for Polynomial Functions."""
-    q_type = random.choice(['remainder_theorem', 'factor_theorem'])
-    
+    question, answer, hint, explanation = "", "", "", ""
+    options = set()
+
+    # --- Easy Question ---
     if q_type == 'remainder_theorem':
         a, b, c, d = [random.randint(-5, 5) for _ in range(4)]
+        while a == 0: a = random.randint(-5, 5) # Ensure it's a cubic
         divisor_root = random.randint(-3, 3)
         question = f"Find the remainder when the polynomial $P(x) = {a}x^3 + {b}x^2 + {c}x + {d}$ is divided by $(x - {divisor_root})$."
         # Remainder is P(divisor_root)
         remainder = a*(divisor_root**3) + b*(divisor_root**2) + c*divisor_root + d
         answer = str(remainder)
-        hint = f"According to the Remainder Theorem, the remainder when $P(x)$ is divided by $(x-a)$ is $P(a)$. Here, a = {divisor_root}."
+        hint = f"According to the Remainder Theorem, the remainder when $P(x)$ is divided by $(x-a)$ is simply $P(a)$. In this case, a = {divisor_root}."
         explanation = f"We need to evaluate $P({divisor_root})$:\n$P({divisor_root}) = {a}({divisor_root})^3 + {b}({divisor_root})^2 + {c}({divisor_root}) + {d} = {remainder}$."
         options = {answer, str(d), str(a+b+c+d)}
 
+    # --- Medium Question ---
     elif q_type == 'factor_theorem':
         root = random.randint(1, 3)
         a, c, d = random.randint(1, 3), random.randint(1, 5), random.randint(1, 10)
-        # P(root) = a*root^3 + k*root^2 + c*root + d = 0
-        # k*root^2 = -(a*root^3 + c*root + d)
+        # We set P(root) = 0 and solve for k: k = -(a*root^3 + c*root + d) / root^2
+        # We need the numerator to be divisible by root^2 for a clean integer k
+        while (a*(root**3) + c*root + d) % (root**2) != 0:
+            a, c, d = random.randint(1, 3), random.randint(1, 5), random.randint(1, 10)
         k = - (a*(root**3) + c*root + d) // (root**2)
-        while k == 0: k = random.randint(-3, 3)
-        
-        # Verify P(root) is 0
-        p_val = a*(root**3) + k*(root**2) + c*root + d
-        if p_val != 0: return _generate_polynomial_functions_question() # Regenerate if numbers don't work out
+        if k == 0: return _generate_polynomial_functions_question(difficulty=difficulty) # Regenerate for non-trivial k
         
         question = f"Given that $(x - {root})$ is a factor of the polynomial $P(x) = {a}x^3 + kx^2 + {c}x + {d}$, find the value of the constant $k$."
         answer = str(k)
-        hint = f"By the Factor Theorem, if $(x-a)$ is a factor of $P(x)$, then $P(a) = 0$. Solve for $k$."
+        hint = f"By the Factor Theorem, if $(x-a)$ is a factor of $P(x)$, then $P(a) = 0$. Set $P({root}) = 0$ and solve for $k$."
         explanation = f"Since $(x - {root})$ is a factor, we know that $P({root}) = 0$.\n$P({root}) = {a}({root})^3 + k({root})^2 + {c}({root}) + {d} = 0$.\n${a*root**3} + {k*root**2}k + {c*root+d} = 0$.\n${k*root**2}k = -({a*root**3 + c*root+d})$.\n$k = {- (a*root**3 + c*root+d)} / {root**2} = {k}$."
-        options = {answer, str(-k), str(root)}
-
-    return {"question": question, "options": _finalize_options(options), "answer": answer, "hint": hint, "explanation": explanation}
-
-# Helper functions for formatting and polynomial math
-def _poly_to_str(coeffs, var='x'):
-    """Converts a list of coefficients like [1, -2, 3] to a string 'x^2 - 2x + 3'."""
-    parts = []
-    for i, c in enumerate(coeffs):
-        if c == 0: continue
-        power = len(coeffs) - 1 - i
+        options = {answer, str(-k), str(root), str(a+c+d)}
         
-        # Coefficient string
-        if abs(c) == 1 and power != 0:
-            c_str = "" if c > 0 else "-"
-        else:
-            c_str = str(c)
-            
-        # Variable and power string
-        if power == 0:
-            var_str = ""
-        elif power == 1:
-            var_str = var
-        else:
-            var_str = f"{var}^{{{power}}}"
-            
-        parts.append(f"{c_str}{var_str}")
+    # --- Hard Question ---
+    elif q_type == 'find_all_roots':
+        r1, r2, r3 = random.sample(range(-4, 5), 3)
+        while 0 in [r1, r2, r3]: r1, r2, r3 = random.sample(range(-4, 5), 3) # Avoid zero roots for simplicity
+        # P(x) = (x-r1)(x-r2)(x-r3) = x^3 - (r1+r2+r3)x^2 + (r1r2+r1r3+r2r3)x - r1r2r3
+        b = -(r1 + r2 + r3)
+        c = (r1*r2 + r1*r3 + r2*r3)
+        d = -(r1*r2*r3)
+        poly_str = f"x^3 {'+' if b >= 0 else ''} {b}x^2 {'+' if c >= 0 else ''} {c}x {'+' if d >= 0 else ''} {d}"
+        given_factor_root = r1
         
-    return " + ".join(parts).replace("+ -", "- ")
+        question = f"Given that $(x - {given_factor_root})$ is a factor of the polynomial $P(x) = {poly_str}$, find all the roots of the equation $P(x) = 0$."
+        all_roots = sorted([r1, r2, r3])
+        answer = f"x = {all_roots[0]}, {all_roots[1]}, {all_roots[2]}"
+        hint = "Use the given factor to perform polynomial long division (or synthetic division) on P(x). Then, solve the resulting quadratic equation to find the other two roots."
+        explanation = (f"1. We know $x={given_factor_root}$ is one root.\n"
+                       f"2. Dividing $P(x)$ by $(x - {given_factor_root})$ gives the quadratic factor $x^2 - ({r2+r3})x + {r2*r3} = 0$.\n"
+                       f"3. Factoring this quadratic gives $(x - {r2})(x - {r3}) = 0$, so the other roots are $x={r2}$ and $x={r3}$.\n"
+                       f"4. The complete set of roots is ${answer}$.")
+        options = {answer, f"x = {r1}, {-r2}, {-r3}", f"x = {b}, {c}, {d}"}
 
-def _poly_long_division(N, D):
-    """Performs long division for N(x) / D(x) where D(x) is linear (x-r)."""
-    if len(D) != 2 or D[0] != 1: return None, None # Only handles x-r form
-    if len(N) != 3: return None, None # Only handles quadratic numerator
-    
-    a, b, c = N
-    r = -D[1]
-    
-    # From synthetic division
-    q_c1 = a
-    q_c2 = b + a * r
-    remainder = c + q_c2 * r
-    
-    return [q_c1, q_c2], [remainder]
+    return {"question": question, "options": _finalize_options(options), "answer": answer, "hint": hint, "explanation": explanation, "difficulty": difficulty}
 
+def _generate_rational_functions_question(difficulty="Medium"):
+    """Generates a Rational Functions question based on difficulty, preserving all original sub-types."""
 
-def _generate_rational_functions_question():
-    """Generates a multi-subtopic question for Rational Functions."""
+    if difficulty == "Easy":
+        # Foundational skills: simplifying and solving simple rational equations.
+        q_type = random.choice(['simplify_expression', 'solve_equation'])
+    elif difficulty == "Medium":
+        # Core concepts of identifying key features from the equation.
+        q_type = random.choice(['domain', 'vertical_asymptotes', 'horizontal_asymptotes'])
+    else: # Hard
+        # More complex analysis requiring multiple steps (factoring, division).
+        q_type = random.choice(['find_holes', 'slant_asymptotes'])
 
-    q_type = random.choice([
-        'domain', 'vertical_asymptotes', 'horizontal_asymptotes', 
-        'slant_asymptotes', 'find_holes', 'simplify_expression', 'solve_equation'
-    ])
     question, answer, hint, explanation = "", "", "", ""
     options = set()
 
-    if q_type in ['domain', 'vertical_asymptotes']:
-        r1, r2 = random.sample(range(-5, 6), 2)
-        n_r = r1 + 1 if r1 != r2 -1 else r1 + 2 # Ensure numerator root is different
-        
-        num_poly = [1, -n_r] # (x - n_r)
-        den_poly = [1, -(r1+r2), r1*r2] # (x - r1)(x - r2)
-        
+    # --- Easy Questions ---
+    if q_type == 'simplify_expression':
+        hole_root, num_root, den_root = random.sample(range(-5, 6), 3)
+        while hole_root == 0 or num_root == 0 or den_root == 0: hole_root, num_root, den_root = random.sample(range(-5, 6), 3)
+        # Numerator: (x - hole_root)(x - num_root)
+        num_poly = [1, -(hole_root + num_root), hole_root * num_root]
+        # Denominator: (x - hole_root)(x - den_root)
+        den_poly = [1, -(hole_root + den_root), hole_root * den_root]
         func_str = f"f(x) = \\frac{{{_poly_to_str(num_poly)}}}{{{_poly_to_str(den_poly)}}}"
-        
+        question = f"Simplify the rational expression completely: ${func_str}$"
+        answer = f"$\\frac{{x {'-' if num_root > 0 else '+'} {abs(num_root)}}}{{x {'-' if den_root > 0 else '+'} {abs(den_root)}}}$"
+        hint = "Factor both the numerator and the denominator, then cancel any common factors."
+        explanation = f"1. Factored form: $f(x) = \\frac{{(x - {hole_root})(x - {num_root})}}{{(x - {hole_root})(x - {den_root})}}$.\n\n2. Cancel the common factor $(x - {hole_root})$.\n\n3. The simplified expression is **{answer}**."
+        options = {answer, f"$\\frac{{x - {hole_root}}}{{x - {den_root}}}$"}
+
+    elif q_type == 'solve_equation':
+        b, c, x_sol = random.sample(range(-5, 6), 3)
+        while x_sol == b: x_sol = random.randint(-5, 6) # Ensure solution is not extraneous
+        a = c * (x_sol - b)
+        if a==0 or c==0: return _generate_rational_functions_question(difficulty=difficulty)
+        question = f"Solve for x: $\\frac{{{a}}}{{x - {b}}} = {c}$"
+        answer = str(x_sol)
+        hint = "Multiply both sides by the denominator to eliminate the fraction, then solve the resulting linear equation."
+        explanation = f"1. Multiply both sides by $(x - {b})$: ${a} = {c}(x - {b})$.\n\n2. Distribute: ${a} = {c}x - {c*b}$.\n\n3. Solve for x: ${c}x = {a} + {c*b} \\implies x = \\frac{{{a+c*b}}}{{{c}}} = {x_sol}$.\n\n4. Check: The solution $x={x_sol}$ does not make the original denominator zero, so it is a valid solution."
+        options = {answer, str(b), str(x_sol+1)}
+
+    # --- Medium Questions ---
+    elif q_type in ['domain', 'vertical_asymptotes']:
+        r1, r2 = random.sample(range(-5, 6), 2)
+        n_r = r1 + 1 if r1 != r2 -1 else r1 + 2
+        num_poly = [1, -n_r]; den_poly = [1, -(r1+r2), r1*r2]
+        func_str = f"f(x) = \\frac{{{_poly_to_str(num_poly)}}}{{{_poly_to_str(den_poly)}}}"
         if q_type == 'domain':
             question = f"Find the domain of the function: ${func_str}$"
             answer = f"All real numbers except $x={r1}$ and $x={r2}$"
             hint = "The domain includes all real numbers except for the values of x that make the denominator equal to zero."
-            explanation = f"1. Set the denominator to zero: ${_poly_to_str(den_poly)} = 0$.\n\n2. Factor the denominator: $(x - {r1})(x - {r2}) = 0$.\n\n3. The values that make the denominator zero are $x={r1}$ and $x={r2}$. The function is undefined at these points."
-            options = {answer, f"All real numbers except $x={n_r}$"}
+            explanation = f"1. Set the denominator to zero: ${_poly_to_str(den_poly)} = 0$.\n\n2. Factor: $(x - {r1})(x - {r2}) = 0$.\n\n3. The function is undefined at $x={r1}$ and $x={r2}$."
+            options = {answer, f"All real numbers except $x={n_r}$", f"All real numbers"}
         else: # vertical_asymptotes
             question = f"Find the equations of the vertical asymptotes for the function: ${func_str}$"
             answer = f"$x={r1}, x={r2}$"
-            hint = "Vertical asymptotes occur at the x-values where the denominator is zero, provided the factors don't cancel with the numerator."
-            explanation = f"1. Simplify the function. No factors cancel.\n\n2. Set the denominator to zero: $(x - {r1})(x - {r2}) = 0$.\n\n3. The vertical asymptotes are the lines $x={r1}$ and $x={r2}$."
+            hint = "Vertical asymptotes occur at the x-values where the denominator is zero (and the factor does not cancel)."
+            explanation = f"1. Since no factors cancel, we set the denominator to zero: $(x - {r1})(x - {r2}) = 0$.\n\n2. The vertical asymptotes are the lines $x={r1}$ and $x={r2}$."
             options = {answer, f"$y={r1}, y={r2}$", f"$x={n_r}$"}
 
     elif q_type == 'horizontal_asymptotes':
         case = random.choice(['top_less', 'equal', 'top_greater'])
-        if case == 'top_less':
-            num_poly = [random.randint(1, 5)]
-            den_poly = [random.randint(1, 3), random.randint(1, 5), random.randint(1, 5)]
-            answer = "$y=0$"
-            hint = "Compare the degree of the numerator and the denominator. If the denominator's degree is greater, the horizontal asymptote is y=0."
-        elif case == 'equal':
+        if case == 'top_less': # Degree of Numerator < Degree of Denominator
+            num_poly, den_poly = [random.randint(1, 5)], [random.randint(1, 3), random.randint(1, 5), random.randint(1, 5)]
+            answer, hint = "$y=0$", "If the denominator's degree is greater, the horizontal asymptote is y=0."
+        elif case == 'equal': # Degrees are equal
             c1, c2 = random.randint(1, 6), random.randint(1, 6)
-            num_poly = [c1, random.randint(1, 5)]
-            den_poly = [c2, random.randint(1, 5)]
+            num_poly, den_poly = [c1, random.randint(1, 5)], [c2, random.randint(1, 5)]
             ha = Fraction(c1, c2)
-            answer = f"$y = {_get_fraction_latex_code(ha)}$"
-            hint = "If the degrees are equal, the horizontal asymptote is the ratio of the leading coefficients."
+            answer, hint = f"$y = {_get_fraction_latex_code(ha)}$", "If degrees are equal, the asymptote is the ratio of the leading coefficients."
         else: # top_greater
-            num_poly = [random.randint(1, 3), random.randint(1, 5), random.randint(1, 5)]
-            den_poly = [random.randint(1, 5), random.randint(1, 5)]
-            answer = "None"
-            hint = "If the degree of the numerator is greater than the degree of the denominator, there is no horizontal asymptote."
-        
+            num_poly, den_poly = [random.randint(1, 3), random.randint(1, 5), random.randint(1, 5)], [random.randint(1, 5), random.randint(1, 5)]
+            answer, hint = "None", "If the numerator's degree is greater, there is no horizontal asymptote (but there may be a slant one)."
         func_str = f"f(x) = \\frac{{{_poly_to_str(num_poly)}}}{{{_poly_to_str(den_poly)}}}"
         question = f"Find the equation of the horizontal asymptote for the function: ${func_str}$"
-        explanation = f"We compare the degree of the numerator (top) and the denominator (bottom).\n\nIn this case, {hint} Therefore, the horizontal asymptote is **{answer}**."
+        explanation = f"We compare the degree of the numerator and the denominator. {hint} Therefore, the horizontal asymptote is **{answer}**."
         options = {"$y=0$", "$y=1$", "None", answer}
+
+    # --- Hard Questions ---
+    elif q_type == 'find_holes':
+        hole_root, num_root, den_root = random.sample(range(-5, 6), 3)
+        num_poly = [1, -(hole_root + num_root), hole_root * num_root]
+        den_poly = [1, -(hole_root + den_root), hole_root * den_root]
+        func_str = f"f(x) = \\frac{{{_poly_to_str(num_poly)}}}{{{_poly_to_str(den_poly)}}}"
+        y_hole = Fraction(hole_root - num_root, hole_root - den_root)
+        question = f"Find the coordinates of the hole (removable discontinuity) in the graph of: ${func_str}$"
+        answer = f"$({hole_root}, {_get_fraction_latex_code(y_hole)})$"
+        hint = "Factor the numerator and denominator. The cancelled factor gives the x-coordinate of the hole. Plug this x-value into the simplified function to find the y-coordinate."
+        explanation = f"1. Factor: $f(x) = \\frac{{(x - {hole_root})(x - {num_root})}}{{(x - {hole_root})(x - {den_root})}}$.\n\n2. The common factor $(x-{hole_root})$ creates a hole at $x={hole_root}$.\n\n3. Use the simplified function $g(x) = \\frac{{x - {num_root}}}{{x - {den_root}}}$ to find the y-coordinate: $g({hole_root}) = \\frac{{{hole_root} - {num_root}}}{{{hole_root} - {den_root}}} = {_get_fraction_latex_code(y_hole)}$.\n\n4. The hole is at **{answer}**."
+        options = {answer, f"$x = {hole_root}$", f"$x = {den_root}$"}
 
     elif q_type == 'slant_asymptotes':
         r1 = random.randint(-4, 4)
         a, b = random.randint(1, 3), random.randint(-3, 3)
         k = random.randint(1, 5) # Remainder
-        
         den_poly = [1, -r1] # (x - r1)
         quotient_poly = [a, b] # ax + b
-        
-        # N(x) = (x-r1)(ax+b) + k = ax^2 + (b-ar1)x - br1 + k
         num_poly = [a, b - a*r1, -b*r1 + k]
-        
         func_str = f"f(x) = \\frac{{{_poly_to_str(num_poly)}}}{{{_poly_to_str(den_poly)}}}"
         question = f"Find the equation of the slant (oblique) asymptote for the function: ${func_str}$"
         answer = f"$y = {_poly_to_str(quotient_poly)}$"
         hint = "A slant asymptote exists when the degree of the numerator is exactly one greater than the denominator. Use polynomial long division to find it."
-        explanation = f"To find the slant asymptote, we divide the numerator by the denominator.\n\n$({_poly_to_str(num_poly)}) \\div ({_poly_to_str(den_poly)})$ gives a quotient of $({_poly_to_str(quotient_poly)})$ and a remainder of ${k}$.\n\nThe slant asymptote is the quotient: **{answer}**."
-        options = {answer, f"$y = {_poly_to_str([a,b+1])}$"}
+        explanation = f"To find the slant asymptote, we divide the numerator by the denominator.\n\n$({_poly_to_str(num_poly)}) \\div ({_poly_to_str(den_poly)})$ gives a quotient of $({_poly_to_str(quotient_poly)})$ and a remainder of ${k}$.\n\nThe slant asymptote is the quotient part: **{answer}**."
+        options = {answer, f"$y = {_poly_to_str([a,b+1])}$", f"y = {a}x"}
 
-    elif q_type in ['find_holes', 'simplify_expression']:
-        hole_root, num_root, den_root = random.sample(range(-5, 6), 3)
-        
-        # Numerator: (x - hole_root)(x - num_root)
-        num_poly = [1, -(hole_root + num_root), hole_root * num_root]
-        # Denominator: (x - hole_root)(x - den_root)
-        den_poly = [1, -(hole_root + den_root), hole_root * den_root]
-        
-        func_str = f"f(x) = \\frac{{{_poly_to_str(num_poly)}}}{{{_poly_to_str(den_poly)}}}"
-        simplified_func_str = f"g(x) = \\frac{{x - {num_root}}}{{x - {den_root}}}"
-        
-        if q_type == 'find_holes':
-            # y-coord of hole = simplified function evaluated at hole_root
-            y_hole = Fraction(hole_root - num_root, hole_root - den_root)
-            question = f"Find the coordinates of the hole (removable discontinuity) in the graph of the function: ${func_str}$"
-            answer = f"$({hole_root}, {_get_fraction_latex_code(y_hole)})$"
-            hint = "Factor the numerator and denominator. The cancelled factor gives the x-coordinate of the hole. Plug this x-value into the simplified function to find the y-coordinate."
-            explanation = f"1. Factor the expression: $f(x) = \\frac{{(x - {hole_root})(x - {num_root})}}{{(x - {hole_root})(x - {den_root})}}$.\n\n2. The common factor $(x-{hole_root})$ cancels, indicating a hole at $x={hole_root}$.\n\n3. The simplified function is ${simplified_func_str}$.\n\n4. To find the y-coordinate, evaluate $g({hole_root}) = \\frac{{{hole_root} - {num_root}}}{{{hole_root} - {den_root}}} = {_get_fraction_latex_code(y_hole)}$. The hole is at **{answer}**."
-            options = {answer, f"$x = {hole_root}$", f"$x = {den_root}$"}
-        else: # simplify_expression
-            question = f"Simplify the rational expression completely: ${func_str}$"
-            answer = f"$\\frac{{x - {num_root}}}{{x - {den_root}}}$"
-            hint = "Factor both the numerator and the denominator, then cancel any common factors."
-            explanation = f"1. Factored form: $f(x) = \\frac{{(x - {hole_root})(x - {num_root})}}{{(x - {hole_root})(x - {den_root})}}$.\n\n2. Cancel the common factor $(x - {hole_root})$.\n\n3. The simplified expression is **{answer}**."
-            options = {answer, f"$\\frac{{x - {hole_root}}}{{x - {den_root}}}$"}
+    return {"question": question, "options": _finalize_options(options), "answer": answer, "hint": hint, "explanation": explanation, "difficulty": difficulty}
 
-    elif q_type == 'solve_equation':
-        b, c, x_sol = random.sample(range(-5, 6), 3)
-        while x_sol == b: # Ensure solution is not extraneous
-            x_sol = random.randint(-5, 6)
-        
-        # a / (x-b) = c  => a = c(x-b)
-        a = c * (x_sol - b)
-        if a==0 or c==0: return _generate_rational_functions_question() # Regenerate if trivial
-        
-        question = f"Solve for x: $\\frac{{{a}}}{{x - {b}}} = {c}$"
-        answer = str(x_sol)
-        hint = "Multiply both sides by the denominator to eliminate the fraction, then solve the resulting linear equation. Remember to check for extraneous solutions."
-        explanation = f"1. Multiply both sides by $(x - {b})$: ${a} = {c}(x - {b})$.\n\n2. Distribute: ${a} = {c}x - {c*b}$.\n\n3. Solve for x: ${c}x = {a} + {c*b} \\implies x = \\frac{{{a+c*b}}}{{{c}}} = {x_sol}$.\n\n4. Check: The solution $x={x_sol}$ does not make the original denominator zero, so it is valid."
-        options = {answer, str(b), str(x_sol+1)}
-
-    return {"question": question, "options": _finalize_options(options), "answer": answer, "hint": hint, "explanation": explanation}
-
-def _generate_trigonometry_question():
-    """Generates a question for Trigonometry."""
-    # --- IMPROVEMENT: This function has been significantly upgraded. ---
-    # It no longer uses hardcoded equations. It now randomizes the trig function (sin, cos, tan),
-    # the coefficient, and the value, drawing from a dictionary of common trigonometric ratios.
-    # This massively increases the variety and unpredictability.
+def _generate_trigonometry_question(difficulty="Medium"):
+    """Generates a Trigonometry question based on difficulty, preserving all original sub-types."""
     
-    q_type = random.choice(['solve_equation', 'identity', 'cosine_rule'])
+    if difficulty == "Easy":
+        q_type = 'identity'
+    elif difficulty == "Medium":
+        q_type = 'solve_equation'
+    else: # Hard
+        q_type = 'cosine_rule'
 
-    if q_type == 'solve_equation':
-        trig_values = {
-            "sin": {
-                "1/2": {"angle": 30, "quadrants": [1, 2]},
-                "√3/2": {"angle": 60, "quadrants": [1, 2]},
-                "1/√2": {"angle": 45, "quadrants": [1, 2]},
-            },
-            "cos": {
-                "1/2": {"angle": 60, "quadrants": [1, 4]},
-                "√3/2": {"angle": 30, "quadrants": [1, 4]},
-                "1/√2": {"angle": 45, "quadrants": [1, 4]},
-            },
-            "tan": {
-                "1": {"angle": 45, "quadrants": [1, 3]},
-                "√3": {"angle": 60, "quadrants": [1, 3]},
-                "1/√3": {"angle": 30, "quadrants": [1, 3]},
-            }
-        }
-        
-        func_name = random.choice(["sin", "cos", "tan"])
-        val_str, data = random.choice(list(trig_values[func_name].items()))
-        
-        principal_val = data["angle"]
-        solutions = []
-        for q in data["quadrants"]:
-            if q == 1: solutions.append(principal_val)
-            elif q == 2: solutions.append(180 - principal_val)
-            elif q == 3: solutions.append(180 + principal_val)
-            elif q == 4: solutions.append(360 - principal_val)
-        
-        # --- IMPROVEMENT: Coefficient and right-hand side are now dynamic ---
-        coeff = random.randint(1, 4)
-        if val_str == "1/2": val_num = 0.5
-        elif val_str == "√3/2": val_num = math.sqrt(3)/2
-        elif val_str == "1/√2": val_num = 1/math.sqrt(2)
-        elif val_str == "1": val_num = 1
-        elif val_str == "√3": val_num = math.sqrt(3)
-        else: val_num = 1/math.sqrt(3)
-        
-        rhs = coeff * val_num
-        
-        # Format the right-hand side for the question text
-        rhs_str = f"{rhs:.2f}".rstrip('0').rstrip('.') if isinstance(rhs, float) else str(rhs)
-        if func_name == 'tan' and val_str.startswith('√'): rhs_str = f"{coeff if coeff>1 else ''}√{3 if val_str=='√3' else '3/3'}" # A bit of manual formatting for tan surds
-        if func_name != 'tan' and val_str.startswith('√'): rhs_str = f"{coeff if coeff>1 else ''}√{3 if '3' in val_str else 2}/2"
+    question, answer, hint, explanation = "", "", "", ""
+    options = set()
 
-
-        question = f"Solve the equation ${coeff if coeff > 1 else ''}{func_name}(\\theta) = {rhs_str}$ for $0^\\circ \leq \\theta \leq 360^\\circ$."
-        answer = f"{solutions[0]}°, {solutions[1]}°"
-        hint = f"First, isolate ${func_name}(\\theta)$. Then find the principal value and use the CAST rule or function graph to find all solutions in the range."
-        explanation = (f"1. ${func_name}(\\theta) = {val_str}$.\n"
-                       f"2. The principal value (acute angle) is $\\theta = {principal_val}^\\circ$.\n"
-                       f"3. Since ${func_name}(\\theta)$ is positive, we look in quadrants {data['quadrants'][0]} and {data['quadrants'][1]}.\n"
-                       f"4. The solutions are {solutions[0]}° and {solutions[1]}°.")
-        options = {answer, f"{principal_val}°", f"{180-principal_val}°"}
-
-    elif q_type == 'identity':
+    # --- Easy Question ---
+    if q_type == 'identity':
         question = r"Simplify the expression $\frac{{\sin^2\theta}}{{1 - \cos\theta}}$."
         answer = r"$1 + \cos\theta$"
-        hint = "Use the fundamental identity $\sin^2\theta + \cos^2\theta = 1$ and the difference of two squares."
-        explanation = r"1. Rewrite the numerator: $\sin^2\theta = 1 - \cos^2\theta$.\n2. Factor the numerator as a difference of two squares: $(1 - \cos\theta)(1 + \cos\theta)$.\n3. The expression becomes $\frac{{(1 - \cos\theta)(1 + \cos\theta)}}{{1 - \cos\theta}}$.\n4. Cancel the $(1 - \cos\theta)$ term, leaving $1 + \cos\theta$."
-        options = {answer, r"$1 - \cos\theta$", r"$\cos\theta$"}
+        hint = "Use the fundamental Pythagorean identity $\sin^2\theta + \cos^2\theta = 1$ and then factorize the numerator as a difference of two squares."
+        # CORRECTED EXPLANATION: Uses newlines (\n) instead of <br> tags for robustness.
+        explanation = (
+            "1. Rewrite the numerator using the identity: $\sin^2\theta = 1 - \cos^2\theta$.\n"
+            "2. Factor the numerator: $1 - \cos^2\theta = (1 - \cos\theta)(1 + \cos\theta)$.\n"
+            "3. The expression becomes $\\frac{{(1 - \cos\theta)(1 + \cos\theta)}}{{1 - \cos\theta}}$.\n"
+            "4. Cancel the common term $(1 - \cos\theta)$, leaving **$1 + \cos\theta$**."
+        )
+        options = {answer, r"$1 - \cos\theta$", r"$\cos\theta$", r"$\sin\theta$"}
 
+    # --- Medium Question ---
+    elif q_type == 'solve_equation':
+        trig_values = {
+            "sin": {"1/2": 30, "√3/2": 60, "1/√2": 45},
+            "cos": {"1/2": 60, "√3/2": 30, "1/√2": 45},
+            "tan": {"1": 45, "√3": 60, "1/√3": 30}
+        }
+        func_name = random.choice(["sin", "cos", "tan"])
+        val_str, principal_val = random.choice(list(trig_values[func_name].items()))
+        
+        if func_name == "sin": quadrants, sol2 = [1, 2], 180 - principal_val
+        elif func_name == "cos": quadrants, sol2 = [1, 4], 360 - principal_val
+        else: quadrants, sol2 = [1, 3], 180 + principal_val
+        
+        question = f"Solve the equation ${func_name}(\\theta) = {val_str}$ for $0^\\circ \le \\theta \le 360^\\circ$."
+        answer = f"{principal_val}°, {sol2}°"
+        hint = f"Find the principal value (the acute angle). Then use the CAST rule to find the second solution in the range. {func_name} is positive in Quadrants {quadrants[0]} and {quadrants[1]}."
+        explanation = (
+            f"1. The principal (acute) angle for which ${func_name}(\\theta) = {val_str}$ is $\\theta = {principal_val}^\\circ$.\n"
+            f"2. Since ${func_name}(\\theta)$ is positive, we look for solutions in Quadrant 1 and Quadrant {quadrants[1]}.\n"
+            f"3. Quadrant 1 solution is {principal_val}°.\n"
+            f"4. Quadrant {quadrants[1]} solution is ${'180° - ' if func_name=='sin' else '360° - ' if func_name=='cos' else '180° + '}{principal_val}° = {sol2}°$.\n"
+            f"5. The two solutions are **{answer}**."
+        )
+        options = {answer, f"{principal_val}°", f"{principal_val}°, {180+principal_val}°"}
+
+    # --- Hard Question ---
     elif q_type == 'cosine_rule':
-        # --- IMPROVEMENT: Bumped number range and contextualized ---
         a, b, C_deg = random.randint(5, 25), random.randint(5, 25), random.choice([30, 45, 60, 120])
         c_sq = a**2 + b**2 - 2*a*b*math.cos(math.radians(C_deg))
         c = round(math.sqrt(c_sq), 2)
-        question = f"In a triangular plot of land near the KNUST campus, side $a = {a}$ m, side $b = {b}$ m, and the included angle $C = {C_deg}^\\circ$. Find the length of the third side, $c$."
+        question = f"In triangle ABC, side $a = {a}$ m, side $b = {b}$ m, and the included angle $C = {C_deg}^\\circ$. Find the length of the third side, $c$, to two decimal places."
         answer = f"{c} m"
-        hint = "Use the Cosine Rule: $c^2 = a^2 + b^2 - 2ab\cos(C)$."
-        explanation = f"1. $c^2 = {a}^2 + {b}^2 - 2({a})({b})\cos({C_deg}^\\circ)$.\n2. $c^2 = {a**2} + {b**2} - 2({a})({b})({round(math.cos(math.radians(C_deg)), 3)}) \\approx {round(c_sq, 2)}$.\n3. $c = \sqrt{{{round(c_sq, 2)}}} \\approx {c}$ m."
-        options = {answer, f"{round(math.sqrt(a**2 + b**2), 2)} m"}
+        hint = "When you have two sides and the angle between them (SAS), use the Cosine Rule: $c^2 = a^2 + b^2 - 2ab\\cos(C)$."
+        explanation = (
+            f"1. $c^2 = {a}^2 + {b}^2 - 2({a})({b})\\cos({C_deg}^\\circ)$.\n"
+            f"2. $c^2 = {a**2} + {b**2} - 2({a})({b})({round(math.cos(math.radians(C_deg)), 3)}) \\approx {round(c_sq, 2)}$.\n"
+            f"3. $c = \\sqrt{{{round(c_sq, 2)}}} \\approx {c}$ m."
+        )
+        options = {answer, f"{round(math.sqrt(a**2 + b**2), 2)} m", f"{round(a+b - C_deg, 2)} m"}
 
-    return {"question": question, "options": _finalize_options(options), "answer": answer, "hint": hint, "explanation": explanation}
-def _generate_vectors_question():
-    """Generates a question for Vectors."""
-    q_type = random.choice(['algebra', 'magnitude', 'dot_product'])
+    return {"question": question, "options": _finalize_options(options), "answer": answer, "hint": hint, "explanation": explanation, "difficulty": difficulty}
+def _generate_vectors_question(difficulty="Medium"):
+    """Generates a Vectors question based on difficulty, preserving all original sub-types."""
+
+    if difficulty == "Easy":
+        # Basic scalar multiplication and vector addition/subtraction.
+        q_type = 'algebra'
+    elif difficulty == "Medium":
+        # Calculating the length/magnitude of a vector.
+        q_type = 'magnitude'
+    else: # Hard
+        # Multi-step problem to find the angle between vectors using the dot product.
+        q_type = 'dot_product'
+
+    question, answer, hint, explanation = "", "", "", ""
+    options = set()
     
+    # --- Easy Question ---
     if q_type == 'algebra':
         a = np.array([random.randint(-5, 5), random.randint(-5, 5)])
         b = np.array([random.randint(-5, 5), random.randint(-5, 5)])
         s1, s2 = random.randint(2, 4), random.randint(2, 4)
-        
-        question = f"Given vectors $\\mathbf{{a}} = \\binom{{{a[0]}}}{{{a[1]}}}$ and $\\mathbf{{b}} = \\binom{{{b[0]}}}{{{b[1]}}}$, find the vector ${s1}\\mathbf{{a}} - {s2}\\mathbf{{b}}$."
+        question = f"Given vectors $\\mathbf{{a}} = \\binom{{{a[0]}}}{{{a[1]}}}$ and $\\mathbf{{b}} = \\binom{{{b[0]}}}{{{b[1]}}}$, find the resulting vector from the operation ${s1}\\mathbf{{a}} - {s2}\\mathbf{{b}}$."
         result_vec = s1*a - s2*b
         answer = f"$\\binom{{{result_vec[0]}}}{{{result_vec[1]}}}$"
-        hint = "Multiply each vector by its scalar first, then subtract the corresponding components."
-        explanation = f"1. ${s1}\\mathbf{{a}} = {s1}\\binom{{{a[0]}}}{{{a[1]}}} = \\binom{{{s1*a[0]}}}{{{s1*a[1]}}}$.\n2. ${s2}\\mathbf{{b}} = {s2}\\binom{{{b[0]}}}{{{b[1]}}} = \\binom{{{s2*b[0]}}}{{{s2*b[1]}}}$.\n3. Subtract: $\\binom{{{s1*a[0]}}}{{{s1*a[1]}}} - \\binom{{{s2*b[0]}}}{{{s2*b[1]}}} = \\binom{{{s1*a[0] - s2*b[0]}}}{{{s1*a[1] - s2*b[1]}}} = {answer}$."
-        options = {answer, f"$\\binom{{{a[0]-b[0]}}}{{{a[1]-b[1]}}}$"}
+        hint = "First, multiply each vector by its scalar. Then, subtract the corresponding components of the resulting vectors."
+        explanation = (f"1. ${s1}\\mathbf{{a}} = {s1}\\binom{{{a[0]}}}{{{a[1]}}} = \\binom{{{s1*a[0]}}}{{{s1*a[1]}}}$.\n"
+                       f"2. ${s2}\\mathbf{{b}} = {s2}\\binom{{{b[0]}}}{{{b[1]}}} = \\binom{{{s2*b[0]}}}{{{s2*b[1]}}}$.\n"
+                       f"3. Subtract the results: $\\binom{{{s1*a[0]}}}{{{s1*a[1]}}} - \\binom{{{s2*b[0]}}}{{{s2*b[1]}}} = \\binom{{{s1*a[0] - s2*b[0]}}}{{{s1*a[1] - s2*b[1]}}} = {answer}$."
+                      )
+        options = {answer, f"$\\binom{{{a[0]-b[0]}}}{{{a[1]-b[1]}}}$", f"$\\binom{{{s1*a[0] + s2*b[0]}}}{{{s1*a[1] + s2*b[1]}}}$"}
 
+    # --- Medium Question ---
     elif q_type == 'magnitude':
         v = np.array([random.randint(2, 12), random.randint(2, 12)])
-        question = f"Find the magnitude of the vector $\\mathbf{{v}} = {v[0]}\\mathbf{{i}} + {v[1]}\\mathbf{{j}}$."
+        question = f"Find the magnitude (or length) of the vector $\\mathbf{{v}} = {v[0]}\\mathbf{{i}} + {v[1]}\\mathbf{{j}}$."
         magnitude = round(np.linalg.norm(v), 2)
         answer = str(magnitude)
-        hint = "The magnitude of a vector $x\mathbf{i} + y\mathbf{j}$ is $\sqrt{x^2 + y^2}$."
+        hint = "The magnitude of a vector $x\\mathbf{i} + y\\mathbf{j}$ is found using the formula $|\\mathbf{{v}}| = \\sqrt{x^2 + y^2}$."
         explanation = f"Magnitude $|\mathbf{{v}}| = \sqrt{{({v[0]})^2 + ({v[1]})^2}} = \sqrt{{{v[0]**2} + {v[1]**2}}} = \sqrt{{{v[0]**2+v[1]**2}}} \\approx {answer}$."
-        options = {answer, str(v[0]+v[1])}
+        options = {answer, str(v[0]+v[1]), str(v[0]**2+v[1]**2)}
 
+    # --- Hard Question ---
     elif q_type == 'dot_product':
         a = np.array([random.randint(-5, 5), random.randint(-5, 5)])
         b = np.array([random.randint(-5, 5), random.randint(-5, 5)])
-        while np.linalg.norm(a) == 0 or np.linalg.norm(b) == 0: # Avoid zero vectors
-             a = np.array([random.randint(-5, 5), random.randint(-5, 5)]); b = np.array([random.randint(-5, 5), random.randint(-5, 5)])
+        while np.linalg.norm(a) == 0 or np.linalg.norm(b) == 0: # Avoid zero vectors to prevent division by zero
+             a = np.array([random.randint(-5, 5), random.randint(-5, 5)])
+             b = np.array([random.randint(-5, 5), random.randint(-5, 5)])
         
         question = f"Find the angle between the vectors $\\mathbf{{a}} = \\binom{{{a[0]}}}{{{a[1]}}}$ and $\\mathbf{{b}} = \\binom{{{b[0]}}}{{{b[1]}}}$ to the nearest degree."
         dot_product = np.dot(a, b)
         mag_a, mag_b = np.linalg.norm(a), np.linalg.norm(b)
         cos_theta = dot_product / (mag_a * mag_b)
-        angle_rad = np.arccos(np.clip(cos_theta, -1.0, 1.0)) # Clip for float precision errors
+        angle_rad = np.arccos(np.clip(cos_theta, -1.0, 1.0))
         angle_deg = round(np.degrees(angle_rad))
         answer = f"{angle_deg}°"
-        hint = "Use the dot product formula: $\mathbf{a} \cdot \mathbf{b} = |\mathbf{a}| |\mathbf{b}| \cos\theta$."
-        explanation = f"1. Dot Product: $\mathbf{{a}} \cdot \mathbf{{b}} = ({a[0]})({b[0]}) + ({a[1]})({b[1]}) = {dot_product}$.\n2. Magnitudes: $|\mathbf{{a}}| \\approx {round(mag_a, 2)}$, $|\mathbf{{b}}| \\approx {round(mag_b, 2)}$.\n3. $\cos\\theta = \\frac{{{dot_product}}}{{{round(mag_a,2)} \\times {round(mag_b,2)}}} \\approx {round(cos_theta, 2)}$.\n4. $\\theta = \cos^{{-1}}({round(cos_theta, 2)}) \\approx {answer}$."
-        options = {answer, f"{round(dot_product)}°"}
+        hint = "Use the dot product formula: $\\cos\\theta = \\frac{{\\mathbf{a} \\cdot \\mathbf{b}}}{{|\mathbf{a}| |\\mathbf{b}|}}$."
+        explanation = (f"1. Dot Product: $\\mathbf{{a}} \\cdot \\mathbf{{b}} = ({a[0]})({b[0]}) + ({a[1]})({b[1]}) = {dot_product}$.\n"
+                       f"2. Magnitudes: $|\mathbf{{a}}| \\approx {round(mag_a, 2)}$, $|\mathbf{{b}}| \\approx {round(mag_b, 2)}$.\n"
+                       f"3. $\\cos\\theta = \\frac{{{dot_product}}}{{{round(mag_a,2)} \\times {round(mag_b,2)}}} \\approx {round(cos_theta, 3)}$.\n"
+                       f"4. $\\theta = \\arccos({round(cos_theta, 3)}) \\approx {answer}$."
+                      )
+        options = {answer, f"{round(dot_product)}°", f"{90}°"}
 
-    return {"question": question, "options": _finalize_options(options), "answer": answer, "hint": hint, "explanation": explanation}
+    return {"question": question, "options": _finalize_options(options), "answer": answer, "hint": hint, "explanation": explanation, "difficulty": difficulty}
 
 # --- PASTE THE 5 NEW TOPIC GENERATORS HERE ---
 
-def _generate_statistics_question():
-    """Generates a multi-subtopic question for Statistics."""
+def _generate_statistics_question(difficulty="Medium"):
+    """Generates a Statistics question based on difficulty, preserving all original sub-types."""
     
-    q_type = random.choice(['mean', 'median', 'mode', 'range', 'frequency_tables', 'std_dev'])
+    if difficulty == "Easy":
+        # The most basic measures of data.
+        q_type = random.choice(['mode', 'range'])
+    elif difficulty == "Medium":
+        # Core measures of central tendency.
+        q_type = random.choice(['mean', 'median'])
+    else: # Hard
+        # More complex calculations involving grouped data or measures of spread.
+        q_type = random.choice(['frequency_tables', 'std_dev'])
+
     question, answer, hint, explanation = "", "", "", ""
     options = set()
     
-    if q_type == 'mean':
-        k = random.randint(5, 7)
-        data = sorted(random.sample(range(5, 100), k=k))
-        mean_val = sum(data) / len(data)
-        question = f"A student in Accra recorded the following scores on their quizzes: `{data}`. What is the mean score, rounded to one decimal place?"
-        answer = f"{mean_val:.1f}"
-        hint = "The mean is the sum of all values divided by the number of values."
-        explanation = f"1. Sum of values: `{'+'.join(map(str, data))} = {sum(data)}`\n\n2. Number of values: `{len(data)}`\n\n3. Mean = `Sum / Count = {sum(data)} / {len(data)} \\approx {answer}`."
-        options = {answer, f"{np.median(data):.1f}"}
-
-    elif q_type == 'median':
-        k = random.choice([5, 6]) # Odd or even number of items
-        data = sorted(random.sample(range(5, 100), k=k))
-        median_val = np.median(data)
-        question = f"Find the median of the following dataset: `{data}`"
-        answer = str(median_val)
-        hint = "First, sort the data. The median is the middle value. If there are two middle values, it's their average."
-        explanation = f"1. The sorted dataset is `{data}`.\n\n2. Since there are {k} values, the median is the middle value. The calculated median is **{answer}**."
-        options = {answer, f"{sum(data)/len(data):.1f}"}
-
-    elif q_type == 'mode':
+    # --- Easy Questions ---
+    if q_type == 'mode':
         k = random.randint(4, 5)
         base_data = random.sample(range(10, 50), k=k)
         mode_val = random.choice(base_data)
@@ -3027,7 +3139,7 @@ def _generate_statistics_question():
         question = f"What is the mode of the following set of numbers representing daily sales at a stall in Kejetia Market? `{data}`"
         answer = str(mode_val)
         hint = "The mode is the number that appears most frequently in a data set."
-        explanation = f"By counting the occurrences of each number in `{sorted(data)}`, we can see that **{answer}** appears most often."
+        explanation = f"By counting the occurrences of each number in the sorted list `{sorted(data)}`, we can see that **{answer}** appears most often (3 times)."
         options = {answer, str(int(np.mean(data))), str(np.median(data))}
 
     elif q_type == 'range':
@@ -3037,88 +3149,120 @@ def _generate_statistics_question():
         question = f"Calculate the range of the following daily temperatures recorded in Kumasi: `{data}`"
         answer = str(range_val)
         hint = "The range is the difference between the highest and lowest values in the dataset."
-        explanation = f"1. The highest value is `{max(data)}`.\n\n2. The lowest value is `{min(data)}`.\n\n3. Range = Highest - Lowest = `{max(data)} - {min(data)} = {answer}`."
-        options = {answer, str(max(data) + min(data))}
+        explanation = f"1. The highest value (Maximum) is `{max(data)}`.\n\n2. The lowest value (Minimum) is `{min(data)}`.\n\n3. Range = Maximum - Minimum = `{max(data)} - {min(data)} = {answer}`."
+        options = {answer, str(max(data) + min(data)), str(max(data))}
 
+    # --- Medium Questions ---
+    elif q_type == 'mean':
+        k = random.randint(5, 7)
+        data = sorted(random.sample(range(5, 100), k=k))
+        mean_val = sum(data) / len(data)
+        question = f"A student in Accra recorded the following scores on their quizzes: `{data}`. What is the mean score, rounded to one decimal place?"
+        answer = f"{mean_val:.1f}"
+        hint = "The mean is the sum of all values divided by the number of values."
+        explanation = f"1. Sum of values: `{'+'.join(map(str, data))} = {sum(data)}`\n\n2. Number of values: `{len(data)}`\n\n3. Mean = Sum / Count = `{sum(data)} / {len(data)} \\approx {answer}`."
+        options = {answer, f"{np.median(data):.1f}", str(max(data)-min(data))}
+
+    elif q_type == 'median':
+        k = random.choice([5, 6, 7]) # Odd or even number of items
+        data = sorted(random.sample(range(5, 100), k=k))
+        median_val = np.median(data)
+        question = f"Find the median of the following dataset: `{data}`"
+        answer = str(median_val)
+        hint = "First, sort the data. The median is the middle value. If there are two middle values, it's their average."
+        explanation = f"1. The data must be sorted: `{data}`.\n\n2. Since there are {k} values, the median is the middle value. The calculated median is **{answer}**."
+        options = {answer, f"{sum(data)/len(data):.1f}", str(data[0])}
+
+    # --- Hard Questions ---
     elif q_type == 'frequency_tables':
         scores = [1, 2, 3, 4, 5]
         freqs = [random.randint(2, 10) for _ in range(5)]
         table_md = "| Score (x) | Frequency (f) |\n|---|---|\n"
+        fx_calcs = []
         for s, f in zip(scores, freqs):
             table_md += f"| {s} | {f} |\n"
-        
+            fx_calcs.append(f"{s}x{f}={s*f}")
+
         total_items = sum(freqs)
         total_sum = sum(s * f for s, f in zip(scores, freqs))
         mean_val = total_sum / total_items
 
         question = f"The table below shows the results of a quiz. What is the mean score?\n\n{table_md}"
         answer = f"{mean_val:.2f}"
-        hint = "To find the mean from a frequency table, calculate the sum of (score × frequency) and divide by the total frequency."
-        explanation = f"1. Calculate `fx` for each row and sum them: `Total Sum = {total_sum}`.\n\n2. Sum the frequencies: `Total Frequency = {total_items}`.\n\n3. Mean = `Total Sum / Total Frequency = {total_sum} / {total_items} \\approx {answer}`."
-        options = {answer, f"{total_items/len(scores):.2f}"}
+        hint = "To find the mean from a frequency table, calculate the sum of (score × frequency) for each row, then divide by the total frequency."
+        explanation = f"1. Calculate `fx` for each row and sum them: `{', '.join(fx_calcs)}`. The sum is $\\sum fx = {total_sum}$.\n\n2. Sum the frequencies: $\\sum f = {total_items}$.\n\n3. Mean = $\\frac{{\\sum fx}}{{\\sum f}} = \\frac{{{total_sum}}}{{{total_items}}} \\approx {answer}$."
+        options = {answer, f"{total_items/len(scores):.2f}", f"{total_sum / 5:.2f}"}
 
     elif q_type == 'std_dev':
         k = random.randint(4, 5)
         data = random.sample(range(10, 30), k=k)
         std_dev_val = np.std(data)
-        question = f"Calculate the population standard deviation of the following small dataset: `{data}`. Round to two decimal places."
+        question = f"Calculate the population standard deviation of the dataset: `{data}`. Round to two decimal places."
         answer = f"{std_dev_val:.2f}"
-        hint = "Find the mean, then the squared differences from the mean, then the average of those, and finally the square root."
+        hint = "1. Find the mean. 2. For each number, subtract the mean and square the result. 3. Find the average of those squared differences (the variance). 4. Take the square root of the variance."
         mean_val = np.mean(data)
         explanation = f"1. Mean (`μ`) = `{mean_val:.2f}`.\n\n2. Variance (`σ²`) = Average of squared differences from the mean ≈ `{np.var(data):.2f}`.\n\n3. Standard Deviation (`σ`) = `√Variance` ≈ `{answer}`."
-        options = {answer, f"{np.var(data):.2f}"}
+        options = {answer, f"{np.var(data):.2f}", f"{max(data)-min(data):.2f}"}
 
-    return {"question": question, "options": _finalize_options(options), "answer": answer, "hint": hint, "explanation": explanation}
+    return {"question": question, "options": _finalize_options(options), "answer": answer, "hint": hint, "explanation": explanation, "difficulty": difficulty}
 
 
-def _generate_coordinate_geometry_question():
-    """Generates a multi-subtopic question for Coordinate Geometry."""
+def _generate_coordinate_geometry_question(difficulty="Medium"):
+    """Generates a Coordinate Geometry question based on difficulty, preserving all original sub-types."""
 
-    q_type = random.choice(['distance', 'midpoint', 'gradient', 'equation_point_slope', 'equation_two_points', 'parallel_perpendicular'])
+    if difficulty == "Easy":
+        # Foundational formulas for midpoint and gradient.
+        q_type = random.choice(['midpoint', 'gradient'])
+    elif difficulty == "Medium":
+        # More complex formulas and initial equation-finding.
+        q_type = random.choice(['distance', 'equation_point_slope'])
+    else: # Hard
+        # Multi-step problems combining formulas or analyzing relationships.
+        q_type = random.choice(['equation_two_points', 'parallel_perpendicular'])
+
     question, answer, hint, explanation = "", "", "", ""
     options = set()
-
     x1, y1, x2, y2 = [random.randint(-10, 10) for _ in range(4)]
     while x1 == x2 and y1 == y2: # Ensure points are distinct
         x2, y2 = random.randint(-10, 10), random.randint(-10, 10)
 
-    if q_type == 'distance':
-        dist_sq = (x2 - x1)**2 + (y2 - y1)**2
-        dist = math.sqrt(dist_sq)
-        question = f"Find the distance between point A$({x1}, {y1})$ and point B$({x2}, {y2})$."
-        # Check if the distance is a perfect integer
-        if dist == int(dist):
-            answer = str(int(dist))
-        else:
-            answer = f"$\\sqrt{{{dist_sq}}}$" # Leave as a simplified surd
-        hint = "Use the distance formula: $d = \\sqrt{{(x_2 - x_1)^2 + (y_2 - y_1)^2}}$."
-        explanation = f"Using the distance formula:\n\n$d = \\sqrt{{({x2} - {x1})^2 + ({y2} - {y1})^2}} = \\sqrt{{({x2-x1})^2 + ({y2-y1})^2}} = \\sqrt{{{dist_sq}}}$."
-        if dist != int(dist): explanation += f" This is the exact distance in surd form."
-        else: explanation += f" = {int(dist)}"
-        options = {answer, str(round(dist, 2))}
-
-    elif q_type == 'midpoint':
+    # --- Easy Questions ---
+    if q_type == 'midpoint':
         mid_x = (x1 + x2) / 2
         mid_y = (y1 + y2) / 2
         question = f"Find the midpoint of the line segment connecting A$({x1}, {y1})$ and B$({x2}, {y2})$."
         answer = f"({mid_x:.1f}, {mid_y:.1f})".replace(".0", "")
         hint = "The midpoint is the average of the x-coordinates and the average of the y-coordinates."
         explanation = f"Midpoint = $(\\frac{{x_1+x_2}}{{2}}, \\frac{{y_1+y_2}}{{2}}) = (\\frac{{{x1}+{x2}}}{{2}}, \\frac{{{y1}+{y2}}}{{2}}) = ({answer})$."
-        options = {answer, f"({(x2-x1)/2}, {(y2-y1)/2})"}
+        options = {answer, f"({(x2-x1)/2}, {(y2-y1)/2})", f"({x1+x2}, {y1+y2})"}
 
     elif q_type == 'gradient':
         question = f"Find the gradient (slope) of the line passing through A$({x1}, {y1})$ and B$({x2}, {y2})$."
-        if x1 == x2:
+        if x1 == x2: # Vertical line
             answer = "Undefined"
-            explanation = "The x-coordinates are the same, which means this is a vertical line. The gradient of a vertical line is undefined."
-            options = {answer, "0"}
+            hint = "The gradient of a vertical line is undefined."
+            explanation = "Since the x-coordinates are the same ($x_1 = x_2$), this is a vertical line. The gradient of a vertical line is undefined because the change in x is zero, leading to division by zero in the formula."
+            options = {answer, "0", "1"}
         else:
             grad = Fraction(y2 - y1, x2 - x1)
             answer = _format_fraction_text(grad)
+            hint = "Use the gradient formula: $m = \\frac{{y_2-y_1}}{{x_2-x_1}}$."
             explanation = f"Gradient $m = \\frac{{y_2-y_1}}{{x_2-x_1}} = \\frac{{{y2}-({y1})}}{{{x2}-({x1})}} = \\frac{{{y2-y1}}}{{{x2-x1}}} = {_get_fraction_latex_code(grad)}$."
-            options = {answer, _format_fraction_text(Fraction(x2-x1, y2-y1))}
-        hint = "Use the gradient formula: $m = \\frac{{y_2-y_1}}{{x_2-x_1}}$."
-        
+            options = {answer, _format_fraction_text(Fraction(x2-x1, y2-y1)), str(y2-y1)}
+
+    # --- Medium Questions ---
+    elif q_type == 'distance':
+        dist_sq = (x2 - x1)**2 + (y2 - y1)**2
+        dist = math.sqrt(dist_sq)
+        question = f"Find the distance between point A$({x1}, {y1})$ and point B$({x2}, {y2})$."
+        if dist == int(dist): answer = str(int(dist))
+        else: answer = f"$\\sqrt{{{dist_sq}}}$" # Leave as a simplified surd
+        hint = "Use the distance formula: $d = \\sqrt{{(x_2 - x_1)^2 + (y_2 - y_1)^2}}$."
+        explanation = f"Using the distance formula:\n$d = \\sqrt{{({x2} - ({x1}))^2 + ({y2} - ({y1}))^2}} = \\sqrt{{({x2-x1})^2 + ({y2-y1})^2}} = \\sqrt{{{dist_sq}}}$."
+        if dist != int(dist): explanation += f" This is the exact distance in simplified surd form."
+        else: explanation += f" = {int(dist)}"
+        options = {answer, str(round(dist, 2)), str(dist_sq)}
+
     elif q_type == 'equation_point_slope':
         m_num, m_den = random.randint(-5, 5), random.randint(1, 3)
         while m_num == 0: m_num = random.randint(-5, 5)
@@ -3126,123 +3270,121 @@ def _generate_coordinate_geometry_question():
         c = y1 - m*x1
         question = f"Find the equation of the line that passes through the point $({x1}, {y1})$ and has a gradient of ${_get_fraction_latex_code(m)}$."
         answer = f"$y = {_get_fraction_latex_code(m)}x {'+' if c >= 0 else '-'} {_get_fraction_latex_code(abs(c))}$"
-        hint = "Use the formula $y - y_1 = m(x - x_1)$ and rearrange to $y = mx + c$ form."
-        explanation = f"1. Start with $y - y_1 = m(x - x_1)$.\n\n2. Substitute values: $y - ({y1}) = {_get_fraction_latex_code(m)}(x - ({x1}))$.\n\n3. Simplify to find the y-intercept 'c': $c = y_1 - m \\times x_1 = {y1} - {_get_fraction_latex_code(m)} \\times {x1} = {_get_fraction_latex_code(c)}$.\n\n4. Final equation: {answer}."
-        options = {answer, f"$y = {-1/m}x + {c}$"}
+        hint = "Use the formula $y - y_1 = m(x - x_1)$ and rearrange it into the form $y = mx + c$."
+        explanation = f"1. Start with $y - y_1 = m(x - x_1)$.\n\n2. Substitute values: $y - ({y1}) = {_get_fraction_latex_code(m)}(x - ({x1}))$.\n\n3. Simplify to find the y-intercept 'c': $c = y_1 - m \\times x_1 = {_get_fraction_latex_code(y1)} - {_get_fraction_latex_code(m)} \\times {_get_fraction_latex_code(Fraction(x1))} = {_get_fraction_latex_code(c)}$.\n\n4. The final equation is: {answer}."
+        options = {answer, f"$y = {-1/m}x + {c}$", f"$y - {y1} = {_get_fraction_latex_code(m)}(x + {x1})$"}
 
+    # --- Hard Questions ---
     elif q_type == 'equation_two_points':
         question = f"Find the equation of the line that passes through the points A$({x1}, {y1})$ and B$({x2}, {y2})$."
-        if x1 == x2:
+        if x1 == x2: # Vertical line
             answer = f"$x = {x1}$"
-            explanation = "Since the x-coordinates are the same, this is a vertical line with the equation $x = {x1}$."
+            hint = "First, find the gradient. If the x-coordinates are the same, it's a special case."
+            explanation = "Since the x-coordinates are the same, this is a vertical line. All points on this line have an x-coordinate of {x1}, so the equation is $x = {x1}$."
+            options = {answer, f"y = {y1}", f"y = x + {y1-x1}"}
         else:
             m = Fraction(y2 - y1, x2 - x1)
             c = y1 - m*x1
             answer = f"$y = {_get_fraction_latex_code(m)}x {'+' if c >= 0 else '-'} {_get_fraction_latex_code(abs(c))}$"
-            explanation = f"1. First, find the gradient: $m = \\frac{{{y2-y1}}}{{{x2-x1}}} = {_get_fraction_latex_code(m)}$.\n\n2. Use $y - y_1 = m(x - x_1)$ to find the equation: $y - ({y1}) = {_get_fraction_latex_code(m)}(x - ({x1}))$.\n\n3. Simplify to $y=mx+c$ form: {answer}."
-        hint = "First, calculate the gradient between the two points, then use the point-slope formula $y - y_1 = m(x - x_1)$."
-        options = {answer}
+            hint = "First, calculate the gradient between the two points, then use the point-slope formula $y - y_1 = m(x - x_1)$ with one of the points."
+            explanation = f"1. First, find the gradient: $m = \\frac{{{y2-y1}}}{{{x2-x1}}} = {_get_fraction_latex_code(m)}$.\n\n2. Use $y - y_1 = m(x - x_1)$: $y - ({y1}) = {_get_fraction_latex_code(m)}(x - ({x1}))$.\n\n3. Simplify to $y=mx+c$ form: {answer}."
+            options = {answer, f"$y = {_get_fraction_latex_code(-1/m)}x {'+' if c >= 0 else '-'} {_get_fraction_latex_code(abs(c))}$"}
 
     elif q_type == 'parallel_perpendicular':
         m1 = Fraction(random.randint(-3, 3), random.randint(1, 2))
+        while m1 == 0: m1 = Fraction(random.randint(-3, 3), random.randint(1, 2))
         c1 = random.randint(-5, 5)
         line1_eq = f"$y = {_get_fraction_latex_code(m1)}x {'+' if c1 >= 0 else '-'} {_get_fraction_latex_code(abs(c1))}$"
-        
-        relationship, line2_eq = random.choice([
-            ("Parallel", f"$y = {_get_fraction_latex_code(m1)}x + {c1+2}$"),
-            ("Perpendicular", f"$y = {_get_fraction_latex_code(-1/m1)}x + {c1-1}$" if m1 != 0 else f"$x = {c1}$"),
-            ("Neither", f"$y = {_get_fraction_latex_code(m1+1)}x + {c1}$")
-        ])
+        relationship, m2 = random.choice([("Parallel", m1), ("Perpendicular", -1/m1), ("Neither", m1+1)])
+        line2_eq = f"$y = {_get_fraction_latex_code(m2)}x + {c1+2}$"
         question = f"What is the relationship between the lines {line1_eq} and {line2_eq}?"
         answer = relationship
-        hint = "Compare the gradients of the two lines. Parallel lines have equal gradients. For perpendicular lines, the product of their gradients is -1."
-        explanation = f"The gradient of the first line is $m_1 = {_get_fraction_latex_code(m1)}$. The gradient of the second line is $m_2 = ...$. Based on the relationship between these gradients, the lines are **{answer}**."
+        hint = "Compare the gradients (m values) of the two lines. Parallel lines have equal gradients. For perpendicular lines, the product of their gradients is -1 (or one is the negative reciprocal of the other)."
+        explanation = f"The gradient of the first line is $m_1 = {_get_fraction_latex_code(m1)}$. The gradient of the second line is $m_2 = {_get_fraction_latex_code(m2)}$. Since $m_1$ and $m_2$ meet the condition for being **{answer}**, that is the correct relationship."
         options = {"Parallel", "Perpendicular", "Neither"}
-        options.add(answer)
 
-    return {"question": question, "options": _finalize_options(options), "answer": answer, "hint": hint, "explanation": explanation}
+    return {"question": question, "options": _finalize_options(options), "answer": answer, "hint": hint, "explanation": explanation, "difficulty": difficulty}
 
 
-def _generate_calculus_question():
-    """Generates a multi-subtopic question for Introduction to Calculus."""
+def _generate_calculus_question(difficulty="Medium"):
+    """Generates an Introduction to Calculus question based on difficulty, preserving all original sub-types."""
     
-    q_type = random.choice(['limits_substitution', 'diff_power_rule', 'gradient_of_curve', 'indefinite_integration', 'find_constant_c', 'definite_integration'])
+    if difficulty == "Easy":
+        # Foundational concepts of limits and the power rule for differentiation.
+        q_type = random.choice(['limits_substitution', 'diff_power_rule'])
+    elif difficulty == "Medium":
+        # Applying differentiation and introducing basic integration.
+        q_type = random.choice(['gradient_of_curve', 'indefinite_integration'])
+    else: # Hard
+        # Multi-step integration problems.
+        q_type = random.choice(['find_constant_c', 'definite_integration'])
+
     question, answer, hint, explanation = "", "", "", ""
     options = set()
 
-    # Helper to create a polynomial string
-    def poly_to_str(coeffs):
-        s = []
-        for i, c in enumerate(coeffs):
-            if c == 0: continue
-            power = len(coeffs) - 1 - i
-            if power == 0: s.append(str(c)); continue
-            if abs(c) == 1 and power > 0: c_str = "" if c == 1 else "-"
-            else: c_str = str(c)
-            if power == 1: s.append(f"{c_str}x")
-            else: s.append(f"{c_str}x^{{{power}}}")
-        return " + ".join(s).replace("+ -", "- ")
-
+    # --- Easy Questions ---
     if q_type == 'limits_substitution':
         coeffs = [random.randint(1, 5), random.randint(-5, 5), random.randint(-5, 5)]
-        poly_str = poly_to_str(coeffs)
+        poly_str = _poly_to_str(coeffs)
         x_val = random.randint(-3, 3)
         limit_val = coeffs[0]*x_val**2 + coeffs[1]*x_val + coeffs[2]
         question = f"Evaluate the limit: $\\lim_{{x \\to {x_val}}} ({poly_str})$"
         answer = str(limit_val)
-        hint = "Since this is a polynomial, you can find the limit by direct substitution."
-        explanation = f"Substitute $x = {x_val}$ into the expression:\n\n$({coeffs[0]})({x_val})^2 + ({coeffs[1]})({x_val}) + ({coeffs[2]}) = {limit_val}$."
+        hint = "Since this is a polynomial function, you can find the limit by direct substitution of the value x is approaching."
+        explanation = f"Substitute $x = {x_val}$ directly into the expression:\n\n$({coeffs[0]})({x_val})^2 + ({coeffs[1]})({x_val}) + ({coeffs[2]}) = {limit_val}$."
         options = {answer, str(limit_val+1), str(limit_val-1)}
 
     elif q_type == 'diff_power_rule':
         coeffs = [random.randint(2, 6), random.randint(-5, 5), random.randint(2, 10)]
-        poly_str = poly_to_str(coeffs)
+        poly_str = _poly_to_str(coeffs)
         deriv_coeffs = [coeffs[0]*2, coeffs[1]]
-        deriv_str = poly_to_str(deriv_coeffs)
+        deriv_str = _poly_to_str(deriv_coeffs)
         question = f"Find the derivative of $f(x) = {poly_str}$ with respect to x."
         answer = f"${deriv_str}$"
-        hint = "Apply the power rule, $\\frac{{d}}{{dx}}(ax^n) = anx^{{n-1}}$, to each term."
-        explanation = f"Differentiating term by term:\n\n$\\frac{{d}}{{dx}}({coeffs[0]}x^2) = {coeffs[0]*2}x$\n\n$\\frac{{d}}{{dx}}({coeffs[1]}x) = {coeffs[1]}$\n\n$\\frac{{d}}{{dx}}({coeffs[2]}) = 0$\n\nThe derivative is ${answer}$."
-        options = {answer, f"${poly_to_str(coeffs)}$"}
+        hint = "Apply the power rule, $\\frac{{d}}{{dx}}(ax^n) = anx^{{n-1}}$, to each term of the polynomial. The derivative of a constant is zero."
+        explanation = f"Differentiating term by term:\n\n$\\frac{{d}}{{dx}}({coeffs[0]}x^2) = {coeffs[0]*2}x$\n\n$\\frac{{d}}{{dx}}({coeffs[1]}x) = {coeffs[1]}$\n\n$\\frac{{d}}{{dx}}({coeffs[2]}) = 0$\n\nAdding these together, the derivative is ${answer}$."
+        options = {answer, f"${poly_to_str(coeffs)}$", f"${poly_to_str([coeffs[0]*2, coeffs[1], coeffs[2]])}$"}
 
+    # --- Medium Questions ---
     elif q_type == 'gradient_of_curve':
         coeffs = [random.randint(2, 5), random.randint(-5, 5)]
-        poly_str = poly_to_str(coeffs) + f" + {random.randint(1,10)}"
+        poly_str = _poly_to_str(coeffs) + f" + {random.randint(1,10)}"
         x_val = random.randint(1, 4)
         gradient_val = coeffs[0]*2*x_val + coeffs[1]
         question = f"Find the gradient of the curve $y = {poly_str}$ at the point where $x={x_val}$."
         answer = str(gradient_val)
-        hint = "First, find the derivative of the function (the gradient function), then substitute the given x-value into the derivative."
-        explanation = f"1. Find the derivative: $\\frac{{dy}}{{dx}} = {poly_to_str([coeffs[0]*2, coeffs[1]])}$.\n\n2. Substitute $x={x_val}$ into the derivative: ${coeffs[0]*2}({x_val}) + ({coeffs[1]}) = {gradient_val}$."
-        options = {answer, str(gradient_val + x_val)}
+        hint = "First, find the derivative of the function (which represents the gradient at any point), then substitute the given x-value into the derivative."
+        explanation = f"1. Find the derivative: $\\frac{{dy}}{{dx}} = {_poly_to_str([coeffs[0]*2, coeffs[1]])}$.\n\n2. Substitute $x={x_val}$ into the derivative: ${coeffs[0]*2}({x_val}) + ({coeffs[1]}) = {gradient_val}$."
+        options = {answer, str(gradient_val + x_val), str(coeffs[0]*x_val**2 + coeffs[1]*x_val)}
 
     elif q_type == 'indefinite_integration':
-        deriv_coeffs = [random.randint(2, 6) * 2, random.randint(2, 10)]
-        deriv_str = poly_to_str(deriv_coeffs)
+        deriv_coeffs = [random.randint(1, 4) * 2, random.randint(2, 10)]
+        deriv_str = _poly_to_str(deriv_coeffs)
         orig_coeffs = [deriv_coeffs[0]//2, deriv_coeffs[1]]
-        orig_str = poly_to_str(orig_coeffs)
-        question = f"Find the indefinite integral of $\\int ({deriv_str}) \\,dx$."
+        orig_str = _poly_to_str(orig_coeffs)
+        question = f"Find the indefinite integral: $\\int ({deriv_str}) \\,dx$."
         answer = f"${orig_str} + C$"
-        hint = "Apply the reverse power rule, $\\int ax^n \\,dx = \\frac{{a}}{{n+1}}x^{{n+1}} + C$, to each term."
-        explanation = f"Integrating term by term:\n\n$\\int {deriv_coeffs[0]}x \\,dx = {orig_coeffs[0]}x^2$\n\n$\\int {deriv_coeffs[1]} \\,dx = {orig_coeffs[1]}x$\n\nRemember to add the constant of integration, C."
-        options = {answer, f"${deriv_str} + C$"}
+        hint = "Apply the reverse power rule, $\\int ax^n \\,dx = \\frac{{a}}{{n+1}}x^{{n+1}} + C$, to each term. Don't forget the constant of integration, C."
+        explanation = f"Integrating term by term:\n\n$\\int {deriv_coeffs[0]}x \\,dx = \\frac{{{deriv_coeffs[0]}}}{{2}}x^2 = {orig_coeffs[0]}x^2$\n\n$\\int {deriv_coeffs[1]} \\,dx = {orig_coeffs[1]}x$\n\nAdding these and the constant of integration gives ${answer}$."
+        options = {answer, f"${deriv_str} + C$", f"${_poly_to_str([orig_coeffs[0]*2, orig_coeffs[1]])} + C$"}
 
+    # --- Hard Questions ---
     elif q_type == 'find_constant_c':
         deriv_coeffs = [random.randint(1, 4) * 2, random.randint(-5, 5)]
-        deriv_str = poly_to_str(deriv_coeffs)
+        deriv_str = _poly_to_str(deriv_coeffs)
         px, py = random.randint(1, 3), random.randint(5, 20)
         integral_val_at_px = (deriv_coeffs[0]//2)*px**2 + deriv_coeffs[1]*px
         const_c = py - integral_val_at_px
-        orig_str = f"{poly_to_str([deriv_coeffs[0]//2, deriv_coeffs[1]])} {'+' if const_c >= 0 else '-'} {abs(const_c)}"
-        question = f"Given that $\\frac{{dy}}{{dx}} = {deriv_str}$ and the curve passes through the point $({px}, {py})$, find the equation of the curve."
+        orig_str = f"{_poly_to_str([deriv_coeffs[0]//2, deriv_coeffs[1]])} {'+' if const_c >= 0 else '-'} {abs(const_c)}"
+        question = f"Given that $\\frac{{dy}}{{dx}} = {deriv_str}$ and the curve passes through the point $({px}, {py})$, find the specific equation of the curve."
         answer = f"$y = {orig_str}$"
-        hint = "First, integrate the derivative to get the general form of the equation. Then, substitute the coordinates of the given point to solve for the constant of integration, C."
-        explanation = f"1. Integrate: $y = \\int ({deriv_str}) \\,dx = {poly_to_str([deriv_coeffs[0]//2, deriv_coeffs[1]])} + C$.\n\n2. Substitute the point $({px}, {py})$: ${py} = {poly_to_str([deriv_coeffs[0]//2, deriv_coeffs[1]]).replace('x', f'({px})')} + C$.\n\n3. Solve for C: ${py} = {integral_val_at_px} + C \\implies C = {const_c}$.\n\n4. The final equation is {answer}."
-        options = {answer, f"$y = {poly_to_str([deriv_coeffs[0]//2, deriv_coeffs[1]])}$"}
+        hint = "First, integrate the derivative to get the general form $y = ... + C$. Then, substitute the x and y coordinates of the given point to solve for C."
+        explanation = f"1. Integrate: $y = \\int ({deriv_str}) \\,dx = {_poly_to_str([deriv_coeffs[0]//2, deriv_coeffs[1]])} + C$.\n\n2. Substitute the point $({px}, {py})$: ${py} = {deriv_coeffs[0]//2}({px})^2 + {deriv_coeffs[1]}({px}) + C$.\n\n3. Solve for C: ${py} = {integral_val_at_px} + C \\implies C = {py} - {integral_val_at_px} = {const_c}$.\n\n4. The final equation is {answer}."
+        options = {answer, f"$y = {_poly_to_str([deriv_coeffs[0]//2, deriv_coeffs[1]])}$", f"$y = {deriv_str} + {const_c}$"}
 
     elif q_type == 'definite_integration':
         coeffs = [random.randint(1, 4) * 2, random.randint(2, 8)]
-        poly_str = poly_to_str(coeffs)
+        poly_str = _poly_to_str(coeffs)
         a, b = random.randint(1, 3), random.randint(4, 5)
         integral_coeffs = [coeffs[0]//2, coeffs[1]]
         F_b = integral_coeffs[0]*b**2 + integral_coeffs[1]*b
@@ -3250,89 +3392,137 @@ def _generate_calculus_question():
         result = F_b - F_a
         question = f"Evaluate the definite integral: $\\int_{{{a}}}^{{{b}}} ({poly_str}) \\,dx$."
         answer = str(result)
-        hint = "Integrate the function, then evaluate it at the upper limit and subtract the value at the lower limit."
-        explanation = f"1. The integral is $F(x) = {poly_to_str(integral_coeffs)}$.\n\n2. Evaluate at the limits: $F({b}) - F({a})$.\n\n3. $F({b}) = {F_b}$ and $F({a}) = {F_a}$.\n\n4. Result = ${F_b} - {F_a} = {result}$."
-        options = {answer, str(F_b+F_a)}
+        hint = "First find the indefinite integral, F(x). Then calculate F(b) - F(a), where 'b' is the upper limit and 'a' is the lower limit."
+        explanation = f"1. The integral is $F(x) = {_poly_to_str(integral_coeffs)}$.\n\n2. Evaluate at the upper limit: $F({b}) = {integral_coeffs[0]}({b})^2 + {integral_coeffs[1]}({b}) = {F_b}$.\n\n3. Evaluate at the lower limit: $F({a}) = {integral_coeffs[0]}({a})^2 + {integral_coeffs[1]}({a}) = {F_a}$.\n\n4. The result is $F({b}) - F({a}) = {F_b} - {F_a} = {result}$."
+        options = {answer, str(F_b+F_a), str(F_b)}
 
-    return {"question": question, "options": _finalize_options(options), "answer": answer, "hint": hint, "explanation": explanation}
+    return {"question": question, "options": _finalize_options(options), "answer": answer, "hint": hint, "explanation": explanation, "difficulty": difficulty}
 
 
-def _generate_number_bases_question():
-    """Generates a multi-subtopic question for Number Bases."""
+def _generate_number_bases_question(difficulty="Medium"):
+    """Generates a Number Bases question based on difficulty, preserving all original sub-types."""
 
-    q_type = random.choice(['to_base_10', 'from_base_10', 'addition', 'subtraction', 'multiplication'])
+    if difficulty == "Easy":
+        # Foundational conversion skills.
+        q_type = random.choice(['to_base_10', 'from_base_10'])
+    elif difficulty == "Medium":
+        # Basic arithmetic in other bases.
+        q_type = random.choice(['addition', 'subtraction'])
+    else: # Hard
+        # More complex arithmetic.
+        q_type = 'multiplication'
+
     question, answer, hint, explanation = "", "", "", ""
     options = set()
-
     base = random.choice([2, 3, 4, 5, 8])
 
+    # --- Easy Questions ---
     if q_type == 'to_base_10':
         num_base10 = random.randint(10, 100)
         num_other_base = np.base_repr(num_base10, base)
         question = f"Convert the number ${num_other_base}_{{{base}}}$ to base 10."
         answer = str(num_base10)
         hint = f"Multiply each digit by the base raised to the power of its position (starting from 0 on the right)."
-        exp_parts = []
-        for i, digit in enumerate(reversed(num_other_base)):
-            exp_parts.append(f"({digit} \\times {base}^{i})")
-        explanation = f"To convert ${num_other_base}_{{{base}}}$ to base 10:\n\n{' + '.join(exp_parts)} = {num_base10}$."
-        options = {answer, str(int(num_other_base, base=16)) if base < 16 else str(num_base10+base)}
+        exp_parts = [f"({digit} \\times {base}^{i})" for i, digit in enumerate(reversed(num_other_base))]
+        explanation = f"To convert ${num_other_base}_{{{base}}}$ to base 10, expand it:\n\n`{' + '.join(exp_parts)} = {num_base10}`."
+        options = {answer, str(int(num_other_base, base=16)) if base < 16 else str(num_base10+base), str(sum(int(d) for d in num_other_base)*base)}
 
     elif q_type == 'from_base_10':
         num_base10 = random.randint(20, 150)
         num_other_base = np.base_repr(num_base10, base)
         question = f"Convert the number ${num_base10}_{{10}}$ to base {base}."
         answer = str(num_other_base)
-        hint = "Use repeated division by the target base, and read the remainders from bottom to top."
-        explanation = f"We repeatedly divide {num_base10} by {base}:\n\n- ${num_base10} \\div {base} = ...$ remainder ...\n- ... and so on.\n\nReading the remainders upwards gives the answer: **{answer}**."
-        options = {answer, str(num_base10*base)}
-        
-    else: # Arithmetic
+        hint = "Use repeated division by the target base. The remainders, read from bottom to top, form the new number."
+        # Build a simple explanation of repeated division
+        exp = f"We repeatedly divide {num_base10} by {base} and record the remainders:\n"
+        n = num_base10
+        rems = []
+        while n > 0:
+            rem = n % base
+            rems.append(str(rem))
+            exp += f"\n- ${n} \\div {base} = {n//base}$ remainder **{rem}**"
+            n //= base
+        exp += f"\n\nReading the remainders from bottom to top gives **{''.join(reversed(rems))}**."
+        explanation = exp
+        options = {answer, str(num_base10*base), str(num_base10//base)}
+
+    # --- Medium Questions ---
+    elif q_type == 'addition':
         n1 = random.randint(10, 50)
         n2 = random.randint(10, 50)
         n1_base = np.base_repr(n1, base)
         n2_base = np.base_repr(n2, base)
-        
-        if q_type == 'addition':
-            result_10 = n1 + n2
-            question = f"Calculate the sum in base {base}: ${n1_base}_{{{base}}} + {n2_base}_{{{base}}}$"
-        elif q_type == 'subtraction':
-            # Ensure result is positive
-            if n1 < n2: n1, n2 = n2, n1
-            n1_base, n2_base = np.base_repr(n1, base), np.base_repr(n2, base)
-            result_10 = n1 - n2
-            question = f"Calculate the difference in base {base}: ${n1_base}_{{{base}}} - {n2_base}_{{{base}}}$"
-        else: # multiplication
-            n1, n2 = random.randint(5, 12), random.randint(5, 12)
-            n1_base, n2_base = np.base_repr(n1, base), np.base_repr(n2, base)
-            result_10 = n1 * n2
-            question = f"Calculate the product in base {base}: ${n1_base}_{{{base}}} \\times {n2_base}_{{{base}}}$"
-        
+        result_10 = n1 + n2
         answer = np.base_repr(result_10, base)
-        hint = "The easiest method is to convert both numbers to base 10, perform the operation, then convert the result back to the target base."
-        explanation = f"1. Convert to base 10: ${n1_base}_{{{base}}} = {n1}_{{10}}$ and ${n2_base}_{{{base}}} = {n2}_{{10}}$.\n\n2. Perform the operation in base 10: ${n1} {'+' if q_type=='addition' else '-' if q_type=='subtraction' else '×'} {n2} = {result_10}$.\n\n3. Convert the result back to base {base}: ${result_10}_{{10}} = {answer}_{{{base}}}$."
+        question = f"Calculate the sum in base {base}: ${n1_base}_{{{base}}} + {n2_base}_{{{base}}}$"
+        hint = "The simplest method is to convert both numbers to base 10, add them normally, then convert the result back to the target base."
+        explanation = f"1. Convert to base 10: ${n1_base}_{{{base}}} = {n1}_{{10}}$ and ${n2_base}_{{{base}}} = {n2}_{{10}}$.\n\n2. Add in base 10: ${n1} + {n2} = {result_10}$.\n\n3. Convert the result back to base {base}: ${result_10}_{{10}} = {answer}_{{{base}}}$."
+        options = {answer, np.base_repr(result_10 + base, base), np.base_repr(n1,base)+np.base_repr(n2,base)}
+
+    elif q_type == 'subtraction':
+        n1 = random.randint(20, 60)
+        n2 = random.randint(10, 50)
+        if n1 < n2: n1, n2 = n2, n1 # Ensure result is positive
+        n1_base, n2_base = np.base_repr(n1, base), np.base_repr(n2, base)
+        result_10 = n1 - n2
+        answer = np.base_repr(result_10, base)
+        question = f"Calculate the difference in base {base}: ${n1_base}_{{{base}}} - {n2_base}_{{{base}}}$"
+        hint = "Convert both numbers to base 10, subtract them, then convert the result back to the target base."
+        explanation = f"1. Convert to base 10: ${n1_base}_{{{base}}} = {n1}_{{10}}$ and ${n2_base}_{{{base}}} = {n2}_{{10}}$.\n\n2. Subtract in base 10: ${n1} - {n2} = {result_10}$.\n\n3. Convert the result back to base {base}: ${result_10}_{{10}} = {answer}_{{{base}}}$."
         options = {answer, np.base_repr(result_10 + base, base)}
 
-    return {"question": question, "options": _finalize_options(options), "answer": answer, "hint": hint, "explanation": explanation}
+    # --- Hard Question ---
+    elif q_type == 'multiplication':
+        n1, n2 = random.randint(5, 12), random.randint(5, 12)
+        n1_base, n2_base = np.base_repr(n1, base), np.base_repr(n2, base)
+        result_10 = n1 * n2
+        answer = np.base_repr(result_10, base)
+        question = f"Calculate the product in base {base}: ${n1_base}_{{{base}}} \\times {n2_base}_{{{base}}}$"
+        hint = "Convert both numbers to base 10, multiply them, then convert the final result back to the target base."
+        explanation = f"1. Convert to base 10: ${n1_base}_{{{base}}} = {n1}_{{10}}$ and ${n2_base}_{{{base}}} = {n2}_{{10}}$.\n\n2. Multiply in base 10: ${n1} \\times {n2} = {result_10}$.\n\n3. Convert the result back to base {base}: ${result_10}_{{10}} = {answer}_{{{base}}}$."
+        options = {answer, np.base_repr(n1+n2, base)}
+        
+    return {"question": question, "options": _finalize_options(options), "answer": answer, "hint": hint, "explanation": explanation, "difficulty": difficulty}
 
 
-def _generate_modulo_arithmetic_question():
-    """Generates a multi-subtopic question for Modulo Arithmetic."""
+def _generate_modulo_arithmetic_question(difficulty="Medium"):
+    """Generates a Modulo Arithmetic question based on difficulty, preserving all original sub-types."""
 
-    q_type = random.choice(['find_remainder', 'congruence', 'solve_linear', 'clock_arithmetic', 'day_of_week'])
+    if difficulty == "Easy":
+        # Direct calculation and simple application.
+        q_type = random.choice(['find_remainder', 'clock_arithmetic'])
+    elif difficulty == "Medium":
+        # Understanding the concept of congruence and another application.
+        q_type = random.choice(['congruence', 'day_of_week'])
+    else: # Hard
+        # Solving a linear congruence, which requires algebraic thinking.
+        q_type = 'solve_linear'
+
     question, answer, hint, explanation = "", "", "", ""
     options = set()
 
+    # --- Easy Questions ---
     if q_type == 'find_remainder':
         n = random.randint(3, 12)
         a = random.randint(n + 1, n * 10)
         rem = a % n
         question = f"Find the remainder when ${a}$ is divided by ${n}$. (i.e., find ${a} \\pmod {n}$)"
         answer = str(rem)
-        hint = "This is asking for the value of the 'modulo' operation."
+        hint = "This is asking for the value of the 'modulo' operation, which is the remainder after division."
         explanation = f"To find the remainder, we see how many times ${n}$ fits into ${a}$ completely, and what is left over.\n\n${a} = {n} \\times {a//n} + {rem}$.\n\nThe remainder is **{rem}**."
-        options = {answer, str(a//n)}
+        options = {answer, str(a//n), str(n-rem)}
 
+    elif q_type == 'clock_arithmetic':
+        current_time = random.randint(1, 12)
+        hours_passed = random.randint(15, 100)
+        final_time = (current_time + hours_passed - 1) % 12 + 1
+        question = f"A student in Accra looks at a 12-hour clock. It is currently {current_time} o'clock. What time will it be in {hours_passed} hours?"
+        answer = f"{final_time} o'clock"
+        hint = "This problem can be solved using modulo 12. The cycle of a clock repeats every 12 hours."
+        explanation = f"We can calculate this using modulo arithmetic:\n\n$({current_time} + {hours_passed}) \\pmod{{12}}$.\n\nA remainder of 0 corresponds to 12 o'clock. The calculation is `({current_time} + {hours_passed} - 1) % 12 + 1`, which results in **{final_time} o'clock**."
+        options = {answer, f"{(current_time+hours_passed)%12} o'clock", f"{abs(current_time-hours_passed)%12} o'clock"}
+
+    # --- Medium Questions ---
     elif q_type == 'congruence':
         n = random.randint(3, 9)
         is_true = random.choice([True, False])
@@ -3348,32 +3538,10 @@ def _generate_modulo_arithmetic_question():
             b = n * random.randint(1, 4) + rem2
             answer = "False"
         question = f"Is the following congruence relation true or false? ${a} \\equiv {b} \\pmod {n}$"
-        hint = f"The relation $a \\equiv b \\pmod n$ is true if and only if $(a - b)$ is a multiple of $n$."
+        hint = f"The relation $a \\equiv b \\pmod n$ is true if and only if $a$ and $b$ have the same remainder when divided by $n$. Alternatively, if $(a - b)$ is a multiple of $n$."
         explanation = f"We check if $(a - b)$ is divisible by ${n}$.\n\n${a} - {b} = {a-b}$.\n\nIs {a-b} divisible by {n}? The answer is **{answer.lower()}**."
         options = {"True", "False"}
     
-    elif q_type == 'solve_linear':
-        n = random.choice([3, 5, 7, 11]) # Prime modulus for simplicity
-        a = random.randint(2, n - 1)
-        x = random.randint(1, n - 1)
-        b = (a * x) % n
-        question = f"Find the value of $x$ in the congruence: ${a}x \\equiv {b} \\pmod {n}$, where $x$ is an integer from 1 to {n-1}."
-        answer = str(x)
-        hint = f"Test the integer values from 1 to {n-1} for $x$ to see which one satisfies the equation."
-        explanation = f"We are looking for an integer $x$ such that ${a}x$ has the same remainder as ${b}$ when divided by ${n}$. By testing values:\n\n- ${a}({x}) = {a*x}$\n- ${a*x} \\pmod {n} = {b}$\n\nSo, $x={answer}$ is the solution."
-        options = {answer, str((b-a)%n), str((b+a)%n)}
-
-    elif q_type == 'clock_arithmetic':
-        current_time = random.randint(1, 12)
-        hours_passed = random.randint(15, 100)
-        final_time = (current_time + hours_passed) % 12
-        if final_time == 0: final_time = 12
-        question = f"A student in Accra looks at a 12-hour clock. It is currently {current_time} o'clock. What time will it be in {hours_passed} hours?"
-        answer = f"{final_time} o'clock"
-        hint = "This problem can be solved using modulo 12."
-        explanation = f"We can calculate this using modulo arithmetic:\n\n$({current_time} + {hours_passed}) \\pmod{{12}}$\n\n$({current_time + hours_passed}) \\pmod{{12}} = {(current_time+hours_passed)%12}$.\n\nA remainder of 0 corresponds to 12 o'clock. So the time will be **{answer}**."
-        options = {answer, f"{(current_time+hours_passed)%12} o'clock", f"{abs(current_time-hours_passed)%12} o'clock"}
-
     elif q_type == 'day_of_week':
         days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
         start_day_index = random.randint(0, 6)
@@ -3381,12 +3549,23 @@ def _generate_modulo_arithmetic_question():
         final_day_index = (start_day_index + days_passed) % 7
         question = f"Today is {days[start_day_index]}. What day of the week will it be in {days_passed} days?"
         answer = days[final_day_index]
-        hint = "Use modulo 7 to solve this problem. Assign a number to each day of the week (e.g., Monday=0)."
-        explanation = f"We can model the days of the week with numbers 0 through 6.\n\nLet {days[start_day_index]} be {start_day_index}.\n\nWe calculate $({start_day_index} + {days_passed}) \\pmod 7$.\n\n$({start_day_index + days_passed}) \\pmod 7 = {final_day_index}$.\n\nThe number {final_day_index} corresponds to **{answer}**."
-        options = {*days}
-        options.add(answer)
+        hint = "Use modulo 7 to solve this problem. The cycle of a week repeats every 7 days."
+        explanation = f"We can model the days of the week with numbers 0 through 6 (e.g., {days[start_day_index]} = {start_day_index}).\n\nWe calculate $({start_day_index} + {days_passed}) \\pmod 7$.\n\n$({start_day_index + days_passed}) \\pmod 7 = {final_day_index}$.\n\nThe number {final_day_index} corresponds to **{answer}**."
+        options = set(days)
 
-    return {"question": question, "options": _finalize_options(options), "answer": answer, "hint": hint, "explanation": explanation}
+    # --- Hard Question ---
+    elif q_type == 'solve_linear':
+        n = random.choice([3, 5, 7, 11]) # Prime modulus for simplicity
+        a = random.randint(2, n - 1)
+        x = random.randint(1, n - 1)
+        b = (a * x) % n
+        question = f"Find the value of $x$ in the congruence: ${a}x \\equiv {b} \\pmod {n}$, where $x$ is an integer from 1 to {n-1}."
+        answer = str(x)
+        hint = f"You can test the integer values from 1 to {n-1} for $x$ to see which one satisfies the equation."
+        explanation = f"We are looking for an integer $x$ such that ${a}x$ has the same remainder as ${b}$ when divided by ${n}$. By testing values, we find:\n\n- For $x={x}$, ${a}({x}) = {a*x}$.\n- ${a*x} \\div {n}$ is {a*x//n} with a remainder of {b}.\n\nSo, **$x={answer}$** is the solution."
+        options = {answer, str((b-a)%n), str((b+a)%n)}
+
+    return {"question": question, "options": _finalize_options(options), "answer": answer, "hint": hint, "explanation": explanation, "difficulty": difficulty}
 
 # --- ADVANCED COMBO HELPER FUNCTIONS ---
 
@@ -4055,8 +4234,9 @@ def display_quiz_page(topic_options):
     st.progress(st.session_state.questions_answered / QUIZ_LENGTH, text="Round Progress")
     st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
     
+    # Replace the block above with this new version
     if 'current_q_data' not in st.session_state:
-        st.session_state.current_q_data = generate_question(st.session_state.quiz_topic)
+        st.session_state.current_q_data = get_adaptive_question(st.session_state.quiz_topic, st.session_state.username)
     
     q_data = st.session_state.current_q_data
     st.subheader(f"Topic: {st.session_state.quiz_topic}")
@@ -5509,6 +5689,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
