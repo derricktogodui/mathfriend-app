@@ -134,13 +134,6 @@ def create_and_verify_tables():
                                 content TEXT
                             )'''))
 
-            conn.execute(text('''CREATE TABLE IF NOT EXISTS friends (
-                                user1_username TEXT NOT NULL,
-                                user2_username TEXT NOT NULL,
-                                status TEXT NOT NULL, -- 'pending', 'accepted'
-                                PRIMARY KEY (user1_username, user2_username)
-                            )'''))
-            
             # --- CORRECTED Head-to-Head Duel Tables ---
             conn.execute(text('''
                 CREATE TABLE IF NOT EXISTS duels (
@@ -262,88 +255,6 @@ def get_user_role(username):
         query = text("SELECT role FROM public.users WHERE username = :username")
         result = conn.execute(query, {"username": username}).scalar_one_or_none()
         return result
-
-def search_users(search_query, current_user):
-    """Searches for users by username, excluding the current user."""
-    with engine.connect() as conn:
-        query = text("""
-            SELECT username FROM public.users 
-            WHERE username ILIKE :query AND username != :current_user
-            LIMIT 10
-        """)
-        result = conn.execute(query, {"query": f"%{search_query}%", "current_user": current_user}).fetchall()
-        return [row[0] for row in result]
-
-def send_friend_request(sender, receiver):
-    """Creates a 'pending' friend request."""
-    with engine.connect() as conn:
-        # Ensure the request doesn't go both ways to avoid duplicates
-        user1, user2 = sorted([sender, receiver])
-        query = text("""
-            INSERT INTO friends (user1_username, user2_username, status)
-            VALUES (:u1, :u2, 'pending')
-            ON CONFLICT (user1_username, user2_username) DO NOTHING
-        """)
-        conn.execute(query, {"u1": user1, "u2": user2})
-        conn.commit()
-
-def get_pending_requests(username):
-    """Fetches all incoming friend requests for a user."""
-    with engine.connect() as conn:
-        query = text("""
-            SELECT user1_username FROM friends
-            WHERE user2_username = :username AND status = 'pending'
-        """)
-        result = conn.execute(query, {"username": username}).fetchall()
-        return [row[0] for row in result]
-
-def accept_friend_request(sender, receiver):
-    """Changes a friend request status from 'pending' to 'accepted'."""
-    with engine.connect() as conn:
-        user1, user2 = sorted([sender, receiver])
-        query = text("""
-            UPDATE friends SET status = 'accepted'
-            WHERE user1_username = :u1 AND user2_username = :u2 AND status = 'pending'
-        """)
-        conn.execute(query, {"u1": user1, "u2": user2})
-        conn.commit()
-
-def decline_or_remove_friend(user_a, user_b):
-    """Deletes a friend request or an existing friendship."""
-    with engine.connect() as conn:
-        user1, user2 = sorted([user_a, user_b])
-        query = text("DELETE FROM friends WHERE user1_username = :u1 AND user2_username = :u2")
-        conn.execute(query, {"u1": user1, "u2": user2})
-        conn.commit()
-
-def get_friends_list(username):
-    """Fetches a list of all accepted friends for a user."""
-    with engine.connect() as conn:
-        query = text("""
-            SELECT CASE
-                WHEN user1_username = :username THEN user2_username
-                ELSE user1_username
-            END AS friend_username
-            FROM friends
-            WHERE (:username IN (user1_username, user2_username)) AND status = 'accepted'
-        """)
-        result = conn.execute(query, {"username": username}).fetchall()
-        return [row[0] for row in result]
-
-def get_or_create_private_chat_channel(user1, user2):
-    """Creates a unique, private chat channel for two users."""
-    # Sort usernames to create a consistent channel ID
-    sorted_users = sorted([user1, user2])
-    channel_id = f"private-{sorted_users[0]}-{sorted_users[1]}"
-    
-    channel = chat_client.channel("messaging", channel_id=channel_id)
-    
-    # Ensure both users are members of the channel
-    if not channel.query(members={"id": {"$in": [user1, user2]}}).members:
-         channel.create(user1)
-         channel.add_members([user2])
-    
-    return channel
 
 # --- NEW ADMIN BACKEND FUNCTIONS ---
 
@@ -4783,146 +4694,43 @@ def display_learning_resources(topic_options):
                 st.markdown(topics_content[topic], unsafe_allow_html=True)
 def display_profile_page():
     st.header("👤 Your Profile")
-    
-    tab1, tab2, tab3 = st.tabs(["📝 My Profile", "🏆 My Achievements", "🤝 My Friends"])
-
-    # --- TAB 1: PROFILE EDITING ---
-    with tab1:
-        profile = get_user_profile(st.session_state.username) or {}
-        with st.form("profile_form"):
-            st.subheader("Edit Profile")
-            full_name = st.text_input("Full Name", value=profile.get('full_name', ''))
-            school = st.text_input("School", value=profile.get('school', ''))
-            age = st.number_input("Age", min_value=5, max_value=100, value=profile.get('age', 18))
-            bio = st.text_area("Bio", value=profile.get('bio', ''))
-            if st.form_submit_button("Save Profile", type="primary"):
-                if update_user_profile(st.session_state.username, full_name, school, age, bio):
-                    st.success("Profile updated!"); st.rerun()
-
-        st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
-        with st.form("password_form"):
-            st.subheader("Change Password")
-            current_password = st.text_input("Current Password", type="password")
-            new_password = st.text_input("New Password", type="password")
-            confirm_new_password = st.text_input("Confirm New Password", type="password")
-            if st.form_submit_button("Change Password", type="primary"):
-                if new_password != confirm_new_password: st.error("New passwords don't match!")
-                elif change_password(st.session_state.username, current_password, new_password): st.success("Password changed successfully!")
-                else: st.error("Incorrect current password")
-
-    # --- TAB 2: ACHIEVEMENTS ---
-    with tab2:
-        st.subheader("🏆 My Achievements")
-        achievements = get_user_achievements(st.session_state.username)
-        if not achievements:
-            st.info("Your trophy case is empty for now. Keep playing to earn badges!")
-        else:
-            cols = st.columns(4)
-            for i, achievement in enumerate(achievements):
-                col = cols[i % 4]
-                with col:
-                    with st.container(border=True):
-                        st.markdown(f"<div style='font-size: 3rem; text-align: center;'>{achievement['badge_icon']}</div>", unsafe_allow_html=True)
-                        st.markdown(f"<div style='font-size: 1rem; text-align: center; font-weight: bold;'>{achievement['achievement_name']}</div>", unsafe_allow_html=True)
-                        st.markdown(f"<div style='font-size: 0.8rem; text-align: center; color: grey;'>Unlocked: {achievement['unlocked_at'].strftime('%b %d, %Y')}</div>", unsafe_allow_html=True)
-
-    # --- TAB 3: FRIENDS MANAGEMENT ---
-    with tab3:
-        st.subheader("🤝 My Friends")
-
-        # Section for pending requests
-        pending_requests = get_pending_requests(st.session_state.username)
-        if pending_requests:
-            st.info("You have incoming friend requests!")
-            for sender in pending_requests:
+    profile = get_user_profile(st.session_state.username) or {}
+    with st.form("profile_form"):
+        st.subheader("Edit Profile")
+        full_name = st.text_input("Full Name", value=profile.get('full_name', ''))
+        school = st.text_input("School", value=profile.get('school', ''))
+        age = st.number_input("Age", min_value=5, max_value=100, value=profile.get('age', 18))
+        bio = st.text_area("Bio", value=profile.get('bio', ''))
+        if st.form_submit_button("Save Profile", type="primary"):
+            if update_user_profile(st.session_state.username, full_name, school, age, bio):
+                st.success("Profile updated!"); st.rerun()
+    st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
+    # ADD THIS BLOCK
+    st.subheader("🏆 My Achievements")
+    achievements = get_user_achievements(st.session_state.username)
+    if not achievements:
+        st.info("Your trophy case is empty for now. Keep playing to earn badges!")
+    else:
+        # Create a grid layout for the badges
+        cols = st.columns(4)
+        for i, achievement in enumerate(achievements):
+            col = cols[i % 4]
+            with col:
                 with st.container(border=True):
-                    c1, c2, c3 = st.columns([2,1,1])
-                    c1.text(f"Request from: {sender}")
-                    if c2.button("Accept", key=f"accept_{sender}", use_container_width=True):
-                        accept_friend_request(sender, st.session_state.username)
-                        st.success(f"You are now friends with {sender}!")
-                        st.rerun()
-                    if c3.button("Decline", key=f"decline_{sender}", use_container_width=True):
-                        decline_or_remove_friend(sender, st.session_state.username)
-                        st.rerun()
-        
-        st.markdown("---")
-        st.subheader("Friends List")
-        friends = get_friends_list(st.session_state.username)
-        if not friends:
-            st.info("You haven't added any friends yet. Use the search below to find people!")
-        else:
-            online_users = get_online_users(st.session_state.username)
-            for friend in sorted(friends):
-                is_online = friend in online_users
-                status_icon = "🟢 Online" if is_online else "🔴 Offline"
-                with st.container(border=True):
-                    c1, c2, c3 = st.columns([2,1,1])
-                    c1.markdown(f"**{friend}** ({status_icon})")
-                    
-                    # --- FIX: Changed the button to type="primary" ---
-                    if c2.button("💬 Message", key=f"msg_{friend}", use_container_width=True, type="primary"):
-                        st.session_state.page = "private_chat"
-                        st.session_state.private_chat_with = friend
-                        st.rerun()
-                        
-                    if c3.button("🗑️ Remove", key=f"remove_{friend}", use_container_width=True):
-                        decline_or_remove_friend(st.session_state.username, friend)
-                        st.rerun()
-
-        st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
-        st.subheader("Find New Friends")
-        search_term = st.text_input("Search for a user", placeholder="Enter a username...")
-        if search_term:
-            results = search_users(search_term, st.session_state.username)
-            if not results:
-                st.warning("No users found matching that name.")
-            else:
-                for result_user in results:
-                     if result_user not in friends and result_user not in pending_requests:
-                        if st.button(f"➕ Add {result_user} as Friend", key=f"add_{result_user}"):
-                            send_friend_request(st.session_state.username, result_user)
-                            st.success(f"Friend request sent to {result_user}!")
-                            time.sleep(1)
-                            st.rerun()
-def display_private_chat_page():
-    """Renders a private 1-on-1 chat screen."""
-    friend_username = st.session_state.get("private_chat_with")
-    if not friend_username:
-        st.error("No user selected for chat.")
-        if st.button("Back to Profile"):
-            st.session_state.page = "profile"
-            st.rerun()
-        return
-
-    st.header(f"💬 Chat with {friend_username}")
+                    st.markdown(f"<div style='font-size: 3rem; text-align: center;'>{achievement['badge_icon']}</div>", unsafe_allow_html=True)
+                    st.markdown(f"<div style='font-size: 1rem; text-align: center; font-weight: bold;'>{achievement['achievement_name']}</div>", unsafe_allow_html=True)
+                    st.markdown(f"<div style='font-size: 0.8rem; text-align: center; color: grey;'>Unlocked: {achievement['unlocked_at'].strftime('%b %d, %Y')}</div>", unsafe_allow_html=True)
     
-    # Use our backend function to get the private channel
-    channel = get_or_create_private_chat_channel(st.session_state.username, friend_username)
-    
-    # The rest of this is similar to the public Blackboard
-    state = channel.query(watch=False, state=True, messages={"limit": 100})
-    messages = state['messages']
-
-    for msg in messages:
-        user_id = msg["user"].get("id", "Unknown")
-        user_name = msg["user"].get("name", user_id)
-        is_current_user = (user_id == st.session_state.username)
-        
-        with st.chat_message(name="user" if is_current_user else "assistant"):
-            if not is_current_user:
-                st.markdown(f"**{user_name}**")
-            st.markdown(msg["text"])
-            
-    if prompt := st.chat_input(f"Message {friend_username}..."):
-        channel.send_message({"text": prompt}, user_id=st.session_state.username)
-        st.rerun()
-
-    st.markdown("---")
-    if st.button("⬅️ Back to Profile"):
-        st.session_state.page = "profile"
-        del st.session_state.private_chat_with
-        st.rerun()
+    st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
+    with st.form("password_form"):
+        st.subheader("Change Password")
+        current_password = st.text_input("Current Password", type="password")
+        new_password = st.text_input("New Password", type="password")
+        confirm_new_password = st.text_input("Confirm New Password", type="password")
+        if st.form_submit_button("Change Password", type="primary"):
+            if new_password != confirm_new_password: st.error("New passwords don't match!")
+            elif change_password(st.session_state.username, current_password, new_password): st.success("Password changed successfully!")
+            else: st.error("Incorrect current password")
 
 # Replace your existing display_admin_panel function with this one
 
@@ -5302,8 +5110,6 @@ def show_main_app():
     
     if st.session_state.get("page") == "duel":
         display_duel_page()
-    elif st.session_state.get("page") == "private_chat":
-        display_private_chat_page()
     else:
         topic_options = [
             "Sets", "Percentages", "Fractions", "Indices", "Surds", 
@@ -5407,11 +5213,6 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
-
-
-
-
-
 
 
 
