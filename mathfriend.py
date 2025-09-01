@@ -4859,11 +4859,13 @@ def display_profile_page():
                 with st.container(border=True):
                     c1, c2, c3 = st.columns([2,1,1])
                     c1.markdown(f"**{friend}** ({status_icon})")
-                    # The message button is now enabled
-                    if c2.button("💬 Message", key=f"msg_{friend}", use_container_width=True):
+                    
+                    # --- FIX: Changed the button to type="primary" ---
+                    if c2.button("💬 Message", key=f"msg_{friend}", use_container_width=True, type="primary"):
                         st.session_state.page = "private_chat"
                         st.session_state.private_chat_with = friend
                         st.rerun()
+                        
                     if c3.button("🗑️ Remove", key=f"remove_{friend}", use_container_width=True):
                         decline_or_remove_friend(st.session_state.username, friend)
                         st.rerun()
@@ -5405,6 +5407,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
