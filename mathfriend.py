@@ -788,59 +788,44 @@ def get_user_rank(username, topic, time_filter="all"):
 
 def get_rival_snapshot(username, topic, time_filter="all"):
     """
-    Fetches the user's rank, total players, and their immediate rivals (above and below) for a specific topic.
+    Fetches the user's rank and their immediate rivals (with names and ranks).
     """
     with engine.connect() as conn:
         time_clause = ""
-        if time_filter == "week":
-            time_clause = "AND timestamp >= NOW() - INTERVAL '7 days'"
-        elif time_filter == "month":
-            time_clause = "AND timestamp >= NOW() - INTERVAL '30 days'"
+        if time_filter == "week": time_clause = "AND timestamp >= NOW() - INTERVAL '7 days'"
+        elif time_filter == "month": time_clause = "AND timestamp >= NOW() - INTERVAL '30 days'"
 
-        # THIS SQL QUERY HAS BEEN CORRECTED FOR RELIABILITY
         query = text(f"""
             WITH UserBestScores AS (
-                SELECT
-                    username, score, questions_answered, timestamp,
-                    ROW_NUMBER() OVER(PARTITION BY username ORDER BY (CAST(score AS REAL) / questions_answered) DESC, questions_answered DESC, timestamp ASC) as rn
-                FROM quiz_results
-                WHERE topic = :topic AND questions_answered > 0 {time_clause}
-            ),
-            RankedScores AS (
-                SELECT
-                    username,
-                    RANK() OVER (ORDER BY (CAST(score AS REAL) / questions_answered) DESC, questions_answered DESC, timestamp ASC) as rank
-                FROM UserBestScores
-                WHERE rn = 1
-            ),
-            CurrentUser AS (
+                SELECT username, score, questions_answered, timestamp,
+                       ROW_NUMBER() OVER(PARTITION BY username ORDER BY (CAST(score AS REAL) / questions_answered) DESC, questions_answered DESC, timestamp ASC) as rn
+                FROM quiz_results WHERE topic = :topic AND questions_answered > 0 {time_clause}
+            ), RankedScores AS (
+                SELECT username, RANK() OVER (ORDER BY (CAST(score AS REAL) / questions_answered) DESC, questions_answered DESC, timestamp ASC) as rank
+                FROM UserBestScores WHERE rn = 1
+            ), CurrentUser AS (
                 SELECT rank FROM RankedScores WHERE username = :username
             )
-            SELECT username, rank
-            FROM RankedScores
-            WHERE rank IN ((SELECT rank FROM CurrentUser) - 1, (SELECT rank FROM CurrentUser), (SELECT rank FROM CurrentUser) + 1)
+            SELECT username, rank FROM RankedScores, CurrentUser
+            WHERE rank IN (CurrentUser.rank - 1, CurrentUser.rank, CurrentUser.rank + 1)
             ORDER BY rank;
         """)
-
         result = conn.execute(query, {"topic": topic, "username": username}).mappings().fetchall()
         
         snapshot = {"user_rank": None, "rival_above": None, "rival_below": None}
-        if not result:
-            return None
+        if not result: return None
 
         user_row = next((r for r in result if r['username'] == username), None)
-        if not user_row:
-            return None
+        if not user_row: return None
         snapshot['user_rank'] = user_row['rank']
 
         for row in result:
             if row['rank'] < snapshot['user_rank']:
-                snapshot['rival_above'] = row['username']
+                snapshot['rival_above'] = {'username': row['username'], 'rank': row['rank']}
             elif row['rank'] > snapshot['user_rank']:
-                snapshot['rival_below'] = row['username']
+                snapshot['rival_below'] = {'username': row['username'], 'rank': row['rank']}
         
         return snapshot
-
 def get_total_overall_players(time_filter="all"):
     """Gets the total number of unique players on the overall leaderboard."""
     with engine.connect() as conn:
@@ -851,29 +836,22 @@ def get_total_overall_players(time_filter="all"):
         return conn.execute(query).scalar_one() or 0
 
 def get_overall_rival_snapshot(username, time_filter="all"):
-    """Fetches the user's overall rank and their immediate rivals."""
+    """Fetches the user's overall rank and their immediate rivals (with names and ranks)."""
     with engine.connect() as conn:
         time_clause = ""
         if time_filter == "week": time_clause = "WHERE timestamp >= NOW() - INTERVAL '7 days'"
         elif time_filter == "month": time_clause = "WHERE timestamp >= NOW() - INTERVAL '30 days'"
         
-        # THIS SQL QUERY HAS BEEN CORRECTED FOR RELIABILITY
         query = text(f"""
             WITH PlayerTotals AS (
-                SELECT username, SUM(score) as total_score
-                FROM quiz_results {time_clause}
-                GROUP BY username
-            ),
-            RankedScores AS (
-                SELECT username, RANK() OVER (ORDER BY total_score DESC, username ASC) as rank
-                FROM PlayerTotals
-            ),
-            CurrentUser AS (
+                SELECT username, SUM(score) as total_score FROM quiz_results {time_clause} GROUP BY username
+            ), RankedScores AS (
+                SELECT username, RANK() OVER (ORDER BY total_score DESC, username ASC) as rank FROM PlayerTotals
+            ), CurrentUser AS (
                 SELECT rank FROM RankedScores WHERE username = :username
             )
-            SELECT username, rank
-            FROM RankedScores
-            WHERE rank IN ((SELECT rank FROM CurrentUser) - 1, (SELECT rank FROM CurrentUser), (SELECT rank FROM CurrentUser) + 1)
+            SELECT username, rank FROM RankedScores, CurrentUser
+            WHERE rank IN (CurrentUser.rank - 1, CurrentUser.rank, CurrentUser.rank + 1)
             ORDER BY rank;
         """)
         result = conn.execute(query, {"username": username}).mappings().fetchall()
@@ -887,9 +865,9 @@ def get_overall_rival_snapshot(username, time_filter="all"):
 
         for row in result:
             if row['rank'] < snapshot['user_rank']:
-                snapshot['rival_above'] = row['username']
+                snapshot['rival_above'] = {'username': row['username'], 'rank': row['rank']}
             elif row['rank'] > snapshot['user_rank']:
-                snapshot['rival_below'] = row['username']
+                snapshot['rival_below'] = {'username': row['username'], 'rank': row['rank']}
         
         return snapshot
 
@@ -4567,7 +4545,6 @@ def display_leaderboard(topic_options):
     st.header("🏆 Global Leaderboard")
     
     leaderboard_options = ["🏆 Overall Performance"] + topic_options
-    
     col1, col2 = st.columns([2, 3])
     with col1:
         leaderboard_topic = st.selectbox("Select a category:", leaderboard_options, index=0)
@@ -4579,37 +4556,46 @@ def display_leaderboard(topic_options):
 
     st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
 
-    if leaderboard_topic == "🏆 Overall Performance":
-        # --- NEW SIDE-BY-SIDE LAYOUT FOR OVERALL PERFORMANCE ---
-        col_rank, col_rivals = st.columns(2)
+    # --- HELPER FUNCTION FOR THE NEW CARD DESIGN ---
+    def display_rival_card(rival_data, total_players, label):
+        col_rank, col_rivals = st.columns([1, 2])
         with col_rank:
-            total_players = get_total_overall_players(time_filter)
-            rival_data = get_overall_rival_snapshot(st.session_state.username, time_filter)
-            
-            if rival_data and rival_data['user_rank'] is not None:
-                st.metric(label="Your Overall Rank", value=f"#{rival_data['user_rank']} / {total_players} players")
+            if rival_data and rival_data.get('user_rank') is not None:
+                st.metric(label=label, value=f"#{rival_data['user_rank']} / {total_players} players")
             else:
-                st.metric(label="Your Overall Rank", value="N/A")
+                st.metric(label=label, value="N/A")
         
         with col_rivals:
-            if rival_data and rival_data['user_rank'] is not None:
-                with st.container(border=True):
-                    st.markdown("##### ⚔️ Rival Snapshot (Overall)")
-                    if rival_data['rival_above']:
-                        st.write(f"^ **You're chasing:** {rival_data['rival_above']} (Rank #{rival_data['user_rank'] - 1})")
-                    else:
-                        st.success("🎉 You're #1! There's no one above you!")
-                    if rival_data['rival_below']:
-                        st.markdown(f"<span style='color:red;'>v</span> **You're ahead of:** {rival_data['rival_below']} (Rank #{rival_data['user_rank'] + 1})", unsafe_allow_html=True)
-                    else:
-                        st.info("Keep going to pull ahead of the pack!")
+            if rival_data and rival_data.get('user_rank') is not None:
+                card_html = """
+                <div style="border: 1px solid #e1e4e8; border-left: 5px solid #0d6efd; border-radius: 10px; padding: 1rem; background-color: #f8f9fa; height: 100%;">
+                    <h5 style="margin-top: 0; margin-bottom: 0.75rem; font-weight: 500;">⚔️ Rival Snapshot</h5>"""
+                
+                if rival_data['rival_above']:
+                    card_html += f"""<p style="margin-bottom: 0.5rem;"><span style="color:green; font-size: 1.2rem; font-weight: bold;">&#9650;</span> You're chasing: <strong>{rival_data['rival_above']['username']}</strong> (Rank #{rival_data['rival_above']['rank']})</p>"""
+                else:
+                    card_html += """<p style="margin-bottom: 0.5rem; color: green;">🎉 You're #1! There's no one above you!</p>"""
+                
+                if rival_data['rival_below']:
+                    card_html += f"""<p style="margin-bottom: 0;"><span style="color:red; font-size: 1.2rem; font-weight: bold;">&#9660;</span> You're ahead of: <strong>{rival_data['rival_below']['username']}</strong> (Rank #{rival_data['rival_below']['rank']})</p>"""
+                else:
+                    card_html += """<p style="margin-bottom: 0;">Keep going to pull ahead of the pack!</p>"""
+
+                card_html += "</div>"
+                st.markdown(card_html, unsafe_allow_html=True)
             else:
-                st.info("Take a quiz to get on the overall leaderboard!")
+                st.info(f"Take a quiz to get on the leaderboard!")
+    
+    if leaderboard_topic == "🏆 Overall Performance":
+        total_players = get_total_overall_players(time_filter)
+        rival_data = get_overall_rival_snapshot(st.session_state.username, time_filter)
+        display_rival_card(rival_data, total_players, "Your Overall Rank")
 
         st.subheader(f"Top 10 Overall Performers ({time_filter_option})")
         st.caption("Ranked by total number of correct answers across all topics.")
         top_scores = get_overall_top_scores(time_filter)
         if top_scores:
+            # (The rest of the original Top 10 display logic is unchanged)
             leaderboard_data = []
             titles = [ "🥇 Math Legend", "🥈 Prime Mathematician", "🥉 Grand Prodigy", "The Destroyer", "Merlin", "The Genius", "Math Ninja", "The Professor", "The Oracle", "Last Baby" ]
             for r, (username, total_score) in enumerate(top_scores, 1):
@@ -4623,37 +4609,15 @@ def display_leaderboard(topic_options):
             st.info(f"No scores recorded in this time period. Be the first!")
 
     else: # Topic-specific leaderboard
-        # --- NEW SIDE-BY-SIDE LAYOUT FOR TOPICS ---
-        col_rank, col_rivals = st.columns(2)
-        with col_rank:
-            total_players = get_total_players(leaderboard_topic, time_filter)
-            rival_data = get_rival_snapshot(st.session_state.username, leaderboard_topic, time_filter)
-
-            if rival_data and rival_data['user_rank'] is not None:
-                st.metric(label=f"Your Rank in {leaderboard_topic}", value=f"#{rival_data['user_rank']} / {total_players} players")
-            else:
-                st.metric(label=f"Your Rank in {leaderboard_topic}", value="N/A")
-        
-        with col_rivals:
-            if rival_data and rival_data['user_rank'] is not None:
-                with st.container(border=True):
-                    st.markdown("##### ⚔️ Rival Snapshot (Topic)")
-                    if rival_data['rival_above']:
-                        st.write(f"^ **You're chasing:** {rival_data['rival_above']} (Rank #{rival_data['user_rank'] - 1})")
-                    else:
-                        st.success("🎉 You're #1! There's no one above you!")
-                    if rival_data['rival_below']:
-                        st.markdown(f"<span style='color:red;'>v</span> **You're ahead of:** {rival_data['rival_below']} (Rank #{rival_data['user_rank'] + 1})", unsafe_allow_html=True)
-                    else:
-                        st.info("Keep going to pull ahead of the pack!")
-            else:
-                st.info(f"Take a quiz on this topic to get on the leaderboard!")
+        total_players = get_total_players(leaderboard_topic, time_filter)
+        rival_data = get_rival_snapshot(st.session_state.username, leaderboard_topic, time_filter)
+        display_rival_card(rival_data, total_players, f"Your Rank in {leaderboard_topic}")
 
         st.subheader(f"Top 10 for {leaderboard_topic} ({time_filter_option})")
         st.caption("Ranked by highest accuracy score.")
-        
         top_scores = get_top_scores(leaderboard_topic, time_filter)
         if top_scores:
+            # (The rest of the Top 10 display logic is unchanged)
             leaderboard_data = []
             for r, (u, s, t) in enumerate(top_scores, 1):
                 rank_display = "🥇" if r == 1 else "🥈" if r == 2 else "🥉" if r == 3 else str(r)
@@ -5857,6 +5821,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
