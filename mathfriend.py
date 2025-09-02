@@ -4592,28 +4592,26 @@ def display_quiz_summary():
     total_questions = st.session_state.questions_attempted
     accuracy = (final_score / total_questions * 100) if total_questions > 0 else 0
 
-    # --- NEW COIN CALCULATION AND DISPLAY LOGIC ---
     coins_earned = 0
     description = ""
     if total_questions > 0:
-        # Calculate coins: 5 per correct answer + 50 bonus for a perfect score
         coins_earned = final_score * 5
         description = f"Completed Quiz on {st.session_state.quiz_topic}"
-
         if final_score == total_questions:
             coins_earned += 50
             description += " (Perfect Score Bonus!)"
 
-    # Save the result to the database if it hasn't been saved already
     if total_questions > 0 and 'result_saved' not in st.session_state:
-        # Pass the calculated coins to the backend function
         save_quiz_result(st.session_state.username, st.session_state.quiz_topic, final_score, total_questions, coins_earned, description)
         st.session_state.result_saved = True
         
-    # --- NEW 3-COLUMN LAYOUT WITH COINS METRIC ---
     col1, col2, col3 = st.columns(3)
     col1.metric(label="Your Final Score", value=f"{final_score}/{total_questions}")
-    col2.metric(label="Accuracy", delta=f"{accuracy:.1f}%")
+    
+    # --- THIS IS THE CORRECTED LINE ---
+    col2.metric(label="Accuracy", value=f"{accuracy:.1f}%")
+    # ---------------------------------
+    
     if coins_earned > 0:
         col3.metric(label="🪙 Coins Earned", value=f"+{coins_earned}")
     
@@ -4644,7 +4642,6 @@ def display_quiz_summary():
     col1, col2 = st.columns(2)
     with col1:
         if st.button("Play Again (Same Topic)", use_container_width=True, type="primary"):
-            # (Rest of the button logic is unchanged)
             st.session_state.on_summary_page = False
             st.session_state.quiz_active = True
             st.session_state.quiz_score = 0
@@ -4659,12 +4656,10 @@ def display_quiz_summary():
             
     with col2:
         if st.button("Choose New Topic", use_container_width=True):
-            # (Rest of the button logic is unchanged)
             st.session_state.on_summary_page = False
             st.session_state.quiz_active = False
             if 'result_saved' in st.session_state: del st.session_state['result_saved']
             st.rerun()
-
 
 def display_leaderboard(topic_options):
     st.header("🏆 Global Leaderboard")
@@ -6000,6 +5995,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
