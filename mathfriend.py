@@ -1513,17 +1513,19 @@ def use_hint_token(username):
     """Subtracts one hint token from a user's profile."""
     with engine.connect() as conn:
         with conn.begin(): # Start a transaction
+            # First, check if the user has a token to spend
             current_tokens = conn.execute(
                 text("SELECT hint_tokens FROM user_profiles WHERE username = :username"),
                 {"username": username}
             ).scalar_one_or_none() or 0
 
             if current_tokens > 0:
+                # Subtract one token
                 conn.execute(
                     text("UPDATE user_profiles SET hint_tokens = hint_tokens - 1 WHERE username = :username"),
                     {"username": username}
                 )
-                # We log the usage here, within the same transaction
+                # We log the usage here, within the same transaction, with 0 coins
                 conn.execute(
                     text("INSERT INTO coin_transactions (username, amount, description) VALUES (:u, 0, 'Used Hint Token')"),
                     {"u": username}
@@ -4493,7 +4495,7 @@ def display_quiz_page(topic_options):
     QUIZ_LENGTH = 10
 
     if not st.session_state.quiz_active:
-        # (The code for the quiz selection screen is unchanged)
+        # This code for the quiz selection screen is unchanged
         st.subheader("Choose Your Challenge")
         topic_perf_df = get_topic_performance(st.session_state.username)
         if not topic_perf_df.empty and len(topic_perf_df) > 1 and topic_perf_df['Accuracy'].iloc[-1] < 100:
@@ -4526,12 +4528,13 @@ def display_quiz_page(topic_options):
     hint_tokens = user_profile.get('hint_tokens', 0)
     fifty_fifty_tokens = user_profile.get('fifty_fifty_tokens', 0)
 
+    # Display scores and token balances
     col1, col2, col3 = st.columns(3)
     with col1: st.metric("Score", f"{st.session_state.quiz_score}/{st.session_state.questions_attempted}")
     with col2: st.metric("Question", f"{st.session_state.questions_answered + 1}/{QUIZ_LENGTH}")
     with col3: st.metric("🔥 Streak", st.session_state.current_streak)
-    
     st.caption(f"Your Items: 💡 Hints ({hint_tokens}) | 🔀 50/50s ({fifty_fifty_tokens})")
+    
     st.progress(st.session_state.questions_answered / QUIZ_LENGTH, text="Round Progress")
     st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
     
@@ -4548,51 +4551,60 @@ def display_quiz_page(topic_options):
             st.markdown(q_data["stem"], unsafe_allow_html=True)
         st.markdown(part_data["question"], unsafe_allow_html=True)
         
-        # --- NEW UI FOR HINTS and 50/50 ---
-        item_cols = st.columns(2)
-        with item_cols[0]:
-            with st.expander("🤔 Need a hint?"):
+        # --- NEW, UNIFIED "NEED HELP?" EXPANDER AS PER YOUR DESIGN ---
+        with st.expander("🤔 Need Help? (Click to see lifelines)"):
+            help_cols = st.columns(2)
+            # HINT BUTTON LOGIC
+            with help_cols[0]:
                 if st.session_state.get('hint_revealed', False):
                     st.info(part_data["hint"])
                 else:
-                    if st.button("Use 💡 Hint Token", disabled=(hint_tokens <= 0), key="use_hint"):
+                    if st.button(f"Use 💡 Hint ({hint_tokens} left)", disabled=(hint_tokens <= 0), key="use_hint", use_container_width=True):
                         if use_hint_token(st.session_state.username):
                             st.session_state.hint_revealed = True
                             st.rerun()
-                    if hint_tokens <= 0:
-                        st.caption("No hint tokens available.")
-        
-        with item_cols[1]:
-            if st.button("Use 🔀 50/50 Lifeline", disabled=(fifty_fifty_tokens <= 0 or st.session_state.get('fifty_fifty_used', False)), key="use_5050"):
-                if use_fifty_fifty_token(st.session_state.username):
-                    st.session_state.fifty_fifty_used = True
-                    correct_answer = part_data["answer"]
-                    incorrect_options = [opt for opt in part_data["options"] if str(opt) != str(correct_answer)]
-                    option_to_keep = random.choice(incorrect_options)
-                    st.session_state.current_q_data['options'] = [correct_answer, option_to_keep]
-                    random.shuffle(st.session_state.current_q_data['options'])
-                    st.rerun()
+            
+            # 50/50 LIFELINE BUTTON LOGIC
+            with help_cols[1]:
+                if st.button(f"Use 🔀 50/50 ({fifty_fifty_tokens} left)", disabled=(fifty_fifty_tokens <= 0 or st.session_state.get('fifty_fifty_used', False)), key="use_5050", use_container_width=True):
+                    if use_fifty_fifty_token(st.session_state.username):
+                        st.session_state.fifty_fifty_used = True
+                        correct_answer = part_data["answer"]
+                        incorrect_options = [opt for opt in part_data["options"] if str(opt) != str(correct_answer)]
+                        option_to_keep = random.choice(incorrect_options)
+                        
+                        new_options = [correct_answer, option_to_keep]
+                        random.shuffle(new_options)
+
+                        if q_data.get("is_multipart"):
+                            st.session_state.current_q_data['parts'][st.session_state.get('current_part_index', 0)]['options'] = new_options
+                        else:
+                            st.session_state.current_q_data['options'] = new_options
+                        
+                        st.rerun()
 
         with st.form(key=f"quiz_form_{st.session_state.questions_answered}"):
-            user_choice = st.radio("Select your answer:", q_data["options"], index=None)
+            options_to_display = part_data["options"]
+            if q_data.get("is_multipart"):
+                 options_to_display = st.session_state.current_q_data['parts'][st.session_state.get('current_part_index', 0)]['options']
+            elif 'options' in st.session_state.current_q_data:
+                options_to_display = st.session_state.current_q_data['options']
+
+            user_choice = st.radio("Select your answer:", options_to_display, index=None)
             if st.form_submit_button("Submit Answer", type="primary"):
                 # (The form submission logic is unchanged)
                 if user_choice is not None:
-                    # ... (all your existing logic for checking answers, updating score, etc.)
                     st.session_state.user_choice = user_choice
                     st.session_state.answer_submitted = True
                     actual_answer = part_data["answer"]
                     is_correct = str(user_choice) == str(actual_answer)
                     if q_data.get("is_multipart"):
-                        part_index = st.session_state.get('current_part_index', 0)
-                        is_last_part = (part_index + 1 == len(q_data["parts"]))
+                        part_index = st.session_state.get('current_part_index', 0); is_last_part = (part_index + 1 == len(q_data["parts"]))
                         if part_index == 0:
-                            st.session_state.questions_attempted += 1
-                            st.session_state.multi_part_correct = True 
+                            st.session_state.questions_attempted += 1; st.session_state.multi_part_correct = True 
                         if not is_correct: st.session_state.multi_part_correct = False
                         if is_correct and is_last_part and st.session_state.multi_part_correct:
-                            st.session_state.quiz_score += 1
-                            st.session_state.current_streak += 1
+                            st.session_state.quiz_score += 1; st.session_state.current_streak += 1
                         if not is_correct:
                              st.session_state.current_streak = 0
                              if not any(q.get('stem', '') == q_data.get('stem', '') for q in st.session_state.incorrect_questions):
@@ -4608,7 +4620,6 @@ def display_quiz_page(topic_options):
 
     else: # Explanation Phase
         # (This entire "else" block for showing the explanation is unchanged)
-        # ...
         user_choice = st.session_state.user_choice
         part_data = q_data.get("parts", [{}])[st.session_state.get('current_part_index', 0)] if q_data.get("is_multipart") else q_data
         actual_answer, explanation = part_data["answer"], part_data.get("explanation", "")
@@ -6072,6 +6083,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
