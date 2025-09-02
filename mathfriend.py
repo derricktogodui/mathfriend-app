@@ -4896,6 +4896,15 @@ def display_leaderboard(topic_options):
             display_infos = get_user_display_info(top_usernames)
             titles = [ "🥇 Math Legend", "🥈 Prime Mathematician", "🥉 Grand Prodigy", "The Destroyer", "Merlin", "The Genius", "Math Ninja", "The Professor", "The Oracle", "Last Baby" ]
             
+            # Display header for the custom table
+            st.markdown("""
+                <div style="display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 2px solid #dee2e6; font-weight: bold;">
+                    <div style="width: 35%;">Rank</div>
+                    <div style="width: 35%;">Username</div>
+                    <div style="width: 30%; text-align: right;">Total Score</div>
+                </div>
+            """, unsafe_allow_html=True)
+
             for r, (username, total_score) in enumerate(top_scores, 1):
                 user_info = display_infos.get(username, {})
                 is_current_user = (username == st.session_state.username)
@@ -4907,11 +4916,13 @@ def display_leaderboard(topic_options):
                 rank_title = titles[r-1] if r-1 < len(titles) else f"#{r}"
                 username_display = f"<strong>{username} (You)</strong>" if is_current_user else username
 
+                # --- THIS IS THE NEW 3-COLUMN LAYOUT ---
                 st.markdown(f"""
                 <div style="{style}">
                     <div style="display: flex; justify-content: space-between; align-items: center;">
-                        <span style="font-size: 1.1rem;">{rank_title}: {username_display}</span>
-                        <span style="font-weight: bold; color: #0d6efd;">{total_score} Correct Answers</span>
+                        <div style="width: 35%;">{rank_title}</div>
+                        <div style="width: 35%;">{username_display}</div>
+                        <div style="width: 30%; text-align: right; font-weight: bold; color: #0d6efd;">{total_score} Correct</div>
                     </div>
                 </div>
                 """, unsafe_allow_html=True)
@@ -4931,6 +4942,15 @@ def display_leaderboard(topic_options):
             top_usernames = [score[0] for score in top_scores]
             display_infos = get_user_display_info(top_usernames)
             
+            # Display header for the custom table
+            st.markdown("""
+                <div style="display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 2px solid #dee2e6; font-weight: bold;">
+                    <div style="width: 15%;">Rank</div>
+                    <div style="width: 55%;">Username</div>
+                    <div style="width: 30%; text-align: right;">Score (Accuracy)</div>
+                </div>
+            """, unsafe_allow_html=True)
+
             for r, (u, s, t) in enumerate(top_scores, 1):
                 user_info = display_infos.get(u, {})
                 is_current_user = (u == st.session_state.username)
@@ -4943,11 +4963,13 @@ def display_leaderboard(topic_options):
                 username_display = f"<strong>{u} (You)</strong>" if is_current_user else u
                 accuracy = (s/t)*100 if t > 0 else 0
 
+                # --- THIS IS THE NEW 3-COLUMN LAYOUT ---
                 st.markdown(f"""
                 <div style="{style}">
                     <div style="display: flex; justify-content: space-between; align-items: center;">
-                        <span>{rank_display}: {username_display}</span>
-                        <span style="font-weight: bold; color: #0d6efd;">{s}/{t} ({accuracy:.1f}%)</span>
+                        <div style="width: 15%;">{rank_display}</div>
+                        <div style="width: 55%;">{username_display}</div>
+                        <div style="width: 30%; text-align: right; font-weight: bold; color: #0d6efd;">{s}/{t} ({accuracy:.1f}%)</div>
                     </div>
                 </div>
                 """, unsafe_allow_html=True)
@@ -6247,6 +6269,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
