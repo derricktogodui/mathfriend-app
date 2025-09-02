@@ -4896,49 +4896,42 @@ def display_leaderboard(topic_options):
             display_infos = get_user_display_info(top_usernames)
             titles = [ "🥇 Math Legend", "🥈 Prime Mathematician", "🥉 Grand Prodigy", "The Destroyer", "Merlin", "The Genius", "Math Ninja", "The Professor", "The Oracle", "Last Baby" ]
             
-            # Display header for the custom table
-            st.markdown("""
-                <div style="display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 2px solid #dee2e6; font-weight: bold;">
-                    <div style="width: 35%;">Rank</div>
-                    <div style="width: 35%;">Username</div>
-                    <div style="width: 30%; text-align: right;">Total Score</div>
-                </div>
-            """, unsafe_allow_html=True)
+            # The old header is removed as the new layout doesn't need it.
 
+            # --- NEW LAYOUT STARTS HERE (FOR OVERALL LEADERBOARD) ---
             for r, (username, total_score) in enumerate(top_scores, 1):
-                user_info = display_infos.get(username, {})
                 is_current_user = (username == st.session_state.username)
-                style = "border: 1px solid #e1e4e8; border-radius: 8px; padding: 10px; margin-bottom: 5px;"
+                user_info = display_infos.get(username, {})
+                user_flair = user_info.get('flair', '')
+
+                # Style logic to handle gold border and current user highlight
+                style = "border-radius: 8px; padding: 10px 5px; margin-bottom: 5px;"
                 if user_info.get('border'):
-                    style = "border: 2px solid #FFD700; border-radius: 8px; padding: 10px; margin-bottom: 5px; box-shadow: 0 0 8px #FFD700;"
-                if is_current_user:
+                    style += " border: 2px solid #FFD700; box-shadow: 0 0 8px #FFD700;"
+                elif is_current_user:
                     style += " background-color: #e6f7ff;"
-                rank_title = titles[r-1] if r-1 < len(titles) else f"#{r}"
-                username_display = f"<strong>{username} (You)</strong>" if is_current_user else username
+                else:
+                    style += " background-color: #fafafa;"
+                
+                # Use a container to apply the border/background around the columns
+                with st.container():
+                    st.markdown(f'<div style="{style}">', unsafe_allow_html=True)
+                    col1, col2, col3 = st.columns([0.2, 0.5, 0.3])
 
-                # --- THIS IS THE NEW 3-COLUMN LAYOUT ---
-                st.markdown(f"""
-                <div style="{style}">
-                    <div style="display: flex; align-items: center; padding: 5px 0;">
-        
-                        <div style="flex: 0 0 70px; font-weight: bold; text-align: center; font-size: 1.1em;">
-                            {rank_title}
-                        </div>
+                    with col1:
+                        rank_title = titles[r-1] if r-1 < len(titles) else f"**#{r}**"
+                        st.markdown(f"<div style='text-align: left; font-size: 1.1em;'>{rank_title}</div>", unsafe_allow_html=True)
 
-                        <div style="flex: 1; min-width: 0;">
-                            <span>{username}</span>
-                            {'<span style="background-color: #0d6efd; color: white; font-size: 0.7em; padding: 2px 6px; border-radius: 10px; margin-left: 8px; font-weight: bold;">YOU</span>' if is_current_user else ''}
-                            <br>
-                            <span style="font-style: italic; color: #6c757d; font-size: 0.9em;">{user_info.get('flair', '')}</span>
-                        </div>
+                    with col2:
+                        you_tag = '<span style="background-color: #0d6efd; color: white; font-size: 0.7em; padding: 2px 6px; border-radius: 10px; margin-left: 8px; font-weight: bold;">YOU</span>' if is_current_user else ''
+                        flair_display = f"<br><span style='font-style: italic; color: #6c757d; font-size: 0.9em;'>{user_flair}</span>" if user_flair else ""
+                        st.markdown(f"**{username}** {you_tag}{flair_display}", unsafe_allow_html=True)
 
-                        <div style="flex: 0 0 120px; text-align: right; font-weight: bold; color: #0d6efd;">
-                            {total_score} Correct
-                        </div>
-
-                    </div>
-                </div>
-                """, unsafe_allow_html=True)
+                    with col3:
+                        st.markdown(f"<div style='text-align: right; font-weight: bold; color: #0d6efd;'>{total_score} Correct</div>", unsafe_allow_html=True)
+                    
+                    st.markdown('</div>', unsafe_allow_html=True)
+            # --- NEW LAYOUT ENDS HERE ---
         else:
             st.info(f"No scores recorded in this time period. Be the first!")
 
@@ -4955,37 +4948,42 @@ def display_leaderboard(topic_options):
             top_usernames = [score[0] for score in top_scores]
             display_infos = get_user_display_info(top_usernames)
             
-            # Display header for the custom table
-            st.markdown("""
-                <div style="display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 2px solid #dee2e6; font-weight: bold;">
-                    <div style="width: 15%;">Rank</div>
-                    <div style="width: 55%;">Username</div>
-                    <div style="width: 30%; text-align: right;">Score (Accuracy)</div>
-                </div>
-            """, unsafe_allow_html=True)
+            # The old header is removed as the new layout doesn't need it.
 
+            # --- NEW LAYOUT STARTS HERE (FOR TOPIC LEADERBOARD) ---
             for r, (u, s, t) in enumerate(top_scores, 1):
-                user_info = display_infos.get(u, {})
                 is_current_user = (u == st.session_state.username)
-                style = "border: 1px solid #e1e4e8; border-radius: 8px; padding: 10px; margin-bottom: 5px;"
-                if user_info.get('border'):
-                    style = "border: 2px solid #FFD700; border-radius: 8px; padding: 10px; margin-bottom: 5px; box-shadow: 0 0 8px #FFD700;"
-                if is_current_user:
-                    style += " background-color: #e6f7ff;"
-                rank_display = "🥇" if r == 1 else "🥈" if r == 2 else "🥉" if r == 3 else f"**#{r}**"
-                username_display = f"<strong>{u} (You)</strong>" if is_current_user else u
-                accuracy = (s/t)*100 if t > 0 else 0
+                user_info = display_infos.get(u, {})
+                user_flair = user_info.get('flair', '')
 
-                # --- THIS IS THE NEW 3-COLUMN LAYOUT ---
-                st.markdown(f"""
-                <div style="{style}">
-                    <div style="display: flex; justify-content: space-between; align-items: center;">
-                        <div style="width: 15%;">{rank_display}</div>
-                        <div style="width: 55%;">{username_display}</div>
-                        <div style="width: 30%; text-align: right; font-weight: bold; color: #0d6efd;">{s}/{t} ({accuracy:.1f}%)</div>
-                    </div>
-                </div>
-                """, unsafe_allow_html=True)
+                # Style logic to handle gold border and current user highlight
+                style = "border-radius: 8px; padding: 10px 5px; margin-bottom: 5px;"
+                if user_info.get('border'):
+                    style += " border: 2px solid #FFD700; box-shadow: 0 0 8px #FFD700;"
+                elif is_current_user:
+                    style += " background-color: #e6f7ff;"
+                else:
+                    style += " background-color: #fafafa;"
+
+                with st.container():
+                    st.markdown(f'<div style="{style}">', unsafe_allow_html=True)
+                    col1, col2, col3 = st.columns([0.15, 0.5, 0.35])
+
+                    with col1:
+                        rank_display = "🥇" if r == 1 else "🥈" if r == 2 else "🥉" if r == 3 else f"**#{r}**"
+                        st.markdown(f"<div style='text-align: center; font-size: 1.2em;'>{rank_display}</div>", unsafe_allow_html=True)
+
+                    with col2:
+                        you_tag = '<span style="background-color: #0d6efd; color: white; font-size: 0.7em; padding: 2px 6px; border-radius: 10px; margin-left: 8px; font-weight: bold;">YOU</span>' if is_current_user else ''
+                        flair_display = f"<br><span style='font-style: italic; color: #6c757d; font-size: 0.9em;'>{user_flair}</span>" if user_flair else ""
+                        st.markdown(f"**{u}** {you_tag}{flair_display}", unsafe_allow_html=True)
+
+                    with col3:
+                        accuracy = (s/t)*100 if t > 0 else 0
+                        st.markdown(f"<div style='text-align: right; font-weight: bold; color: #0d6efd;'>{s}/{t} ({accuracy:.1f}%)</div>", unsafe_allow_html=True)
+                    
+                    st.markdown('</div>', unsafe_allow_html=True)
+            # --- NEW LAYOUT ENDS HERE ---
         else:
             st.info(f"No scores recorded for **{leaderboard_topic}** in this time period. Be the first!")
 # --- NEW INTERACTIVE WIDGET FUNCTIONS (COMPLETE LIBRARY FOR ALL TOPICS) ---
@@ -6282,6 +6280,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
