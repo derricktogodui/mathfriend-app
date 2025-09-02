@@ -626,6 +626,24 @@ def set_user_flair(username, flair_text):
         conn.commit()
     st.toast("Your new flair has been set!", icon="✨")
 
+def get_user_flairs(usernames):
+    """
+    Efficiently fetches the user_flair for a given list of usernames.
+    Returns a dictionary mapping username -> flair_text.
+    """
+    if not usernames:
+        return {}
+    
+    with engine.connect() as conn:
+        query = text("""
+            SELECT username, user_flair 
+            FROM user_profiles 
+            WHERE username = ANY(:usernames) AND user_flair IS NOT NULL
+        """)
+        # We need to pass the list of usernames as a list/tuple for the ANY clause
+        result = conn.execute(query, {"usernames": list(usernames)}).mappings().fetchall()
+        return {row['username']: row['user_flair'] for row in result}
+
 def change_password(username, current_password, new_password):
     if not login_user(username, current_password):
         return False
@@ -4412,20 +4430,12 @@ def display_blackboard_page():
     st.info("This is a community space. Ask clear questions, be respectful, and help your fellow students!", icon="👋")
     online_users = get_online_users(st.session_state.username)
 
-    # --- START: NEW AND IMPROVED ONLINE USER DISPLAY ---
-    # This version uses "pills" with avatars and names, and supports horizontal scrolling.
     if online_users:
         pills_html_list = [_generate_user_pill_html(user) for user in online_users]
         pills_str = "".join(pills_html_list)
-
-        # Container with horizontal scrolling for many users
         container_style = """
-            display: flex;
-            align-items: center;
-            width: 100%;
-            overflow-x: auto;
-            white-space: nowrap;
-            padding-bottom: 10px; /* For scrollbar space */
+            display: flex; align-items: center; width: 100%;
+            overflow-x: auto; white-space: nowrap; padding-bottom: 10px;
         """
         st.markdown(f"""
             <div style="display: flex; align-items: center; margin-bottom: 10px;">
@@ -4435,21 +4445,36 @@ def display_blackboard_page():
         """, unsafe_allow_html=True)
     else:
         st.markdown("_No other users are currently active._")
-    # --- END: NEW AND IMPROVED ONLINE USER DISPLAY ---
 
     st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
     channel = chat_client.channel("messaging", channel_id="mathfriend-blackboard", data={"name": "MathFriend Blackboard"})
     channel.create(st.session_state.username)
     state = channel.query(watch=False, state=True, messages={"limit": 50})
     messages = state['messages']
+
+    # --- NEW FLAIR LOGIC ---
+    # 1. Get a unique list of all user IDs from the messages
+    user_ids_in_chat = {msg["user"].get("id") for msg in messages if msg["user"].get("id")}
+    # 2. Fetch all their flairs in one single, efficient database call
+    user_flairs = get_user_flairs(user_ids_in_chat)
+    # --- END OF NEW LOGIC ---
+
     for msg in messages:
         user_id = msg["user"].get("id", "Unknown")
         user_name = msg["user"].get("name", user_id)
         is_current_user = (user_id == st.session_state.username)
+        
         with st.chat_message(name="user" if is_current_user else "assistant"):
             if not is_current_user:
-                st.markdown(f"**{user_name}**")
+                # --- MODIFIED NAME DISPLAY TO INCLUDE FLAIR ---
+                user_flair = user_flairs.get(user_id) # Look up the flair from our fetched data
+                if user_flair:
+                    st.markdown(f"**{user_name}**<br><i style='font-size:0.9rem; color:grey;'>{user_flair}</i>", unsafe_allow_html=True)
+                else:
+                    st.markdown(f"**{user_name}**")
+                # --- END OF MODIFICATION ---
             st.markdown(msg["text"])
+            
     if prompt := st.chat_input("Post your question or comment..."):
         channel.send_message({"text": prompt}, user_id=st.session_state.username)
         st.rerun()
@@ -6187,6 +6212,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
