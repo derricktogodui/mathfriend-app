@@ -826,7 +826,7 @@ def update_daily_challenge_progress(username, topic, score):
                 """), {"username": username, "today": today})
                 
                 # --- NEW COIN REWARD LOGIC ---
-                update_coin_balance(username, 100, "Daily Challenge Completed!")
+                update_coin_balance(username, 50, "Daily Challenge Completed!")
                 # --- END OF NEW LOGIC ---
 
                 st.session_state.challenge_completed_toast = True
@@ -1242,12 +1242,12 @@ def submit_duel_answer(duel_id, username, is_correct):
 
             # --- NEW COIN REWARD LOGIC ---
             if final_status == "player1_win":
-                update_coin_balance(player1, 75, f"Won Duel vs. {player2}")
+                update_coin_balance(player1, 40, f"Won Duel vs. {player2}")
             elif final_status == "player2_win":
-                update_coin_balance(player2, 75, f"Won Duel vs. {player1}")
+                update_coin_balance(player2, 40, f"Won Duel vs. {player1}")
             elif final_status == "draw":
-                update_coin_balance(player1, 25, f"Duel Draw vs. {player2}")
-                update_coin_balance(player2, 25, f"Duel Draw vs. {player1}")
+                update_coin_balance(player1, 15, f"Duel Draw vs. {player2}")
+                update_coin_balance(player2, 15, f"Duel Draw vs. {player1}")
             # --- END OF NEW LOGIC ---
 
             conn.execute(text("""
@@ -1676,7 +1676,7 @@ def check_and_award_achievements(username, topic):
             st.session_state.achievement_unlocked_toast = "First Step"
             existing_set.add("First Step")
             # --- NEW COIN REWARD LOGIC ---
-            update_coin_balance(username, 250, "Achievement Unlocked: First Step")
+            update_coin_balance(username, 100, "Achievement Unlocked: First Step")
 
         # --- Achievement 2: "Century Scorer" (Get 100 total correct answers) ---
         if "Century Scorer" not in existing_set:
@@ -1686,7 +1686,7 @@ def check_and_award_achievements(username, topic):
                 st.session_state.achievement_unlocked_toast = "Century Scorer"
                 existing_set.add("Century Scorer")
                 # --- NEW COIN REWARD LOGIC ---
-                update_coin_balance(username, 250, "Achievement Unlocked: Century Scorer")
+                update_coin_balance(username, 100, "Achievement Unlocked: Century Scorer")
 
         # --- Achievement 3: "Topic Master" (Get 25 correct answers in a specific topic) ---
         achievement_name = f"{topic} Master"
@@ -1696,7 +1696,7 @@ def check_and_award_achievements(username, topic):
                 conn.execute(text("INSERT INTO user_achievements (username, achievement_name, badge_icon) VALUES (:u, :n, '🎓')"), {"u": username, "n": achievement_name})
                 st.session_state.achievement_unlocked_toast = achievement_name
                 # --- NEW COIN REWARD LOGIC ---
-                update_coin_balance(username, 250, f"Achievement Unlocked: {achievement_name}")
+                update_coin_balance(username, 100, f"Achievement Unlocked: {achievement_name}")
 
         conn.commit()
 def get_user_achievements(username):
@@ -4780,7 +4780,7 @@ def display_quiz_summary():
         coins_earned = final_score * 5
         description = f"Completed Quiz on {st.session_state.quiz_topic}"
         if final_score == total_questions:
-            coins_earned += 50
+            coins_earned += 25
             description += " (Perfect Score Bonus!)"
 
     if total_questions > 0 and 'result_saved' not in st.session_state:
@@ -6270,6 +6270,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
