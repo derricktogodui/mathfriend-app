@@ -4896,12 +4896,12 @@ def display_leaderboard(topic_options):
             display_infos = get_user_display_info(top_usernames)
             titles = [ "🥇 Math Legend", "🥈 Prime Mathematician", "🥉 Grand Prodigy", "The Destroyer", "Merlin", "The Genius", "Math Ninja", "The Professor", "The Oracle", "Last Baby" ]
             
-            # This is your existing header, which we can keep.
+            # Display header for the custom table
             st.markdown("""
                 <div style="display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 2px solid #dee2e6; font-weight: bold;">
-                    <div style="flex: 0 0 150px;">Rank</div>
-                    <div style="flex: 1;">Username</div>
-                    <div style="flex: 0 0 120px; text-align: right;">Total Score</div>
+                    <div style="width: 35%;">Rank</div>
+                    <div style="width: 35%;">Username</div>
+                    <div style="width: 30%; text-align: right;">Total Score</div>
                 </div>
             """, unsafe_allow_html=True)
 
@@ -4916,13 +4916,13 @@ def display_leaderboard(topic_options):
                 rank_title = titles[r-1] if r-1 < len(titles) else f"#{r}"
                 username_display = f"<strong>{username} (You)</strong>" if is_current_user else username
 
-                # --- THIS IS THE IMPROVED LAYOUT ---
+                # --- THIS IS THE NEW 3-COLUMN LAYOUT ---
                 st.markdown(f"""
                 <div style="{style}">
                     <div style="display: flex; justify-content: space-between; align-items: center;">
-                        <div style="flex: 0 0 150px;">{rank_title}</div>
-                        <div style="flex: 1;">{username_display}</div>
-                        <div style="flex: 0 0 120px; text-align: right; font-weight: bold; color: #0d6efd;">{total_score} Correct</div>
+                        <div style="width: 35%;">{rank_title}</div>
+                        <div style="width: 35%;">{username_display}</div>
+                        <div style="width: 30%; text-align: right; font-weight: bold; color: #0d6efd;">{total_score} Correct</div>
                     </div>
                 </div>
                 """, unsafe_allow_html=True)
@@ -4930,8 +4930,6 @@ def display_leaderboard(topic_options):
             st.info(f"No scores recorded in this time period. Be the first!")
 
     else: # Topic-specific leaderboard
-        # This section can be updated with the same flexbox logic if needed.
-        # For now, focusing on the main "Overall" leaderboard as requested.
         total_players = get_total_players(leaderboard_topic, time_filter)
         rival_data = get_rival_snapshot(st.session_state.username, leaderboard_topic, time_filter)
         display_rival_card(rival_data, total_players, f"Your Rank in {leaderboard_topic}")
@@ -4944,11 +4942,12 @@ def display_leaderboard(topic_options):
             top_usernames = [score[0] for score in top_scores]
             display_infos = get_user_display_info(top_usernames)
             
+            # Display header for the custom table
             st.markdown("""
                 <div style="display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 2px solid #dee2e6; font-weight: bold;">
-                    <div style="flex: 0 0 70px;">Rank</div>
-                    <div style="flex: 1;">Username</div>
-                    <div style="flex: 0 0 150px; text-align: right;">Score (Accuracy)</div>
+                    <div style="width: 15%;">Rank</div>
+                    <div style="width: 55%;">Username</div>
+                    <div style="width: 30%; text-align: right;">Score (Accuracy)</div>
                 </div>
             """, unsafe_allow_html=True)
 
@@ -4963,14 +4962,14 @@ def display_leaderboard(topic_options):
                 rank_display = "🥇" if r == 1 else "🥈" if r == 2 else "🥉" if r == 3 else f"**#{r}**"
                 username_display = f"<strong>{u} (You)</strong>" if is_current_user else u
                 accuracy = (s/t)*100 if t > 0 else 0
-                
-                # --- THIS IS THE IMPROVED LAYOUT ---
+
+                # --- THIS IS THE NEW 3-COLUMN LAYOUT ---
                 st.markdown(f"""
                 <div style="{style}">
                     <div style="display: flex; justify-content: space-between; align-items: center;">
-                        <div style="flex: 0 0 70px;">{rank_display}</div>
-                        <div style="flex: 1;">{username_display}</div>
-                        <div style="flex: 0 0 150px; text-align: right; font-weight: bold; color: #0d6efd;">{s}/{t} ({accuracy:.1f}%)</div>
+                        <div style="width: 15%;">{rank_display}</div>
+                        <div style="width: 55%;">{username_display}</div>
+                        <div style="width: 30%; text-align: right; font-weight: bold; color: #0d6efd;">{s}/{t} ({accuracy:.1f}%)</div>
                     </div>
                 </div>
                 """, unsafe_allow_html=True)
@@ -6270,7 +6269,6 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
-
 
 
 
