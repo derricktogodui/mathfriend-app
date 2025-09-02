@@ -797,6 +797,7 @@ def get_rival_snapshot(username, topic, time_filter="all"):
         elif time_filter == "month":
             time_clause = "AND timestamp >= NOW() - INTERVAL '30 days'"
 
+        # THIS SQL QUERY HAS BEEN CORRECTED FOR RELIABILITY
         query = text(f"""
             WITH UserBestScores AS (
                 SELECT
@@ -816,8 +817,8 @@ def get_rival_snapshot(username, topic, time_filter="all"):
                 SELECT rank FROM RankedScores WHERE username = :username
             )
             SELECT username, rank
-            FROM RankedScores, CurrentUser
-            WHERE rank IN (CurrentUser.rank - 1, CurrentUser.rank, CurrentUser.rank + 1)
+            FROM RankedScores
+            WHERE rank IN ((SELECT rank FROM CurrentUser) - 1, (SELECT rank FROM CurrentUser), (SELECT rank FROM CurrentUser) + 1)
             ORDER BY rank;
         """)
 
@@ -856,6 +857,7 @@ def get_overall_rival_snapshot(username, time_filter="all"):
         if time_filter == "week": time_clause = "WHERE timestamp >= NOW() - INTERVAL '7 days'"
         elif time_filter == "month": time_clause = "WHERE timestamp >= NOW() - INTERVAL '30 days'"
         
+        # THIS SQL QUERY HAS BEEN CORRECTED FOR RELIABILITY
         query = text(f"""
             WITH PlayerTotals AS (
                 SELECT username, SUM(score) as total_score
@@ -870,8 +872,8 @@ def get_overall_rival_snapshot(username, time_filter="all"):
                 SELECT rank FROM RankedScores WHERE username = :username
             )
             SELECT username, rank
-            FROM RankedScores, CurrentUser
-            WHERE rank IN (CurrentUser.rank - 1, CurrentUser.rank, CurrentUser.rank + 1)
+            FROM RankedScores
+            WHERE rank IN ((SELECT rank FROM CurrentUser) - 1, (SELECT rank FROM CurrentUser), (SELECT rank FROM CurrentUser) + 1)
             ORDER BY rank;
         """)
         result = conn.execute(query, {"username": username}).mappings().fetchall()
@@ -5855,6 +5857,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
