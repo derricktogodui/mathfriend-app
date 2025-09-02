@@ -4960,7 +4960,7 @@ def display_leaderboard(topic_options):
                     style = "border: 2px solid #FFD700; border-radius: 8px; padding: 10px; margin-bottom: 5px; box-shadow: 0 0 8px #FFD700;"
                 if is_current_user:
                     style += " background-color: #e6f7ff;"
-                rank_display = "🥇" if r == 1 else "🥈" if r == 2 else "🥉" if r == 3 else f"#{r}"
+                rank_display = "🥇" if r == 1 else "🥈" if r == 2 else "🥉" if r == 3 else f"{r}"
                 username_display = f"<strong>{u} (You)</strong>" if is_current_user else u
                 accuracy = (s/t)*100 if t > 0 else 0
                 
@@ -6270,6 +6270,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
