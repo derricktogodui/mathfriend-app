@@ -784,6 +784,8 @@ def get_user_rank(username, topic, time_filter="all"):
         result = conn.execute(query, {"topic": topic, "username": username}).scalar_one_or_none()
         return result if result else "N/A"
 
+# --- NEW FUNCTIONS FOR RIVAL SNAPSHOT FEATURE ---
+
 def get_rival_snapshot(username, topic, time_filter="all"):
     """
     Fetches the user's rank, total players, and their immediate rivals (above and below) for a specific topic.
@@ -877,7 +879,6 @@ def get_overall_rival_snapshot(username, time_filter="all"):
         snapshot = {"user_rank": None, "rival_above": None, "rival_below": None}
         if not result: return None
 
-        # This robust logic correctly identifies the user and their rivals
         user_row = next((r for r in result if r['username'] == username), None)
         if not user_row: return None
         snapshot['user_rank'] = user_row['rank']
@@ -889,6 +890,8 @@ def get_overall_rival_snapshot(username, time_filter="all"):
                 snapshot['rival_below'] = row['username']
         
         return snapshot
+
+# --- END OF NEW FUNCTIONS ---
 
 @st.cache_data(ttl=300)
 def get_total_players(topic, time_filter="all"):
@@ -4575,25 +4578,31 @@ def display_leaderboard(topic_options):
     st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
 
     if leaderboard_topic == "🏆 Overall Performance":
-        # --- CORRECTED RIVAL SNAPSHOT FOR OVERALL PERFORMANCE ---
-        total_players = get_total_overall_players(time_filter)
-        rival_data = get_overall_rival_snapshot(st.session_state.username, time_filter)
+        # --- NEW SIDE-BY-SIDE LAYOUT FOR OVERALL PERFORMANCE ---
+        col_rank, col_rivals = st.columns(2)
+        with col_rank:
+            total_players = get_total_overall_players(time_filter)
+            rival_data = get_overall_rival_snapshot(st.session_state.username, time_filter)
+            
+            if rival_data and rival_data['user_rank'] is not None:
+                st.metric(label="Your Overall Rank", value=f"#{rival_data['user_rank']} / {total_players} players")
+            else:
+                st.metric(label="Your Overall Rank", value="N/A")
         
-        if rival_data and rival_data['user_rank'] is not None:
-            st.metric(label="Your Overall Rank", value=f"#{rival_data['user_rank']} / {total_players} players")
-            with st.container(border=True):
-                st.markdown("##### ⚔️ Rival Snapshot (Overall)")
-                if rival_data['rival_above']:
-                    st.write(f"^ **You're chasing:** {rival_data['rival_above']} (Rank #{rival_data['user_rank'] - 1})")
-                else:
-                    st.success("🎉 You're #1! There's no one above you!")
-                if rival_data['rival_below']:
-                    st.markdown(f"<span style='color:red;'>v</span> **You're ahead of:** {rival_data['rival_below']} (Rank #{rival_data['user_rank'] + 1})", unsafe_allow_html=True)
-                else:
-                    st.info("Keep going to pull ahead of the pack!")
-        else:
-            st.metric(label="Your Overall Rank", value="N/A")
-            st.info("Take a quiz to get on the overall leaderboard!")
+        with col_rivals:
+            if rival_data and rival_data['user_rank'] is not None:
+                with st.container(border=True):
+                    st.markdown("##### ⚔️ Rival Snapshot (Overall)")
+                    if rival_data['rival_above']:
+                        st.write(f"^ **You're chasing:** {rival_data['rival_above']} (Rank #{rival_data['user_rank'] - 1})")
+                    else:
+                        st.success("🎉 You're #1! There's no one above you!")
+                    if rival_data['rival_below']:
+                        st.markdown(f"<span style='color:red;'>v</span> **You're ahead of:** {rival_data['rival_below']} (Rank #{rival_data['user_rank'] + 1})", unsafe_allow_html=True)
+                    else:
+                        st.info("Keep going to pull ahead of the pack!")
+            else:
+                st.info("Take a quiz to get on the overall leaderboard!")
 
         st.subheader(f"Top 10 Overall Performers ({time_filter_option})")
         st.caption("Ranked by total number of correct answers across all topics.")
@@ -4612,24 +4621,31 @@ def display_leaderboard(topic_options):
             st.info(f"No scores recorded in this time period. Be the first!")
 
     else: # Topic-specific leaderboard
-        total_players = get_total_players(leaderboard_topic, time_filter)
-        rival_data = get_rival_snapshot(st.session_state.username, leaderboard_topic, time_filter)
+        # --- NEW SIDE-BY-SIDE LAYOUT FOR TOPICS ---
+        col_rank, col_rivals = st.columns(2)
+        with col_rank:
+            total_players = get_total_players(leaderboard_topic, time_filter)
+            rival_data = get_rival_snapshot(st.session_state.username, leaderboard_topic, time_filter)
 
-        if rival_data and rival_data['user_rank'] is not None:
-            st.metric(label=f"Your Rank in {leaderboard_topic}", value=f"#{rival_data['user_rank']} / {total_players} players")
-            with st.container(border=True):
-                st.markdown("##### ⚔️ Rival Snapshot (Topic)")
-                if rival_data['rival_above']:
-                    st.write(f"^ **You're chasing:** {rival_data['rival_above']} (Rank #{rival_data['user_rank'] - 1})")
-                else:
-                    st.success("🎉 You're #1! There's no one above you!")
-                if rival_data['rival_below']:
-                    st.markdown(f"<span style='color:red;'>v</span> **You're ahead of:** {rival_data['rival_below']} (Rank #{rival_data['user_rank'] + 1})", unsafe_allow_html=True)
-                else:
-                    st.info("Keep going to pull ahead of the pack!")
-        else:
-            st.metric(label=f"Your Rank in {leaderboard_topic}", value="N/A")
-            st.info(f"Take a quiz on this topic to get on the leaderboard!")
+            if rival_data and rival_data['user_rank'] is not None:
+                st.metric(label=f"Your Rank in {leaderboard_topic}", value=f"#{rival_data['user_rank']} / {total_players} players")
+            else:
+                st.metric(label=f"Your Rank in {leaderboard_topic}", value="N/A")
+        
+        with col_rivals:
+            if rival_data and rival_data['user_rank'] is not None:
+                with st.container(border=True):
+                    st.markdown("##### ⚔️ Rival Snapshot (Topic)")
+                    if rival_data['rival_above']:
+                        st.write(f"^ **You're chasing:** {rival_data['rival_above']} (Rank #{rival_data['user_rank'] - 1})")
+                    else:
+                        st.success("🎉 You're #1! There's no one above you!")
+                    if rival_data['rival_below']:
+                        st.markdown(f"<span style='color:red;'>v</span> **You're ahead of:** {rival_data['rival_below']} (Rank #{rival_data['user_rank'] + 1})", unsafe_allow_html=True)
+                    else:
+                        st.info("Keep going to pull ahead of the pack!")
+            else:
+                st.info(f"Take a quiz on this topic to get on the leaderboard!")
 
         st.subheader(f"Top 10 for {leaderboard_topic} ({time_filter_option})")
         st.caption("Ranked by highest accuracy score.")
@@ -5839,6 +5855,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
