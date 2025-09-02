@@ -784,6 +784,71 @@ def get_user_rank(username, topic, time_filter="all"):
         result = conn.execute(query, {"topic": topic, "username": username}).scalar_one_or_none()
         return result if result else "N/A"
 
+def get_rival_snapshot(username, topic, time_filter="all"):
+    """
+    Fetches the user's rank, total players, and their immediate rivals (above and below).
+    """
+    with engine.connect() as conn:
+        time_clause = ""
+        if time_filter == "week":
+            time_clause = "AND timestamp >= NOW() - INTERVAL '7 days'"
+        elif time_filter == "month":
+            time_clause = "AND timestamp >= NOW() - INTERVAL '30 days'"
+
+        # This is a powerful query that uses Common Table Expressions (CTEs) to rank everyone
+        query = text(f"""
+            WITH UserBestScores AS (
+                -- First, get the single best score for every user, just like the leaderboard
+                SELECT
+                    username,
+                    score,
+                    questions_answered,
+                    timestamp,
+                    ROW_NUMBER() OVER(PARTITION BY username ORDER BY (CAST(score AS REAL) / questions_answered) DESC, questions_answered DESC, timestamp ASC) as rn
+                FROM quiz_results
+                WHERE topic = :topic AND questions_answered > 0 {time_clause}
+            ),
+            RankedScores AS (
+                -- Second, assign a rank to every single user based on their best score
+                SELECT
+                    username,
+                    RANK() OVER (ORDER BY (CAST(score AS REAL) / questions_answered) DESC, questions_answered DESC, timestamp ASC) as rank
+                FROM UserBestScores
+                WHERE rn = 1
+            ),
+            CurrentUser AS (
+                -- Third, find the specific rank of our current user
+                SELECT rank FROM RankedScores WHERE username = :username
+            )
+            -- Finally, select the user, their rival above (rank - 1), and their rival below (rank + 1)
+            SELECT username, rank
+            FROM RankedScores, CurrentUser
+            WHERE rank IN (CurrentUser.rank - 1, CurrentUser.rank, CurrentUser.rank + 1)
+            ORDER BY rank;
+        """)
+
+        result = conn.execute(query, {"topic": topic, "username": username}).mappings().fetchall()
+        
+        # Now, we process the 1, 2, or 3 results in Python
+        snapshot = {
+            "user_rank": None,
+            "rival_above": None,
+            "rival_below": None
+        }
+
+        if not result:
+            return None # User has no rank in this topic
+
+        for row in result:
+            if row['username'] == username:
+                snapshot['user_rank'] = row['rank']
+            elif row['rank'] < snapshot.get('user_rank', float('inf')):
+                snapshot['rival_above'] = row['username']
+            else:
+                snapshot['rival_below'] = row['username']
+        
+        return snapshot
+
 @st.cache_data(ttl=300)
 def get_total_players(topic, time_filter="all"):
     with engine.connect() as conn:
@@ -4473,11 +4538,13 @@ def display_leaderboard(topic_options):
         top_scores = get_overall_top_scores(time_filter)
         if top_scores:
             leaderboard_data = []
+            # --- THIS IS YOUR ORIGINAL TITLES LIST, RESTORED ---
             titles = [
                 "🥇 Math Legend", "🥈 Prime Mathematician", "🥉 Grand Prodigy",
                 "The Destroyer", "Merlin", "The Genius",
                 "Math Ninja", "The Professor", "The Oracle", "Last Baby"
             ]
+            # --- THIS IS YOUR ORIGINAL LOOP LOGIC, RESTORED ---
             for r, (username, total_score) in enumerate(top_scores, 1):
                 rank_title = titles[r-1]
                 username_display = f"{username} (You)" if username == st.session_state.username else username
@@ -4487,28 +4554,45 @@ def display_leaderboard(topic_options):
                     "Total Correct Answers": total_score
                 })
             df = pd.DataFrame(leaderboard_data)
-            
-            # --- FIX: Set the 'Rank' column as the table's index ---
             df.set_index('Rank', inplace=True)
-            
-            # --- FIX: Display the table WITHOUT hiding the (now correct) index ---
             st.dataframe(df.style, use_container_width=True)
         else:
             st.info(f"No scores recorded in this time period. Be the first!")
 
-    else: # This is the existing logic for topic-specific leaderboards
+    else: # This is the logic for a specific topic leaderboard
         st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
+        
+        # --- THIS IS THE APPROVED NEW FEATURE ---
+        total_players = get_total_players(leaderboard_topic, time_filter)
+        rival_data = get_rival_snapshot(st.session_state.username, leaderboard_topic, time_filter)
+
+        if rival_data and rival_data['user_rank'] is not None:
+            st.metric(
+                label=f"Your Rank in {leaderboard_topic}",
+                value=f"#{rival_data['user_rank']} / {total_players} players"
+            )
+            
+            with st.container(border=True):
+                st.markdown("##### ⚔️ Rival Snapshot")
+                if rival_data['rival_above']:
+                    st.write(f"🔼 **You're chasing:** {rival_data['rival_above']} (Rank #{rival_data['user_rank'] - 1})")
+                else:
+                    st.success("🎉 You're #1! There's no one above you!")
+                
+                if rival_data['rival_below']:
+                    st.markdown(f"<span style='color:red;'>🔽</span> **You're ahead of:** {rival_data['rival_below']} (Rank #{rival_data['user_rank'] + 1})", unsafe_allow_html=True)
+                else:
+                    st.info("Keep going to pull ahead of the pack!")
+
+        else:
+            st.metric(label=f"Your Rank in {leaderboard_topic}", value="N/A")
+            st.info(f"Take a quiz on this topic to get on the leaderboard!")
+        # --- END OF THE APPROVED NEW FEATURE ---
+
         st.subheader(f"Top 10 for {leaderboard_topic} ({time_filter_option})")
         st.caption("Ranked by highest accuracy score.")
         
-        col1_inner, col2_inner = st.columns(2)
-        with col1_inner:
-            user_rank = get_user_rank(st.session_state.username, leaderboard_topic, time_filter)
-            st.metric(label=f"Your Rank in {leaderboard_topic}", value=f"#{user_rank}")
-        with col2_inner:
-            total_players = get_total_players(leaderboard_topic, time_filter)
-            st.metric(label=f"Total Players in {leaderboard_topic}", value=total_players)
-
+        # This is your original code to get and display the Top 10.
         top_scores = get_top_scores(leaderboard_topic, time_filter)
         if top_scores:
             leaderboard_data = []
@@ -4520,8 +4604,6 @@ def display_leaderboard(topic_options):
                     "Accuracy": (s/t)*100 if t > 0 else 0
                 })
             df = pd.DataFrame(leaderboard_data)
-            
-            # --- FIX: Set the 'Rank' column as the table's index ---
             df.set_index('Rank', inplace=True)
             
             def highlight_user(row):
@@ -4529,7 +4611,6 @@ def display_leaderboard(topic_options):
                     return ['background-color: #e6f7ff; font-weight: bold; color: #000000;'] * len(row)
                 return [''] * len(row)
             
-            # --- FIX: Display the table WITHOUT hiding the (now correct) index ---
             st.dataframe(
                 df.style.apply(highlight_user, axis=1).format({'Accuracy': "{:.1f}%"}), 
                 use_container_width=True
@@ -5726,6 +5807,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
