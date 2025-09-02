@@ -5631,6 +5631,18 @@ def display_admin_panel():
                             else:
                                 st.error("Please enter a name for the special badge.")
 
+                # Place this new expander with the others for a selected user
+                with st.expander("🪙 Grant Coins"):
+                    with st.form(key=f"grant_coins_{selected_user_action}"):
+                        st.write(f"Granting coins to **{selected_user_action}**")
+                        coins_to_grant = st.number_input("Amount of Coins to Grant", min_value=1, value=100)
+                        reason = st.text_input("Reason for Grant (for transaction log)", "Admin grant")
+                        if st.form_submit_button("Award Coins", type="primary"):
+                            if update_coin_balance(selected_user_action, coins_to_grant, reason):
+                                st.success(f"Successfully granted {coins_to_grant} coins to {selected_user_action}.")
+                            else:
+                                st.error("Failed to grant coins.")
+                
                 if selected_user_action != st.session_state.username:
                     with st.expander("❌ Delete User"):
                         st.error(f"This is permanent and cannot be undone.")
@@ -5993,6 +6005,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
