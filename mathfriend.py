@@ -613,6 +613,19 @@ def update_user_profile(username, full_name, school, age, bio):
         chat_client.upsert_user({"id": username, "name": full_name if full_name else username})
     return True
 
+def set_user_flair(username, flair_text):
+    """Updates the user_flair for a given user."""
+    # Add a length limit to keep the flair short and clean
+    if len(flair_text) > 25:
+        st.toast("Flair text cannot be longer than 25 characters.", icon="⚠️")
+        return
+        
+    with engine.connect() as conn:
+        query = text("UPDATE user_profiles SET user_flair = :flair WHERE username = :username")
+        conn.execute(query, {"flair": flair_text, "username": username})
+        conn.commit()
+    st.toast("Your new flair has been set!", icon="✨")
+
 def change_password(username, current_password, new_password):
     if not login_user(username, current_password):
         return False
@@ -5549,9 +5562,8 @@ def display_profile_page():
     
     tab1, tab2, tab3 = st.tabs(["📝 My Profile", "🏆 My Achievements", "🛍️ Shop"])
 
-    # --- TAB 1: MY PROFILE (Unchanged) ---
+    # --- TAB 1: MY PROFILE (WITH NEW FLAIR FORM) ---
     with tab1:
-        # (All of your original code for this tab remains here)
         profile = get_user_profile(st.session_state.username) or {}
         with st.form("profile_form"):
             st.subheader("Edit Profile")
@@ -5562,9 +5574,24 @@ def display_profile_page():
             if st.form_submit_button("Save Profile", type="primary"):
                 if update_user_profile(st.session_state.username, full_name, school, age, bio):
                     st.success("Profile updated!"); st.rerun()
+
+        # --- NEW FLAIR SETTING FORM ---
+        # This form will only appear if the user has purchased the unlock from the shop
+        if profile.get('unlocked_flair', False):
+            st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
+            with st.form("flair_form"):
+                st.subheader("✨ Set Your User Flair")
+                current_flair = profile.get('user_flair', '')
+                new_flair = st.text_input("Your Flair (max 25 characters)", value=current_flair, max_chars=25)
+                if st.form_submit_button("Set Flair", type="primary"):
+                    set_user_flair(st.session_state.username, new_flair)
+                    st.rerun()
+        # --- END OF NEW FLAIR FORM ---
+
         st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
         with st.form("password_form"):
             st.subheader("Change Password")
+            # ... (password change form logic is unchanged) ...
             current_password = st.text_input("Current Password", type="password")
             new_password = st.text_input("New Password", type="password")
             confirm_new_password = st.text_input("Confirm New Password", type="password")
@@ -5573,12 +5600,12 @@ def display_profile_page():
                 elif change_password(st.session_state.username, current_password, new_password): st.success("Password changed successfully!")
                 else: st.error("Incorrect current password")
 
+
     # --- TAB 2: MY ACHIEVEMENTS (Unchanged) ---
     with tab2:
-        # (All of your original code for this tab remains here)
+        # ... (Your existing achievement display code is unchanged) ...
         st.subheader("🏆 My Achievements")
         achievements = get_user_achievements(st.session_state.username)
-        # ... (rest of the achievement display code is unchanged) ...
         if not achievements:
             st.info("Your trophy case is empty for now. Keep playing to earn badges!")
         else:
@@ -5590,20 +5617,21 @@ def display_profile_page():
                         st.markdown(f"<div style='font-size: 3rem; text-align: center;'>{achievement['badge_icon']}</div>", unsafe_allow_html=True)
                         st.markdown(f"<div style='font-size: 1rem; text-align: center; font-weight: bold;'>{achievement['achievement_name']}</div>", unsafe_allow_html=True)
                         st.markdown(f"<div style='font-size: 0.8rem; text-align: center; color: grey;'>Unlocked: {achievement['unlocked_at'].strftime('%b %d, %Y')}</div>", unsafe_allow_html=True)
-
-    # --- TAB 3: THE SHOP UI (WITH NEW GIFTING FORM) ---
+    
+    # --- TAB 3: SHOP UI (WITH NEW FLAIR ITEM) ---
     with tab3:
         st.subheader("Item Shop")
         
         coin_balance = get_coin_balance(st.session_state.username)
+        profile = get_user_profile(st.session_state.username) or {} # Re-fetch profile for item status
         st.info(f"**Your Balance: 🪙 {coin_balance} Coins**")
         st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
 
         st.markdown("#### Quiz Perks (Consumables)")
         col1, col2 = st.columns(2)
         
-        # ... (Item shop code is unchanged) ...
         with col1:
+            # ... (Hint token item is unchanged) ...
             with st.container(border=True):
                 st.markdown("##### 💡 Reveal a Hint Token")
                 st.caption("Stuck on a tough question? Use this token to instantly unlock the hint.")
@@ -5613,6 +5641,7 @@ def display_profile_page():
                     if purchase_item(st.session_state.username, "Hint Token", 50, update_sql):
                         st.rerun()
         with col2:
+            # ... (50/50 token item is unchanged) ...
             with st.container(border=True):
                 st.markdown("##### 🔀 50/50 Lifeline Token")
                 st.caption("Remove two incorrect answers from any multiple-choice question.")
@@ -5624,36 +5653,48 @@ def display_profile_page():
 
         st.markdown("#### Profile Customization (Permanent)")
         col3, col4 = st.columns(2)
+
         with col3:
+            # ... (Gold border item is unchanged) ...
             with st.container(border=True):
                 st.markdown("##### 🖼️ Golden Profile Border")
                 st.caption("A shining golden border for your profile on all leaderboards.")
                 st.markdown("**Cost: 1,000 Coins**")
-                profile = get_user_profile(st.session_state.username) or {}
-                already_owned = profile.get('has_gold_border', False)
-                if already_owned:
+                already_owned_border = profile.get('has_gold_border', False)
+                if already_owned_border:
                     st.success("✅ Owned")
                 elif st.button("Buy Now", key="buy_border", use_container_width=True, disabled=(coin_balance < 1000)):
                     update_sql = text("UPDATE user_profiles SET has_gold_border = TRUE WHERE username = :username")
                     if purchase_item(st.session_state.username, "Golden Border", 1000, update_sql):
                         st.rerun()
 
-        # --- NEW GIFTING SECTION ---
+        # --- NEW FLAIR UNLOCK ITEM ---
+        with col4:
+            with st.container(border=True):
+                st.markdown("##### ✨ Unlock User Flair")
+                st.caption("Purchase the ability to set a custom title that appears under your name in the chat.")
+                st.markdown("**Cost: 750 Coins**")
+                already_owned_flair = profile.get('unlocked_flair', False)
+                if already_owned_flair:
+                    st.success("✅ Unlocked")
+                elif st.button("Buy Now", key="buy_flair", use_container_width=True, disabled=(coin_balance < 750)):
+                    update_sql = text("UPDATE user_profiles SET unlocked_flair = TRUE WHERE username = :username")
+                    if purchase_item(st.session_state.username, "User Flair Unlock", 750, update_sql):
+                        st.rerun()
+        # --- END OF NEW ITEM ---
+
         st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
         st.subheader("🎁 Gift Coins to a Friend")
         with st.form("gift_coins_form", clear_on_submit=True):
             recipient = st.text_input("Recipient's Username")
             amount = st.number_input("Amount of Coins to Gift", min_value=1, max_value=coin_balance, value=10, step=5)
-            
             if st.form_submit_button("Send Gift", type="primary", use_container_width=True):
                 success, message = transfer_coins(st.session_state.username, recipient, amount)
                 if success:
-                    st.success(message)
-                    st.balloons()
+                    st.success(message); st.balloons()
                 else:
                     st.error(message)
                 st.rerun()
-        # --- END OF NEW GIFTING SECTION ---
 def display_admin_panel():
     st.title("⚙️ Admin Panel: Mission Control")
 
@@ -6146,6 +6187,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
