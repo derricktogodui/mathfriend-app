@@ -1473,6 +1473,33 @@ def update_coin_balance(username, amount, description):
                 print(f"Coin transaction failed for {username}: {e}")
                 return False
 
+def purchase_item(username, item_id, cost, update_statement):
+    """
+    Handles the logic for purchasing an item from the shop.
+    Returns True on success, False on failure.
+    """
+    current_balance = get_coin_balance(username)
+    
+    if current_balance < cost:
+        st.toast("Not enough coins!", icon="😞")
+        return False
+
+    with engine.connect() as conn:
+        with conn.begin(): # Start a transaction
+            try:
+                # 1. Subtract the coins and log the transaction
+                update_coin_balance(username, -cost, f"Purchased: {item_id}")
+                
+                # 2. Grant the item to the user
+                conn.execute(update_statement, {"username": username})
+                
+                st.toast(f"Purchase successful! You bought {item_id}.", icon="🎉")
+                return True
+            except Exception as e:
+                st.error(f"An error occurred during purchase: {e}")
+                # The transaction will be automatically rolled back
+                return False
+
 # --- END OF NEW FUNCTION ---
 
 # --- END OF ADAPTIVE LEARNING FUNCTIONS ---
@@ -5396,11 +5423,11 @@ def display_learning_resources(topic_options):
 def display_profile_page():
     st.header("👤 Your Profile")
     
-    # Add the new "Shop" tab to the list
     tab1, tab2, tab3 = st.tabs(["📝 My Profile", "🏆 My Achievements", "🛍️ Shop"])
 
     # --- TAB 1: MY PROFILE (Unchanged) ---
     with tab1:
+        # (All of your original code for this tab remains here)
         profile = get_user_profile(st.session_state.username) or {}
         with st.form("profile_form"):
             st.subheader("Edit Profile")
@@ -5411,10 +5438,10 @@ def display_profile_page():
             if st.form_submit_button("Save Profile", type="primary"):
                 if update_user_profile(st.session_state.username, full_name, school, age, bio):
                     st.success("Profile updated!"); st.rerun()
-
         st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
         with st.form("password_form"):
             st.subheader("Change Password")
+            # ... (password change form logic is unchanged)
             current_password = st.text_input("Current Password", type="password")
             new_password = st.text_input("New Password", type="password")
             confirm_new_password = st.text_input("Confirm New Password", type="password")
@@ -5423,8 +5450,10 @@ def display_profile_page():
                 elif change_password(st.session_state.username, current_password, new_password): st.success("Password changed successfully!")
                 else: st.error("Incorrect current password")
 
+
     # --- TAB 2: MY ACHIEVEMENTS (Unchanged) ---
     with tab2:
+        # (All of your original code for this tab remains here)
         st.subheader("🏆 My Achievements")
         achievements = get_user_achievements(st.session_state.username)
         if not achievements:
@@ -5439,43 +5468,58 @@ def display_profile_page():
                         st.markdown(f"<div style='font-size: 1rem; text-align: center; font-weight: bold;'>{achievement['achievement_name']}</div>", unsafe_allow_html=True)
                         st.markdown(f"<div style='font-size: 0.8rem; text-align: center; color: grey;'>Unlocked: {achievement['unlocked_at'].strftime('%b %d, %Y')}</div>", unsafe_allow_html=True)
     
-    # --- TAB 3: THE NEW SHOP UI ---
+    # --- TAB 3: THE NEW FUNCTIONAL SHOP UI ---
     with tab3:
         st.subheader("Item Shop")
         
-        # Get and display the user's current coin balance
         coin_balance = get_coin_balance(st.session_state.username)
         st.info(f"**Your Balance: 🪙 {coin_balance} Coins**")
         st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
 
         st.markdown("#### Quiz Perks (Consumables)")
         col1, col2 = st.columns(2)
+        
+        # --- HINT TOKEN ITEM ---
         with col1:
             with st.container(border=True):
                 st.markdown("##### 💡 Reveal a Hint Token")
                 st.caption("Stuck on a tough question? Use this token to instantly unlock the hint.")
                 st.markdown("**Cost: 50 Coins**")
-                # The button is disabled for now. We will activate it in the next step.
-                st.button("Buy Now", key="buy_hint", use_container_width=True, disabled=True)
-        
+                if st.button("Buy Now", key="buy_hint", use_container_width=True, disabled=(coin_balance < 50)):
+                    update_sql = text("UPDATE user_profiles SET hint_tokens = hint_tokens + 1 WHERE username = :username")
+                    if purchase_item(st.session_state.username, "Hint Token", 50, update_sql):
+                        st.rerun()
+
+        # --- 50/50 LIFELINE ITEM ---
         with col2:
             with st.container(border=True):
                 st.markdown("##### 🔀 50/50 Lifeline Token")
-                st.caption("Remove two incorrect answers from any multiple-choice question. Doubles your chance of success!")
+                st.caption("Remove two incorrect answers from any multiple-choice question.")
                 st.markdown("**Cost: 100 Coins**")
-                # The button is disabled for now.
-                st.button("Buy Now", key="buy_5050", use_container_width=True, disabled=True)
+                if st.button("Buy Now", key="buy_5050", use_container_width=True, disabled=(coin_balance < 100)):
+                    update_sql = text("UPDATE user_profiles SET fifty_fifty_tokens = fifty_fifty_tokens + 1 WHERE username = :username")
+                    if purchase_item(st.session_state.username, "50/50 Lifeline", 100, update_sql):
+                        st.rerun()
 
         st.markdown("#### Profile Customization (Permanent)")
         col3, col4 = st.columns(2)
+
+        # --- GOLD BORDER ITEM ---
         with col3:
             with st.container(border=True):
                 st.markdown("##### 🖼️ Golden Profile Border")
-                st.caption("Show off your status with a shining golden border around your profile on all leaderboards.")
+                st.caption("A shining golden border for your profile on all leaderboards.")
                 st.markdown("**Cost: 1,000 Coins**")
-                # The button is disabled for now.
-                st.button("Buy Now", key="buy_border", use_container_width=True, disabled=True)
+                # We also need to check if the user already owns this permanent item
+                profile = get_user_profile(st.session_state.username) or {}
+                already_owned = profile.get('has_gold_border', False)
 
+                if already_owned:
+                    st.success("✅ Owned")
+                elif st.button("Buy Now", key="buy_border", use_container_width=True, disabled=(coin_balance < 1000)):
+                    update_sql = text("UPDATE user_profiles SET has_gold_border = TRUE WHERE username = :username")
+                    if purchase_item(st.session_state.username, "Golden Border", 1000, update_sql):
+                        st.rerun()
 def display_admin_panel():
     st.title("⚙️ Admin Panel: Mission Control")
 
@@ -5956,6 +6000,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
