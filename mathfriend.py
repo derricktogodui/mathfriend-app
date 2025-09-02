@@ -222,12 +222,21 @@ def login_user(username, password):
 def signup_user(username, password):
     try:
         with engine.connect() as conn:
-            conn.execute(text("INSERT INTO users (username, password) VALUES (:username, :password)"), 
-                         {"username": username, "password": hash_password(password)})
-            conn.commit()
+            # This starts a transaction to ensure both actions succeed or fail together
+            with conn.begin():
+                # Action 1: Create the user's login credentials
+                conn.execute(text("INSERT INTO users (username, password) VALUES (:username, :password)"), 
+                             {"username": username, "password": hash_password(password)})
+                
+                # Action 2 (THE FIX): Create the user's profile at the same time
+                conn.execute(text("INSERT INTO user_profiles (username, coins) VALUES (:username, 100)"),
+                             {"username": username})
+
+            # The transaction is committed here
             chat_client.upsert_user({"id": username, "name": username})
         return True
     except sqlalchemy.exc.IntegrityError:
+        # This will catch if the username already exists
         return False
 
 def get_user_profile(username):
@@ -1443,22 +1452,26 @@ def update_coin_balance(username, amount, description):
     """
     Updates a user's coin balance and logs the transaction.
     This is the central function for all coin-related changes.
-    - amount: A positive integer to add coins, or a negative integer to subtract coins.
-    - description: A string explaining the reason for the transaction.
     """
     with engine.connect() as conn:
         with conn.begin(): # Start a database transaction
             try:
-                # --- THIS SQL QUERY IS NOW CORRECTED AND MORE ROBUST ---
-                # COALESCE(coins, 0) safely handles cases where a user's balance is NULL.
+                # --- THIS IS THE FINAL, ROBUST FIX ---
+                # This command will CREATE a profile if it doesn't exist,
+                # or UPDATE the existing one. It solves the NULL issue permanently.
                 update_query = text("""
-                    UPDATE user_profiles
-                    SET coins = COALESCE(coins, 0) + :amount
-                    WHERE username = :username
+                    INSERT INTO user_profiles (username, coins)
+                    VALUES (:username, :initial_coins)
+                    ON CONFLICT (username) DO UPDATE
+                    SET coins = COALESCE(user_profiles.coins, 0) + :amount;
                 """)
-                conn.execute(update_query, {"amount": amount, "username": username})
+                conn.execute(update_query, {
+                    "username": username, 
+                    "initial_coins": 100 + amount, # For new profiles, start at 100 + this amount
+                    "amount": amount               # For existing profiles, just add the amount
+                })
 
-                # Step 2: Log this specific transaction in the log table for record-keeping.
+                # Log the transaction
                 log_query = text("""
                     INSERT INTO coin_transactions (username, amount, description)
                     VALUES (:username, :amount, :description)
@@ -1467,10 +1480,8 @@ def update_coin_balance(username, amount, description):
                 
                 return True
             except Exception as e:
-                # If any step fails, the transaction is automatically rolled back.
                 print(f"Coin transaction failed for {username}: {e}")
                 return False
-
 def purchase_item(username, item_id, cost, update_statement):
     """
     Handles the logic for purchasing an item from the shop.
@@ -6005,6 +6016,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
