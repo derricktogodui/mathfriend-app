@@ -1509,6 +1509,59 @@ def purchase_item(username, item_id, cost, update_statement):
                 # The transaction will be automatically rolled back
                 return False
 
+def transfer_coins(sender_username, recipient_username, amount):
+    """
+    Securely transfers coins from one user to another.
+    Returns (True, "Success Message") or (False, "Error Message").
+    """
+    if sender_username == recipient_username:
+        return (False, "You cannot gift coins to yourself.")
+    if amount <= 0:
+        return (False, "Gift amount must be positive.")
+
+    with engine.connect() as conn:
+        with conn.begin(): # Start a single transaction for the whole transfer
+            try:
+                # Check if recipient exists
+                recipient_exists = conn.execute(
+                    text("SELECT 1 FROM users WHERE username = :username"),
+                    {"username": recipient_username}
+                ).first()
+                if not recipient_exists:
+                    return (False, f"User '{recipient_username}' does not exist.")
+
+                # Check sender's balance and lock the row to prevent race conditions
+                sender_balance = conn.execute(
+                    text("SELECT coins FROM user_profiles WHERE username = :username FOR UPDATE"),
+                    {"username": sender_username}
+                ).scalar_one_or_none() or 0
+
+                if sender_balance < amount:
+                    return (False, "You do not have enough coins to send this gift.")
+
+                # Perform the transfer
+                # 1. Subtract from sender
+                update_sender_query = text("UPDATE user_profiles SET coins = coins - :amount WHERE username = :username")
+                conn.execute(update_sender_query, {"amount": amount, "username": sender_username})
+                
+                # 2. Add to recipient (using the robust COALESCE method)
+                update_recipient_query = text("UPDATE user_profiles SET coins = COALESCE(coins, 0) + :amount WHERE username = :username")
+                conn.execute(update_recipient_query, {"amount": amount, "username": recipient_username})
+                
+                # 3. Log both sides of the transaction
+                log_sender_query = text("INSERT INTO coin_transactions (username, amount, description) VALUES (:u, :a, :d)")
+                conn.execute(log_sender_query, {"u": sender_username, "a": -amount, "d": f"Gift sent to {recipient_username}"})
+                
+                log_recipient_query = text("INSERT INTO coin_transactions (username, amount, description) VALUES (:u, :a, :d)")
+                conn.execute(log_recipient_query, {"u": recipient_username, "a": amount, "d": f"Gift received from {sender_username}"})
+
+                return (True, f"You successfully sent {amount} coins to {recipient_username}!")
+
+            except Exception as e:
+                # The transaction will automatically roll back on any error
+                print(f"Coin transfer failed: {e}")
+                return (False, "An unexpected error occurred.")
+
 def use_hint_token(username):
     """Subtracts one hint token from a user's profile."""
     with engine.connect() as conn:
@@ -5512,7 +5565,6 @@ def display_profile_page():
         st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
         with st.form("password_form"):
             st.subheader("Change Password")
-            # ... (password change form logic is unchanged)
             current_password = st.text_input("Current Password", type="password")
             new_password = st.text_input("New Password", type="password")
             confirm_new_password = st.text_input("Confirm New Password", type="password")
@@ -5521,12 +5573,12 @@ def display_profile_page():
                 elif change_password(st.session_state.username, current_password, new_password): st.success("Password changed successfully!")
                 else: st.error("Incorrect current password")
 
-
     # --- TAB 2: MY ACHIEVEMENTS (Unchanged) ---
     with tab2:
         # (All of your original code for this tab remains here)
         st.subheader("🏆 My Achievements")
         achievements = get_user_achievements(st.session_state.username)
+        # ... (rest of the achievement display code is unchanged) ...
         if not achievements:
             st.info("Your trophy case is empty for now. Keep playing to earn badges!")
         else:
@@ -5538,8 +5590,8 @@ def display_profile_page():
                         st.markdown(f"<div style='font-size: 3rem; text-align: center;'>{achievement['badge_icon']}</div>", unsafe_allow_html=True)
                         st.markdown(f"<div style='font-size: 1rem; text-align: center; font-weight: bold;'>{achievement['achievement_name']}</div>", unsafe_allow_html=True)
                         st.markdown(f"<div style='font-size: 0.8rem; text-align: center; color: grey;'>Unlocked: {achievement['unlocked_at'].strftime('%b %d, %Y')}</div>", unsafe_allow_html=True)
-    
-    # --- TAB 3: THE NEW FUNCTIONAL SHOP UI ---
+
+    # --- TAB 3: THE SHOP UI (WITH NEW GIFTING FORM) ---
     with tab3:
         st.subheader("Item Shop")
         
@@ -5550,7 +5602,7 @@ def display_profile_page():
         st.markdown("#### Quiz Perks (Consumables)")
         col1, col2 = st.columns(2)
         
-        # --- HINT TOKEN ITEM ---
+        # ... (Item shop code is unchanged) ...
         with col1:
             with st.container(border=True):
                 st.markdown("##### 💡 Reveal a Hint Token")
@@ -5560,8 +5612,6 @@ def display_profile_page():
                     update_sql = text("UPDATE user_profiles SET hint_tokens = hint_tokens + 1 WHERE username = :username")
                     if purchase_item(st.session_state.username, "Hint Token", 50, update_sql):
                         st.rerun()
-
-        # --- 50/50 LIFELINE ITEM ---
         with col2:
             with st.container(border=True):
                 st.markdown("##### 🔀 50/50 Lifeline Token")
@@ -5574,23 +5624,36 @@ def display_profile_page():
 
         st.markdown("#### Profile Customization (Permanent)")
         col3, col4 = st.columns(2)
-
-        # --- GOLD BORDER ITEM ---
         with col3:
             with st.container(border=True):
                 st.markdown("##### 🖼️ Golden Profile Border")
                 st.caption("A shining golden border for your profile on all leaderboards.")
                 st.markdown("**Cost: 1,000 Coins**")
-                # We also need to check if the user already owns this permanent item
                 profile = get_user_profile(st.session_state.username) or {}
                 already_owned = profile.get('has_gold_border', False)
-
                 if already_owned:
                     st.success("✅ Owned")
                 elif st.button("Buy Now", key="buy_border", use_container_width=True, disabled=(coin_balance < 1000)):
                     update_sql = text("UPDATE user_profiles SET has_gold_border = TRUE WHERE username = :username")
                     if purchase_item(st.session_state.username, "Golden Border", 1000, update_sql):
                         st.rerun()
+
+        # --- NEW GIFTING SECTION ---
+        st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
+        st.subheader("🎁 Gift Coins to a Friend")
+        with st.form("gift_coins_form", clear_on_submit=True):
+            recipient = st.text_input("Recipient's Username")
+            amount = st.number_input("Amount of Coins to Gift", min_value=1, max_value=coin_balance, value=10, step=5)
+            
+            if st.form_submit_button("Send Gift", type="primary", use_container_width=True):
+                success, message = transfer_coins(st.session_state.username, recipient, amount)
+                if success:
+                    st.success(message)
+                    st.balloons()
+                else:
+                    st.error(message)
+                st.rerun()
+        # --- END OF NEW GIFTING SECTION ---
 def display_admin_panel():
     st.title("⚙️ Admin Panel: Mission Control")
 
@@ -6083,6 +6146,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
