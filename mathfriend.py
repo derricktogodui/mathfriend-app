@@ -1509,6 +1509,28 @@ def purchase_item(username, item_id, cost, update_statement):
                 # The transaction will be automatically rolled back
                 return False
 
+def use_hint_token(username):
+    """Subtracts one hint token from a user's profile."""
+    with engine.connect() as conn:
+        with conn.begin(): # Start a transaction
+            # First, check if the user has a token to spend
+            current_tokens = conn.execute(
+                text("SELECT hint_tokens FROM user_profiles WHERE username = :username"),
+                {"username": username}
+            ).scalar_one_or_none() or 0
+
+            if current_tokens > 0:
+                # Subtract one token
+                conn.execute(
+                    text("UPDATE user_profiles SET hint_tokens = hint_tokens - 1 WHERE username = :username"),
+                    {"username": username}
+                )
+                # Log the usage for record-keeping
+                update_coin_balance(username, 0, "Used Hint Token")
+                return True
+            else:
+                return False # User had no tokens to spend
+
 # --- END OF NEW FUNCTION ---
 
 # --- END OF ADAPTIVE LEARNING FUNCTIONS ---
@@ -4448,7 +4470,10 @@ def display_quiz_page(topic_options):
     QUIZ_LENGTH = 10
 
     if not st.session_state.quiz_active:
+        # --- (The code for the quiz selection screen is unchanged) ---
         st.subheader("Choose Your Challenge")
+        # ... (all your existing code for selecting a topic) ...
+        # ... this part of the function remains exactly the same ...
         topic_perf_df = get_topic_performance(st.session_state.username)
         if not topic_perf_df.empty and len(topic_perf_df) > 1 and topic_perf_df['Accuracy'].iloc[-1] < 100:
             weakest_topic = topic_perf_df.index[-1]
@@ -4472,17 +4497,27 @@ def display_quiz_page(topic_options):
                 st.rerun()
         return
 
+    # --- THIS IS THE START OF THE ACTIVE QUIZ LOGIC ---
     if st.session_state.get('on_summary_page', False) or st.session_state.questions_answered >= QUIZ_LENGTH:
         display_quiz_summary(); return
 
+    # --- NEW: Fetch and Display User's Tokens ---
+    user_profile = get_user_profile(st.session_state.username) or {}
+    hint_tokens = user_profile.get('hint_tokens', 0)
+    fifty_fifty_tokens = user_profile.get('fifty_fifty_tokens', 0)
+
+    # Main score metrics
     col1, col2, col3 = st.columns(3)
     with col1: st.metric("Score", f"{st.session_state.quiz_score}/{st.session_state.questions_attempted}")
     with col2: st.metric("Question", f"{st.session_state.questions_answered + 1}/{QUIZ_LENGTH}")
     with col3: st.metric("🔥 Streak", st.session_state.current_streak)
+    
+    # New token display
+    st.caption(f"Your Items: 💡 Hints ({hint_tokens}) | 🔀 50/50s ({fifty_fifty_tokens})")
+
     st.progress(st.session_state.questions_answered / QUIZ_LENGTH, text="Round Progress")
     st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
     
-    # Replace the block above with this new version
     if 'current_q_data' not in st.session_state:
         st.session_state.current_q_data = get_adaptive_question(st.session_state.quiz_topic, st.session_state.username)
     
@@ -4491,50 +4526,58 @@ def display_quiz_page(topic_options):
 
     if not st.session_state.get('answer_submitted', False):
         is_multi = q_data.get("is_multipart", False)
-        options = []
+        part_data = {}
         if is_multi:
             st.markdown(q_data["stem"], unsafe_allow_html=True)
             if 'current_part_index' not in st.session_state: st.session_state.current_part_index = 0
             part_data = q_data["parts"][st.session_state.current_part_index]
             st.markdown(part_data["question"], unsafe_allow_html=True)
-            with st.expander("🤔 Need a hint?"): st.info(part_data["hint"])
-            options = part_data["options"]
         else:
-            st.markdown(q_data["question"], unsafe_allow_html=True)
-            with st.expander("🤔 Need a hint?"): st.info(q_data["hint"])
-            options = q_data["options"]
+            part_data = q_data
+            st.markdown(part_data["question"], unsafe_allow_html=True)
 
+        # --- NEW HINT LOGIC ---
+        if 'hint_revealed' not in st.session_state:
+            st.session_state.hint_revealed = False
+
+        with st.expander("🤔 Need a hint?"):
+            if st.session_state.hint_revealed:
+                st.info(part_data["hint"])
+            else:
+                if st.button("Use 💡 Hint Token", disabled=(hint_tokens <= 0), key="use_hint"):
+                    if use_hint_token(st.session_state.username):
+                        st.session_state.hint_revealed = True
+                        st.rerun()
+                    else:
+                        st.error("Hint could not be used.")
+                if hint_tokens <= 0:
+                    st.caption("You have no hint tokens. Visit the Shop in your Profile to buy more!")
+        # --- END OF NEW HINT LOGIC ---
+        
         with st.form(key=f"quiz_form_{st.session_state.questions_answered}"):
-            user_choice = st.radio("Select your answer:", options, index=None)
+            user_choice = st.radio("Select your answer:", part_data["options"], index=None)
             if st.form_submit_button("Submit Answer", type="primary"):
+                # (The rest of the form submission logic is unchanged)
                 if user_choice is not None:
                     st.session_state.user_choice = user_choice
                     st.session_state.answer_submitted = True
-                    
-                    actual_answer = q_data["parts"][st.session_state.current_part_index]["answer"] if is_multi else q_data["answer"]
+                    actual_answer = part_data["answer"]
                     is_correct = str(user_choice) == str(actual_answer)
-                    
                     if is_multi:
                         part_index = st.session_state.current_part_index
                         is_last_part = (part_index + 1 == len(q_data["parts"]))
-                        
                         if part_index == 0:
                             st.session_state.questions_attempted += 1
                             st.session_state.multi_part_correct = True 
-                        
-                        if not is_correct:
-                            st.session_state.multi_part_correct = False
-
+                        if not is_correct: st.session_state.multi_part_correct = False
                         if is_correct and is_last_part and st.session_state.multi_part_correct:
                             st.session_state.quiz_score += 1
                             st.session_state.current_streak += 1
-                        
                         if not is_correct:
                              st.session_state.current_streak = 0
                              if not any(q.get('stem', q.get('question')) == q_data.get('stem', q_data.get('question')) for q in st.session_state.incorrect_questions):
                                 st.session_state.incorrect_questions.append(q_data)
-
-                    else: # Single question logic
+                    else:
                         st.session_state.questions_attempted += 1
                         if is_correct:
                             st.session_state.quiz_score += 1
@@ -4543,9 +4586,11 @@ def display_quiz_page(topic_options):
                             st.session_state.current_streak = 0
                             st.session_state.incorrect_questions.append(q_data)
                     st.rerun()
-                else:
-                    st.warning("Please select an answer before submitting.")
+                else: st.warning("Please select an answer before submitting.")
+
     else: # Explanation Phase
+        # (This entire "else" block for showing the explanation is unchanged)
+        # ...
         user_choice = st.session_state.user_choice; is_multi = q_data.get("is_multipart", False)
         part_data, actual_answer, explanation, question_text = {}, "", "", ""
 
@@ -4562,8 +4607,6 @@ def display_quiz_page(topic_options):
         st.write("Your answer:");
         if is_correct:
             st.success(f"**{user_choice}** (Correct!)")
-            # --- THIS IS THE NEW LOGIC ---
-            # Celebrate when the streak hits 3, 5, or any multiple of 5
             if st.session_state.current_streak in [3, 5] or (st.session_state.current_streak > 5 and st.session_state.current_streak % 5 == 0):
                 st.balloons()
         else:
@@ -4578,7 +4621,8 @@ def display_quiz_page(topic_options):
         if st.button(button_label, type="primary", use_container_width=True):
             if not is_multi or is_last_part or not is_correct:
                 st.session_state.questions_answered += 1
-
+                st.session_state.hint_revealed = False # Reset hint for next question
+            
             if is_multi and is_correct and not is_last_part:
                 st.session_state.current_part_index += 1
             else:
@@ -4591,7 +4635,7 @@ def display_quiz_page(topic_options):
 
     if st.button("Stop Round & Save Score"):
         st.session_state.on_summary_page = True
-        keys_to_delete = ['current_q_data', 'user_choice', 'answer_submitted', 'current_part_index', 'multi_part_correct']
+        keys_to_delete = ['current_q_data', 'user_choice', 'answer_submitted', 'current_part_index', 'multi_part_correct', 'hint_revealed']
         for key in keys_to_delete:
             if key in st.session_state: del st.session_state[key]
         st.rerun()
@@ -6016,6 +6060,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
