@@ -805,10 +805,12 @@ def get_overall_rival_snapshot(username, time_filter="all"):
                 SELECT username, SUM(score) as total_score
                 FROM quiz_results {time_clause}
                 GROUP BY username
-            ), RankedScores AS (
+            ),
+            RankedScores AS (
                 SELECT username, RANK() OVER (ORDER BY total_score DESC, username ASC) as rank
                 FROM PlayerTotals
-            ), CurrentUser AS (
+            ),
+            CurrentUser AS (
                 SELECT rank FROM RankedScores WHERE username = :username
             )
             SELECT username, rank
@@ -821,7 +823,7 @@ def get_overall_rival_snapshot(username, time_filter="all"):
         snapshot = {"user_rank": None, "rival_above": None, "rival_below": None}
         if not result: return None
 
-        # This new, simpler logic is more robust and avoids the bug
+        # This robust logic correctly identifies the user and their rivals
         user_row = next((r for r in result if r['username'] == username), None)
         if not user_row: return None
         snapshot['user_rank'] = user_row['rank']
@@ -4519,7 +4521,7 @@ def display_leaderboard(topic_options):
     st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
 
     if leaderboard_topic == "🏆 Overall Performance":
-        # --- NEW: RIVAL SNAPSHOT FOR OVERALL PERFORMANCE ---
+        # --- CORRECTED RIVAL SNAPSHOT FOR OVERALL PERFORMANCE ---
         total_players = get_total_overall_players(time_filter)
         rival_data = get_overall_rival_snapshot(st.session_state.username, time_filter)
         
@@ -5783,6 +5785,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
