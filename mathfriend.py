@@ -788,35 +788,49 @@ def get_user_rank(username, topic, time_filter="all"):
 
 def get_rival_snapshot(username, topic, time_filter="all"):
     """
-    Fetches the user's rank and their immediate rivals (with names and ranks).
+    Fetches the user's rank, total players, and their immediate rivals (above and below) for a specific topic.
     """
     with engine.connect() as conn:
         time_clause = ""
-        if time_filter == "week": time_clause = "AND timestamp >= NOW() - INTERVAL '7 days'"
-        elif time_filter == "month": time_clause = "AND timestamp >= NOW() - INTERVAL '30 days'"
+        if time_filter == "week":
+            time_clause = "AND timestamp >= NOW() - INTERVAL '7 days'"
+        elif time_filter == "month":
+            time_clause = "AND timestamp >= NOW() - INTERVAL '30 days'"
 
+        # THIS SQL QUERY HAS BEEN CORRECTED FOR RELIABILITY
         query = text(f"""
             WITH UserBestScores AS (
-                SELECT username, score, questions_answered, timestamp,
-                       ROW_NUMBER() OVER(PARTITION BY username ORDER BY (CAST(score AS REAL) / questions_answered) DESC, questions_answered DESC, timestamp ASC) as rn
-                FROM quiz_results WHERE topic = :topic AND questions_answered > 0 {time_clause}
-            ), RankedScores AS (
-                SELECT username, RANK() OVER (ORDER BY (CAST(score AS REAL) / questions_answered) DESC, questions_answered DESC, timestamp ASC) as rank
-                FROM UserBestScores WHERE rn = 1
-            ), CurrentUser AS (
+                SELECT
+                    username, score, questions_answered, timestamp,
+                    ROW_NUMBER() OVER(PARTITION BY username ORDER BY (CAST(score AS REAL) / questions_answered) DESC, questions_answered DESC, timestamp ASC) as rn
+                FROM quiz_results
+                WHERE topic = :topic AND questions_answered > 0 {time_clause}
+            ),
+            RankedScores AS (
+                SELECT
+                    username,
+                    RANK() OVER (ORDER BY (CAST(score AS REAL) / questions_answered) DESC, questions_answered DESC, timestamp ASC) as rank
+                FROM UserBestScores
+                WHERE rn = 1
+            ),
+            CurrentUser AS (
                 SELECT rank FROM RankedScores WHERE username = :username
             )
-            SELECT username, rank FROM RankedScores, CurrentUser
-            WHERE rank IN (CurrentUser.rank - 1, CurrentUser.rank, CurrentUser.rank + 1)
+            SELECT username, rank
+            FROM RankedScores
+            WHERE rank IN ((SELECT rank FROM CurrentUser) - 1, (SELECT rank FROM CurrentUser), (SELECT rank FROM CurrentUser) + 1)
             ORDER BY rank;
         """)
+
         result = conn.execute(query, {"topic": topic, "username": username}).mappings().fetchall()
         
         snapshot = {"user_rank": None, "rival_above": None, "rival_below": None}
-        if not result: return None
+        if not result:
+            return None
 
         user_row = next((r for r in result if r['username'] == username), None)
-        if not user_row: return None
+        if not user_row:
+            return None
         snapshot['user_rank'] = user_row['rank']
 
         for row in result:
@@ -5821,6 +5835,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
