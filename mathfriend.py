@@ -1447,14 +1447,13 @@ def update_coin_balance(username, amount, description):
     - description: A string explaining the reason for the transaction.
     """
     with engine.connect() as conn:
-        # This starts a database transaction. Both actions inside must succeed, or neither will.
-        with conn.begin(): 
+        with conn.begin(): # Start a database transaction
             try:
-                # Step 1: Update the user's total coin balance in their profile.
-                # Using 'coins = coins + :amount' is a safe way to handle the update.
+                # --- THIS SQL QUERY IS NOW CORRECTED AND MORE ROBUST ---
+                # COALESCE(coins, 0) safely handles cases where a user's balance is NULL.
                 update_query = text("""
                     UPDATE user_profiles
-                    SET coins = coins + :amount
+                    SET coins = COALESCE(coins, 0) + :amount
                     WHERE username = :username
                 """)
                 conn.execute(update_query, {"amount": amount, "username": username})
@@ -1466,10 +1465,9 @@ def update_coin_balance(username, amount, description):
                 """)
                 conn.execute(log_query, {"username": username, "amount": amount, "description": description})
                 
-                # If both steps succeed, the transaction is automatically saved (committed).
                 return True
             except Exception as e:
-                # If any step fails, the transaction is automatically cancelled (rolled back).
+                # If any step fails, the transaction is automatically rolled back.
                 print(f"Coin transaction failed for {username}: {e}")
                 return False
 
@@ -5995,6 +5993,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
