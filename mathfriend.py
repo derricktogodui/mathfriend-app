@@ -4919,10 +4919,23 @@ def display_leaderboard(topic_options):
                 # --- THIS IS THE NEW 3-COLUMN LAYOUT ---
                 st.markdown(f"""
                 <div style="{style}">
-                    <div style="display: flex; justify-content: space-between; align-items: center;">
-                        <div style="width: 35%;">{rank_title}</div>
-                        <div style="width: 35%;">{username_display}</div>
-                        <div style="width: 30%; text-align: right; font-weight: bold; color: #0d6efd;">{total_score} Correct</div>
+                    <div style="display: flex; align-items: center; padding: 5px 0;">
+        
+                        <div style="flex: 0 0 70px; font-weight: bold; text-align: center; font-size: 1.1em;">
+                            {rank_title}
+                        </div>
+
+                        <div style="flex: 1; min-width: 0;">
+                            <span>{username}</span>
+                            {'<span style="background-color: #0d6efd; color: white; font-size: 0.7em; padding: 2px 6px; border-radius: 10px; margin-left: 8px; font-weight: bold;">YOU</span>' if is_current_user else ''}
+                            <br>
+                            <span style="font-style: italic; color: #6c757d; font-size: 0.9em;">{user_info.get('flair', '')}</span>
+                        </div>
+
+                        <div style="flex: 0 0 120px; text-align: right; font-weight: bold; color: #0d6efd;">
+                            {total_score} Correct
+                        </div>
+
                     </div>
                 </div>
                 """, unsafe_allow_html=True)
@@ -6269,6 +6282,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
