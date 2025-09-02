@@ -90,6 +90,14 @@ def create_and_verify_tables():
                           questions_answered INTEGER, timestamp TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP)'''))
             conn.execute(text('''CREATE TABLE IF NOT EXISTS user_profiles
                          (username TEXT PRIMARY KEY, full_name TEXT, school TEXT, age INTEGER, bio TEXT)'''))
+            conn.execute(text('''ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS coins INTEGER DEFAULT 100'''))
+            conn.execute(text('''CREATE TABLE IF NOT EXISTS coin_transactions (
+                                id SERIAL PRIMARY KEY,
+                                username TEXT NOT NULL,
+                                amount INTEGER NOT NULL,
+                                description TEXT,
+                                timestamp TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+                            )'''))
             conn.execute(text('''CREATE TABLE IF NOT EXISTS user_status
                          (username TEXT PRIMARY KEY, is_online BOOLEAN, last_seen TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP)'''))
             conn.execute(text('''CREATE TABLE IF NOT EXISTS daily_challenges (
@@ -180,7 +188,7 @@ def create_and_verify_tables():
         print("Database tables created or verified successfully, including corrected Duel tables.")
     except Exception as e:
         st.error(f"Database setup error: {e}")
-#create_and_verify_tables()
+create_and_verify_tables()
 
 
 # --- Core Backend Functions (PostgreSQL) ---
@@ -5841,6 +5849,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
