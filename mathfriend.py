@@ -236,6 +236,13 @@ def get_user_profile(username):
         profile = result.mappings().first()
         return dict(profile) if profile else None
 
+def get_coin_balance(username):
+    """Fetches a user's current coin balance from their profile."""
+    with engine.connect() as conn:
+        query = text("SELECT coins FROM user_profiles WHERE username = :username")
+        result = conn.execute(query, {"username": username}).scalar_one_or_none()
+        return result if result is not None else 0
+
 def get_user_role(username):
     """Fetches the role of a user from the database."""
     with engine.connect() as conn:
@@ -618,18 +625,21 @@ def update_user_status(username, is_online):
         conn.commit()
 
 # Replace your function with this NEW version
-def save_quiz_result(username, topic, score, questions_answered):
+def save_quiz_result(username, topic, score, questions_answered, coins_earned, description):
+    # This function now acts as a coordinator for all post-quiz updates.
     with engine.connect() as conn:
-        conn.execute(text("INSERT INTO quiz_results (username, topic, score, questions_answered) VALUES (:username, :topic, :score, :questions_answered)"),
-                     {"username": username, "topic": topic, "score": score, "questions_answered": questions_answered})
+        conn.execute(text("INSERT INTO quiz_results (username, topic, score, questions_answered) VALUES (:u, :t, :s, :qa)"),
+                     {"u": username, "t": topic, "s": score, "qa": questions_answered})
         conn.commit()
     
-    # --- THIS IS THE NEW AND FINAL LINE OF CODE ---
-    # It updates the student's skill level for the adaptive system.
+    # Update the student's skill level for the adaptive system
     update_skill_score(username, topic, score, questions_answered)
-    # -----------------------------------------------
+    
+    # Update the student's coin balance
+    if coins_earned > 0:
+        update_coin_balance(username, coins_earned, description)
 
-    # This updates the other gamification systems (challenges and achievements).
+    # Update other gamification systems (challenges and achievements)
     update_gamification_progress(username, topic, score)
 @st.cache_data(ttl=300) # Cache for 300 seconds (5 minutes)
 def get_top_scores(topic, time_filter="all"):
@@ -747,20 +757,22 @@ def update_daily_challenge_progress(username, topic, score):
         if challenge['topic'] == 'Any' or challenge['topic'] == topic:
             new_progress = challenge['progress_count'] + score
             
-            update_progress_query = text("""
-                UPDATE user_daily_progress 
-                SET progress_count = :new_progress 
+            conn.execute(text("""
+                UPDATE user_daily_progress SET progress_count = :new_progress 
                 WHERE username = :username AND challenge_date = :today
-            """)
-            conn.execute(update_progress_query, {"new_progress": new_progress, "username": username, "today": today})
+            """), {"new_progress": new_progress, "username": username, "today": today})
 
             if new_progress >= challenge['target_count']:
-                complete_challenge_query = text("""
+                conn.execute(text("""
                     UPDATE user_daily_progress SET is_completed = TRUE 
                     WHERE username = :username AND challenge_date = :today
-                """)
-                conn.execute(complete_challenge_query, {"username": username, "today": today})
-                st.session_state.challenge_completed_toast = True # Flag for UI notification
+                """), {"username": username, "today": today})
+                
+                # --- NEW COIN REWARD LOGIC ---
+                update_coin_balance(username, 100, "Daily Challenge Completed!")
+                # --- END OF NEW LOGIC ---
+
+                st.session_state.challenge_completed_toast = True
             
             conn.commit()
 
@@ -1132,8 +1144,9 @@ def get_duel_state(duel_id):
 def submit_duel_answer(duel_id, username, is_correct):
     """Records a player's answer and updates the duel state using more robust, atomic updates."""
     with engine.connect() as conn, conn.begin():
+        # This logic fetches player usernames, which we need for awarding coins
         duel_info = conn.execute(
-            text("SELECT player1_username, current_question_index FROM duels WHERE id = :d"),
+            text("SELECT player1_username, player2_username, current_question_index FROM duels WHERE id = :d"),
             {"d": duel_id}
         ).mappings().first()
 
@@ -1141,6 +1154,7 @@ def submit_duel_answer(duel_id, username, is_correct):
             return False
 
         q_index = duel_info["current_question_index"]
+        player1, player2 = duel_info["player1_username"], duel_info["player2_username"]
 
         result = conn.execute(text("""
             UPDATE duel_questions
@@ -1152,13 +1166,10 @@ def submit_duel_answer(duel_id, username, is_correct):
             return False
 
         if is_correct:
-            score_update_query = ""
-            if username == duel_info["player1_username"]:
-                score_update_query = text("UPDATE duels SET player1_score = player1_score + 1 WHERE id = :d")
+            if username == player1:
+                conn.execute(text("UPDATE duels SET player1_score = player1_score + 1 WHERE id = :d"), {"d": duel_id})
             else:
-                score_update_query = text("UPDATE duels SET player2_score = player2_score + 1 WHERE id = :d")
-
-            conn.execute(score_update_query, {"d": duel_id})
+                conn.execute(text("UPDATE duels SET player2_score = player2_score + 1 WHERE id = :d"), {"d": duel_id})
 
         if q_index == 9:
             final_scores = conn.execute(
@@ -1171,6 +1182,16 @@ def submit_duel_answer(duel_id, username, is_correct):
                 final_status = "player1_win"
             elif final_scores["player2_score"] > final_scores["player1_score"]:
                 final_status = "player2_win"
+
+            # --- NEW COIN REWARD LOGIC ---
+            if final_status == "player1_win":
+                update_coin_balance(player1, 75, f"Won Duel vs. {player2}")
+            elif final_status == "player2_win":
+                update_coin_balance(player2, 75, f"Won Duel vs. {player1}")
+            elif final_status == "draw":
+                update_coin_balance(player1, 25, f"Duel Draw vs. {player2}")
+                update_coin_balance(player2, 25, f"Duel Draw vs. {player1}")
+            # --- END OF NEW LOGIC ---
 
             conn.execute(text("""
                 UPDATE duels
@@ -1187,7 +1208,6 @@ def submit_duel_answer(duel_id, username, is_correct):
             """), {"d": duel_id})
 
         return True
-
 
 def display_duel_summary_page(duel_summary):
     """Renders the detailed post-duel summary screen."""
@@ -1417,6 +1437,44 @@ def update_skill_score(username, topic, score, questions_answered):
         conn.execute(query, {"new_score": new_skill, "username": username, "topic": topic})
         conn.commit()
 
+# --- NEW BACKEND FUNCTION FOR COIN ECONOMY ---
+
+def update_coin_balance(username, amount, description):
+    """
+    Updates a user's coin balance and logs the transaction.
+    This is the central function for all coin-related changes.
+    - amount: A positive integer to add coins, or a negative integer to subtract coins.
+    - description: A string explaining the reason for the transaction.
+    """
+    with engine.connect() as conn:
+        # This starts a database transaction. Both actions inside must succeed, or neither will.
+        with conn.begin(): 
+            try:
+                # Step 1: Update the user's total coin balance in their profile.
+                # Using 'coins = coins + :amount' is a safe way to handle the update.
+                update_query = text("""
+                    UPDATE user_profiles
+                    SET coins = coins + :amount
+                    WHERE username = :username
+                """)
+                conn.execute(update_query, {"amount": amount, "username": username})
+
+                # Step 2: Log this specific transaction in the log table for record-keeping.
+                log_query = text("""
+                    INSERT INTO coin_transactions (username, amount, description)
+                    VALUES (:username, :amount, :description)
+                """)
+                conn.execute(log_query, {"username": username, "amount": amount, "description": description})
+                
+                # If both steps succeed, the transaction is automatically saved (committed).
+                return True
+            except Exception as e:
+                # If any step fails, the transaction is automatically cancelled (rolled back).
+                print(f"Coin transaction failed for {username}: {e}")
+                return False
+
+# --- END OF NEW FUNCTION ---
+
 # --- END OF ADAPTIVE LEARNING FUNCTIONS ---
 
 
@@ -1430,33 +1488,33 @@ def check_and_award_achievements(username, topic):
         
         # --- Achievement 1: "First Step" (Take 1 quiz) ---
         if "First Step" not in existing_set:
-            insert_query = text("INSERT INTO user_achievements (username, achievement_name, badge_icon) VALUES (:username, 'First Step', '👟')")
-            conn.execute(insert_query, {"username": username})
+            conn.execute(text("INSERT INTO user_achievements (username, achievement_name, badge_icon) VALUES (:u, 'First Step', '👟')"), {"u": username})
             st.session_state.achievement_unlocked_toast = "First Step"
             existing_set.add("First Step")
+            # --- NEW COIN REWARD LOGIC ---
+            update_coin_balance(username, 250, "Achievement Unlocked: First Step")
 
         # --- Achievement 2: "Century Scorer" (Get 100 total correct answers) ---
         if "Century Scorer" not in existing_set:
-            total_score_query = text("SELECT SUM(score) FROM quiz_results WHERE username = :username")
-            total_score = conn.execute(total_score_query, {"username": username}).scalar_one() or 0
+            total_score = conn.execute(text("SELECT SUM(score) FROM quiz_results WHERE username = :u"), {"u": username}).scalar_one() or 0
             if total_score >= 100:
-                insert_query = text("INSERT INTO user_achievements (username, achievement_name, badge_icon) VALUES (:username, 'Century Scorer', '💯')")
-                conn.execute(insert_query, {"username": username})
+                conn.execute(text("INSERT INTO user_achievements (username, achievement_name, badge_icon) VALUES (:u, 'Century Scorer', '💯')"), {"u": username})
                 st.session_state.achievement_unlocked_toast = "Century Scorer"
                 existing_set.add("Century Scorer")
+                # --- NEW COIN REWARD LOGIC ---
+                update_coin_balance(username, 250, "Achievement Unlocked: Century Scorer")
 
         # --- Achievement 3: "Topic Master" (Get 25 correct answers in a specific topic) ---
         achievement_name = f"{topic} Master"
         if achievement_name not in existing_set:
-            topic_score_query = text("SELECT SUM(score) FROM quiz_results WHERE username = :username AND topic = :topic")
-            topic_score = conn.execute(topic_score_query, {"username": username, "topic": topic}).scalar_one() or 0
+            topic_score = conn.execute(text("SELECT SUM(score) FROM quiz_results WHERE username = :u AND topic = :t"), {"u": username, "t": topic}).scalar_one() or 0
             if topic_score >= 25:
-                insert_query = text("INSERT INTO user_achievements (username, achievement_name, badge_icon) VALUES (:username, :name, '🎓')")
-                conn.execute(insert_query, {"username": username, "name": achievement_name})
+                conn.execute(text("INSERT INTO user_achievements (username, achievement_name, badge_icon) VALUES (:u, :n, '🎓')"), {"u": username, "n": achievement_name})
                 st.session_state.achievement_unlocked_toast = achievement_name
+                # --- NEW COIN REWARD LOGIC ---
+                update_coin_balance(username, 250, f"Achievement Unlocked: {achievement_name}")
 
         conn.commit()
-
 def get_user_achievements(username):
     """Fetches all achievements unlocked by a user."""
     with engine.connect() as conn:
@@ -4504,19 +4562,33 @@ def display_quiz_page(topic_options):
 def display_quiz_summary():
     st.header("🎉 Round Complete! 🎉")
     final_score = st.session_state.quiz_score
-    
-    # --- FIX 1: Use the correct total ---
-    # Use questions_attempted to reflect the questions the user actually saw.
     total_questions = st.session_state.questions_attempted
-    
     accuracy = (final_score / total_questions * 100) if total_questions > 0 else 0
-    
+
+    # --- NEW COIN CALCULATION AND DISPLAY LOGIC ---
+    coins_earned = 0
+    description = ""
+    if total_questions > 0:
+        # Calculate coins: 5 per correct answer + 50 bonus for a perfect score
+        coins_earned = final_score * 5
+        description = f"Completed Quiz on {st.session_state.quiz_topic}"
+
+        if final_score == total_questions:
+            coins_earned += 50
+            description += " (Perfect Score Bonus!)"
+
+    # Save the result to the database if it hasn't been saved already
     if total_questions > 0 and 'result_saved' not in st.session_state:
-        # Save the correct total to the database
-        save_quiz_result(st.session_state.username, st.session_state.quiz_topic, final_score, total_questions)
+        # Pass the calculated coins to the backend function
+        save_quiz_result(st.session_state.username, st.session_state.quiz_topic, final_score, total_questions, coins_earned, description)
         st.session_state.result_saved = True
         
-    st.metric(label="Your Final Score", value=f"{final_score}/{total_questions}", delta=f"{accuracy:.1f}% Accuracy")
+    # --- NEW 3-COLUMN LAYOUT WITH COINS METRIC ---
+    col1, col2, col3 = st.columns(3)
+    col1.metric(label="Your Final Score", value=f"{final_score}/{total_questions}")
+    col2.metric(label="Accuracy", delta=f"{accuracy:.1f}%")
+    if coins_earned > 0:
+        col3.metric(label="🪙 Coins Earned", value=f"+{coins_earned}")
     
     if accuracy >= 90:
         st.success("🏆 Excellent work! You're a true MathFriend master!"); confetti_animation()
@@ -4545,17 +4617,14 @@ def display_quiz_summary():
     col1, col2 = st.columns(2)
     with col1:
         if st.button("Play Again (Same Topic)", use_container_width=True, type="primary"):
+            # (Rest of the button logic is unchanged)
             st.session_state.on_summary_page = False
             st.session_state.quiz_active = True
             st.session_state.quiz_score = 0
             st.session_state.questions_answered = 0
-            
-            # --- FIX 2: Reset the new counter as well ---
             st.session_state.questions_attempted = 0
-            
             st.session_state.current_streak = 0
             st.session_state.incorrect_questions = []
-            
             keys_to_clear = ['current_q_data', 'result_saved', 'current_part_index', 'user_choice', 'answer_submitted']
             for key in keys_to_clear:
                 if key in st.session_state: del st.session_state[key]
@@ -4563,6 +4632,7 @@ def display_quiz_summary():
             
     with col2:
         if st.button("Choose New Topic", use_container_width=True):
+            # (Rest of the button logic is unchanged)
             st.session_state.on_summary_page = False
             st.session_state.quiz_active = False
             if 'result_saved' in st.session_state: del st.session_state['result_saved']
@@ -5326,9 +5396,10 @@ def display_learning_resources(topic_options):
 def display_profile_page():
     st.header("👤 Your Profile")
     
-    tab1, tab2 = st.tabs(["📝 My Profile", "🏆 My Achievements"])
+    # Add the new "Shop" tab to the list
+    tab1, tab2, tab3 = st.tabs(["📝 My Profile", "🏆 My Achievements", "🛍️ Shop"])
 
-    # --- TAB 1: PROFILE EDITING ---
+    # --- TAB 1: MY PROFILE (Unchanged) ---
     with tab1:
         profile = get_user_profile(st.session_state.username) or {}
         with st.form("profile_form"):
@@ -5352,7 +5423,7 @@ def display_profile_page():
                 elif change_password(st.session_state.username, current_password, new_password): st.success("Password changed successfully!")
                 else: st.error("Incorrect current password")
 
-    # --- TAB 2: ACHIEVEMENTS ---
+    # --- TAB 2: MY ACHIEVEMENTS (Unchanged) ---
     with tab2:
         st.subheader("🏆 My Achievements")
         achievements = get_user_achievements(st.session_state.username)
@@ -5367,7 +5438,43 @@ def display_profile_page():
                         st.markdown(f"<div style='font-size: 3rem; text-align: center;'>{achievement['badge_icon']}</div>", unsafe_allow_html=True)
                         st.markdown(f"<div style='font-size: 1rem; text-align: center; font-weight: bold;'>{achievement['achievement_name']}</div>", unsafe_allow_html=True)
                         st.markdown(f"<div style='font-size: 0.8rem; text-align: center; color: grey;'>Unlocked: {achievement['unlocked_at'].strftime('%b %d, %Y')}</div>", unsafe_allow_html=True)
-# Replace your existing display_admin_panel function with this one
+    
+    # --- TAB 3: THE NEW SHOP UI ---
+    with tab3:
+        st.subheader("Item Shop")
+        
+        # Get and display the user's current coin balance
+        coin_balance = get_coin_balance(st.session_state.username)
+        st.info(f"**Your Balance: 🪙 {coin_balance} Coins**")
+        st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
+
+        st.markdown("#### Quiz Perks (Consumables)")
+        col1, col2 = st.columns(2)
+        with col1:
+            with st.container(border=True):
+                st.markdown("##### 💡 Reveal a Hint Token")
+                st.caption("Stuck on a tough question? Use this token to instantly unlock the hint.")
+                st.markdown("**Cost: 50 Coins**")
+                # The button is disabled for now. We will activate it in the next step.
+                st.button("Buy Now", key="buy_hint", use_container_width=True, disabled=True)
+        
+        with col2:
+            with st.container(border=True):
+                st.markdown("##### 🔀 50/50 Lifeline Token")
+                st.caption("Remove two incorrect answers from any multiple-choice question. Doubles your chance of success!")
+                st.markdown("**Cost: 100 Coins**")
+                # The button is disabled for now.
+                st.button("Buy Now", key="buy_5050", use_container_width=True, disabled=True)
+
+        st.markdown("#### Profile Customization (Permanent)")
+        col3, col4 = st.columns(2)
+        with col3:
+            with st.container(border=True):
+                st.markdown("##### 🖼️ Golden Profile Border")
+                st.caption("Show off your status with a shining golden border around your profile on all leaderboards.")
+                st.markdown("**Cost: 1,000 Coins**")
+                # The button is disabled for now.
+                st.button("Buy Now", key="buy_border", use_container_width=True, disabled=True)
 
 def display_admin_panel():
     st.title("⚙️ Admin Panel: Mission Control")
@@ -5849,6 +5956,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
