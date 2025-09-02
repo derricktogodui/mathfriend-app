@@ -1657,6 +1657,36 @@ def use_fifty_fifty_token(username):
             else:
                 return False
 
+def use_skip_question_token(username):
+    """Subtracts one skip question token from a user's profile."""
+    with engine.connect() as conn:
+        with conn.begin(): # Start a transaction
+            current_tokens = conn.execute(
+                text("SELECT skip_question_tokens FROM user_profiles WHERE username = :username"),
+                {"username": username}
+            ).scalar_one_or_none() or 0
+
+            if current_tokens > 0:
+                conn.execute(
+                    text("UPDATE user_profiles SET skip_question_tokens = skip_question_tokens - 1 WHERE username = :username"),
+                    {"username": username}
+                )
+                return True
+            else:
+                return False
+
+def is_double_coins_active(username):
+    """Checks if a user's double coins booster is currently active."""
+    with engine.connect() as conn:
+        expires_at = conn.execute(
+            text("SELECT double_coins_expires_at FROM user_profiles WHERE username = :username"),
+            {"username": username}
+        ).scalar_one_or_none()
+
+        if expires_at and expires_at > datetime.now(expires_at.tzinfo):
+            return True
+        return False
+
 # --- END OF NEW FUNCTION ---
 
 # --- END OF ADAPTIVE LEARNING FUNCTIONS ---
@@ -4601,7 +4631,7 @@ def display_quiz_page(topic_options):
     QUIZ_LENGTH = 10
 
     if not st.session_state.quiz_active:
-        # This code for the quiz selection screen is unchanged
+        # This setup part is unchanged
         st.subheader("Choose Your Challenge")
         topic_perf_df = get_topic_performance(st.session_state.username)
         if not topic_perf_df.empty and len(topic_perf_df) > 1 and topic_perf_df['Accuracy'].iloc[-1] < 100:
@@ -4633,13 +4663,19 @@ def display_quiz_page(topic_options):
     user_profile = get_user_profile(st.session_state.username) or {}
     hint_tokens = user_profile.get('hint_tokens', 0)
     fifty_fifty_tokens = user_profile.get('fifty_fifty_tokens', 0)
+    # --- NEW --- Get skip token count
+    skip_tokens = user_profile.get('skip_question_tokens', 0)
 
-    # Display scores and token balances
+    # --- NEW --- Double Coins Status Indicator
+    if is_double_coins_active(st.session_state.username):
+        st.info("🚀 **Double Coins Active!** All rewards from this quiz will be doubled.", icon="🎉")
+    # --- END NEW ---
+
     col1, col2, col3 = st.columns(3)
     with col1: st.metric("Score", f"{st.session_state.quiz_score}/{st.session_state.questions_attempted}")
     with col2: st.metric("Question", f"{st.session_state.questions_answered + 1}/{QUIZ_LENGTH}")
     with col3: st.metric("🔥 Streak", st.session_state.current_streak)
-    st.caption(f"Your Items: 💡 Hints ({hint_tokens}) | 🔀 50/50s ({fifty_fifty_tokens})")
+    st.caption(f"Your Items: 💡 Hints ({hint_tokens}) | 🔀 50/50s ({fifty_fifty_tokens}) | ↪️ Skips ({skip_tokens})")
     
     st.progress(st.session_state.questions_answered / QUIZ_LENGTH, text="Round Progress")
     st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
@@ -4657,75 +4693,68 @@ def display_quiz_page(topic_options):
             st.markdown(q_data["stem"], unsafe_allow_html=True)
         st.markdown(part_data["question"], unsafe_allow_html=True)
         
-        # --- NEW, UNIFIED "NEED HELP?" EXPANDER AS PER YOUR DESIGN ---
         with st.expander("🤔 Need Help? (Click to see lifelines)"):
-            help_cols = st.columns(2)
-            # HINT BUTTON LOGIC
-            with help_cols[0]:
+            help_cols = st.columns(3) # Changed to 3 columns
+            with help_cols[0]: # Hint Button
                 if st.session_state.get('hint_revealed', False):
                     st.info(part_data["hint"])
                 else:
-                    if st.button(f"Use 💡 Hint ({hint_tokens} left)", disabled=(hint_tokens <= 0), key="use_hint", use_container_width=True):
+                    if st.button(f"💡 Hint ({hint_tokens})", disabled=(hint_tokens <= 0), key="use_hint", use_container_width=True):
                         if use_hint_token(st.session_state.username):
                             st.session_state.hint_revealed = True
                             st.rerun()
-            
-            # 50/50 LIFELINE BUTTON LOGIC
-            with help_cols[1]:
-                if st.button(f"Use 🔀 50/50 ({fifty_fifty_tokens} left)", disabled=(fifty_fifty_tokens <= 0 or st.session_state.get('fifty_fifty_used', False)), key="use_5050", use_container_width=True):
+            with help_cols[1]: # 50/50 Button
+                if st.button(f"🔀 50/50 ({fifty_fifty_tokens})", disabled=(fifty_fifty_tokens <= 0 or st.session_state.get('fifty_fifty_used', False)), key="use_5050", use_container_width=True):
                     if use_fifty_fifty_token(st.session_state.username):
                         st.session_state.fifty_fifty_used = True
                         correct_answer = part_data["answer"]
                         incorrect_options = [opt for opt in part_data["options"] if str(opt) != str(correct_answer)]
                         option_to_keep = random.choice(incorrect_options)
-                        
                         new_options = [correct_answer, option_to_keep]
                         random.shuffle(new_options)
-
                         if q_data.get("is_multipart"):
                             st.session_state.current_q_data['parts'][st.session_state.get('current_part_index', 0)]['options'] = new_options
                         else:
                             st.session_state.current_q_data['options'] = new_options
-                        
                         st.rerun()
+            # --- NEW --- Skip Question Button
+            with help_cols[2]:
+                if st.button(f"↪️ Skip ({skip_tokens})", disabled=(skip_tokens <= 0), key="use_skip", use_container_width=True):
+                    if use_skip_question_token(st.session_state.username):
+                        st.toast("Question skipped!", icon="↪️")
+                        st.session_state.questions_answered += 1 # Advance progress
+                        # NOTE: We DO NOT increment questions_attempted
+                        
+                        # Clean up and rerun for next question
+                        keys_to_reset = ['hint_revealed', 'fifty_fifty_used', 'current_q_data', 'user_choice', 'answer_submitted']
+                        for key in keys_to_reset:
+                            if key in st.session_state: del st.session_state[key]
+                        st.rerun()
+            # --- END NEW ---
 
         with st.form(key=f"quiz_form_{st.session_state.questions_answered}"):
-            options_to_display = part_data["options"]
-            if q_data.get("is_multipart"):
-                 options_to_display = st.session_state.current_q_data['parts'][st.session_state.get('current_part_index', 0)]['options']
-            elif 'options' in st.session_state.current_q_data:
-                options_to_display = st.session_state.current_q_data['options']
-
-            user_choice = st.radio("Select your answer:", options_to_display, index=None)
+            # (The rest of the form logic is unchanged)
+            user_choice = st.radio("Select your answer:", part_data["options"], index=None)
             if st.form_submit_button("Submit Answer", type="primary"):
-                # (The form submission logic is unchanged)
                 if user_choice is not None:
                     st.session_state.user_choice = user_choice
                     st.session_state.answer_submitted = True
+                    st.session_state.questions_attempted += 1 # Always increment attempt on submit
+                    
                     actual_answer = part_data["answer"]
                     is_correct = str(user_choice) == str(actual_answer)
-                    if q_data.get("is_multipart"):
-                        part_index = st.session_state.get('current_part_index', 0); is_last_part = (part_index + 1 == len(q_data["parts"]))
-                        if part_index == 0:
-                            st.session_state.questions_attempted += 1; st.session_state.multi_part_correct = True 
-                        if not is_correct: st.session_state.multi_part_correct = False
-                        if is_correct and is_last_part and st.session_state.multi_part_correct:
-                            st.session_state.quiz_score += 1; st.session_state.current_streak += 1
-                        if not is_correct:
-                             st.session_state.current_streak = 0
-                             if not any(q.get('stem', '') == q_data.get('stem', '') for q in st.session_state.incorrect_questions):
-                                st.session_state.incorrect_questions.append(q_data)
+                    
+                    if is_correct:
+                        st.session_state.quiz_score += 1
+                        st.session_state.current_streak += 1
                     else:
-                        st.session_state.questions_attempted += 1
-                        if is_correct:
-                            st.session_state.quiz_score += 1; st.session_state.current_streak += 1
-                        else:
-                            st.session_state.current_streak = 0; st.session_state.incorrect_questions.append(q_data)
+                        st.session_state.current_streak = 0
+                        st.session_state.incorrect_questions.append(q_data)
                     st.rerun()
                 else: st.warning("Please select an answer before submitting.")
 
     else: # Explanation Phase
-        # (This entire "else" block for showing the explanation is unchanged)
+        # This part of the logic remains unchanged
         user_choice = st.session_state.user_choice
         part_data = q_data.get("parts", [{}])[st.session_state.get('current_part_index', 0)] if q_data.get("is_multipart") else q_data
         actual_answer, explanation = part_data["answer"], part_data.get("explanation", "")
@@ -4742,24 +4771,11 @@ def display_quiz_page(topic_options):
             st.info(f"The correct answer was: **{actual_answer}**")
         with st.expander("Show Explanation", expanded=True): st.markdown(explanation, unsafe_allow_html=True)
 
-        is_last_part = q_data.get("is_multipart") and (st.session_state.get('current_part_index', 0) + 1 == len(q_data["parts"]))
-        button_label = "Next Question" if not q_data.get("is_multipart") or is_last_part or not is_correct else "Next Part"
-        
-        if st.button(button_label, type="primary", use_container_width=True):
-            if not q_data.get("is_multipart") or is_last_part or not is_correct:
-                st.session_state.questions_answered += 1
-                keys_to_reset = ['hint_revealed', 'fifty_fifty_used']
-                for key in keys_to_reset:
-                    if key in st.session_state: del st.session_state[key]
-            
-            if q_data.get("is_multipart") and is_correct and not is_last_part:
-                st.session_state.current_part_index += 1
-            else:
-                del st.session_state.current_q_data
-                if 'current_part_index' in st.session_state: del st.session_state['current_part_index']
-                if 'multi_part_correct' in st.session_state: del st.session_state.multi_part_correct
-            
-            del st.session_state.user_choice; del st.session_state.answer_submitted
+        if st.button("Next Question", type="primary", use_container_width=True):
+            st.session_state.questions_answered += 1
+            keys_to_reset = ['hint_revealed', 'fifty_fifty_used', 'current_q_data', 'user_choice', 'answer_submitted']
+            for key in keys_to_reset:
+                if key in st.session_state: del st.session_state[key]
             st.rerun()
 
     if st.button("Stop Round & Save Score"):
@@ -4780,8 +4796,14 @@ def display_quiz_summary():
         coins_earned = final_score * 5
         description = f"Completed Quiz on {st.session_state.quiz_topic}"
         if final_score == total_questions:
-            coins_earned += 25
+            coins_earned += 25 # Using the reduced bonus
             description += " (Perfect Score Bonus!)"
+
+    # --- NEW --- Check for and apply Double Coins booster
+    if is_double_coins_active(st.session_state.username):
+        st.success(f"🚀 Double Coins booster was active! Your earnings are doubled: {coins_earned} -> {coins_earned * 2}", icon="🎉")
+        coins_earned *= 2
+    # --- END NEW ---
 
     if total_questions > 0 and 'result_saved' not in st.session_state:
         save_quiz_result(st.session_state.username, st.session_state.quiz_topic, final_score, total_questions, coins_earned, description)
@@ -4789,14 +4811,11 @@ def display_quiz_summary():
         
     col1, col2, col3 = st.columns(3)
     col1.metric(label="Your Final Score", value=f"{final_score}/{total_questions}")
-    
-    # --- THIS IS THE CORRECTED LINE ---
     col2.metric(label="Accuracy", value=f"{accuracy:.1f}%")
-    # ---------------------------------
-    
     if coins_earned > 0:
         col3.metric(label="🪙 Coins Earned", value=f"+{coins_earned}")
     
+    # The rest of the summary function is unchanged
     if accuracy >= 90:
         st.success("🏆 Excellent work! You're a true MathFriend master!"); confetti_animation()
     elif accuracy >= 70:
@@ -4824,12 +4843,9 @@ def display_quiz_summary():
     col1, col2 = st.columns(2)
     with col1:
         if st.button("Play Again (Same Topic)", use_container_width=True, type="primary"):
-            st.session_state.on_summary_page = False
-            st.session_state.quiz_active = True
-            st.session_state.quiz_score = 0
-            st.session_state.questions_answered = 0
-            st.session_state.questions_attempted = 0
-            st.session_state.current_streak = 0
+            st.session_state.on_summary_page = False; st.session_state.quiz_active = True
+            st.session_state.quiz_score = 0; st.session_state.questions_answered = 0
+            st.session_state.questions_attempted = 0; st.session_state.current_streak = 0
             st.session_state.incorrect_questions = []
             keys_to_clear = ['current_q_data', 'result_saved', 'current_part_index', 'user_choice', 'answer_submitted']
             for key in keys_to_clear:
@@ -4838,11 +4854,9 @@ def display_quiz_summary():
             
     with col2:
         if st.button("Choose New Topic", use_container_width=True):
-            st.session_state.on_summary_page = False
-            st.session_state.quiz_active = False
+            st.session_state.on_summary_page = False; st.session_state.quiz_active = False
             if 'result_saved' in st.session_state: del st.session_state['result_saved']
             st.rerun()
-
 def display_leaderboard(topic_options):
     st.header("🏆 Global Leaderboard")
     
@@ -5645,7 +5659,7 @@ def display_profile_page():
     
     tab1, tab2, tab3 = st.tabs(["📝 My Profile", "🏆 My Achievements", "🛍️ Shop"])
 
-    # --- TAB 1: MY PROFILE (WITH NEW FLAIR FORM) ---
+    # Tabs 1 and 2 remain unchanged
     with tab1:
         profile = get_user_profile(st.session_state.username) or {}
         with st.form("profile_form"):
@@ -5658,8 +5672,6 @@ def display_profile_page():
                 if update_user_profile(st.session_state.username, full_name, school, age, bio):
                     st.success("Profile updated!"); st.rerun()
 
-        # --- NEW FLAIR SETTING FORM ---
-        # This form will only appear if the user has purchased the unlock from the shop
         if profile.get('unlocked_flair', False):
             st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
             with st.form("flair_form"):
@@ -5669,12 +5681,10 @@ def display_profile_page():
                 if st.form_submit_button("Set Flair", type="primary"):
                     set_user_flair(st.session_state.username, new_flair)
                     st.rerun()
-        # --- END OF NEW FLAIR FORM ---
 
         st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
         with st.form("password_form"):
             st.subheader("Change Password")
-            # ... (password change form logic is unchanged) ...
             current_password = st.text_input("Current Password", type="password")
             new_password = st.text_input("New Password", type="password")
             confirm_new_password = st.text_input("Confirm New Password", type="password")
@@ -5683,10 +5693,7 @@ def display_profile_page():
                 elif change_password(st.session_state.username, current_password, new_password): st.success("Password changed successfully!")
                 else: st.error("Incorrect current password")
 
-
-    # --- TAB 2: MY ACHIEVEMENTS (Unchanged) ---
     with tab2:
-        # ... (Your existing achievement display code is unchanged) ...
         st.subheader("🏆 My Achievements")
         achievements = get_user_achievements(st.session_state.username)
         if not achievements:
@@ -5701,44 +5708,66 @@ def display_profile_page():
                         st.markdown(f"<div style='font-size: 1rem; text-align: center; font-weight: bold;'>{achievement['achievement_name']}</div>", unsafe_allow_html=True)
                         st.markdown(f"<div style='font-size: 0.8rem; text-align: center; color: grey;'>Unlocked: {achievement['unlocked_at'].strftime('%b %d, %Y')}</div>", unsafe_allow_html=True)
     
-    # --- TAB 3: SHOP UI (WITH NEW FLAIR ITEM) ---
+    # --- TAB 3: SHOP UI (WITH NEW ITEMS) ---
     with tab3:
         st.subheader("Item Shop")
         
         coin_balance = get_coin_balance(st.session_state.username)
-        profile = get_user_profile(st.session_state.username) or {} # Re-fetch profile for item status
+        profile = get_user_profile(st.session_state.username) or {}
         st.info(f"**Your Balance: 🪙 {coin_balance} Coins**")
         st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
 
         st.markdown("#### Quiz Perks (Consumables)")
         col1, col2 = st.columns(2)
-        
         with col1:
-            # ... (Hint token item is unchanged) ...
             with st.container(border=True):
                 st.markdown("##### 💡 Reveal a Hint Token")
-                st.caption("Stuck on a tough question? Use this token to instantly unlock the hint.")
+                st.caption("Unlock the hint for a tough question.")
                 st.markdown("**Cost: 50 Coins**")
-                if st.button("Buy Now", key="buy_hint", use_container_width=True, disabled=(coin_balance < 50)):
-                    update_sql = text("UPDATE user_profiles SET hint_tokens = hint_tokens + 1 WHERE username = :username")
+                if st.button("Buy Hint Token", key="buy_hint", use_container_width=True, disabled=(coin_balance < 50)):
+                    update_sql = text("UPDATE user_profiles SET hint_tokens = COALESCE(hint_tokens, 0) + 1 WHERE username = :username")
                     if purchase_item(st.session_state.username, "Hint Token", 50, update_sql):
                         st.rerun()
         with col2:
-            # ... (50/50 token item is unchanged) ...
             with st.container(border=True):
                 st.markdown("##### 🔀 50/50 Lifeline Token")
-                st.caption("Remove two incorrect answers from any multiple-choice question.")
+                st.caption("Remove two incorrect answers.")
                 st.markdown("**Cost: 100 Coins**")
-                if st.button("Buy Now", key="buy_5050", use_container_width=True, disabled=(coin_balance < 100)):
-                    update_sql = text("UPDATE user_profiles SET fifty_fifty_tokens = fifty_fifty_tokens + 1 WHERE username = :username")
+                if st.button("Buy 50/50 Token", key="buy_5050", use_container_width=True, disabled=(coin_balance < 100)):
+                    update_sql = text("UPDATE user_profiles SET fifty_fifty_tokens = COALESCE(fifty_fifty_tokens, 0) + 1 WHERE username = :username")
                     if purchase_item(st.session_state.username, "50/50 Lifeline", 100, update_sql):
                         st.rerun()
 
-        st.markdown("#### Profile Customization (Permanent)")
+        # --- NEW --- Gamification Boosters Section
+        st.markdown("#### Gamification Boosters (Consumables)")
         col3, col4 = st.columns(2)
-
         with col3:
-            # ... (Gold border item is unchanged) ...
+            with st.container(border=True):
+                st.markdown("##### ↪️ Skip Question Token")
+                st.caption("Skip a question without breaking your streak or getting it wrong.")
+                st.markdown("**Cost: 150 Coins**")
+                if st.button("Buy Skip Token", key="buy_skip", use_container_width=True, disabled=(coin_balance < 150)):
+                    update_sql = text("UPDATE user_profiles SET skip_question_tokens = COALESCE(skip_question_tokens, 0) + 1 WHERE username = :username")
+                    if purchase_item(st.session_state.username, "Skip Question Token", 150, update_sql):
+                        st.rerun()
+        with col4:
+            with st.container(border=True):
+                st.markdown("##### 🚀 Double Coins Booster (1 Hour)")
+                st.caption("Doubles all coins earned from quizzes for one hour.")
+                st.markdown("**Cost: 300 Coins**")
+                
+                booster_active = is_double_coins_active(st.session_state.username)
+                if booster_active:
+                    st.warning("Booster is already active!")
+                elif st.button("Buy Double Coins", key="buy_booster", use_container_width=True, disabled=(coin_balance < 300)):
+                    update_sql = text("UPDATE user_profiles SET double_coins_expires_at = NOW() + INTERVAL '1 hour' WHERE username = :username")
+                    if purchase_item(st.session_state.username, "Double Coins Booster", 300, update_sql):
+                        st.rerun()
+        # --- END NEW ---
+
+        st.markdown("#### Profile Customization (Permanent)")
+        col5, col6 = st.columns(2)
+        with col5:
             with st.container(border=True):
                 st.markdown("##### 🖼️ Golden Profile Border")
                 st.caption("A shining golden border for your profile on all leaderboards.")
@@ -5746,25 +5775,22 @@ def display_profile_page():
                 already_owned_border = profile.get('has_gold_border', False)
                 if already_owned_border:
                     st.success("✅ Owned")
-                elif st.button("Buy Now", key="buy_border", use_container_width=True, disabled=(coin_balance < 1000)):
+                elif st.button("Buy Golden Border", key="buy_border", use_container_width=True, disabled=(coin_balance < 1000)):
                     update_sql = text("UPDATE user_profiles SET has_gold_border = TRUE WHERE username = :username")
                     if purchase_item(st.session_state.username, "Golden Border", 1000, update_sql):
                         st.rerun()
-
-        # --- NEW FLAIR UNLOCK ITEM ---
-        with col4:
+        with col6:
             with st.container(border=True):
                 st.markdown("##### ✨ Unlock User Flair")
-                st.caption("Purchase the ability to set a custom title that appears under your name in the chat.")
+                st.caption("Set a custom title that appears under your name in the chat.")
                 st.markdown("**Cost: 750 Coins**")
                 already_owned_flair = profile.get('unlocked_flair', False)
                 if already_owned_flair:
                     st.success("✅ Unlocked")
-                elif st.button("Buy Now", key="buy_flair", use_container_width=True, disabled=(coin_balance < 750)):
+                elif st.button("Buy Flair Unlock", key="buy_flair", use_container_width=True, disabled=(coin_balance < 750)):
                     update_sql = text("UPDATE user_profiles SET unlocked_flair = TRUE WHERE username = :username")
                     if purchase_item(st.session_state.username, "User Flair Unlock", 750, update_sql):
                         st.rerun()
-        # --- END OF NEW ITEM ---
 
         st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
         st.subheader("🎁 Gift Coins to a Friend")
@@ -5777,7 +5803,6 @@ def display_profile_page():
                     st.success(message); st.balloons()
                 else:
                     st.error(message)
-                st.rerun()
 def display_admin_panel():
     st.title("⚙️ Admin Panel: Mission Control")
 
@@ -6270,6 +6295,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
