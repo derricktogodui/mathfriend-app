@@ -850,22 +850,29 @@ def get_total_overall_players(time_filter="all"):
         return conn.execute(query).scalar_one() or 0
 
 def get_overall_rival_snapshot(username, time_filter="all"):
-    """Fetches the user's overall rank and their immediate rivals (with names and ranks)."""
+    """Fetches the user's overall rank and their immediate rivals."""
     with engine.connect() as conn:
         time_clause = ""
         if time_filter == "week": time_clause = "WHERE timestamp >= NOW() - INTERVAL '7 days'"
         elif time_filter == "month": time_clause = "WHERE timestamp >= NOW() - INTERVAL '30 days'"
         
+        # THIS SQL QUERY HAS BEEN CORRECTED TO USE THE RELIABLE SUBQUERY SYNTAX
         query = text(f"""
             WITH PlayerTotals AS (
-                SELECT username, SUM(score) as total_score FROM quiz_results {time_clause} GROUP BY username
-            ), RankedScores AS (
-                SELECT username, RANK() OVER (ORDER BY total_score DESC, username ASC) as rank FROM PlayerTotals
-            ), CurrentUser AS (
+                SELECT username, SUM(score) as total_score
+                FROM quiz_results {time_clause}
+                GROUP BY username
+            ),
+            RankedScores AS (
+                SELECT username, RANK() OVER (ORDER BY total_score DESC, username ASC) as rank
+                FROM PlayerTotals
+            ),
+            CurrentUser AS (
                 SELECT rank FROM RankedScores WHERE username = :username
             )
-            SELECT username, rank FROM RankedScores, CurrentUser
-            WHERE rank IN (CurrentUser.rank - 1, CurrentUser.rank, CurrentUser.rank + 1)
+            SELECT username, rank
+            FROM RankedScores
+            WHERE rank IN ((SELECT rank FROM CurrentUser) - 1, (SELECT rank FROM CurrentUser), (SELECT rank FROM CurrentUser) + 1)
             ORDER BY rank;
         """)
         result = conn.execute(query, {"username": username}).mappings().fetchall()
@@ -884,7 +891,6 @@ def get_overall_rival_snapshot(username, time_filter="all"):
                 snapshot['rival_below'] = {'username': row['username'], 'rank': row['rank']}
         
         return snapshot
-
 # --- END OF NEW FUNCTIONS ---
 
 @st.cache_data(ttl=300)
@@ -5835,6 +5841,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
