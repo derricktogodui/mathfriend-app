@@ -644,6 +644,23 @@ def get_user_flairs(usernames):
         result = conn.execute(query, {"usernames": list(usernames)}).mappings().fetchall()
         return {row['username']: row['user_flair'] for row in result}
 
+def get_user_display_info(usernames):
+    """
+    Efficiently fetches display info (flair, border) for a list of usernames.
+    """
+    if not usernames:
+        return {}
+    
+    with engine.connect() as conn:
+        query = text("""
+            SELECT username, user_flair, has_gold_border 
+            FROM user_profiles 
+            WHERE username = ANY(:usernames)
+        """)
+        # We need to pass the list of usernames as a list/tuple for the ANY clause
+        result = conn.execute(query, {"usernames": list(usernames)}).mappings().fetchall()
+        return {row['username']: {"flair": row['user_flair'], "border": row['has_gold_border']} for row in result}
+
 def change_password(username, current_password, new_password):
     if not login_user(username, current_password):
         return False
@@ -4426,7 +4443,6 @@ def display_dashboard(username):
 
 def display_blackboard_page():
     st.header("칠판 Blackboard")
-    st.components.v1.html("<meta http-equiv='refresh' content='15'>", height=0)
     st.info("This is a community space. Ask clear questions, be respectful, and help your fellow students!", icon="👋")
     online_users = get_online_users(st.session_state.username)
 
@@ -4448,16 +4464,13 @@ def display_blackboard_page():
 
     st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
     channel = chat_client.channel("messaging", channel_id="mathfriend-blackboard", data={"name": "MathFriend Blackboard"})
-    channel.create(st.session_state.username)
     state = channel.query(watch=False, state=True, messages={"limit": 50})
     messages = state['messages']
 
-    # --- NEW FLAIR LOGIC ---
-    # 1. Get a unique list of all user IDs from the messages
+    # --- FLAIR LOGIC ---
     user_ids_in_chat = {msg["user"].get("id") for msg in messages if msg["user"].get("id")}
-    # 2. Fetch all their flairs in one single, efficient database call
-    user_flairs = get_user_flairs(user_ids_in_chat)
-    # --- END OF NEW LOGIC ---
+    display_infos = get_user_display_info(user_ids_in_chat)
+    # --- END OF FLAIR LOGIC ---
 
     for msg in messages:
         user_id = msg["user"].get("id", "Unknown")
@@ -4467,7 +4480,9 @@ def display_blackboard_page():
         with st.chat_message(name="user" if is_current_user else "assistant"):
             if not is_current_user:
                 # --- MODIFIED NAME DISPLAY TO INCLUDE FLAIR ---
-                user_flair = user_flairs.get(user_id) # Look up the flair from our fetched data
+                user_info = display_infos.get(user_id, {})
+                user_flair = user_info.get("flair")
+                
                 if user_flair:
                     st.markdown(f"**{user_name}**<br><i style='font-size:0.9rem; color:grey;'>{user_flair}</i>", unsafe_allow_html=True)
                 else:
@@ -4843,7 +4858,6 @@ def display_leaderboard(topic_options):
 
     st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
 
-    # --- HELPER FUNCTION FOR THE NEW CARD DESIGN ---
     def display_rival_card(rival_data, total_players, label):
         col_rank, col_rivals = st.columns([1, 2])
         with col_rank:
@@ -4854,20 +4868,16 @@ def display_leaderboard(topic_options):
         
         with col_rivals:
             if rival_data and rival_data.get('user_rank') is not None:
-                card_html = """
-                <div style="border: 1px solid #e1e4e8; border-left: 5px solid #0d6efd; border-radius: 10px; padding: 1rem; background-color: #f8f9fa; height: 100%;">
+                card_html = """<div style="border: 1px solid #e1e4e8; border-left: 5px solid #0d6efd; border-radius: 10px; padding: 1rem; background-color: #f8f9fa; height: 100%;">
                     <h5 style="margin-top: 0; margin-bottom: 0.75rem; font-weight: 500;">⚔️ Rival Snapshot</h5>"""
-                
                 if rival_data['rival_above']:
-                    card_html += f"""<p style="margin-bottom: 0.5rem;"><span style="color:green; font-size: 1.2rem; font-weight: bold;">&#9650;</span> You're chasing: <strong>{rival_data['rival_above']['username']}</strong> (Rank #{rival_data['rival_above']['rank']})</p>"""
+                    card_html += f"""<p style="margin-bottom: 0.5rem;"><span style="color:green; font-size: 1.2rem; font-weight: bold;">^</span> You're chasing: <strong>{rival_data['rival_above']['username']}</strong> (Rank #{rival_data['rival_above']['rank']})</p>"""
                 else:
                     card_html += """<p style="margin-bottom: 0.5rem; color: green;">🎉 You're #1! There's no one above you!</p>"""
-                
                 if rival_data['rival_below']:
-                    card_html += f"""<p style="margin-bottom: 0;"><span style="color:red; font-size: 1.2rem; font-weight: bold;">&#9660;</span> You're ahead of: <strong>{rival_data['rival_below']['username']}</strong> (Rank #{rival_data['rival_below']['rank']})</p>"""
+                    card_html += f"""<p style="margin-bottom: 0;"><span style="color:red; font-size: 1.2rem; font-weight: bold;">v</span> You're ahead of: <strong>{rival_data['rival_below']['username']}</strong> (Rank #{rival_data['rival_below']['rank']})</p>"""
                 else:
                     card_html += """<p style="margin-bottom: 0;">Keep going to pull ahead of the pack!</p>"""
-
                 card_html += "</div>"
                 st.markdown(card_html, unsafe_allow_html=True)
             else:
@@ -4882,16 +4892,37 @@ def display_leaderboard(topic_options):
         st.caption("Ranked by total number of correct answers across all topics.")
         top_scores = get_overall_top_scores(time_filter)
         if top_scores:
-            # (The rest of the original Top 10 display logic is unchanged)
-            leaderboard_data = []
+            top_usernames = [score[0] for score in top_scores]
+            display_infos = get_user_display_info(top_usernames)
             titles = [ "🥇 Math Legend", "🥈 Prime Mathematician", "🥉 Grand Prodigy", "The Destroyer", "Merlin", "The Genius", "Math Ninja", "The Professor", "The Oracle", "Last Baby" ]
+            
             for r, (username, total_score) in enumerate(top_scores, 1):
-                rank_title = titles[r-1]
-                username_display = f"{username} (You)" if username == st.session_state.username else username
-                leaderboard_data.append({"Rank": rank_title, "Username": username_display, "Total Correct Answers": total_score})
-            df = pd.DataFrame(leaderboard_data)
-            df.set_index('Rank', inplace=True)
-            st.dataframe(df.style, use_container_width=True)
+                user_info = display_infos.get(username, {})
+                
+                # --- THIS IS THE CORRECTED LOGIC ---
+                is_current_user = (username == st.session_state.username)
+                
+                # Base style
+                style = "border: 1px solid #e1e4e8; border-radius: 8px; padding: 10px; margin-bottom: 5px;"
+                # Add gold border if owned
+                if user_info.get('border'):
+                    style = "border: 2px solid #FFD700; border-radius: 8px; padding: 10px; margin-bottom: 5px; box-shadow: 0 0 8px #FFD700;"
+                # Add background highlight if it's the current user (your original feature)
+                if is_current_user:
+                    style += " background-color: #e6f7ff;"
+
+                rank_title = titles[r-1] if r-1 < len(titles) else f"#{r}"
+                username_display = f"<strong>{username} (You)</strong>" if is_current_user else username
+
+                st.markdown(f"""
+                <div style="{style}">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <span style="font-size: 1.1rem;">{rank_title}: {username_display}</span>
+                        <span style="font-weight: bold; color: #0d6efd;">{total_score} Correct Answers</span>
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+
         else:
             st.info(f"No scores recorded in this time period. Be the first!")
 
@@ -4902,20 +4933,35 @@ def display_leaderboard(topic_options):
 
         st.subheader(f"Top 10 for {leaderboard_topic} ({time_filter_option})")
         st.caption("Ranked by highest accuracy score.")
+        
         top_scores = get_top_scores(leaderboard_topic, time_filter)
         if top_scores:
-            # (The rest of the Top 10 display logic is unchanged)
-            leaderboard_data = []
+            top_usernames = [score[0] for score in top_scores]
+            display_infos = get_user_display_info(top_usernames)
+            
             for r, (u, s, t) in enumerate(top_scores, 1):
-                rank_display = "🥇" if r == 1 else "🥈" if r == 2 else "🥉" if r == 3 else str(r)
-                username_display = f"{u} (You)" if u == st.session_state.username else u
-                leaderboard_data.append({"Rank": rank_display, "Username": username_display, "Score": f"{s}/{t}", "Accuracy": (s/t)*100 if t > 0 else 0})
-            df = pd.DataFrame(leaderboard_data)
-            df.set_index('Rank', inplace=True)
-            def highlight_user(row):
-                if "(You)" in row.Username: return ['background-color: #e6f7ff; font-weight: bold; color: #000000;'] * len(row)
-                return [''] * len(row)
-            st.dataframe(df.style.apply(highlight_user, axis=1).format({'Accuracy': "{:.1f}%"}), use_container_width=True)
+                user_info = display_infos.get(u, {})
+                is_current_user = (u == st.session_state.username)
+
+                # --- THIS IS THE CORRECTED LOGIC ---
+                style = "border: 1px solid #e1e4e8; border-radius: 8px; padding: 10px; margin-bottom: 5px;"
+                if user_info.get('border'):
+                    style = "border: 2px solid #FFD700; border-radius: 8px; padding: 10px; margin-bottom: 5px; box-shadow: 0 0 8px #FFD700;"
+                if is_current_user:
+                    style += " background-color: #e6f7ff;"
+
+                rank_display = "🥇" if r == 1 else "🥈" if r == 2 else "🥉" if r == 3 else f"**#{r}**"
+                username_display = f"<strong>{u} (You)</strong>" if is_current_user else u
+                accuracy = (s/t)*100 if t > 0 else 0
+
+                st.markdown(f"""
+                <div style="{style}">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <span>{rank_display}: {username_display}</span>
+                        <span style="font-weight: bold; color: #0d6efd;">{s}/{t} ({accuracy:.1f}%)</span>
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
         else:
             st.info(f"No scores recorded for **{leaderboard_topic}** in this time period. Be the first!")
 # --- NEW INTERACTIVE WIDGET FUNCTIONS (COMPLETE LIBRARY FOR ALL TOPICS) ---
@@ -6212,6 +6258,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
