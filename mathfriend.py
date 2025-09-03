@@ -4911,6 +4911,7 @@ def display_leaderboard(topic_options):
 
     st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
 
+    # This helper function is unchanged from your original code.
     def display_rival_card(rival_data, total_players, label):
         col_rank, col_rivals = st.columns([1, 2])
         with col_rank:
@@ -4935,7 +4936,25 @@ def display_leaderboard(topic_options):
                 st.markdown(card_html, unsafe_allow_html=True)
             else:
                 st.info(f"Take a quiz to get on the leaderboard!")
-    
+
+    # --- CHANGE ---
+    # Your original get_user_display_info is replaced with this more comprehensive version
+    # to fetch the new cosmetic data needed for rendering.
+    def get_user_display_info_cosmetics(usernames):
+        if not usernames: return {}
+        with engine.connect() as conn:
+            query = text("""
+                SELECT username, user_flair, active_border, active_name_effect
+                FROM user_profiles WHERE username = ANY(:usernames)
+            """)
+            result = conn.execute(query, {"usernames": list(usernames)}).mappings().fetchall()
+            return {row['username']: {
+                "flair": row.get('user_flair'),
+                "border": row.get('active_border', 'default'),
+                "effect": row.get('active_name_effect', 'default')
+            } for row in result}
+    # --- END CHANGE ---
+
     if leaderboard_topic == "🏆 Overall Performance":
         total_players = get_total_overall_players(time_filter)
         rival_data = get_overall_rival_snapshot(st.session_state.username, time_filter)
@@ -4946,87 +4965,92 @@ def display_leaderboard(topic_options):
         top_scores = get_overall_top_scores(time_filter)
         if top_scores:
             top_usernames = [score[0] for score in top_scores]
-            display_infos = get_user_display_info(top_usernames)
+            display_infos = get_user_display_info_cosmetics(top_usernames) # Using the new function
             titles = [ "🥇 Math Legend", "🥈 Prime Mathematician", "🥉 Grand Prodigy", "The Destroyer", "Merlin", "The Genius", "Math Ninja", "The Professor", "The Oracle", "Last Baby" ]
             
-            # This is your existing header, which we can keep.
-            st.markdown("""
-                <div style="display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 2px solid #dee2e6; font-weight: bold;">
-                    <div style="flex: 0 0 150px;">Rank</div>
-                    <div style="flex: 1;">Username</div>
-                    <div style="flex: 0 0 120px; text-align: right;">Total Score</div>
-                </div>
-            """, unsafe_allow_html=True)
-
             for r, (username, total_score) in enumerate(top_scores, 1):
                 user_info = display_infos.get(username, {})
                 is_current_user = (username == st.session_state.username)
-                style = "border: 1px solid #e1e4e8; border-radius: 8px; padding: 10px; margin-bottom: 5px;"
-                if user_info.get('border'):
-                    style = "border: 2px solid #FFD700; border-radius: 8px; padding: 10px; margin-bottom: 5px; box-shadow: 0 0 8px #FFD700;"
-                if is_current_user:
-                    style += " background-color: #e6f7ff;"
-                rank_title = titles[r-1] if r-1 < len(titles) else f"#{r}"
-                username_display = f"<strong>{username} (You)</strong>" if is_current_user else username
+                
+                # --- NEW, CORRECTED STYLING LOGIC ---
+                style_class = {
+                    'bronze_border': 'bronze-border',
+                    'gold_border': 'gold-border',
+                    'rainbow_border': 'rainbow-border'
+                }.get(user_info.get('border'), '')
 
-                # --- THIS IS THE IMPROVED LAYOUT ---
-                st.markdown(f"""
-                <div style="{style}">
-                    <div style="display: flex; justify-content: space-between; align-items: center;">
-                        <div style="flex: 0 0 150px;">{rank_title}</div>
-                        <div style="flex: 1;">{username_display}</div>
-                        <div style="flex: 0 0 120px; text-align: right; font-weight: bold; color: #0d6efd;">{total_score} Correct</div>
-                    </div>
-                </div>
-                """, unsafe_allow_html=True)
+                bg_color = "background-color: #e6f7ff;" if is_current_user else "background-color: #fafafa;"
+                
+                effect_tags = {
+                    'bold_effect': ('<b>', '</b>'),
+                    'italic_effect': ('<i>', '</i>')
+                }.get(user_info.get('effect'), ('', ''))
+                
+                style = f"border-radius: 8px; padding: 10px; margin-bottom: 5px; {bg_color}"
+                
+                rank_title = titles[r-1] if r-1 < len(titles) else f"#{r}"
+                
+                # We combine the effect tags with the username here
+                username_display = f"{effect_tags[0]}{username}{effect_tags[1]}"
+                if is_current_user: 
+                    username_display = f"<strong>{effect_tags[0]}{username}{effect_tags[1]} (You)</strong>"
+                # --- END NEW LOGIC ---
+
+                with st.container():
+                    st.markdown(f'<div class="{style_class}" style="{style}">', unsafe_allow_html=True)
+                    # Using st.columns for clean alignment
+                    col1, col2, col3 = st.columns([0.3, 0.4, 0.3])
+                    with col1:
+                        st.markdown(f"{rank_title}", unsafe_allow_html=True)
+                    with col2:
+                        st.markdown(username_display, unsafe_allow_html=True)
+                    with col3:
+                        st.markdown(f"<div style='text-align: right; font-weight: bold; color: #0d6efd;'>{total_score} Correct</div>", unsafe_allow_html=True)
+                    st.markdown('</div>', unsafe_allow_html=True)
         else:
             st.info(f"No scores recorded in this time period. Be the first!")
 
     else: # Topic-specific leaderboard
-        # This section can be updated with the same flexbox logic if needed.
-        # For now, focusing on the main "Overall" leaderboard as requested.
+        # The same correction is applied here for consistency
         total_players = get_total_players(leaderboard_topic, time_filter)
         rival_data = get_rival_snapshot(st.session_state.username, leaderboard_topic, time_filter)
         display_rival_card(rival_data, total_players, f"Your Rank in {leaderboard_topic}")
-
         st.subheader(f"Top 10 for {leaderboard_topic} ({time_filter_option})")
-        st.caption("Ranked by highest accuracy score.")
-        
         top_scores = get_top_scores(leaderboard_topic, time_filter)
         if top_scores:
             top_usernames = [score[0] for score in top_scores]
-            display_infos = get_user_display_info(top_usernames)
-            
-            st.markdown("""
-                <div style="display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 2px solid #dee2e6; font-weight: bold;">
-                    <div style="flex: 0 0 70px;">Rank</div>
-                    <div style="flex: 1;">Username</div>
-                    <div style="flex: 0 0 150px; text-align: right;">Score (Accuracy)</div>
-                </div>
-            """, unsafe_allow_html=True)
-
+            display_infos = get_user_display_info_cosmetics(top_usernames)
             for r, (u, s, t) in enumerate(top_scores, 1):
                 user_info = display_infos.get(u, {})
                 is_current_user = (u == st.session_state.username)
-                style = "border: 1px solid #e1e4e8; border-radius: 8px; padding: 10px; margin-bottom: 5px;"
-                if user_info.get('border'):
-                    style = "border: 2px solid #FFD700; border-radius: 8px; padding: 10px; margin-bottom: 5px; box-shadow: 0 0 8px #FFD700;"
+
+                style_class = {
+                    'bronze_border': 'bronze-border',
+                    'gold_border': 'gold-border',
+                    'rainbow_border': 'rainbow-border'
+                }.get(user_info.get('border'), '')
+                bg_color = "background-color: #e6f7ff;" if is_current_user else "background-color: #fafafa;"
+                effect_tags = {
+                    'bold_effect': ('<b>', '</b>'),
+                    'italic_effect': ('<i>', '</i>')
+                }.get(user_info.get('effect'), ('', ''))
+                style = f"border-radius: 8px; padding: 10px; margin-bottom: 5px; {bg_color}"
+                rank_display = "🥇" if r == 1 else "🥈" if r == 2 else "🥉" if r == 3 else f"**#{r}**"
+                username_display = f"{effect_tags[0]}{u}{effect_tags[1]}"
                 if is_current_user:
-                    style += " background-color: #e6f7ff;"
-                rank_display = "🥇" if r == 1 else "🥈" if r == 2 else "🥉" if r == 3 else f"{r}"
-                username_display = f"<strong>{u} (You)</strong>" if is_current_user else u
+                    username_display = f"<strong>{effect_tags[0]}{u}{effect_tags[1]} (You)</strong>"
                 accuracy = (s/t)*100 if t > 0 else 0
-                
-                # --- THIS IS THE IMPROVED LAYOUT ---
-                st.markdown(f"""
-                <div style="{style}">
-                    <div style="display: flex; justify-content: space-between; align-items: center;">
-                        <div style="flex: 0 0 70px;">{rank_display}</div>
-                        <div style="flex: 1;">{username_display}</div>
-                        <div style="flex: 0 0 150px; text-align: right; font-weight: bold; color: #0d6efd;">{s}/{t} ({accuracy:.1f}%)</div>
-                    </div>
-                </div>
-                """, unsafe_allow_html=True)
+
+                with st.container():
+                    st.markdown(f'<div class="{style_class}" style="{style}">', unsafe_allow_html=True)
+                    col1, col2, col3 = st.columns([0.15, 0.5, 0.35])
+                    with col1:
+                        st.markdown(f"<div style='text-align: center;'>{rank_display}</div>", unsafe_allow_html=True)
+                    with col2:
+                        st.markdown(username_display, unsafe_allow_html=True)
+                    with col3:
+                        st.markdown(f"<div style='text-align: right; font-weight: bold; color: #0d6efd;'>{s}/{t} ({accuracy:.1f}%)</div>", unsafe_allow_html=True)
+                    st.markdown('</div>', unsafe_allow_html=True)
         else:
             st.info(f"No scores recorded for **{leaderboard_topic}** in this time period. Be the first!")
 # --- NEW INTERACTIVE WIDGET FUNCTIONS (COMPLETE LIBRARY FOR ALL TOPICS) ---
@@ -6425,6 +6449,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
