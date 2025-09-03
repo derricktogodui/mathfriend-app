@@ -26,6 +26,21 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
+# --- CORRECT LOCATION FOR THE DICTIONARY ---
+# It is now outside and above any function
+COSMETIC_ITEMS = {
+    'Borders': {
+        'bronze_border': {'name': '🥉 Bronze Border', 'cost': 500},
+        'silver_border': {'name': '🥈 Silver Border', 'cost': 1200},
+        'gold_border': {'name': '🥇 Golden Border', 'cost': 2500},
+        'rainbow_border': {'name': '🌈 Rainbow Border', 'cost': 6000},
+    },
+    'Name Effects': {
+        'bold_effect': {'name': 'Bold Name', 'cost': 400},
+        'italic_effect': {'name': 'Italic Name', 'cost': 400},
+    }
+}
+
 # --- Session State Initialization ---
 def initialize_session_state():
     """Initializes all necessary session state variables."""
@@ -1586,6 +1601,84 @@ def purchase_item(username, item_id, cost, update_statement):
                 st.error(f"An error occurred during purchase: {e}")
                 # The transaction will be automatically rolled back
                 return False
+
+def open_mystery_box(username):
+    """
+    Handles the logic for opening a mystery box.
+    Returns (True, "Success Message") or (False, "Error Message").
+    """
+    with engine.connect() as conn:
+        with conn.begin():  # Start a single, safe transaction
+            try:
+                # 1. Check if the user has a box and lock the row to prevent errors
+                profile = conn.execute(
+                    text("SELECT mystery_boxes, unlocked_cosmetics FROM user_profiles WHERE username = :username FOR UPDATE"),
+                    {"username": username}
+                ).mappings().first()
+
+                if not profile or profile.get('mystery_boxes', 0) <= 0:
+                    return (False, "You don't have any Mystery Boxes to open!")
+
+                # 2. Consume one mystery box immediately
+                conn.execute(
+                    text("UPDATE user_profiles SET mystery_boxes = mystery_boxes - 1 WHERE username = :username"),
+                    {"username": username}
+                )
+
+                # 3. Define the weighted prize pool
+                prizes = ['common_coins', 'tokens', 'cosmetic', 'jackpot']
+                weights = [60, 25, 14, 1]  # 60% coins, 25% tokens, 14% cosmetic, 1% jackpot
+                
+                chosen_prize_type = random.choices(prizes, weights=weights, k=1)[0]
+                
+                # 4. Award the prize based on the chosen type
+                if chosen_prize_type == 'jackpot':
+                    amount = 2000
+                    update_coin_balance(username, amount, "Mystery Box Jackpot!")
+                    return (True, f"🎉 JACKPOT! You won 🪙 {amount} coins!")
+
+                elif chosen_prize_type == 'common_coins':
+                    amount = random.randint(50, 250)
+                    update_coin_balance(username, amount, "Mystery Box Reward")
+                    return (True, f"You opened the box and found 🪙 {amount} coins!")
+
+                elif chosen_prize_type == 'tokens':
+                    token_type = random.choice(['hint_tokens', 'fifty_fifty_tokens', 'skip_question_tokens'])
+                    amount = random.randint(2, 3)
+                    token_name = token_type.replace('_', ' ').replace('tokens', ' Token(s)').title()
+                    
+                    conn.execute(
+                        text(f"UPDATE user_profiles SET {token_type} = COALESCE({token_type}, 0) + :amount WHERE username = :username"),
+                        {"amount": amount, "username": username}
+                    )
+                    return (True, f"Nice! You received {amount} x {token_name}!")
+                
+                elif chosen_prize_type == 'cosmetic':
+                    all_cosmetics = list(COSMETIC_ITEMS['Borders'].keys()) + list(COSMETIC_ITEMS['Name Effects'].keys())
+                    owned_cosmetics = profile.get('unlocked_cosmetics') or []
+                    
+                    unowned_cosmetics = [item for item in all_cosmetics if item not in owned_cosmetics]
+                    
+                    if not unowned_cosmetics:
+                        # Consolation prize if they own everything
+                        amount = 500
+                        update_coin_balance(username, amount, "Mystery Box (Consolation Prize)")
+                        return (True, f"You own all the cosmetics! As a thank you, here are 🪙 {amount} coins!")
+                    else:
+                        won_item_id = random.choice(unowned_cosmetics)
+                        all_items = {**COSMETIC_ITEMS['Borders'], **COSMETIC_ITEMS['Name Effects']}
+                        won_item_name = all_items[won_item_id]['name']
+
+                        conn.execute(
+                            text("UPDATE user_profiles SET unlocked_cosmetics = array_append(unlocked_cosmetics, :item) WHERE username = :username"),
+                            {"item": won_item_id, "username": username}
+                        )
+                        return (True, f"🎁 RARE ITEM! You unlocked the permanent cosmetic: {won_item_name}!")
+
+            except Exception as e:
+                # The transaction will automatically roll back on any error
+                print(f"Mystery box failed for {username}: {e}")
+                return (False, "An unexpected error occurred. Please try again.")
 
 def transfer_coins(sender_username, recipient_username, amount):
     """
@@ -5758,20 +5851,6 @@ def display_learning_resources(topic_options):
         st.info("Select a topic to begin.")
 def display_profile_page():
     st.header("👤 Your Profile")
-    
-    # This dictionary to manage cosmetic items is correct and remains.
-    COSMETIC_ITEMS = {
-        'Borders': {
-            'bronze_border': {'name': '🥉 Bronze Border', 'cost': 500},
-            'silver_border': {'name': '🥈 Silver Border', 'cost': 1200},
-            'gold_border': {'name': '🥇 Golden Border', 'cost': 2500},
-            'rainbow_border': {'name': '🌈 Rainbow Border', 'cost': 6000},
-        },
-        'Name Effects': {
-            'bold_effect': {'name': 'Bold Name', 'cost': 400},
-            'italic_effect': {'name': 'Italic Name', 'cost': 400},
-        }
-    }
 
     # --- CHANGE: A new "Inventory" tab has been added ---
     tab1, tab2, tab3, tab4 = st.tabs(["📝 My Profile", "🏆 My Achievements", "🎒 Inventory", "🛍️ Shop"])
@@ -5876,17 +5955,22 @@ def display_profile_page():
     # --- NEW: Inventory Tab ---
     with tab4:
         st.subheader("🎒 My Inventory")
-        st.info("Here you can open any Mystery Boxes you have purchased.")
+        st.info("Here you can open any Mystery Boxes you have purchased from the shop.")
         profile = get_user_profile(st.session_state.username) or {}
         box_count = profile.get('mystery_boxes', 0)
 
         st.metric("Mystery Boxes Owned", f"🎁 {box_count}")
 
         if st.button("Open a Mystery Box", disabled=(box_count <= 0), type="primary", use_container_width=True):
-            reward, message = open_mystery_box(st.session_state.username)
-            if reward:
+            # Call the backend function we just created
+            success, message = open_mystery_box(st.session_state.username)
+            
+            if success:
                 st.balloons()
                 st.success(message)
+                # We add a short delay and rerun to update the box count on the page
+                time.sleep(2) 
+                st.rerun()
             else:
                 st.error(message)
 
@@ -6488,6 +6572,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
