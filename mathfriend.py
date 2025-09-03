@@ -4672,6 +4672,20 @@ def load_css():
             color: #6c757d !important;
             padding: 0 5px;
         }
+        /* --- Add this with your other Chat Styles --- */
+        .chat-date-divider {
+            text-align: center;
+            margin: 1rem 0;
+        }
+        .chat-date-chip {
+            display: inline-block;
+            background-color: #f0f2f5;
+            color: #65676b !important;
+            border-radius: 12px;
+            padding: 4px 12px;
+            font-size: 0.75rem;
+            font-weight: 500;
+        }
         /* --- END OF NEW CHAT STYLES --- */
         
         /* --- BASE STYLES & OTHER RULES --- */
@@ -4834,7 +4848,18 @@ def display_blackboard_page():
     
     st.markdown('<div class="chat-container">', unsafe_allow_html=True)
 
+    last_message_date = None
     for msg in messages:
+        # --- Date Chip Logic ---
+        raw_datetime = msg['created_at']
+        dt_object = parser.parse(raw_datetime) if isinstance(raw_datetime, str) else raw_datetime
+        current_message_date = dt_object.astimezone().date()
+
+        if last_message_date != current_message_date:
+            display_date = "Today" if current_message_date == datetime.now().astimezone().date() else current_message_date.strftime("%B %d, %Y")
+            st.markdown(f'<div class="chat-date-divider"><span class="chat-date-chip">{display_date}</span></div>', unsafe_allow_html=True)
+            last_message_date = current_message_date
+        # --- End Date Chip Logic ---
         user_id = msg["user"].get("id", "Unknown")
         user_name = msg["user"].get("name", user_id)
         is_current_user = (user_id == st.session_state.username)
@@ -6804,6 +6829,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
