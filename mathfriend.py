@@ -4857,11 +4857,12 @@ def display_blackboard_page():
         """
         
         bubble_html = f'<div class="chat-bubble {"user" if is_current_user else "assistant"}">{msg["text"]}</div>'
-        
+
         if is_current_user:
             row_html = f'<div class="chat-row user">{meta_html}{bubble_html}{avatar_html}</div>'
         else:
             row_html = f'<div class="chat-row assistant">{avatar_html}{bubble_html}{meta_html}</div>'
+
             
         # This is the most important line that needs the parameter
         st.markdown(row_html, unsafe_allow_html=True)
@@ -6803,6 +6804,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
