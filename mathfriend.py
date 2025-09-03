@@ -5080,7 +5080,7 @@ def display_leaderboard(topic_options):
                     username_display = f"<i>{username_display}</i>"
                 if is_current_user:
                     username_display = f"<strong>{username_display} (You)</strong>"
-                    
+                accuracy = (s/t)*100 if t > 0 else 0   
                 st.markdown(f"""
                 <div class="{border_class}" style="{style_attributes}">
                     <div style="display: flex; justify-content: space-between; align-items: center;">
@@ -6488,6 +6488,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
