@@ -4832,6 +4832,7 @@ def display_blackboard_page():
     user_ids_in_chat = {msg["user"].get("id") for msg in messages if msg["user"].get("id")}
     display_infos = get_user_display_info(user_ids_in_chat)
     
+    # This command needs the parameter
     st.markdown('<div class="chat-container">', unsafe_allow_html=True)
 
     for msg in messages:
@@ -4842,14 +4843,9 @@ def display_blackboard_page():
         user_info = display_infos.get(user_id, {})
         user_flair = user_info.get("flair")
         
-        # --- THIS IS THE CORRECTED TIMESTAMP LOGIC ---
-        # 1. Get the raw value (which can be a string or datetime object)
         raw_datetime = msg['created_at']
-        # 2. Reliably parse it into a datetime object
         dt_object = parser.parse(raw_datetime) if isinstance(raw_datetime, str) else raw_datetime
-        # 3. Now, safely format it
-        timestamp = dt_object.astimezone().strftime("%I:%M %p") # e.g., 03:15 PM
-        # --- END OF FIX ---
+        timestamp = dt_object.astimezone().strftime("%I:%M %p")
 
         avatar_html = _generate_avatar_html(user_name)
         meta_html = f"""
@@ -4867,8 +4863,10 @@ def display_blackboard_page():
         else:
             row_html = f'<div class="chat-row assistant">{avatar_html}{bubble_html}{meta_html}</div>'
             
+        # This is the most important line that needs the parameter
         st.markdown(row_html, unsafe_allow_html=True)
 
+    # This command also needs the parameter
     st.markdown('</div>', unsafe_allow_html=True)
             
     if prompt := st.chat_input("Post your question or comment..."):
@@ -6805,6 +6803,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
