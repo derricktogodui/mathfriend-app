@@ -652,15 +652,21 @@ def get_user_display_info(usernames):
         return {}
     
     with engine.connect() as conn:
+        # --- FIX: Query 'active_border' instead of 'has_gold_border' ---
         query = text("""
-            SELECT username, user_flair, has_gold_border 
+            SELECT username, user_flair, active_border 
             FROM user_profiles 
             WHERE username = ANY(:usernames)
         """)
-        # We need to pass the list of usernames as a list/tuple for the ANY clause
         result = conn.execute(query, {"usernames": list(usernames)}).mappings().fetchall()
-        return {row['username']: {"flair": row['user_flair'], "border": row['has_gold_border']} for row in result}
-
+        
+        # --- FIX: Return the actual active_border string ---
+        return {
+            row['username']: {
+                "flair": row['user_flair'], 
+                "border": row['active_border'] # This now contains 'gold_border', 'rainbow_border', etc.
+            } for row in result
+        }
 def set_active_cosmetic(username, cosmetic_id, cosmetic_type):
     """Sets the active cosmetic for a user after verifying they own it."""
     with engine.connect() as conn:
@@ -4367,21 +4373,25 @@ def load_css():
             overflow-y: auto;
         }
         
-        /* --- NEW BORDER STYLES --- */
+        /* --- BORDER STYLES --- */
         .bronze-border {
-            border: 2px solid #cd7f32 !important;
-            box-shadow: 0 0 8px #cd7f32;
+            border: 3px solid #cd7f32 !important;
+            box-shadow: 0 0 10px #cd7f32;
+        }
+        .silver-border {
+            border: 3px solid #c0c0c0 !important;
+            box-shadow: 0 0 10px #c0c0c0;
         }
         .gold-border {
-            border: 2px solid #FFD700 !important;
-            box-shadow: 0 0 8px #FFD700;
+            border: 3px solid #FFD700 !important;
+            box-shadow: 0 0 10px #FFD700;
         }
         .rainbow-border {
-            border: 3px solid transparent !important;
+            border: 4px solid transparent !important;
             border-image: linear-gradient(to bottom right, #b827fc 0%, #2c90fc 25%, #b8fd33 50%, #fec837 75%, #fd1892 100%);
             border-image-slice: 1;
         }
-        /* --- END OF NEW BORDER STYLES --- */
+        /* --- END OF BORDER STYLES --- */
         
         /* --- BASE STYLES & OTHER RULES --- */
         .stApp { background-color: #f0f2ff; }
@@ -4961,17 +4971,29 @@ def display_leaderboard(topic_options):
             for r, (username, total_score) in enumerate(top_scores, 1):
                 user_info = display_infos.get(username, {})
                 is_current_user = (username == st.session_state.username)
-                style = "border: 1px solid #e1e4e8; border-radius: 8px; padding: 10px; margin-bottom: 5px;"
-                if user_info.get('border'):
-                    style = "border: 2px solid #FFD700; border-radius: 8px; padding: 10px; margin-bottom: 5px; box-shadow: 0 0 8px #FFD700;"
+                
+                # --- THIS IS THE NEW LOGIC ---
+                # 1. Define the base style
+                base_style = "border: 1px solid #e1e4e8; border-radius: 8px; padding: 10px; margin-bottom: 5px;"
                 if is_current_user:
-                    style += " background-color: #e6f7ff;"
+                    base_style += " background-color: #e6f7ff;"
+
+                # 2. Get the active border name and find its CSS class
+                active_border = user_info.get('border')
+                border_class_map = {
+                    'bronze_border': 'bronze-border',
+                    'silver_border': 'silver-border',
+                    'gold_border': 'gold-border',
+                    'rainbow_border': 'rainbow-border'
+                }
+                border_class = border_class_map.get(active_border, "") # Get class or empty string if no border
+                
+                # 3. Combine them for the final output
                 rank_title = titles[r-1] if r-1 < len(titles) else f"#{r}"
                 username_display = f"<strong>{username} (You)</strong>" if is_current_user else username
 
-                # --- THIS IS THE IMPROVED LAYOUT ---
                 st.markdown(f"""
-                <div style="{style}">
+                <div class="{border_class}" style="{base_style}">
                     <div style="display: flex; justify-content: space-between; align-items: center;">
                         <div style="flex: 0 0 150px;">{rank_title}</div>
                         <div style="flex: 1;">{username_display}</div>
@@ -5008,18 +5030,27 @@ def display_leaderboard(topic_options):
             for r, (u, s, t) in enumerate(top_scores, 1):
                 user_info = display_infos.get(u, {})
                 is_current_user = (u == st.session_state.username)
-                style = "border: 1px solid #e1e4e8; border-radius: 8px; padding: 10px; margin-bottom: 5px;"
-                if user_info.get('border'):
-                    style = "border: 2px solid #FFD700; border-radius: 8px; padding: 10px; margin-bottom: 5px; box-shadow: 0 0 8px #FFD700;"
+
+                # --- APPLY THE SAME NEW LOGIC HERE ---
+                base_style = "border: 1px solid #e1e4e8; border-radius: 8px; padding: 10px; margin-bottom: 5px;"
                 if is_current_user:
-                    style += " background-color: #e6f7ff;"
+                    base_style += " background-color: #e6f7ff;"
+
+                active_border = user_info.get('border')
+                border_class_map = {
+                    'bronze_border': 'bronze-border',
+                    'silver_border': 'silver-border',
+                    'gold_border': 'gold-border',
+                    'rainbow_border': 'rainbow-border'
+                }
+                border_class = border_class_map.get(active_border, "")
+
                 rank_display = "🥇" if r == 1 else "🥈" if r == 2 else "🥉" if r == 3 else f"{r}"
                 username_display = f"<strong>{u} (You)</strong>" if is_current_user else u
                 accuracy = (s/t)*100 if t > 0 else 0
                 
-                # --- THIS IS THE IMPROVED LAYOUT ---
                 st.markdown(f"""
-                <div style="{style}">
+                <div class="{border_class}" style="{base_style}">
                     <div style="display: flex; justify-content: space-between; align-items: center;">
                         <div style="flex: 0 0 70px;">{rank_display}</div>
                         <div style="flex: 1;">{username_display}</div>
@@ -6425,6 +6456,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
