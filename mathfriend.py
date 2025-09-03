@@ -6535,6 +6535,34 @@ def display_admin_panel():
                         st.success(f"Duel ID {duel['id']} has been ended.")
                         st.rerun()
 
+    # --- You can paste this inside any tab in display_admin_panel() ---
+
+    with st.expander("🚨 DANGER ZONE: Advanced Tools"):
+        st.warning("These buttons perform permanent, irreversible actions. Use with extreme caution.")
+            
+        if st.button("Permanently Clear Blackboard Chat History", type="primary"):
+            try:
+                with st.spinner("Connecting to Stream API and clearing messages... Please wait."):
+                    # This uses the same client initialization as your app
+                    # to securely access your secrets.
+                    client = stream_chat.StreamChat(
+                        api_key=st.secrets["STREAM_API_KEY"],
+                        api_secret=st.secrets["STREAM_API_SECRET"]
+                    )
+                    channel = client.channel("messaging", channel_id="mathfriend-blackboard")
+                        
+                    # This is the command that deletes all messages
+                    channel.truncate()
+                        
+                    st.success("✅ Success! The Blackboard chat history has been cleared.")
+                    st.info("You can now remove the 'DANGER ZONE' code from your python file.")
+                    st.balloons()
+                    time.sleep(3)
+                    st.rerun()
+
+            except Exception as e:
+                st.error(f"An error occurred. Please ensure your STREAM_API_KEY and SECRET are correct in Streamlit secrets.")
+                st.error(f"Details: {e}")
     # --- TAB 4: PRACTICE QUESTIONS ---
     with tabs[3]:
         st.subheader("Manage Practice Questions / Assignments")
@@ -6804,6 +6832,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
