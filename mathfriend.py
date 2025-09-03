@@ -4905,7 +4905,7 @@ def display_math_game_page(topic_options):
                         if is_current_user:
                             style_attributes += " background-color: #e6f7ff;"
 
-                        rank_display = "🥇" if r == 1 else "🥈" if r == 2 else "🥉" if r == 3 else f"#{r}"
+                        rank_display = "🥇" if r == 1 else "🥈" if r == 2 else "🥉" if r == 3 else f"{r}"
                         
                         username_display = username
                         active_effect = user_info.get('effect')
@@ -6719,6 +6719,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
