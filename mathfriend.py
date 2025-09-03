@@ -4869,20 +4869,68 @@ def display_math_game_page(topic_options):
                 st.session_state.current_duel_id = active_duel['id']
                 st.rerun()
             else:
-                # --- NEW LEADERBOARD SECTION ---
+                # --- START: UPGRADED DUEL LEADERBOARD ---
                 st.subheader("🏆 Top 5 Duelists")
                 top_duelists = get_top_duel_players()
                 if top_duelists:
-                    df = pd.DataFrame(top_duelists)
-                    df.columns = ["Username", "Wins"]
-                    df.index = df.index + 1 # Start ranking from 1
-                    st.dataframe(df, use_container_width=True)
+                    top_usernames = [player['username'] for player in top_duelists]
+                    display_infos = get_user_display_info(top_usernames)
+
+                    st.markdown("""
+                        <div style="display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 2px solid #dee2e6; font-weight: bold;">
+                            <div style="flex: 0 0 70px;">Rank</div>
+                            <div style="flex: 1;">Username</div>
+                            <div style="flex: 0 0 120px; text-align: right;">Total Wins</div>
+                        </div>
+                    """, unsafe_allow_html=True)
+
+                    for r, player_data in enumerate(top_duelists, 1):
+                        username = player_data['username']
+                        total_wins = player_data['total_wins']
+                        user_info = display_infos.get(username, {})
+                        is_current_user = (username == st.session_state.username)
+
+                        active_border = user_info.get('border')
+                        border_class_map = {
+                            'bronze_border': 'bronze-border', 'silver_border': 'silver-border',
+                            'gold_border': 'gold-border', 'rainbow_border': 'rainbow-border'
+                        }
+                        border_class = border_class_map.get(active_border, "")
+
+                        if border_class:
+                            style_attributes = "border-radius: 8px; padding: 10px; margin-bottom: 5px;"
+                        else:
+                            style_attributes = "border: 1px solid #e1e4e8; border-radius: 8px; padding: 10px; margin-bottom: 5px;"
+
+                        if is_current_user:
+                            style_attributes += " background-color: #e6f7ff;"
+
+                        rank_display = "🥇" if r == 1 else "🥈" if r == 2 else "🥉" if r == 3 else f"#{r}"
+                        
+                        username_display = username
+                        active_effect = user_info.get('effect')
+                        if active_effect == 'bold_effect':
+                            username_display = f"<b>{username_display}</b>"
+                        elif active_effect == 'italic_effect':
+                            username_display = f"<i>{username_display}</i>"
+                        
+                        if is_current_user:
+                            username_display = f"<strong>{username_display} (You)</strong>"
+                        
+                        st.markdown(f"""
+                        <div class="{border_class}" style="{style_attributes}">
+                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                                <div style="flex: 0 0 70px;">{rank_display}</div>
+                                <div style="flex: 1;">{username_display}</div>
+                                <div style="flex: 0 0 120px; text-align: right; font-weight: bold; color: #0d6efd;">{total_wins} Wins</div>
+                            </div>
+                        </div>
+                        """, unsafe_allow_html=True)
                 else:
                     st.info("No duel wins have been recorded yet. Be the first!")
+                # --- END: UPGRADED DUEL LEADERBOARD ---
                 
                 st.markdown("<hr>", unsafe_allow_html=True)
-                # --- END OF NEW LEADERBOARD SECTION ---
-
                 st.subheader("How to Play")
                 st.markdown("""
                 - **1. Send a Challenge:** Find an online player and click 'Duel'.
@@ -6671,6 +6719,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
