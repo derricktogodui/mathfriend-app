@@ -646,25 +646,26 @@ def get_user_flairs(usernames):
 
 def get_user_display_info(usernames):
     """
-    Efficiently fetches display info (flair, border) for a list of usernames.
+    Efficiently fetches display info (flair, border, name effect) for a list of usernames.
     """
     if not usernames:
         return {}
     
     with engine.connect() as conn:
-        # --- FIX: Query 'active_border' instead of 'has_gold_border' ---
+        # --- FIX: Also select 'active_name_effect' ---
         query = text("""
-            SELECT username, user_flair, active_border 
+            SELECT username, user_flair, active_border, active_name_effect 
             FROM user_profiles 
             WHERE username = ANY(:usernames)
         """)
         result = conn.execute(query, {"usernames": list(usernames)}).mappings().fetchall()
         
-        # --- FIX: Return the actual active_border string ---
+        # --- FIX: Return the name effect in the dictionary ---
         return {
             row['username']: {
                 "flair": row['user_flair'], 
-                "border": row['active_border'] # This now contains 'gold_border', 'rainbow_border', etc.
+                "border": row['active_border'],
+                "effect": row['active_name_effect'] # Add this new key
             } for row in result
         }
 def set_active_cosmetic(username, cosmetic_id, cosmetic_type):
@@ -4972,28 +4973,39 @@ def display_leaderboard(topic_options):
                 user_info = display_infos.get(username, {})
                 is_current_user = (username == st.session_state.username)
                 
-                # --- THIS IS THE NEW LOGIC ---
-                # 1. Define the base style
-                base_style = "border: 1px solid #e1e4e8; border-radius: 8px; padding: 10px; margin-bottom: 5px;"
-                if is_current_user:
-                    base_style += " background-color: #e6f7ff;"
-
-                # 2. Get the active border name and find its CSS class
+                # --- THIS IS THE CORRECTED LOGIC ---
                 active_border = user_info.get('border')
                 border_class_map = {
-                    'bronze_border': 'bronze-border',
-                    'silver_border': 'silver-border',
-                    'gold_border': 'gold-border',
-                    'rainbow_border': 'rainbow-border'
+                    'bronze_border': 'bronze-border', 'silver_border': 'silver-border',
+                    'gold_border': 'gold-border', 'rainbow_border': 'rainbow-border'
                 }
-                border_class = border_class_map.get(active_border, "") # Get class or empty string if no border
+                border_class = border_class_map.get(active_border, "")
+
+                # 1. Conditionally define the style string
+                if border_class:
+                    # If there's a special border, the class handles it. Don't add a default border here.
+                    style_attributes = "border-radius: 8px; padding: 10px; margin-bottom: 5px;"
+                else:
+                    # If there's no special border, apply the default one.
+                    style_attributes = "border: 1px solid #e1e4e8; border-radius: 8px; padding: 10px; margin-bottom: 5px;"
                 
-                # 3. Combine them for the final output
+                # 2. Add the highlight for the current user
+                if is_current_user:
+                    style_attributes += " background-color: #e6f7ff;"
+
+                # (The rest of the logic is the same)
                 rank_title = titles[r-1] if r-1 < len(titles) else f"#{r}"
-                username_display = f"<strong>{username} (You)</strong>" if is_current_user else username
+                username_display = username
+                active_effect = user_info.get('effect')
+                if active_effect == 'bold_effect':
+                    username_display = f"<b>{username_display}</b>"
+                elif active_effect == 'italic_effect':
+                    username_display = f"<i>{username_display}</i>"
+                if is_current_user:
+                    username_display = f"<strong>{username_display} (You)</strong>"
 
                 st.markdown(f"""
-                <div class="{border_class}" style="{base_style}">
+                <div class="{border_class}" style="{style_attributes}">
                     <div style="display: flex; justify-content: space-between; align-items: center;">
                         <div style="flex: 0 0 150px;">{rank_title}</div>
                         <div style="flex: 1;">{username_display}</div>
@@ -5031,26 +5043,35 @@ def display_leaderboard(topic_options):
                 user_info = display_infos.get(u, {})
                 is_current_user = (u == st.session_state.username)
 
-                # --- APPLY THE SAME NEW LOGIC HERE ---
-                base_style = "border: 1px solid #e1e4e8; border-radius: 8px; padding: 10px; margin-bottom: 5px;"
-                if is_current_user:
-                    base_style += " background-color: #e6f7ff;"
-
+                # --- APPLY THE SAME CORRECTED LOGIC HERE ---
                 active_border = user_info.get('border')
                 border_class_map = {
-                    'bronze_border': 'bronze-border',
-                    'silver_border': 'silver-border',
-                    'gold_border': 'gold-border',
-                    'rainbow_border': 'rainbow-border'
+                    'bronze_border': 'bronze-border', 'silver_border': 'silver-border',
+                    'gold_border': 'gold-border', 'rainbow_border': 'rainbow-border'
                 }
                 border_class = border_class_map.get(active_border, "")
 
+                if border_class:
+                    style_attributes = "border-radius: 8px; padding: 10px; margin-bottom: 5px;"
+                else:
+                    style_attributes = "border: 1px solid #e1e4e8; border-radius: 8px; padding: 10px; margin-bottom: 5px;"
+
+                if is_current_user:
+                    style_attributes += " background-color: #e6f7ff;"
+
+                # (The rest of the logic is the same)
                 rank_display = "🥇" if r == 1 else "🥈" if r == 2 else "🥉" if r == 3 else f"{r}"
-                username_display = f"<strong>{u} (You)</strong>" if is_current_user else u
-                accuracy = (s/t)*100 if t > 0 else 0
-                
+                username_display = u
+                active_effect = user_info.get('effect')
+                if active_effect == 'bold_effect':
+                    username_display = f"<b>{username_display}</b>"
+                elif active_effect == 'italic_effect':
+                    username_display = f"<i>{username_display}</i>"
+                if is_current_user:
+                    username_display = f"<strong>{username_display} (You)</strong>"
+                    
                 st.markdown(f"""
-                <div class="{border_class}" style="{base_style}">
+                <div class="{border_class}" style="{style_attributes}">
                     <div style="display: flex; justify-content: space-between; align-items: center;">
                         <div style="flex: 0 0 70px;">{rank_display}</div>
                         <div style="flex: 1;">{username_display}</div>
@@ -6456,6 +6477,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
