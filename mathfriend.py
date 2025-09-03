@@ -17,6 +17,7 @@ from sqlalchemy import create_engine, text
 import stream_chat
 import json
 from streamlit_autorefresh import st_autorefresh
+from dateutil import parser
 
 # --- App Configuration ---
 st.set_page_config(
@@ -4804,7 +4805,6 @@ def display_blackboard_page():
     st.header("칠판 Blackboard")
     st.info("This is a community space. Ask clear questions, be respectful, and help your fellow students!", icon="👋")
 
-    # --- FIX: The "Online Users" feature has been restored here ---
     online_users = get_online_users(st.session_state.username)
     if online_users:
         pills_html_list = [_generate_user_pill_html(user) for user in online_users]
@@ -4822,22 +4822,19 @@ def display_blackboard_page():
     else:
         st.markdown("_No other users are currently active._")
     st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
-    # --- END OF RESTORED FEATURE ---
 
-    # This line makes the chat feel alive by refreshing every 5 seconds
     st_autorefresh(interval=5000, key="chat_refresh")
 
     channel = chat_client.channel("messaging", channel_id="mathfriend-blackboard", data={"name": "MathFriend Blackboard"})
     state = channel.query(watch=False, state=True, messages={"limit": 50})
     messages = state['messages']
 
-    # Efficiently fetch display info for all users in the chat
     user_ids_in_chat = {msg["user"].get("id") for msg in messages if msg["user"].get("id")}
     display_infos = get_user_display_info(user_ids_in_chat)
     
     st.markdown('<div class="chat-container">', unsafe_allow_html=True)
 
-    for msg in messages: # CSS now handles the reversed order
+    for msg in messages:
         user_id = msg["user"].get("id", "Unknown")
         user_name = msg["user"].get("name", user_id)
         is_current_user = (user_id == st.session_state.username)
@@ -4845,8 +4842,14 @@ def display_blackboard_page():
         user_info = display_infos.get(user_id, {})
         user_flair = user_info.get("flair")
         
-        # Format the timestamp
-        timestamp = msg['created_at'].astimezone().strftime("%I:%M %p") # e.g., 03:15 PM
+        # --- THIS IS THE CORRECTED TIMESTAMP LOGIC ---
+        # 1. Get the raw value (which can be a string or datetime object)
+        raw_datetime = msg['created_at']
+        # 2. Reliably parse it into a datetime object
+        dt_object = parser.parse(raw_datetime) if isinstance(raw_datetime, str) else raw_datetime
+        # 3. Now, safely format it
+        timestamp = dt_object.astimezone().strftime("%I:%M %p") # e.g., 03:15 PM
+        # --- END OF FIX ---
 
         avatar_html = _generate_avatar_html(user_name)
         meta_html = f"""
@@ -6802,6 +6805,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
