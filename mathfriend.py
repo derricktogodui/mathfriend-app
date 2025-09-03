@@ -4374,7 +4374,7 @@ def load_css():
             overflow-y: auto;
         }
         
-        /* --- BORDER STYLES --- */
+        /* --- BORDER STYLES (WITH NEW RAINBOW ANIMATION) --- */
         .bronze-border {
             border: 3px solid #cd7f32 !important;
             box-shadow: 0 0 10px #cd7f32;
@@ -4387,10 +4387,21 @@ def load_css():
             border: 3px solid #FFD700 !important;
             box-shadow: 0 0 10px #FFD700;
         }
+        
+        /* --- THIS IS THE NEW, WORKING RAINBOW BORDER --- */
         .rainbow-border {
-            border: 4px solid transparent !important;
-            border-image: linear-gradient(to bottom right, #b827fc 0%, #2c90fc 25%, #b8fd33 50%, #fec837 75%, #fd1892 100%);
-            border-image-slice: 1;
+            border: 3px solid transparent !important;
+            /* The animation property tells the border to use our 'rainbow-glow' animation */
+            animation: rainbow-glow 2s linear infinite;
+        }
+
+        /* --- This animation rule defines the color changes --- */
+        @keyframes rainbow-glow {
+            0% { border-color: #b827fc; box-shadow: 0 0 10px #b827fc; }
+            25% { border-color: #2c90fc; box-shadow: 0 0 10px #2c90fc; }
+            50% { border-color: #b8fd33; box-shadow: 0 0 10px #b8fd33; }
+            75% { border-color: #fec837; box-shadow: 0 0 10px #fec837; }
+            100% { border-color: #fd1892; box-shadow: 0 0 10px #fd1892; }
         }
         /* --- END OF BORDER STYLES --- */
         
@@ -6477,6 +6488,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
