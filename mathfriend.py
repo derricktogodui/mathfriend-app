@@ -5696,7 +5696,7 @@ def display_learning_resources(topic_options):
 def display_profile_page():
     st.header("👤 Your Profile")
     
-    # --- NEW: A dictionary to easily manage all cosmetic items ---
+    # This dictionary to manage cosmetic items is correct and remains.
     COSMETIC_ITEMS = {
         'Borders': {
             'bronze_border': {'name': '🥉 Bronze Border', 'cost': 500},
@@ -5710,7 +5710,8 @@ def display_profile_page():
         }
     }
 
-    tab1, tab2, tab3 = st.tabs(["📝 My Profile", "🏆 My Achievements", "🛍️ Shop"])
+    # --- CHANGE: A new "Inventory" tab has been added ---
+    tab1, tab2, tab3, tab4 = st.tabs(["📝 My Profile", "🏆 My Achievements", "🎒 Inventory", "🛍️ Shop"])
 
     with tab1:
         profile = get_user_profile(st.session_state.username) or {}
@@ -5782,8 +5783,7 @@ def display_profile_page():
             if new_effect != current_effect:
                 if set_active_cosmetic(st.session_state.username, new_effect, 'name_effect'):
                     st.rerun()
-        # --- END NEW SECTION ---
-
+        
         st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
         with st.form("password_form"):
             st.subheader("Change Password")
@@ -5809,24 +5809,93 @@ def display_profile_page():
                         st.markdown(f"<div style='font-size: 3rem; text-align: center;'>{achievement['badge_icon']}</div>", unsafe_allow_html=True)
                         st.markdown(f"<div style='font-size: 1rem; text-align: center; font-weight: bold;'>{achievement['achievement_name']}</div>", unsafe_allow_html=True)
                         st.markdown(f"<div style='font-size: 0.8rem; text-align: center; color: grey;'>Unlocked: {achievement['unlocked_at'].strftime('%b %d, %Y')}</div>", unsafe_allow_html=True)
-    
+
+    # --- NEW: Inventory Tab ---
+    with tab4:
+        st.subheader("🎒 My Inventory")
+        st.info("Here you can open any Mystery Boxes you have purchased.")
+        profile = get_user_profile(st.session_state.username) or {}
+        box_count = profile.get('mystery_boxes', 0)
+
+        st.metric("Mystery Boxes Owned", f"🎁 {box_count}")
+
+        if st.button("Open a Mystery Box", disabled=(box_count <= 0), type="primary", use_container_width=True):
+            reward, message = open_mystery_box(st.session_state.username)
+            if reward:
+                st.balloons()
+                st.success(message)
+            else:
+                st.error(message)
+
     with tab3:
         st.subheader("Item Shop")
         coin_balance = get_coin_balance(st.session_state.username)
         profile = get_user_profile(st.session_state.username) or {}
         unlocked = profile.get('unlocked_cosmetics', [])
         st.info(f"**Your Balance: 🪙 {coin_balance} Coins**")
+        st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
 
+        # --- CORRECTED: This section was mistakenly omitted and is now restored ---
         st.markdown("#### Quiz Perks (Consumables)")
-        # This section is unchanged.
-        
+        col_perks1, col_perks2 = st.columns(2)
+        with col_perks1:
+            with st.container(border=True):
+                st.markdown("##### 💡 Reveal a Hint Token")
+                st.caption("Unlock the hint for a tough question.")
+                st.markdown("**Cost: 50 Coins**")
+                if st.button("Buy Hint Token", key="buy_hint", use_container_width=True, disabled=(coin_balance < 50)):
+                    update_sql = text("UPDATE user_profiles SET hint_tokens = COALESCE(hint_tokens, 0) + 1 WHERE username = :username")
+                    if purchase_item(st.session_state.username, "Hint Token", 50, update_sql):
+                        st.rerun()
+        with col_perks2:
+            with st.container(border=True):
+                st.markdown("##### 🔀 50/50 Lifeline Token")
+                st.caption("Remove two incorrect answers.")
+                st.markdown("**Cost: 100 Coins**")
+                if st.button("Buy 50/50 Token", key="buy_5050", use_container_width=True, disabled=(coin_balance < 100)):
+                    update_sql = text("UPDATE user_profiles SET fifty_fifty_tokens = COALESCE(fifty_fifty_tokens, 0) + 1 WHERE username = :username")
+                    if purchase_item(st.session_state.username, "50/50 Lifeline", 100, update_sql):
+                        st.rerun()
+
+        st.markdown("#### Gamification Boosters (Consumables)")
+        col_boost1, col_boost2, col_boost3 = st.columns(3)
+        with col_boost1:
+            with st.container(border=True):
+                st.markdown("##### ↪️ Skip Question Token")
+                st.caption("Skip a question without penalty.")
+                st.markdown("**Cost: 150 Coins**")
+                if st.button("Buy Skip Token", key="buy_skip", use_container_width=True, disabled=(coin_balance < 150)):
+                    update_sql = text("UPDATE user_profiles SET skip_question_tokens = COALESCE(skip_question_tokens, 0) + 1 WHERE username = :username")
+                    if purchase_item(st.session_state.username, "Skip Question Token", 150, update_sql):
+                        st.rerun()
+        with col_boost2:
+            with st.container(border=True):
+                st.markdown("##### 🚀 Double Coins Booster (1 Hour)")
+                st.caption("Doubles all coins earned for one hour.")
+                st.markdown("**Cost: 300 Coins**")
+                booster_active = is_double_coins_active(st.session_state.username)
+                if booster_active:
+                    st.warning("Booster is already active!")
+                elif st.button("Buy Double Coins", key="buy_booster", use_container_width=True, disabled=(coin_balance < 300)):
+                    update_sql = text("UPDATE user_profiles SET double_coins_expires_at = NOW() + INTERVAL '1 hour' WHERE username = :username")
+                    if purchase_item(st.session_state.username, "Double Coins Booster", 300, update_sql):
+                        st.rerun()
+        with col_boost3:
+            with st.container(border=True):
+                st.markdown("##### 🎁 Mystery Box")
+                st.caption("Contains a random reward!")
+                st.markdown("**Cost: 400 Coins**")
+                if st.button("Buy Mystery Box", key="buy_mystery_box", use_container_width=True, disabled=(coin_balance < 400)):
+                    update_sql = text("UPDATE user_profiles SET mystery_boxes = COALESCE(mystery_boxes, 0) + 1 WHERE username = :username")
+                    if purchase_item(st.session_state.username, "Mystery Box", 400, update_sql):
+                        st.rerun()
+        # --- END OF CORRECTED SECTION ---
+
         st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
         st.markdown("#### Profile Customization (Permanent)")
         
-        # This whole section is new and dynamically creates the shop from the dictionary
         for category, items in COSMETIC_ITEMS.items():
             st.markdown(f"##### {category}")
-            # Create a flexible number of columns based on the number of items
             cols = st.columns(len(items))
             for i, (item_id, item_details) in enumerate(items.items()):
                 with cols[i]:
@@ -5837,12 +5906,10 @@ def display_profile_page():
                             st.success("✅ Purchased")
                         else:
                             if st.button(f"Buy", key=f"buy_{item_id}", use_container_width=True, disabled=(coin_balance < item_details['cost'])):
-                                # This SQL appends the new item to our array
                                 update_sql = text(f"UPDATE user_profiles SET unlocked_cosmetics = array_append(unlocked_cosmetics, '{item_id}') WHERE username = :username")
                                 if purchase_item(st.session_state.username, item_details['name'], item_details['cost'], update_sql):
                                     st.rerun()
         
-        # Your flair unlock item is separate and remains unchanged
         with st.container(border=True):
             st.markdown("##### ✨ Unlock User Flair")
             st.caption("Set a custom title that appears under your name in the chat.")
@@ -6358,6 +6425,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
