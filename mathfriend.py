@@ -6093,22 +6093,22 @@ def display_profile_page():
         unlocked = profile.get('unlocked_cosmetics', []) or []
         st.info(f"**Your Balance: 🪙 {coin_balance} Coins**")
 
-        # --- NEW LOGIC: Check if we are in the middle of gifting an item ---
+        # --- Gifting Form Logic (Shows when a "Gift" button is clicked) ---
         if 'gifting_item_id' in st.session_state:
             item_id = st.session_state.gifting_item_id
             item_details = st.session_state.gifting_item_details
-
+            
             with st.form("gift_form"):
                 st.markdown(f"### 🎁 Gifting: {item_details['name']}")
                 st.write(f"This will cost you **{item_details['cost']} coins**.")
                 recipient = st.text_input("Enter your friend's exact username:")
-
+                
                 if st.form_submit_button(f"Send Gift to {recipient or '...'} ", type="primary"):
                     if recipient:
+                        # This calls the gifting function we created
                         success, message = purchase_gift_for_user(st.session_state.username, recipient, item_id, item_details)
                         if success:
-                            st.success(message)
-                            st.balloons()
+                            st.success(message); st.balloons()
                         else:
                             st.error(message)
                         time.sleep(2)
@@ -6123,39 +6123,68 @@ def display_profile_page():
                 del st.session_state.gifting_item_details
                 st.rerun()
 
-        else: # --- Show the main shop if not gifting ---
+        # --- Main Shop Display (Shows if not gifting) ---
+        else:
             for category, items in COSMETIC_ITEMS.items():
                 st.markdown(f"<hr><h4>{category}</h4>", unsafe_allow_html=True)
-                cols = st.columns(3)
-
+                # Use a different number of columns per category for better layout
+                num_columns = len(items) if len(items) <= 3 else 3
+                cols = st.columns(num_columns)
+                
                 for i, (item_id, item_details) in enumerate(items.items()):
-                    col = cols[i % 3]
+                    col = cols[i % num_columns]
                     with col:
                         with st.container(border=True):
                             st.markdown(f"**{item_details['name']}**")
                             st.caption(f"Cost: {item_details['cost']} Coins")
-
+                            
+                            # Check if the item is owned
                             is_owned = False
-                            if 'border' in item_id or 'effect' in item_id:
-                                is_owned = item_id in unlocked
-                            elif item_id == 'user_flair_unlock':
+                            if 'db_column' in item_details and item_details['db_column'] == 'unlocked_flair':
                                 is_owned = profile.get('unlocked_flair', False)
+                            elif 'border' in item_id or 'effect' in item_id:
+                                is_owned = item_id in unlocked
 
                             if is_owned:
                                 st.success("✅ Purchased")
                             else:
                                 c1, c2 = st.columns(2)
                                 with c1:
+                                    # --- THIS IS THE NEW, WORKING "BUY" BUTTON LOGIC ---
                                     if st.button("Buy", key=f"buy_{item_id}", use_container_width=True, disabled=(coin_balance < item_details['cost'])):
-                                        # This needs a more robust purchase function, but for now we simplify
-                                        st.info("Purchase logic needs to be connected here.")
-
+                                        update_sql = None
+                                        if 'db_column' in item_details:
+                                            # This handles consumables and flair
+                                            col_name = item_details['db_column']
+                                            if 'expires_at' in col_name: # Handle time-based booster
+                                                update_sql = text(f"UPDATE user_profiles SET {col_name} = NOW() + INTERVAL '1 hour' WHERE username = :username")
+                                            else: # Handle quantity-based items
+                                                update_sql = text(f"UPDATE user_profiles SET {col_name} = COALESCE({col_name}, 0) + 1 WHERE username = :username")
+                                        else: # This handles permanent cosmetics
+                                            update_sql = text(f"UPDATE user_profiles SET unlocked_cosmetics = array_append(unlocked_cosmetics, '{item_id}') WHERE username = :username")
+                                        
+                                        if update_sql is not None and purchase_item(st.session_state.username, item_details['name'], item_details['cost'], update_sql):
+                                            st.rerun()
+                                
                                 with c2:
+                                    # This is the gifting button logic
                                     if st.button("Gift", key=f"gift_{item_id}", use_container_width=True, disabled=(coin_balance < item_details['cost'])):
                                         st.session_state.gifting_item_id = item_id
                                         st.session_state.gifting_item_details = item_details
                                         st.rerun()
-        # --- END OF CORRECTED SECTION ---
+            
+            # --- Coin Transfer Form (Kept at the end) ---
+            st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
+            st.subheader("💸 Transfer Coins to a Friend")
+            with st.form("gift_coins_form", clear_on_submit=True):
+                recipient = st.text_input("Recipient's Username")
+                amount = st.number_input("Amount of Coins to Transfer", min_value=1, max_value=coin_balance, value=10, step=5)
+                if st.form_submit_button("Send Coins", type="primary", use_container_width=True):
+                    success, message = transfer_coins(st.session_state.username, recipient, amount)
+                    if success:
+                        st.success(message)
+                    else:
+                        st.error(message)
 
         st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
         st.markdown("#### Profile Customization (Permanent)")
@@ -6691,6 +6720,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
