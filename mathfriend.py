@@ -6086,7 +6086,7 @@ def display_profile_page():
             else:
                 st.error(message)
 
-   with tab3:
+    with tab3:
         st.subheader("🛍️ Item Shop")
         coin_balance = get_coin_balance(st.session_state.username)
         profile = get_user_profile(st.session_state.username) or {}
@@ -6691,6 +6691,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
