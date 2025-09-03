@@ -4849,16 +4849,15 @@ def display_blackboard_page():
         avatar_html = _generate_avatar_html(user_name)
 
         # --- THIS IS THE FIX ---
-        # Instead of building the flair inside a complex f-string,
-        # we create it separately for robustness. This prevents the HTML from breaking.
+        # The multiline f-string for meta_html has been un-indented.
+        # This prevents Streamlit's markdown renderer from misinterpreting
+        # the HTML and misplacing the closing </div> tag.
         flair_html = f"<i>{user_flair}</i><br>" if user_flair else ""
-        meta_html = f"""
-            <div class="chat-meta">
-                <strong>{user_name}</strong>
-                {flair_html}
-                {timestamp}
-            </div>
-        """
+        meta_html = f"""<div class="chat-meta">
+<strong>{user_name}</strong>
+{flair_html}
+{timestamp}
+</div>"""
         # --- END OF FIX ---
         
         bubble_html = f'<div class="chat-bubble {"user" if is_current_user else "assistant"}">{msg["text"]}</div>'
@@ -6805,6 +6804,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
