@@ -1634,12 +1634,30 @@ def open_mystery_box(username):
                 # 4. Award the prize based on the chosen type
                 if chosen_prize_type == 'jackpot':
                     amount = 2000
-                    update_coin_balance(username, amount, "Mystery Box Jackpot!")
+                    description = "Mystery Box Jackpot!"
+                    # --- FIX: Manually update coins and log transaction inside this single transaction ---
+                    conn.execute(
+                        text("UPDATE user_profiles SET coins = COALESCE(coins, 0) + :amount WHERE username = :username"),
+                        {"amount": amount, "username": username}
+                    )
+                    conn.execute(
+                        text("INSERT INTO coin_transactions (username, amount, description) VALUES (:u, :a, :d)"),
+                        {"u": username, "a": amount, "d": description}
+                    )
                     return (True, f"🎉 JACKPOT! You won 🪙 {amount} coins!")
 
                 elif chosen_prize_type == 'common_coins':
                     amount = random.randint(50, 250)
-                    update_coin_balance(username, amount, "Mystery Box Reward")
+                    description = "Mystery Box Reward"
+                    # --- FIX: Manually update coins and log transaction inside this single transaction ---
+                    conn.execute(
+                        text("UPDATE user_profiles SET coins = COALESCE(coins, 0) + :amount WHERE username = :username"),
+                        {"amount": amount, "username": username}
+                    )
+                    conn.execute(
+                        text("INSERT INTO coin_transactions (username, amount, description) VALUES (:u, :a, :d)"),
+                        {"u": username, "a": amount, "d": description}
+                    )
                     return (True, f"You opened the box and found 🪙 {amount} coins!")
 
                 elif chosen_prize_type == 'tokens':
@@ -1662,7 +1680,16 @@ def open_mystery_box(username):
                     if not unowned_cosmetics:
                         # Consolation prize if they own everything
                         amount = 500
-                        update_coin_balance(username, amount, "Mystery Box (Consolation Prize)")
+                        description = "Mystery Box (Consolation Prize)"
+                        # --- FIX: Manually update coins and log transaction inside this single transaction ---
+                        conn.execute(
+                            text("UPDATE user_profiles SET coins = COALESCE(coins, 0) + :amount WHERE username = :username"),
+                            {"amount": amount, "username": username}
+                        )
+                        conn.execute(
+                            text("INSERT INTO coin_transactions (username, amount, description) VALUES (:u, :a, :d)"),
+                            {"u": username, "a": amount, "d": description}
+                        )
                         return (True, f"You own all the cosmetics! As a thank you, here are 🪙 {amount} coins!")
                     else:
                         won_item_id = random.choice(unowned_cosmetics)
@@ -6572,6 +6599,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
