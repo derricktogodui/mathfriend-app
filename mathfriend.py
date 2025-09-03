@@ -4832,7 +4832,6 @@ def display_blackboard_page():
     user_ids_in_chat = {msg["user"].get("id") for msg in messages if msg["user"].get("id")}
     display_infos = get_user_display_info(user_ids_in_chat)
     
-    # This command needs the parameter
     st.markdown('<div class="chat-container">', unsafe_allow_html=True)
 
     for msg in messages:
@@ -4848,26 +4847,29 @@ def display_blackboard_page():
         timestamp = dt_object.astimezone().strftime("%I:%M %p")
 
         avatar_html = _generate_avatar_html(user_name)
+
+        # --- THIS IS THE FIX ---
+        # Instead of building the flair inside a complex f-string,
+        # we create it separately for robustness. This prevents the HTML from breaking.
+        flair_html = f"<i>{user_flair}</i><br>" if user_flair else ""
         meta_html = f"""
             <div class="chat-meta">
                 <strong>{user_name}</strong>
-                {'<i>' + user_flair + '</i><br>' if user_flair else ''}
+                {flair_html}
                 {timestamp}
             </div>
         """
+        # --- END OF FIX ---
         
         bubble_html = f'<div class="chat-bubble {"user" if is_current_user else "assistant"}">{msg["text"]}</div>'
-
+        
         if is_current_user:
             row_html = f'<div class="chat-row user">{meta_html}{bubble_html}{avatar_html}</div>'
         else:
             row_html = f'<div class="chat-row assistant">{avatar_html}{bubble_html}{meta_html}</div>'
-
             
-        # This is the most important line that needs the parameter
         st.markdown(row_html, unsafe_allow_html=True)
 
-    # This command also needs the parameter
     st.markdown('</div>', unsafe_allow_html=True)
             
     if prompt := st.chat_input("Post your question or comment..."):
@@ -6534,35 +6536,6 @@ def display_admin_panel():
                         force_end_duel_admin(duel['id'])
                         st.success(f"Duel ID {duel['id']} has been ended.")
                         st.rerun()
-
-    # --- You can paste this inside any tab in display_admin_panel() ---
-
-    with st.expander("🚨 DANGER ZONE: Advanced Tools"):
-        st.warning("These buttons perform permanent, irreversible actions. Use with extreme caution.")
-            
-        if st.button("Permanently Clear Blackboard Chat History", type="primary"):
-            try:
-                with st.spinner("Connecting to Stream API and clearing messages... Please wait."):
-                    # This uses the same client initialization as your app
-                    # to securely access your secrets.
-                    client = stream_chat.StreamChat(
-                        api_key=st.secrets["STREAM_API_KEY"],
-                        api_secret=st.secrets["STREAM_API_SECRET"]
-                    )
-                    channel = client.channel("messaging", channel_id="mathfriend-blackboard")
-                        
-                    # This is the command that deletes all messages
-                    channel.truncate()
-                        
-                    st.success("✅ Success! The Blackboard chat history has been cleared.")
-                    st.info("You can now remove the 'DANGER ZONE' code from your python file.")
-                    st.balloons()
-                    time.sleep(3)
-                    st.rerun()
-
-            except Exception as e:
-                st.error(f"An error occurred. Please ensure your STREAM_API_KEY and SECRET are correct in Streamlit secrets.")
-                st.error(f"Details: {e}")
     # --- TAB 4: PRACTICE QUESTIONS ---
     with tabs[3]:
         st.subheader("Manage Practice Questions / Assignments")
@@ -6832,6 +6805,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
