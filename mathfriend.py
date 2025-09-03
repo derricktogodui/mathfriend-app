@@ -669,6 +669,18 @@ def get_user_flairs(usernames):
         result = conn.execute(query, {"usernames": list(usernames)}).mappings().fetchall()
         return {row['username']: row['user_flair'] for row in result}
 
+def _generate_avatar_html(username):
+    """Generates a stylish avatar circle with a user's initial."""
+    initial = username[0].upper()
+    hash_val = int(hashlib.md5(username.encode()).hexdigest(), 16)
+    hue = hash_val % 360
+    
+    avatar_style = f"""
+        background-color: hsl({hue}, 60%, 50%);
+    """
+    
+    return f'<div class="chat-avatar" style="{avatar_style}">{initial}</div>'
+
 def get_user_display_info(usernames):
     """
     Efficiently fetches display info (flair, border, name effect) for a list of usernames.
@@ -4607,6 +4619,59 @@ def load_css():
             100% { border-color: #fd1892; box-shadow: 0 0 10px #fd1892; }
         }
         /* --- END OF BORDER STYLES --- */
+
+        /* --- NEW CHAT STYLES --- */
+        .chat-container {
+            display: flex;
+            flex-direction: column-reverse; /* This makes the chat feel "anchored" to the bottom */
+            width: 100%;
+        }
+        .chat-row {
+            display: flex;
+            align-items: flex-end;
+            margin-top: 0.75rem;
+        }
+        .chat-row.user {
+            justify-content: flex-end;
+        }
+        .chat-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            color: white;
+            margin-right: 10px;
+            margin-left: 10px;
+            flex-shrink: 0;
+        }
+        .chat-bubble {
+            padding: 10px 15px;
+            border-radius: 18px;
+            max-width: 70%;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+        }
+        .chat-bubble.user {
+            background-color: #007AFF;
+            color: white !important;
+            border-bottom-right-radius: 4px;
+        }
+        .chat-bubble.assistant {
+            background-color: #E5E5EA;
+            color: #31333F !important;
+            border-bottom-left-radius: 4px;
+        }
+        .chat-bubble * {
+            color: inherit !important;
+        }
+        .chat-meta {
+            font-size: 0.75rem;
+            color: #6c757d !important;
+            padding: 0 5px;
+        }
+        /* --- END OF NEW CHAT STYLES --- */
         
         /* --- BASE STYLES & OTHER RULES --- */
         .stApp { background-color: #f0f2ff; }
@@ -4738,8 +4803,9 @@ def display_dashboard(username):
 def display_blackboard_page():
     st.header("칠판 Blackboard")
     st.info("This is a community space. Ask clear questions, be respectful, and help your fellow students!", icon="👋")
-    online_users = get_online_users(st.session_state.username)
 
+    # --- FIX: The "Online Users" feature has been restored here ---
+    online_users = get_online_users(st.session_state.username)
     if online_users:
         pills_html_list = [_generate_user_pill_html(user) for user in online_users]
         pills_str = "".join(pills_html_list)
@@ -4755,39 +4821,56 @@ def display_blackboard_page():
         """, unsafe_allow_html=True)
     else:
         st.markdown("_No other users are currently active._")
-
     st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
+    # --- END OF RESTORED FEATURE ---
+
+    # This line makes the chat feel alive by refreshing every 5 seconds
+    st_autorefresh(interval=5000, key="chat_refresh")
+
     channel = chat_client.channel("messaging", channel_id="mathfriend-blackboard", data={"name": "MathFriend Blackboard"})
     state = channel.query(watch=False, state=True, messages={"limit": 50})
     messages = state['messages']
 
-    # --- FLAIR LOGIC ---
+    # Efficiently fetch display info for all users in the chat
     user_ids_in_chat = {msg["user"].get("id") for msg in messages if msg["user"].get("id")}
     display_infos = get_user_display_info(user_ids_in_chat)
-    # --- END OF FLAIR LOGIC ---
+    
+    st.markdown('<div class="chat-container">', unsafe_allow_html=True)
 
-    for msg in messages:
+    for msg in messages: # CSS now handles the reversed order
         user_id = msg["user"].get("id", "Unknown")
         user_name = msg["user"].get("name", user_id)
         is_current_user = (user_id == st.session_state.username)
         
-        with st.chat_message(name="user" if is_current_user else "assistant"):
-            if not is_current_user:
-                # --- MODIFIED NAME DISPLAY TO INCLUDE FLAIR ---
-                user_info = display_infos.get(user_id, {})
-                user_flair = user_info.get("flair")
-                
-                if user_flair:
-                    st.markdown(f"**{user_name}**<br><i style='font-size:0.9rem; color:grey;'>{user_flair}</i>", unsafe_allow_html=True)
-                else:
-                    st.markdown(f"**{user_name}**")
-                # --- END OF MODIFICATION ---
-            st.markdown(msg["text"])
+        user_info = display_infos.get(user_id, {})
+        user_flair = user_info.get("flair")
+        
+        # Format the timestamp
+        timestamp = msg['created_at'].astimezone().strftime("%I:%M %p") # e.g., 03:15 PM
+
+        avatar_html = _generate_avatar_html(user_name)
+        meta_html = f"""
+            <div class="chat-meta">
+                <strong>{user_name}</strong>
+                {'<i>' + user_flair + '</i><br>' if user_flair else ''}
+                {timestamp}
+            </div>
+        """
+        
+        bubble_html = f'<div class="chat-bubble {"user" if is_current_user else "assistant"}">{msg["text"]}</div>'
+        
+        if is_current_user:
+            row_html = f'<div class="chat-row user">{meta_html}{bubble_html}{avatar_html}</div>'
+        else:
+            row_html = f'<div class="chat-row assistant">{avatar_html}{bubble_html}{meta_html}</div>'
+            
+        st.markdown(row_html, unsafe_allow_html=True)
+
+    st.markdown('</div>', unsafe_allow_html=True)
             
     if prompt := st.chat_input("Post your question or comment..."):
         channel.send_message({"text": prompt}, user_id=st.session_state.username)
         st.rerun()
-
 def display_math_game_page(topic_options):
     """Displays the duel lobby with a new, improved two-column layout and a duel leaderboard."""
     st.header("⚔️ Math Game Lobby")
@@ -6719,6 +6802,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
