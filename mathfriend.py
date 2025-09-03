@@ -4823,7 +4823,7 @@ def display_blackboard_page():
         st.markdown("_No other users are currently active._")
     st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
 
-    st_autorefresh(interval=5000, key="chat_refresh")
+    st_autorefresh(interval=15000, key="chat_refresh")
 
     channel = chat_client.channel("messaging", channel_id="mathfriend-blackboard", data={"name": "MathFriend Blackboard"})
     state = channel.query(watch=False, state=True, messages={"limit": 50})
@@ -6804,6 +6804,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
