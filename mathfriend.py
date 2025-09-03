@@ -6087,74 +6087,74 @@ def display_profile_page():
                 st.error(message)
 
    with tab3:
-    st.subheader("🛍️ Item Shop")
-    coin_balance = get_coin_balance(st.session_state.username)
-    profile = get_user_profile(st.session_state.username) or {}
-    unlocked = profile.get('unlocked_cosmetics', []) or []
-    st.info(f"**Your Balance: 🪙 {coin_balance} Coins**")
+        st.subheader("🛍️ Item Shop")
+        coin_balance = get_coin_balance(st.session_state.username)
+        profile = get_user_profile(st.session_state.username) or {}
+        unlocked = profile.get('unlocked_cosmetics', []) or []
+        st.info(f"**Your Balance: 🪙 {coin_balance} Coins**")
 
-    # --- NEW LOGIC: Check if we are in the middle of gifting an item ---
-    if 'gifting_item_id' in st.session_state:
-        item_id = st.session_state.gifting_item_id
-        item_details = st.session_state.gifting_item_details
+        # --- NEW LOGIC: Check if we are in the middle of gifting an item ---
+        if 'gifting_item_id' in st.session_state:
+            item_id = st.session_state.gifting_item_id
+            item_details = st.session_state.gifting_item_details
 
-        with st.form("gift_form"):
-            st.markdown(f"### 🎁 Gifting: {item_details['name']}")
-            st.write(f"This will cost you **{item_details['cost']} coins**.")
-            recipient = st.text_input("Enter your friend's exact username:")
+            with st.form("gift_form"):
+                st.markdown(f"### 🎁 Gifting: {item_details['name']}")
+                st.write(f"This will cost you **{item_details['cost']} coins**.")
+                recipient = st.text_input("Enter your friend's exact username:")
 
-            if st.form_submit_button(f"Send Gift to {recipient or '...'} ", type="primary"):
-                if recipient:
-                    success, message = purchase_gift_for_user(st.session_state.username, recipient, item_id, item_details)
-                    if success:
-                        st.success(message)
-                        st.balloons()
-                    else:
-                        st.error(message)
-                    time.sleep(2)
-                    del st.session_state.gifting_item_id
-                    del st.session_state.gifting_item_details
-                    st.rerun()
-                else:
-                    st.warning("Please enter a recipient's username.")
-
-        if st.button("Cancel Gift"):
-            del st.session_state.gifting_item_id
-            del st.session_state.gifting_item_details
-            st.rerun()
-
-    else: # --- Show the main shop if not gifting ---
-        for category, items in COSMETIC_ITEMS.items():
-            st.markdown(f"<hr><h4>{category}</h4>", unsafe_allow_html=True)
-            cols = st.columns(3)
-
-            for i, (item_id, item_details) in enumerate(items.items()):
-                col = cols[i % 3]
-                with col:
-                    with st.container(border=True):
-                        st.markdown(f"**{item_details['name']}**")
-                        st.caption(f"Cost: {item_details['cost']} Coins")
-
-                        is_owned = False
-                        if 'border' in item_id or 'effect' in item_id:
-                            is_owned = item_id in unlocked
-                        elif item_id == 'user_flair_unlock':
-                            is_owned = profile.get('unlocked_flair', False)
-
-                        if is_owned:
-                            st.success("✅ Purchased")
+                if st.form_submit_button(f"Send Gift to {recipient or '...'} ", type="primary"):
+                    if recipient:
+                        success, message = purchase_gift_for_user(st.session_state.username, recipient, item_id, item_details)
+                        if success:
+                            st.success(message)
+                            st.balloons()
                         else:
-                            c1, c2 = st.columns(2)
-                            with c1:
-                                if st.button("Buy", key=f"buy_{item_id}", use_container_width=True, disabled=(coin_balance < item_details['cost'])):
-                                    # This needs a more robust purchase function, but for now we simplify
-                                    st.info("Purchase logic needs to be connected here.")
+                            st.error(message)
+                        time.sleep(2)
+                        del st.session_state.gifting_item_id
+                        del st.session_state.gifting_item_details
+                        st.rerun()
+                    else:
+                        st.warning("Please enter a recipient's username.")
 
-                            with c2:
-                                if st.button("Gift", key=f"gift_{item_id}", use_container_width=True, disabled=(coin_balance < item_details['cost'])):
-                                    st.session_state.gifting_item_id = item_id
-                                    st.session_state.gifting_item_details = item_details
-                                    st.rerun()
+            if st.button("Cancel Gift"):
+                del st.session_state.gifting_item_id
+                del st.session_state.gifting_item_details
+                st.rerun()
+
+        else: # --- Show the main shop if not gifting ---
+            for category, items in COSMETIC_ITEMS.items():
+                st.markdown(f"<hr><h4>{category}</h4>", unsafe_allow_html=True)
+                cols = st.columns(3)
+
+                for i, (item_id, item_details) in enumerate(items.items()):
+                    col = cols[i % 3]
+                    with col:
+                        with st.container(border=True):
+                            st.markdown(f"**{item_details['name']}**")
+                            st.caption(f"Cost: {item_details['cost']} Coins")
+
+                            is_owned = False
+                            if 'border' in item_id or 'effect' in item_id:
+                                is_owned = item_id in unlocked
+                            elif item_id == 'user_flair_unlock':
+                                is_owned = profile.get('unlocked_flair', False)
+
+                            if is_owned:
+                                st.success("✅ Purchased")
+                            else:
+                                c1, c2 = st.columns(2)
+                                with c1:
+                                    if st.button("Buy", key=f"buy_{item_id}", use_container_width=True, disabled=(coin_balance < item_details['cost'])):
+                                        # This needs a more robust purchase function, but for now we simplify
+                                        st.info("Purchase logic needs to be connected here.")
+
+                                with c2:
+                                    if st.button("Gift", key=f"gift_{item_id}", use_container_width=True, disabled=(coin_balance < item_details['cost'])):
+                                        st.session_state.gifting_item_id = item_id
+                                        st.session_state.gifting_item_details = item_details
+                                        st.rerun()
         # --- END OF CORRECTED SECTION ---
 
         st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
@@ -6691,6 +6691,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
