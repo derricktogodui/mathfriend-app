@@ -4577,34 +4577,6 @@ def get_time_based_greeting():
 def load_css():
     st.markdown("""
     <style>
-        /* --- THEME-AWARE STYLES --- */
-        /* Light Theme (Default) */
-        :root {
-            --primary-color: #0d6efd;
-            --background-color: #f0f2f5;
-            --secondary-background-color: #ffffff;
-            --text-color: #31333F;
-            --secondary-text-color: #6c757d;
-            --sidebar-background-color: #0F1116;
-            --sidebar-text-color: #FAFAFA;
-            --border-color: #dee2e6;
-            --box-shadow-color: rgba(0,0,0,0.08);
-        }
-
-        /* Dark Theme */
-        [data-theme="dark"] {
-            --primary-color: #4da6ff;
-            --background-color: #0e1117;
-            --secondary-background-color: #161b22;
-            --text-color: #c9d1d9;
-            --secondary-text-color: #8b949e;
-            --sidebar-background-color: #010409;
-            --sidebar-text-color: #e6edf3;
-            --border-color: #30363d;
-            --box-shadow-color: rgba(255,255,255,0.08);
-        }
-    
-    <style>
         /* --- FINAL, ROBUST SCROLLING FIX FOR ALL DEVICES --- */
         /* This targets the main view container, locks it to the screen size,
            and makes it the primary scrollable element. This is a more
@@ -6827,6 +6799,14 @@ def show_main_app():
         profile = get_user_profile(st.session_state.username)
         display_name = profile.get('full_name') if profile and profile.get('full_name') else st.session_state.username
         st.title(f"{greeting}, {display_name}!")
+        # --- START: NEW DYNAMIC GREETING ---
+        # Fetch stats we already have functions for
+        total_quizzes, _, _ = get_user_stats(st.session_state.username)
+        num_achievements = len(get_user_achievements(st.session_state.username))
+
+        # Display the stats
+        st.caption(f"📝 Quizzes Taken: {total_quizzes} | 🏆 Achievements: {num_achievements}")
+        # --- END: NEW DYNAMIC GREETING ---
         
         page_options = [
             "📊 Dashboard", "📝 Quiz", "🏆 Leaderboard", "⚔️ Math Game", "💬 Blackboard", 
@@ -6848,35 +6828,6 @@ def show_main_app():
             if 'challenge_completed_toast' in st.session_state: del st.session_state.challenge_completed_toast
             if 'achievement_unlocked_toast' in st.session_state: del st.session_state.achievement_unlocked_toast
             st.rerun()
-
-        st.write("---")
-        st.subheader("Settings")
-        
-        # Get the current theme from session_state, default to "light"
-        current_theme = st.session_state.get("theme", "light")
-        
-        # Determine the state of the toggle based on the current theme
-        is_dark_mode = (current_theme == "dark")
-        
-        if st.toggle("🌙 Dark Mode", value=is_dark_mode, key="theme_toggle"):
-            st.session_state.theme = "dark"
-        else:
-            st.session_state.theme = "light"
-
-        # JavaScript to apply the theme change
-        set_theme_js = f"""
-        <script>
-            function setTheme(theme) {{
-                const streamlitDoc = window.parent.document;
-                if (streamlitDoc) {{
-                    const htmlElement = streamlitDoc.querySelector('html');
-                    htmlElement.setAttribute('data-theme', theme);
-                }}
-            }}
-            setTheme('{st.session_state.theme}');
-        </script>
-        """
-        st.components.v1.html(set_theme_js, height=0)
             
     st.markdown('<div class="main-content">', unsafe_allow_html=True)
     
@@ -6988,6 +6939,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
