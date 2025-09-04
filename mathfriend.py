@@ -6803,7 +6803,7 @@ def show_main_app():
         # --- START: NEW DATE WIDGET ---
         # Get the current date and format it nicely
         today_date = datetime.now().strftime("%A, %B %d, %Y")
-        st.caption(f"**Date:** {today_date}")
+        st.caption(f"**{today_date}**")
         # --- END: NEW DATE WIDGET ---
         page_options = [
             "📊 Dashboard", "📝 Quiz", "🏆 Leaderboard", "⚔️ Math Game", "💬 Blackboard", 
@@ -6936,6 +6936,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
