@@ -68,6 +68,10 @@ def initialize_session_state():
         "current_streak": 0,
         "incorrect_questions": [],
         "on_summary_page": False
+        # --- START: ADD THESE TWO NEW LINES ---
+        "is_wassce_mode": False,
+        "quiz_start_time": None
+        # --- END: ADD THESE TWO NEW LINES ---
     }
     for key, value in defaults.items():
         if key not in st.session_state:
@@ -639,6 +643,12 @@ def update_user_profile(username, full_name, school, age, bio):
         chat_client.upsert_user({"id": username, "name": full_name if full_name else username})
     return True
 
+def format_time(seconds):
+    """Formats seconds into a MM:SS string."""
+    minutes = int(seconds // 60)
+    secs = int(seconds % 60)
+    return f"{minutes:02d}:{secs:02d}"
+    
 def set_user_flair(username, flair_text):
     """Updates the user_flair for a given user."""
     # Add a length limit to keep the flair short and clean
@@ -5156,6 +5166,29 @@ def display_quiz_page(topic_options):
     if not st.session_state.quiz_active:
         # This setup part is unchanged
         st.subheader("Choose Your Challenge")
+        # --- START: ADD THIS ENTIRE NEW BLOCK ---
+        with st.container(border=True):
+            st.markdown("### 🚀 Start WASSCE Prep Mode")
+            st.caption("A 20-question, mixed-topic challenge to test your exam readiness!")
+            if st.button("Start Now", key="start_wassce", type="primary", use_container_width=True):
+                # Set up the WASSCE session state
+                st.session_state.is_wassce_mode = True
+                st.session_state.quiz_active = True
+                st.session_state.quiz_topic = "WASSCE Prep" # Set a special topic name
+                st.session_state.quiz_start_time = time.time()
+                
+                # Reset all quiz variables
+                st.session_state.quiz_score = 0
+                st.session_state.questions_answered = 0
+                st.session_state.questions_attempted = 0
+                st.session_state.current_streak = 0
+                st.session_state.incorrect_questions = []
+                st.session_state.on_summary_page = False
+                if 'current_q_data' in st.session_state: del st.session_state['current_q_data']
+                st.rerun()
+        
+        st.markdown("<h4 style='text-align: center; color: grey;'>OR</h4>", unsafe_allow_html=True)
+        # --- END: ADD THIS ENTIRE NEW BLOCK ---
         topic_perf_df = get_topic_performance(st.session_state.username)
         if not topic_perf_df.empty and len(topic_perf_df) > 1 and topic_perf_df['Accuracy'].iloc[-1] < 100:
             weakest_topic = topic_perf_df.index[-1]
@@ -5180,28 +5213,56 @@ def display_quiz_page(topic_options):
         return
 
     # --- ACTIVE QUIZ LOGIC ---
-    if st.session_state.get('on_summary_page', False) or st.session_state.questions_answered >= QUIZ_LENGTH:
+    # --- START: REPLACE THIS SECTION OF 'display_quiz_page' ---
+    WASSCE_QUIZ_LENGTH = 20
+    WASSCE_TIME_LIMIT = 30 * 60  # 30 minutes in seconds
+
+    # Determine quiz length
+    quiz_length = WASSCE_QUIZ_LENGTH if st.session_state.is_wassce_mode else QUIZ_LENGTH
+    
+    if st.session_state.get('on_summary_page', False) or st.session_state.questions_answered >= quiz_length:
         display_quiz_summary(); return
+
+    # --- Timer Logic for WASSCE Mode ---
+    if st.session_state.is_wassce_mode:
+        elapsed_time = time.time() - st.session_state.quiz_start_time
+        time_left = WASSCE_TIME_LIMIT - elapsed_time
+        
+        if time_left <= 0:
+            st.warning("Time's up!")
+            st.session_state.on_summary_page = True
+            st.rerun()
+            
+        st.sidebar.metric("⏳ Time Remaining", format_time(time_left))
 
     user_profile = get_user_profile(st.session_state.username) or {}
     hint_tokens = user_profile.get('hint_tokens', 0)
     fifty_fifty_tokens = user_profile.get('fifty_fifty_tokens', 0)
-    # --- NEW --- Get skip token count
     skip_tokens = user_profile.get('skip_question_tokens', 0)
 
-    # --- NEW --- Double Coins Status Indicator
     if is_double_coins_active(st.session_state.username):
         st.info("🚀 **Double Coins Active!** All rewards from this quiz will be doubled.", icon="🎉")
-    # --- END NEW ---
 
     col1, col2, col3 = st.columns(3)
     with col1: st.metric("Score", f"{st.session_state.quiz_score}/{st.session_state.questions_attempted}")
-    with col2: st.metric("Question", f"{st.session_state.questions_answered + 1}/{QUIZ_LENGTH}")
+    with col2: st.metric("Question", f"{st.session_state.questions_answered + 1}/{quiz_length}")
     with col3: st.metric("🔥 Streak", st.session_state.current_streak)
     st.caption(f"Your Items: 💡 Hints ({hint_tokens}) | 🔀 50/50s ({fifty_fifty_tokens}) | ↪️ Skips ({skip_tokens})")
     
-    st.progress(st.session_state.questions_answered / QUIZ_LENGTH, text="Round Progress")
+    st.progress(st.session_state.questions_answered / quiz_length, text="Round Progress")
     st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
+    
+    if 'current_q_data' not in st.session_state:
+        # --- Logic to get a random topic in WASSCE mode ---
+        if st.session_state.is_wassce_mode:
+            # Exclude 'Advanced Combo' from random selection
+            available_topics = [t for t in topic_options if t != "Advanced Combo"]
+            random_topic = random.choice(available_topics)
+            st.session_state.current_q_data = get_adaptive_question(random_topic, st.session_state.username)
+            st.session_state.current_q_data['topic'] = random_topic # Store the topic for the summary
+        else:
+            st.session_state.current_q_data = get_adaptive_question(st.session_state.quiz_topic, st.session_state.username)
+    # --- END: REPLACE THIS SECTION OF 'display_quiz_page' ---
     
     if 'current_q_data' not in st.session_state:
         st.session_state.current_q_data = get_adaptive_question(st.session_state.quiz_topic, st.session_state.username)
@@ -5313,73 +5374,107 @@ def display_quiz_summary():
     total_questions = st.session_state.questions_attempted
     accuracy = (final_score / total_questions * 100) if total_questions > 0 else 0
 
-    coins_earned = 0
-    description = ""
-    if total_questions > 0:
-        coins_earned = final_score * 5
-        description = f"Completed Quiz on {st.session_state.quiz_topic}"
-        if final_score == total_questions:
-            coins_earned += 25 # Using the reduced bonus
-            description += " (Perfect Score Bonus!)"
-
-    # --- NEW --- Check for and apply Double Coins booster
-    if is_double_coins_active(st.session_state.username):
-        st.success(f"🚀 Double Coins booster was active! Your earnings are doubled: {coins_earned} -> {coins_earned * 2}", icon="🎉")
-        coins_earned *= 2
-    # --- END NEW ---
-
-    if total_questions > 0 and 'result_saved' not in st.session_state:
-        save_quiz_result(st.session_state.username, st.session_state.quiz_topic, final_score, total_questions, coins_earned, description)
-        st.session_state.result_saved = True
+    # --- WASSCE MODE SUMMARY ---
+    if st.session_state.is_wassce_mode:
+        elapsed_time = time.time() - st.session_state.quiz_start_time
         
-    col1, col2, col3 = st.columns(3)
-    col1.metric(label="Your Final Score", value=f"{final_score}/{total_questions}")
-    col2.metric(label="Accuracy", value=f"{accuracy:.1f}%")
-    if coins_earned > 0:
-        col3.metric(label="🪙 Coins Earned", value=f"+{coins_earned}")
-    
-    # The rest of the summary function is unchanged
-    if accuracy >= 90:
-        st.success("🏆 Excellent work! You're a true MathFriend master!"); confetti_animation()
-    elif accuracy >= 70:
-        st.info("👍 Great job! You've got a solid understanding of this topic.")
-    else:
-        st.warning("🙂 Good effort! A little more practice and you'll be an expert.")
-    
-    if st.session_state.incorrect_questions:
-        with st.expander("🔍 Click here to review your incorrect answers"):
+        st.subheader("WASSCE Prep Session Results")
+        col1, col2, col3 = st.columns(3)
+        # Note: You'll need to define WASSCE_QUIZ_LENGTH earlier in your file, e.g., WASSCE_QUIZ_LENGTH = 20
+        col1.metric("Final Score", f"{final_score}/{st.session_state.get('quiz_length', 20)}")
+        col2.metric("Accuracy", f"{accuracy:.1f}%")
+        col3.metric("Time Taken", format_time(elapsed_time))
+        
+        st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
+        st.subheader("Performance Breakdown by Topic")
+        
+        if st.session_state.incorrect_questions:
+            topic_performance = {}
             for q in st.session_state.incorrect_questions:
-                if q.get("is_multipart"):
-                    st.markdown(f"**Question Stem:** {q['stem']}")
-                    for i, part in enumerate(q['parts']):
-                        st.markdown(f"**Part {chr(97+i)}):** {part['question']}")
-                        st.error(f"**Correct Answer:** {part['answer']}")
-                        st.info(f"**Explanation:** {part['explanation']}")
-                else:
-                    st.markdown(f"**Question:** {q['question']}")
-                    st.error(f"**Correct Answer:** {q['answer']}")
-                    if q.get("explanation"):
-                        st.info(f"**Explanation:** {q['explanation']}")
-                st.write("---")
-
-    st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
-    col1, col2 = st.columns(2)
-    with col1:
-        if st.button("Play Again (Same Topic)", use_container_width=True, type="primary"):
-            st.session_state.on_summary_page = False; st.session_state.quiz_active = True
-            st.session_state.quiz_score = 0; st.session_state.questions_answered = 0
-            st.session_state.questions_attempted = 0; st.session_state.current_streak = 0
-            st.session_state.incorrect_questions = []
-            keys_to_clear = ['current_q_data', 'result_saved', 'current_part_index', 'user_choice', 'answer_submitted']
-            for key in keys_to_clear:
-                if key in st.session_state: del st.session_state[key]
-            st.rerun()
+                topic = q.get('topic', 'Unknown')
+                if topic not in topic_performance:
+                    topic_performance[topic] = {'correct': 0, 'total': 0}
+                topic_performance[topic]['total'] += 1
             
-    with col2:
-        if st.button("Choose New Topic", use_container_width=True):
-            st.session_state.on_summary_page = False; st.session_state.quiz_active = False
+            st.write("Topics where you made mistakes:")
+            for topic, stats in topic_performance.items():
+                with st.container(border=True):
+                    st.write(f"**{topic}:** You should review this topic.")
+        else:
+            st.success("🎉 Incredible! You had no incorrect answers in this session!")
+        
+        if st.button("Back to Quiz Menu", use_container_width=True):
+            st.session_state.is_wassce_mode = False
+            st.session_state.quiz_active = False
             if 'result_saved' in st.session_state: del st.session_state['result_saved']
             st.rerun()
+
+    # --- REGULAR QUIZ SUMMARY ---
+    else: # <-- THIS IS THE CORRECTED INDENTATION
+        coins_earned = 0
+        description = ""
+        if total_questions > 0:
+            coins_earned = final_score * 5
+            description = f"Completed Quiz on {st.session_state.quiz_topic}"
+            if final_score == total_questions:
+                coins_earned += 25
+                description += " (Perfect Score Bonus!)"
+
+        if is_double_coins_active(st.session_state.username):
+            st.success(f"🚀 Double Coins booster was active! Your earnings are doubled: {coins_earned} -> {coins_earned * 2}", icon="🎉")
+            coins_earned *= 2
+
+        if total_questions > 0 and 'result_saved' not in st.session_state:
+            save_quiz_result(st.session_state.username, st.session_state.quiz_topic, final_score, total_questions, coins_earned, description)
+            st.session_state.result_saved = True
+            
+        col1, col2, col3 = st.columns(3)
+        col1.metric(label="Your Final Score", value=f"{final_score}/{total_questions}")
+        col2.metric(label="Accuracy", value=f"{accuracy:.1f}%")
+        if coins_earned > 0:
+            col3.metric(label="🪙 Coins Earned", value=f"+{coins_earned}")
+        
+        if accuracy >= 90:
+            st.success("🏆 Excellent work! You're a true MathFriend master!"); confetti_animation()
+        elif accuracy >= 70:
+            st.info("👍 Great job! You've got a solid understanding of this topic.")
+        else:
+            st.warning("🙂 Good effort! A little more practice and you'll be an expert.")
+        
+        if st.session_state.incorrect_questions:
+            with st.expander("🔍 Click here to review your incorrect answers"):
+                for q in st.session_state.incorrect_questions:
+                    if q.get("is_multipart"):
+                        st.markdown(f"**Question Stem:** {q['stem']}")
+                        for i, part in enumerate(q['parts']):
+                            st.markdown(f"**Part {chr(97+i)}):** {part['question']}")
+                            st.error(f"**Correct Answer:** {part['answer']}")
+                            st.info(f"**Explanation:** {part['explanation']}")
+                    else:
+                        st.markdown(f"**Question:** {q['question']}")
+                        st.error(f"**Correct Answer:** {q['answer']}")
+                        if q.get("explanation"):
+                            st.info(f"**Explanation:** {q['explanation']}")
+                    st.write("---")
+
+        st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.button("Play Again (Same Topic)", use_container_width=True, type="primary"):
+                st.session_state.on_summary_page = False; st.session_state.quiz_active = True
+                st.session_state.quiz_score = 0; st.session_state.questions_answered = 0
+                st.session_state.questions_attempted = 0; st.session_state.current_streak = 0
+                st.session_state.incorrect_questions = []
+                keys_to_clear = ['current_q_data', 'result_saved', 'current_part_index', 'user_choice', 'answer_submitted', 'checked_personal_best', 'previous_best_accuracy']
+                for key in keys_to_clear:
+                    if key in st.session_state: del st.session_state[key]
+                st.rerun()
+                
+        with col2:
+            if st.button("Choose New Topic", use_container_width=True):
+                st.session_state.on_summary_page = False; st.session_state.quiz_active = False
+                if 'result_saved' in st.session_state: del st.session_state['result_saved']
+                st.rerun()
 def display_leaderboard(topic_options):
     st.header("🏆 Global Leaderboard")
     
@@ -6936,6 +7031,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
