@@ -4732,11 +4732,7 @@ def load_css():
     </style>
     """, unsafe_allow_html=True)
 def display_dashboard(username):
-    # --- START: NEW DATE WIDGET ---
-    # Get the current date and format it nicely
-    today_date = datetime.now().strftime("%A, %B %d, %Y")
-    st.caption(f"**Date:** {today_date}")
-    # --- END: NEW DATE WIDGET ---
+    
     announcement = get_config_value("announcement_text")
     if announcement:
         st.info(f"📣 **Announcement:** {announcement}")
@@ -6804,20 +6800,11 @@ def show_main_app():
         profile = get_user_profile(st.session_state.username)
         display_name = profile.get('full_name') if profile and profile.get('full_name') else st.session_state.username
         st.title(f"{greeting}, {display_name}!")
-        # --- START: NEW DYNAMIC GREETING ---
-        # Fetch stats we already have functions for
-        total_quizzes, _, _ = get_user_stats(st.session_state.username)
-        num_achievements = len(get_user_achievements(st.session_state.username))
-
-        # Display the stats
-        st.markdown(f"""
-        <div style="font-size: 0.9rem; color: rgba(250, 250, 250, 0.7);">
-            📝 Quizzes Taken: {total_quizzes} <br>
-            🏆 Achievements: {num_achievements}
-        </div>
-        """, unsafe_allow_html=True)
-        # --- END: NEW DYNAMIC GREETING ---
-        
+        # --- START: NEW DATE WIDGET ---
+        # Get the current date and format it nicely
+        today_date = datetime.now().strftime("%A, %B %d, %Y")
+        st.caption(f"**Date:** {today_date}")
+        # --- END: NEW DATE WIDGET ---
         page_options = [
             "📊 Dashboard", "📝 Quiz", "🏆 Leaderboard", "⚔️ Math Game", "💬 Blackboard", 
             "👤 Profile", "📚 Learning Resources", "❓ Help Center"
@@ -6949,6 +6936,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
