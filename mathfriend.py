@@ -4697,6 +4697,14 @@ def load_css():
             font-weight: 500;
         }
         /* --- END OF NEW CHAT STYLES --- */
+
+        /* --- ADD THIS NEW CSS RULE --- */
+        .quiz-prep-image {
+            height: 190px;
+            width: 100%;
+            object-fit: cover;
+            border-radius: 8px;
+        }
         
         /* --- BASE STYLES & OTHER RULES --- */
         .stApp { background-color: #f0f2ff; }
@@ -5205,7 +5213,7 @@ def display_quiz_page(topic_options):
             with st.container(border=True):
                 st.markdown("#### 🚀 WASSCE Prep")
                 st.caption("A 20-question, 30-minute mixed-topic challenge to test your exam readiness!")
-                st.image("https://github.com/derricktogodui/mathfriend-app/releases/download/v1.0-assets/WASSCE.Study.Session.in.Action.png", use_container_width=True)
+                st.markdown(f'<img src="https://github.com/derricktogodui/mathfriend-app/releases/download/v1.0-assets/WASSCE.Study.Session.in.Action.png" class="quiz-prep-image">', unsafe_allow_html=True)
                 
                 if st.button("Start Exam Prep", key="start_wassce", type="primary", use_container_width=True):
                     st.session_state.is_wassce_mode = True # Turn WASSCE mode ON
@@ -6912,22 +6920,6 @@ def show_main_app():
             if 'challenge_completed_toast' in st.session_state: del st.session_state.challenge_completed_toast
             if 'achievement_unlocked_toast' in st.session_state: del st.session_state.achievement_unlocked_toast
             st.rerun()
-        # --- START: NEW WASSCE TIMER LOCATION ---
-        if st.session_state.get("is_wassce_mode") and st.session_state.get("quiz_active") and not st.session_state.get("on_summary_page"):
-            WASSCE_TIME_LIMIT = 30 * 60  # 30 minutes
-            if st.session_state.quiz_start_time:
-                elapsed_time = time.time() - st.session_state.quiz_start_time
-                time_left = WASSCE_TIME_LIMIT - elapsed_time
-                
-                if time_left > 0:
-                    st.metric("⏳ Time Remaining", format_time(time_left))
-                    # This auto-refreshes the page every second to update the timer
-                    st_autorefresh(interval=1000, limit=WASSCE_TIME_LIMIT, key="timer_refresh")
-                else:
-                    # If time runs out, go to the summary page
-                    st.session_state.on_summary_page = True
-                    st.rerun()
-        # --- END: NEW WASSCE TIMER LOCATION ---
             
     st.markdown('<div class="main-content">', unsafe_allow_html=True)
     
@@ -7039,6 +7031,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
