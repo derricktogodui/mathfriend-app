@@ -4732,6 +4732,11 @@ def load_css():
     </style>
     """, unsafe_allow_html=True)
 def display_dashboard(username):
+    # --- START: NEW DATE WIDGET ---
+    # Get the current date and format it nicely
+    today_date = datetime.now().strftime("%A, %B %d, %Y")
+    st.caption(f"**Date:** {today_date}")
+    # --- END: NEW DATE WIDGET ---
     announcement = get_config_value("announcement_text")
     if announcement:
         st.info(f"📣 **Announcement:** {announcement}")
@@ -6939,6 +6944,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
