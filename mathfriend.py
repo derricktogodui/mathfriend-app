@@ -4577,6 +4577,34 @@ def get_time_based_greeting():
 def load_css():
     st.markdown("""
     <style>
+        /* --- THEME-AWARE STYLES --- */
+        /* Light Theme (Default) */
+        :root {
+            --primary-color: #0d6efd;
+            --background-color: #f0f2f5;
+            --secondary-background-color: #ffffff;
+            --text-color: #31333F;
+            --secondary-text-color: #6c757d;
+            --sidebar-background-color: #0F1116;
+            --sidebar-text-color: #FAFAFA;
+            --border-color: #dee2e6;
+            --box-shadow-color: rgba(0,0,0,0.08);
+        }
+
+        /* Dark Theme */
+        [data-theme="dark"] {
+            --primary-color: #4da6ff;
+            --background-color: #0e1117;
+            --secondary-background-color: #161b22;
+            --text-color: #c9d1d9;
+            --secondary-text-color: #8b949e;
+            --sidebar-background-color: #010409;
+            --sidebar-text-color: #e6edf3;
+            --border-color: #30363d;
+            --box-shadow-color: rgba(255,255,255,0.08);
+        }
+    
+    <style>
         /* --- FINAL, ROBUST SCROLLING FIX FOR ALL DEVICES --- */
         /* This targets the main view container, locks it to the screen size,
            and makes it the primary scrollable element. This is a more
@@ -6960,6 +6988,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
