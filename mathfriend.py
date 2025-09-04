@@ -4810,10 +4810,109 @@ def display_dashboard(username):
             st.dataframe(df, use_container_width=True)
         else:
             st.info("Your quiz history is empty. Take a quiz to get started!")
+def display_help_center_page():
+    st.header("❓ Help Center & FAQ")
+    st.info("Find answers to common questions about how to use MathFriend. Click on any question to see the answer.")
 
-# Replace your existing display_blackboard_page function with this new version.
+    st.subheader("🚀 Getting Started")
+    with st.expander("How do I create an account?"):
+        st.markdown("""
+        1. On the login page, click the **"Don't have an account? Sign Up"** button.
+        2. Choose a username. It can only contain letters, numbers, and the underscore symbol (`_`). No spaces are allowed.
+        3. Create a secure password and confirm it.
+        4. Click **"Create Account"**. You will be taken back to the login page to sign in.
+        """)
 
-# Replace your existing display_blackboard_page function with this one.
+    # --- NEW SECTION: GAMIFICATION ---
+    st.subheader("🏆 Gamification & Rewards")
+    with st.expander("How do Daily Challenges work?"):
+        st.markdown("""
+        Every day, you are assigned a new challenge which you can see on your **📊 Dashboard**. These are small tasks, like "Answer 5 questions correctly on any topic." Completing your challenge gives you a **50 coin bonus!** Progress is tracked automatically as you use the app.
+        """)
+    with st.expander("What are Achievements?"):
+        st.markdown("""
+        Achievements are special badges you earn for reaching important milestones in the app, like taking your first quiz or mastering a topic by getting 25 correct answers. You can view all your earned badges in the **"🏆 My Achievements"** tab on your Profile page. Each achievement also comes with a one-time coin reward!
+        """)
+    # --- END OF NEW SECTION ---
+        
+    st.subheader("📝 Quizzes & ⚔️ Duels")
+    with st.expander("How does the quiz system work?"):
+        st.markdown("""
+        The quiz is the core of MathFriend! 
+        - **Choose a Topic:** Select any topic from the dropdown list. The app may suggest a topic where you have the lowest accuracy.
+        - **Answer Questions:** Each quiz round has 10 questions.
+        - **Adaptive Difficulty:** The app tracks your "skill score" for each topic. If you score well, you'll start getting harder questions. If you struggle, the questions will get easier to help you build your foundation.
+        - **Scoring:** You earn coins for correct answers and build up a "streak." Getting a high streak gives you a special balloon celebration!
+        """)
+    with st.expander("What are the 'Lifelines' (Hint, 50/50, Skip)?"):
+        st.markdown("""
+        These are special items you can buy from the shop to help you during quizzes. You can see how many you own at the top of the quiz page.
+        - **💡 Hint:** Reveals a helpful hint for the current question.
+        - **🔀 50/50:** Removes two of the incorrect answer options, leaving you with a 50/50 chance.
+        - **↪️ Skip:** Allows you to skip a question entirely without it affecting your score or streak.
+        """)
+    with st.expander("How do I challenge a friend to a duel?"):
+        st.markdown("""
+        1. Go to the **⚔️ Math Game** page from the sidebar.
+        2. Make sure the **"Enable Live Lobby"** toggle at the top is ON. This makes you visible to others and allows you to receive challenges.
+        3. You will see a list of other "Online Players" on the right.
+        4. Click the **"Duel"** button next to the name of the person you want to challenge.
+        5. Choose a topic and send the challenge! The first person to answer each question correctly gets the point.
+        """)
+
+    st.subheader("👤 Profile, Shop & Gifting")
+    with st.expander("How does the coin and shop system work?"):
+        st.markdown("""
+        You earn coins by playing and performing well in the app! You can then spend these coins in the **Shop**, which is located in the **👤 Profile** tab.
+        - **Earning 🪙:** You get coins for correct quiz answers, winning duels, completing daily challenges, and unlocking achievements. Activating a "Double Coins Booster" from the shop will double all your earnings for one hour!
+        - **Spending 🪙:** You can buy consumable items (like Hints and Mystery Boxes) or permanent cosmetic items (like Borders and Name Effects) to customize your profile.
+        """)
+    with st.expander("How do I equip a border or name effect I bought?"):
+        st.markdown("""
+        1. Go to the **👤 Profile** page.
+        2. On the first tab, **"📝 My Profile"**, scroll down to the "🎨 Customize Your Look" section.
+        3. You will see sections for "Active Border" and "Active Name Effect".
+        4. Simply select the cosmetic item you want to use from the list of items you own, and it will be applied instantly.
+        """)
+    with st.expander("How do I send a gift to a friend?"):
+        st.markdown("""
+        There are two ways to gift:
+        1.  **Gifting an Item:** In the Shop, every item has a "Gift" button next to the "Buy" button. Click it, enter your friend's username, and the item will be sent directly to them (and the coins deducted from your balance).
+        2.  **Transferring Coins:** At the bottom of the Shop, there is a form to send coins directly to another user.
+        """)
+        
+    st.subheader("📚 Learning & Community")
+    with st.expander("What are Learning Resources?"):
+        st.markdown("""
+        The **📚 Learning Resources** page is your digital textbook. For each topic, you can find:
+        - **Teacher's Corner:** Special practice questions and assignments posted by the administrator.
+        - **Key Formulas & Notes:** A quick summary of the most important concepts.
+        - **Video Tutorials:** Links to helpful videos to explain the topic further.
+        - **Interactive Widgets:** Calculators and tools that let you experiment with concepts, like a Pythagoras calculator or a Venn diagram tool.
+        """)
+    with st.expander("What is the Blackboard for?"):
+        st.markdown("""
+        The **💬 Blackboard** is the community chat room. It's a place to ask for help on difficult problems, discuss topics with your classmates, or just say hello!
+        """)
+        
+    # --- NEW SECTION: ACCOUNT & SUPPORT ---
+    st.subheader("🔐 Account & Support")
+    with st.expander("How do I change my password?"):
+        st.markdown("""
+        You can change your password at any time from your Profile page.
+        1. Go to the **👤 Profile** page.
+        2. On the **"📝 My Profile"** tab, scroll to the bottom.
+        3. Fill out the "Change Password" form by providing your current password and a new one.
+        """)
+    with st.expander("What if I forget my password?"):
+        st.markdown("""
+        Currently, there is no automated password reset feature. Please contact your teacher or the app administrator, and they can reset your password for you from the Admin Panel.
+        """)
+    with st.expander("Who do I contact to report a bug or suggest a feature?"):
+        st.markdown("""
+        We would love to hear your feedback! Please report any issues or suggestions directly to your teacher or the app administrator.
+        """)
+    # --- END OF NEW SECTION ---
 
 def display_blackboard_page():
     st.header("칠판 Blackboard")
@@ -6703,7 +6802,7 @@ def show_main_app():
         
         page_options = [
             "📊 Dashboard", "📝 Quiz", "🏆 Leaderboard", "⚔️ Math Game", "💬 Blackboard", 
-            "👤 Profile", "📚 Learning Resources"
+            "👤 Profile", "📚 Learning Resources", "❓ Help Center"
         ]
         
         # Check the user's role from the database
@@ -6752,6 +6851,9 @@ def show_main_app():
             display_profile_page()
         elif selected_page == "📚 Learning Resources":
             display_learning_resources(topic_options)
+        # 2. ADD THIS NEW ELIF BLOCK (a good place is right before the Admin Panel check)
+        elif selected_page == "❓ Help Center":
+            display_help_center_page()
         # --- AND ADD THIS FINAL BLOCK RIGHT AFTER IT ---
         elif selected_page == "⚙️ Admin Panel":
             display_admin_panel()
@@ -6829,6 +6931,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
