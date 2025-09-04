@@ -6810,7 +6810,8 @@ def show_main_app():
         num_achievements = len(get_user_achievements(st.session_state.username))
 
         # Display the stats
-        st.caption(f"📝 Quizzes Taken: {total_quizzes} | 🏆 Achievements: {num_achievements}")
+        st.caption(f"📝 Quizzes Taken: {total_quizzes}")
+        st.caption(f"🏆 Achievements: {num_achievements}")
         # --- END: NEW DYNAMIC GREETING ---
         
         page_options = [
@@ -6944,6 +6945,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
