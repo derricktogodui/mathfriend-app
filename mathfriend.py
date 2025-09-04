@@ -5162,18 +5162,16 @@ def display_math_game_page(topic_options):
 def display_quiz_page(topic_options):
     st.header("🧠 Quiz Time!")
     QUIZ_LENGTH = 10
+    WASSCE_QUIZ_LENGTH = 20
 
-    if not st.session_state.quiz_active:
-        
-        # PASTE THIS NEW BLOCK in display_quiz_page
-
+    # --- Section 1: This block runs when NO quiz is active ---
     if not st.session_state.quiz_active:
         st.subheader("Choose Your Challenge")
         st.markdown("---")
 
         col1, col2 = st.columns(2)
 
-        # --- Column 1: Solo Practice ---
+        # Column 1: For regular, single-topic practice
         with col1:
             with st.container(border=True):
                 st.markdown("#### 🎯 Solo Practice")
@@ -5187,59 +5185,55 @@ def display_quiz_page(topic_options):
                 selected_topic = st.selectbox("Select a topic to begin:", topic_options)
                 
                 if st.button("Start Solo Quiz", type="secondary", use_container_width=True, key="start_quiz_main"):
-                    st.session_state.is_wassce_mode = False # Ensure WASSCE mode is off
+                    st.session_state.is_wassce_mode = False # Make sure WASSCE mode is OFF
                     st.session_state.quiz_active = True
                     st.session_state.quiz_topic = selected_topic
-                    
-                    # Reset all quiz variables
+                    # Reset all necessary variables for a new quiz
                     st.session_state.quiz_score = 0
                     st.session_state.questions_answered = 0
                     st.session_state.questions_attempted = 0
                     st.session_state.current_streak = 0
                     st.session_state.incorrect_questions = []
                     st.session_state.on_summary_page = False
-                    if 'current_q_data' in st.session_state: del st.session_state['current_q_data']
-                    if 'checked_personal_best' in st.session_state: del st.session_state['checked_personal_best']
-                    if 'previous_best_accuracy' in st.session_state: del st.session_state['previous_best_accuracy']
+                    keys_to_clear = ['current_q_data', 'result_saved', 'checked_personal_best', 'previous_best_accuracy', 'all_wassce_questions']
+                    for key in keys_to_clear:
+                        if key in st.session_state: del st.session_state[key]
                     st.rerun()
 
-        # --- Column 2: WASSCE Prep Mode ---
+        # Column 2: For the new WASSCE Prep Mode
         with col2:
             with st.container(border=True):
                 st.markdown("#### 🚀 WASSCE Prep")
                 st.caption("A 20-question, 30-minute mixed-topic challenge to test your exam readiness!")
-                st.image("https://i.imgur.com/e9w3Y7f.png", use_column_width=True) # A generic exam prep image
+                st.image("https://i.imgur.com/e9w3Y7f.png", use_column_width=True)
                 
                 if st.button("Start Exam Prep", key="start_wassce", type="primary", use_container_width=True):
-                    st.session_state.is_wassce_mode = True
+                    st.session_state.is_wassce_mode = True # Turn WASSCE mode ON
                     st.session_state.quiz_active = True
                     st.session_state.quiz_topic = "WASSCE Prep"
                     st.session_state.quiz_start_time = time.time()
-                    
-                    # Reset all quiz variables
+                    # Reset all necessary variables for a new quiz
                     st.session_state.quiz_score = 0
                     st.session_state.questions_answered = 0
                     st.session_state.questions_attempted = 0
                     st.session_state.current_streak = 0
                     st.session_state.incorrect_questions = []
+                    st.session_state.all_wassce_questions = [] # Important for the summary
                     st.session_state.on_summary_page = False
-                    if 'current_q_data' in st.session_state: del st.session_state['current_q_data']
-                    if 'checked_personal_best' in st.session_state: del st.session_state['checked_personal_best']
-                    if 'previous_best_accuracy' in st.session_state: del st.session_state['previous_best_accuracy']
+                    keys_to_clear = ['current_q_data', 'result_saved', 'checked_personal_best', 'previous_best_accuracy']
+                    for key in keys_to_clear:
+                        if key in st.session_state: del st.session_state[key]
                     st.rerun()
-        return
+        return # Important: Stop the function here so it doesn't try to run the active quiz logic
 
-    # --- ACTIVE QUIZ LOGIC ---
-    # --- START: REPLACE THIS SECTION OF 'display_quiz_page' ---
-    WASSCE_QUIZ_LENGTH = 20
-    WASSCE_TIME_LIMIT = 30 * 60  # 30 minutes in seconds
-
-    # Determine quiz length
+    # --- Section 2: This block runs when a quiz IS active ---
     quiz_length = WASSCE_QUIZ_LENGTH if st.session_state.is_wassce_mode else QUIZ_LENGTH
     
     if st.session_state.get('on_summary_page', False) or st.session_state.questions_answered >= quiz_length:
-        display_quiz_summary(); return
+        display_quiz_summary()
+        return
 
+    # --- Display Scoreboard and Lifelines ---
     user_profile = get_user_profile(st.session_state.username) or {}
     hint_tokens = user_profile.get('hint_tokens', 0)
     fifty_fifty_tokens = user_profile.get('fifty_fifty_tokens', 0)
@@ -5257,23 +5251,22 @@ def display_quiz_page(topic_options):
     st.progress(st.session_state.questions_answered / quiz_length, text="Round Progress")
     st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
     
+    # --- Generate and Display Question ---
     if 'current_q_data' not in st.session_state:
-        # --- Logic to get a random topic in WASSCE mode ---
         if st.session_state.is_wassce_mode:
-            # Exclude 'Advanced Combo' from random selection
             available_topics = [t for t in topic_options if t != "Advanced Combo"]
             random_topic = random.choice(available_topics)
-            st.session_state.current_q_data = get_adaptive_question(random_topic, st.session_state.username)
-            st.session_state.current_q_data['topic'] = random_topic # Store the topic for the summary
+            question_data = get_adaptive_question(random_topic, st.session_state.username)
+            question_data['topic'] = random_topic # Store the topic for the summary
+            st.session_state.current_q_data = question_data
+            if 'all_wassce_questions' not in st.session_state: st.session_state.all_wassce_questions = []
+            st.session_state.all_wassce_questions.append(question_data)
         else:
             st.session_state.current_q_data = get_adaptive_question(st.session_state.quiz_topic, st.session_state.username)
-    # --- END: REPLACE THIS SECTION OF 'display_quiz_page' ---
-    
-    if 'current_q_data' not in st.session_state:
-        st.session_state.current_q_data = get_adaptive_question(st.session_state.quiz_topic, st.session_state.username)
     
     q_data = st.session_state.current_q_data
-    st.subheader(f"Topic: {st.session_state.quiz_topic}")
+    display_topic = q_data.get('topic', st.session_state.quiz_topic)
+    st.subheader(f"Topic: {display_topic}")
 
     if not st.session_state.get('answer_submitted', False):
         part_data = q_data.get("parts", [{}])[st.session_state.get('current_part_index', 0)] if q_data.get("is_multipart") else q_data
@@ -5283,8 +5276,8 @@ def display_quiz_page(topic_options):
         st.markdown(part_data["question"], unsafe_allow_html=True)
         
         with st.expander("🤔 Need Help? (Click to see lifelines)"):
-            help_cols = st.columns(3) # Changed to 3 columns
-            with help_cols[0]: # Hint Button
+            help_cols = st.columns(3)
+            with help_cols[0]:
                 if st.session_state.get('hint_revealed', False):
                     st.info(part_data["hint"])
                 else:
@@ -5292,7 +5285,7 @@ def display_quiz_page(topic_options):
                         if use_hint_token(st.session_state.username):
                             st.session_state.hint_revealed = True
                             st.rerun()
-            with help_cols[1]: # 50/50 Button
+            with help_cols[1]:
                 if st.button(f"🔀 50/50 ({fifty_fifty_tokens})", disabled=(fifty_fifty_tokens <= 0 or st.session_state.get('fifty_fifty_used', False)), key="use_5050", use_container_width=True):
                     if use_fifty_fifty_token(st.session_state.username):
                         st.session_state.fifty_fifty_used = True
@@ -5306,33 +5299,24 @@ def display_quiz_page(topic_options):
                         else:
                             st.session_state.current_q_data['options'] = new_options
                         st.rerun()
-            # --- NEW --- Skip Question Button
             with help_cols[2]:
                 if st.button(f"↪️ Skip ({skip_tokens})", disabled=(skip_tokens <= 0), key="use_skip", use_container_width=True):
                     if use_skip_question_token(st.session_state.username):
                         st.toast("Question skipped!", icon="↪️")
-                        st.session_state.questions_answered += 1 # Advance progress
-                        # NOTE: We DO NOT increment questions_attempted
-                        
-                        # Clean up and rerun for next question
+                        st.session_state.questions_answered += 1
                         keys_to_reset = ['hint_revealed', 'fifty_fifty_used', 'current_q_data', 'user_choice', 'answer_submitted']
                         for key in keys_to_reset:
                             if key in st.session_state: del st.session_state[key]
                         st.rerun()
-            # --- END NEW ---
 
         with st.form(key=f"quiz_form_{st.session_state.questions_answered}"):
-            # (The rest of the form logic is unchanged)
             user_choice = st.radio("Select your answer:", part_data["options"], index=None)
             if st.form_submit_button("Submit Answer", type="primary"):
                 if user_choice is not None:
                     st.session_state.user_choice = user_choice
                     st.session_state.answer_submitted = True
-                    st.session_state.questions_attempted += 1 # Always increment attempt on submit
-                    
-                    actual_answer = part_data["answer"]
-                    is_correct = str(user_choice) == str(actual_answer)
-                    
+                    st.session_state.questions_attempted += 1
+                    is_correct = str(user_choice) == str(part_data["answer"])
                     if is_correct:
                         st.session_state.quiz_score += 1
                         st.session_state.current_streak += 1
@@ -5340,17 +5324,18 @@ def display_quiz_page(topic_options):
                         st.session_state.current_streak = 0
                         st.session_state.incorrect_questions.append(q_data)
                     st.rerun()
-                else: st.warning("Please select an answer before submitting.")
-
-    else: # Explanation Phase
-        # This part of the logic remains unchanged
+                else:
+                    st.warning("Please select an answer before submitting.")
+    else:
         user_choice = st.session_state.user_choice
         part_data = q_data.get("parts", [{}])[st.session_state.get('current_part_index', 0)] if q_data.get("is_multipart") else q_data
-        actual_answer, explanation = part_data["answer"], part_data.get("explanation", "")
-        question_text = q_data.get("stem", "") + "\n\n" + part_data["question"] if q_data.get("is_multipart") else part_data["question"]
+        actual_answer = part_data["answer"]
+        explanation = part_data.get("explanation", "")
+        question_text = (q_data.get("stem", "") + "\n\n" + part_data["question"]) if q_data.get("is_multipart") else part_data["question"]
         is_correct = str(user_choice) == str(actual_answer)
+
         st.markdown(question_text, unsafe_allow_html=True)
-        st.write("Your answer:");
+        st.write("Your answer:")
         if is_correct:
             st.success(f"**{user_choice}** (Correct!)")
             if st.session_state.current_streak in [3, 5] or (st.session_state.current_streak > 5 and st.session_state.current_streak % 5 == 0):
@@ -5358,7 +5343,9 @@ def display_quiz_page(topic_options):
         else:
             st.error(f"**{user_choice}** (Incorrect)")
             st.info(f"The correct answer was: **{actual_answer}**")
-        with st.expander("Show Explanation", expanded=True): st.markdown(explanation, unsafe_allow_html=True)
+        
+        with st.expander("Show Explanation", expanded=True):
+            st.markdown(explanation, unsafe_allow_html=True)
 
         if st.button("Next Question", type="primary", use_container_width=True):
             st.session_state.questions_answered += 1
@@ -7052,6 +7039,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
