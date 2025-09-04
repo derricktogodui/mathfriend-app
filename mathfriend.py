@@ -6820,6 +6820,35 @@ def show_main_app():
             if 'challenge_completed_toast' in st.session_state: del st.session_state.challenge_completed_toast
             if 'achievement_unlocked_toast' in st.session_state: del st.session_state.achievement_unlocked_toast
             st.rerun()
+
+        st.write("---")
+        st.subheader("Settings")
+        
+        # Get the current theme from session_state, default to "light"
+        current_theme = st.session_state.get("theme", "light")
+        
+        # Determine the state of the toggle based on the current theme
+        is_dark_mode = (current_theme == "dark")
+        
+        if st.toggle("🌙 Dark Mode", value=is_dark_mode, key="theme_toggle"):
+            st.session_state.theme = "dark"
+        else:
+            st.session_state.theme = "light"
+
+        # JavaScript to apply the theme change
+        set_theme_js = f"""
+        <script>
+            function setTheme(theme) {{
+                const streamlitDoc = window.parent.document;
+                if (streamlitDoc) {{
+                    const htmlElement = streamlitDoc.querySelector('html');
+                    htmlElement.setAttribute('data-theme', theme);
+                }}
+            }}
+            setTheme('{st.session_state.theme}');
+        </script>
+        """
+        st.components.v1.html(set_theme_js, height=0)
             
     st.markdown('<div class="main-content">', unsafe_allow_html=True)
     
@@ -6931,6 +6960,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
