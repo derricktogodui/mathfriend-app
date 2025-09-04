@@ -67,7 +67,7 @@ def initialize_session_state():
         "questions_attempted": 0, # NEW VARIABLE
         "current_streak": 0,
         "incorrect_questions": [],
-        "on_summary_page": False
+        "on_summary_page": False,
         # --- START: ADD THESE TWO NEW LINES ---
         "is_wassce_mode": False,
         "quiz_start_time": None
@@ -7031,6 +7031,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
