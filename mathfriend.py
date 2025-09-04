@@ -5164,52 +5164,69 @@ def display_quiz_page(topic_options):
     QUIZ_LENGTH = 10
 
     if not st.session_state.quiz_active:
-        # This setup part is unchanged
-        st.subheader("Choose Your Challenge")
-        # --- START: ADD THIS ENTIRE NEW BLOCK ---
-        with st.container(border=True):
-            st.markdown("### 🚀 Start WASSCE Prep Mode")
-            st.caption("A 20-question, mixed-topic challenge to test your exam readiness!")
-            if st.button("Start Now", key="start_wassce", type="primary", use_container_width=True):
-                # Set up the WASSCE session state
-                st.session_state.is_wassce_mode = True
-                st.session_state.quiz_active = True
-                st.session_state.quiz_topic = "WASSCE Prep" # Set a special topic name
-                st.session_state.quiz_start_time = time.time()
-                
-                # Reset all quiz variables
-                st.session_state.quiz_score = 0
-                st.session_state.questions_answered = 0
-                st.session_state.questions_attempted = 0
-                st.session_state.current_streak = 0
-                st.session_state.incorrect_questions = []
-                st.session_state.on_summary_page = False
-                if 'current_q_data' in st.session_state: del st.session_state['current_q_data']
-                st.rerun()
         
-        st.markdown("<h4 style='text-align: center; color: grey;'>OR</h4>", unsafe_allow_html=True)
-        # --- END: ADD THIS ENTIRE NEW BLOCK ---
-        topic_perf_df = get_topic_performance(st.session_state.username)
-        if not topic_perf_df.empty and len(topic_perf_df) > 1 and topic_perf_df['Accuracy'].iloc[-1] < 100:
-            weakest_topic = topic_perf_df.index[-1]
-            st.info(f"💡 **Practice Suggestion:** Your lowest accuracy is in **{weakest_topic}**. Why not give it a try?")
-        selected_topic = st.selectbox("Select a topic to begin:", topic_options)
-        st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
+        # PASTE THIS NEW BLOCK in display_quiz_page
+
+    if not st.session_state.quiz_active:
+        st.subheader("Choose Your Challenge")
+        st.markdown("---")
+
         col1, col2 = st.columns(2)
+
+        # --- Column 1: Solo Practice ---
         with col1:
-            best_score, attempts = get_user_stats_for_topic(st.session_state.username, selected_topic)
-            st.metric("Your Best Score on this Topic", best_score)
-            st.metric("Quizzes Taken on this Topic", attempts)
+            with st.container(border=True):
+                st.markdown("#### 🎯 Solo Practice")
+                st.caption("Focus on a single topic to improve your skills.")
+                
+                topic_perf_df = get_topic_performance(st.session_state.username)
+                if not topic_perf_df.empty and len(topic_perf_df) > 1 and topic_perf_df['Accuracy'].iloc[-1] < 100:
+                    weakest_topic = topic_perf_df.index[-1]
+                    st.info(f"**Practice Suggestion:** Your lowest accuracy is in **{weakest_topic}**.")
+                
+                selected_topic = st.selectbox("Select a topic to begin:", topic_options)
+                
+                if st.button("Start Solo Quiz", type="secondary", use_container_width=True, key="start_quiz_main"):
+                    st.session_state.is_wassce_mode = False # Ensure WASSCE mode is off
+                    st.session_state.quiz_active = True
+                    st.session_state.quiz_topic = selected_topic
+                    
+                    # Reset all quiz variables
+                    st.session_state.quiz_score = 0
+                    st.session_state.questions_answered = 0
+                    st.session_state.questions_attempted = 0
+                    st.session_state.current_streak = 0
+                    st.session_state.incorrect_questions = []
+                    st.session_state.on_summary_page = False
+                    if 'current_q_data' in st.session_state: del st.session_state['current_q_data']
+                    if 'checked_personal_best' in st.session_state: del st.session_state['checked_personal_best']
+                    if 'previous_best_accuracy' in st.session_state: del st.session_state['previous_best_accuracy']
+                    st.rerun()
+
+        # --- Column 2: WASSCE Prep Mode ---
         with col2:
-            st.write("") 
-            st.write("")
-            if st.button("Start Quiz", type="primary", use_container_width=True, key="start_quiz_main"):
-                st.session_state.quiz_active = True; st.session_state.quiz_topic = selected_topic
-                st.session_state.on_summary_page = False; st.session_state.quiz_score = 0
-                st.session_state.questions_answered = 0; st.session_state.questions_attempted = 0
-                st.session_state.current_streak = 0; st.session_state.incorrect_questions = []
-                if 'current_q_data' in st.session_state: del st.session_state['current_q_data']
-                st.rerun()
+            with st.container(border=True):
+                st.markdown("#### 🚀 WASSCE Prep")
+                st.caption("A 20-question, 30-minute mixed-topic challenge to test your exam readiness!")
+                st.image("https://i.imgur.com/e9w3Y7f.png", use_column_width=True) # A generic exam prep image
+                
+                if st.button("Start Exam Prep", key="start_wassce", type="primary", use_container_width=True):
+                    st.session_state.is_wassce_mode = True
+                    st.session_state.quiz_active = True
+                    st.session_state.quiz_topic = "WASSCE Prep"
+                    st.session_state.quiz_start_time = time.time()
+                    
+                    # Reset all quiz variables
+                    st.session_state.quiz_score = 0
+                    st.session_state.questions_answered = 0
+                    st.session_state.questions_attempted = 0
+                    st.session_state.current_streak = 0
+                    st.session_state.incorrect_questions = []
+                    st.session_state.on_summary_page = False
+                    if 'current_q_data' in st.session_state: del st.session_state['current_q_data']
+                    if 'checked_personal_best' in st.session_state: del st.session_state['checked_personal_best']
+                    if 'previous_best_accuracy' in st.session_state: del st.session_state['previous_best_accuracy']
+                    st.rerun()
         return
 
     # --- ACTIVE QUIZ LOGIC ---
@@ -5222,18 +5239,6 @@ def display_quiz_page(topic_options):
     
     if st.session_state.get('on_summary_page', False) or st.session_state.questions_answered >= quiz_length:
         display_quiz_summary(); return
-
-    # --- Timer Logic for WASSCE Mode ---
-    if st.session_state.is_wassce_mode:
-        elapsed_time = time.time() - st.session_state.quiz_start_time
-        time_left = WASSCE_TIME_LIMIT - elapsed_time
-        
-        if time_left <= 0:
-            st.warning("Time's up!")
-            st.session_state.on_summary_page = True
-            st.rerun()
-            
-        st.sidebar.metric("⏳ Time Remaining", format_time(time_left))
 
     user_profile = get_user_profile(st.session_state.username) or {}
     hint_tokens = user_profile.get('hint_tokens', 0)
@@ -6920,6 +6925,22 @@ def show_main_app():
             if 'challenge_completed_toast' in st.session_state: del st.session_state.challenge_completed_toast
             if 'achievement_unlocked_toast' in st.session_state: del st.session_state.achievement_unlocked_toast
             st.rerun()
+        # --- START: NEW WASSCE TIMER LOCATION ---
+        if st.session_state.get("is_wassce_mode") and st.session_state.get("quiz_active") and not st.session_state.get("on_summary_page"):
+            WASSCE_TIME_LIMIT = 30 * 60  # 30 minutes
+            if st.session_state.quiz_start_time:
+                elapsed_time = time.time() - st.session_state.quiz_start_time
+                time_left = WASSCE_TIME_LIMIT - elapsed_time
+                
+                if time_left > 0:
+                    st.metric("⏳ Time Remaining", format_time(time_left))
+                    # This auto-refreshes the page every second to update the timer
+                    st_autorefresh(interval=1000, limit=WASSCE_TIME_LIMIT, key="timer_refresh")
+                else:
+                    # If time runs out, go to the summary page
+                    st.session_state.on_summary_page = True
+                    st.rerun()
+        # --- END: NEW WASSCE TIMER LOCATION ---
             
     st.markdown('<div class="main-content">', unsafe_allow_html=True)
     
@@ -7031,6 +7052,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
