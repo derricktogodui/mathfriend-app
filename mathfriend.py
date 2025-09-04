@@ -5205,7 +5205,6 @@ def display_quiz_page(topic_options):
             with st.container(border=True):
                 st.markdown("#### 🚀 WASSCE Prep")
                 st.caption("A 20-question, 30-minute mixed-topic challenge to test your exam readiness!")
-                st.image("https://i.imgur.com/e9w3Y7f.png", use_column_width=True)
                 
                 if st.button("Start Exam Prep", key="start_wassce", type="primary", use_container_width=True):
                     st.session_state.is_wassce_mode = True # Turn WASSCE mode ON
@@ -7039,6 +7038,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
