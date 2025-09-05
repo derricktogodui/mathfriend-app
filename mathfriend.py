@@ -22,7 +22,7 @@ from dateutil import parser
 # --- START: ADD THIS NEW BLOCK ---
 # --- Global Game Constants ---
 QUIZ_LENGTH = 10
-WASSCE_QUIZ_LENGTH = 20
+WASSCE_QUIZ_LENGTH = 40
 # --- END: ADD THIS NEW BLOCK ---
 
 # --- App Configuration ---
@@ -7063,6 +7063,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
