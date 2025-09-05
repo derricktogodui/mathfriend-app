@@ -2256,7 +2256,7 @@ def _generate_percentages_question(difficulty="Medium"):
         question = f"Express {start_form} as {end_form}."
         answer = str(ans_val)
         hint = "To convert from a fraction/decimal to a percentage, multiply by 100. To convert from a percentage to a decimal, divide by 100."
-        explanation = f"The conversion from {start_form} to {end_form} results in {answer}."
+        explanation = f"The conversion from {start_form} to {end_form} results in {answer}$."
         options = {answer, f"{decimal*10}%", f"{percent/10}"}
 
     elif q_type == 'percent_of':
@@ -2292,7 +2292,7 @@ def _generate_percentages_question(difficulty="Medium"):
         ans_val = (profit / cost) * 100
         answer = f"{ans_val:.1f}%"
         hint = "Profit Percent = (Profit / Cost Price) * 100%."
-        explanation = f"Profit = {selling} - {cost} = {profit}.\nProfit Percent = (\\frac{{{profit}}}{{{cost}}}) \\times 100 = {answer}."
+        explanation = f"Profit = ${selling} - {cost} = {profit}$.\n\nProfit Percent = $(\\frac{{{profit}}}{{{cost}}}) \\times 100 = {answer}$."
         options = {answer, f"{(profit/selling)*100:.1f}%", f"{ans_val:.0f}%"}
 
     # --- Hard Questions ---
@@ -2316,7 +2316,7 @@ def _generate_percentages_question(difficulty="Medium"):
         question = f"A worker's salary of GHS {initial_val} was increased by {increase}%, and later decreased by {decrease}%. What is the net percentage change in their salary?"
         answer = f"{net_change:.2f}%"
         hint = "Calculate the new salary after the first change, then apply the second change to that new amount. Do not just add or subtract the percentages."
-        explanation = f"1. After {increase}% increase: GHS {initial_val} * 1.{increase:02d} = GHS {val_after_increase}.\n2. After {decrease}% decrease: GHS {val_after_increase} * (1 - 0.0{decrease}) = GHS {final_val:.2f}.\n3. Net Change = {final_val - initial_val:.2f}.\n4. Net % Change = (\\frac{{{final_val-initial_val:.2f}}}{{{initial_val}}}) \\times 100 = {answer}."
+        explanation = f"1. After {increase}% increase: GHS {initial_val} * 1.{increase:02d} = GHS {val_after_increase}.\n2. After {decrease}% decrease: GHS {val_after_increase} * (1 - 0.0{decrease}) = GHS {final_val:.2f}.\n3. Net Change = {final_val - initial_val:.2f}.\n4. Net % Change = (\\frac{{{final_val-initial_val:.2f}}}{{{initial_val}}}) \\times 100 = {answer}$."
         options = {answer, f"{increase-decrease}%", f"{increase-decrease:.2f}%"}
 
     elif q_type == 'percent_error':
@@ -2327,7 +2327,7 @@ def _generate_percentages_question(difficulty="Medium"):
         ans_val = (error / actual) * 100
         answer = f"{ans_val:.2f}%"
         hint = "Percentage Error = (Error / Actual Value) * 100%."
-        explanation = f"1. Error = Measured - Actual = {measured} - {actual} = {error}.\n2. Percentage Error = (\\frac{{{error}}}{{{actual}}}) \\times 100\\% = {answer}."
+        explanation = f"1. Error = Measured - Actual = {measured} - {actual} = {error}.\n2. Percentage Error = (\\frac{{{error}}}{{{actual}}}) \\times 100\\% = {answer}$."
         options = {answer, f"{(error/measured)*100:.2f}%", f"{ans_val:.1f}%"}
 
     return {"question": question, "options": _finalize_options(options), "answer": answer, "hint": hint, "explanation": explanation, "difficulty": difficulty}
@@ -7067,6 +7067,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
