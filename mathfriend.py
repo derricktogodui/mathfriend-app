@@ -2282,7 +2282,7 @@ def _generate_percentages_question(difficulty="Medium"):
         ans_val = ((new - old) / old) * 100
         answer = f"{ans_val:.1f}%"
         hint = "Use the formula: (New Value - Old Value) / Old Value * 100%."
-        explanation = f"Change = {new} - {old} = {new-old}.\nPercent Change = (\\frac{{{new-old}}}{{{old}}}) \\times 100 = {answer}."
+        explanation = f"Change = ${new} - {old} = {new-old}$.\n\nPercent Change = $(\\frac{{{new-old}}}{{{old}}}) \\times 100 = {answer}$."
         options = {answer, f"{((new-old)/new)*100:.1f}%", f"{ans_val:.0f}%"}
 
     elif q_type == 'profit_loss':
@@ -7067,6 +7067,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
