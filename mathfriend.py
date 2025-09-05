@@ -852,8 +852,12 @@ def save_quiz_result(username, topic, score, questions_answered, coins_earned, d
                      {"u": username, "t": topic, "s": score, "qa": questions_answered})
         conn.commit()
     
-    # Update the student's skill level for the adaptive system
-    update_skill_score(username, topic, score, questions_answered)
+    # --- START: THIS IS THE MODIFIED LOGIC ---
+    # We only update the specific topic skill score if the quiz was NOT a WASSCE Prep session.
+    # This keeps the adaptive learning pure to each topic.
+    if topic != "WASSCE Prep":
+        update_skill_score(username, topic, score, questions_answered)
+    # --- END: MODIFIED LOGIC ---
     
     # Update the student's coin balance
     if coins_earned > 0:
@@ -5479,6 +5483,27 @@ def display_quiz_summary():
     total_questions = st.session_state.questions_attempted
     accuracy = (final_score / total_questions * 100) if total_questions > 0 else 0
 
+    # --- WASSCE MODE SUMMARY (NOW WITH SAVING AND COINS) ---
+    if st.session_state.is_wassce_mode:
+        # --- START: NEW LOGIC FOR WASSCE SAVING & REWARDS ---
+        coins_earned = 0
+        description = ""
+        if total_questions > 0:
+            coins_earned = final_score * 5  # 5 coins per correct answer
+            description = "Completed WASSCE Prep Quiz"
+            if final_score == WASSCE_QUIZ_LENGTH:
+                coins_earned += 50  # Larger bonus for a perfect 40-question run
+                description += " (Perfect Score Bonus!)"
+
+        if is_double_coins_active(st.session_state.username):
+            st.success(f"🚀 Double Coins booster was active! Your earnings are doubled: {coins_earned} -> {coins_earned * 2}", icon="🎉")
+            coins_earned *= 2
+
+        # Save the result once per session
+        if total_questions > 0 and 'result_saved' not in st.session_state:
+            save_quiz_result(st.session_state.username, "WASSCE Prep", final_score, total_questions, coins_earned, description)
+            st.session_state.result_saved = True
+        # --- END: NEW LOGIC FOR WASSCE SAVING & REWARDS ---
     # --- WASSCE MODE SUMMARY ---
     if st.session_state.is_wassce_mode:
         col1, col2 = st.columns(2)
@@ -7151,6 +7176,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
