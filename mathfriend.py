@@ -235,6 +235,81 @@ def hash_password(password):
 def check_password(hashed_password, user_password):
     return hashed_password == hash_password(user_password)
 
+# --- START: ADD THIS NEW FUNCTION ---
+def load_quiz_state(username):
+    """Loads an active quiz session from the database if it's less than 8 hours old."""
+    with engine.connect() as conn:
+        # This query fetches the session data only if it was updated in the last 8 hours.
+        query = text("""
+            SELECT session_data FROM public.quiz_sessions
+            WHERE username = :username AND last_updated > NOW() - INTERVAL '8 hours'
+        """)
+        result = conn.execute(query, {"username": username}).scalar_one_or_none()
+
+        if result:
+            try:
+                # The data from the database is loaded into the session state.
+                # The .update() method adds all key-value pairs from the loaded data.
+                loaded_data = json.loads(result) if isinstance(result, str) else result
+                st.session_state.update(loaded_data)
+                return True  # Indicates a session was successfully loaded.
+            except (json.JSONDecodeError, TypeError):
+                # If data is corrupted for any reason, we should not load it.
+                return False
+    return False # No recent session was found.
+# --- END: ADD THIS NEW FUNCTION ---
+
+# --- START: ADD THIS NEW FUNCTION ---
+def save_quiz_state(username):
+    """Gathers the current quiz state and saves it to the database as a JSON object."""
+    # This dictionary captures a complete snapshot of the ongoing quiz.
+    state_to_save = {
+        "quiz_active": st.session_state.get("quiz_active", False),
+        "quiz_topic": st.session_state.get("quiz_topic"),
+        "quiz_score": st.session_state.get("quiz_score", 0),
+        "questions_answered": st.session_state.get("questions_answered", 0),
+        "questions_attempted": st.session_state.get("questions_attempted", 0),
+        "current_streak": st.session_state.get("current_streak", 0),
+        "incorrect_questions": st.session_state.get("incorrect_questions", []),
+        "is_wassce_mode": st.session_state.get("is_wassce_mode", False),
+        "current_q_data": st.session_state.get("current_q_data"),
+        "all_wassce_questions": st.session_state.get("all_wassce_questions", []),
+        "hint_revealed": st.session_state.get("hint_revealed", False),
+        "fifty_fifty_used": st.session_state.get("fifty_fifty_used", False),
+        "answer_submitted": st.session_state.get("answer_submitted", False),
+        "user_choice": st.session_state.get("user_choice")
+    }
+
+    # Convert the dictionary into a JSON string to be stored in the database.
+    session_data_json = json.dumps(state_to_save)
+
+    # Use an "UPSERT" command: It inserts a new row if one doesn't exist for the user,
+    # or updates the existing one if it does. This is the safest way to save.
+    with engine.connect() as conn:
+        query = text("""
+            INSERT INTO public.quiz_sessions (username, session_data, last_updated)
+            VALUES (:username, :session_data::jsonb, NOW())
+            ON CONFLICT (username) DO UPDATE SET
+                session_data = EXCLUDED.session_data,
+                last_updated = NOW();
+        """)
+        conn.execute(query, {"username": username, "session_data": session_data_json})
+        conn.commit()
+# --- START: ADD THIS NEW FUNCTION ---
+def clear_quiz_state(username):
+    """Deletes a user's saved quiz session from the database upon completion."""
+    try:
+        with engine.connect() as conn:
+            query = text("DELETE FROM public.quiz_sessions WHERE username = :username")
+            conn.execute(query, {"username": username})
+            conn.commit()
+    except Exception as e:
+        # Log the error but don't crash the app if the clear fails.
+        print(f"Error clearing quiz state for {username}: {e}")
+# --- END: ADD THIS NEW FUNCTION ---
+
+# --- END: ADD THIS NEW FUNCTION ---
+
 # Replace your existing login_user function with this one
 def login_user(username, password):
     with engine.connect() as conn:
@@ -247,6 +322,11 @@ def login_user(username, password):
             return False
 
         if record and check_password(record[0], password):
+            # --- START: THIS IS THE NEW CODE BLOCK TO ADD INSIDE THE FUNCTION ---
+            # After a successful login, we attempt to load a previous quiz session.
+            if load_quiz_state(username):
+                st.toast("🚀 Your previous quiz session has been restored!", icon="✅")
+            # --- END: NEW CODE BLOCK TO ADD INSIDE THE FUNCTION ---
             profile = get_user_profile(username)
             display_name = profile.get('full_name') if profile and profile.get('full_name') else username
             chat_client.upsert_user({"id": username, "name": display_name})
@@ -5290,6 +5370,8 @@ def display_quiz_page(topic_options):
             st.session_state.all_wassce_questions.append(question_data)
         else:
             st.session_state.current_q_data = get_adaptive_question(st.session_state.quiz_topic, st.session_state.username)
+        # --- ADD THIS NEW LINE ---
+        save_quiz_state(st.session_state.username)
     
     q_data = st.session_state.current_q_data
     display_topic = q_data.get('topic', st.session_state.quiz_topic)
@@ -5387,6 +5469,12 @@ def display_quiz_page(topic_options):
 
 def display_quiz_summary():
     st.header("🎉 Round Complete! 🎉")
+    # --- START: NEW CODE TO ADD ---
+    # This is the first action we take on the summary page.
+    # It clears the saved session from the database, marking the quiz as officially done.
+    clear_quiz_state(st.session_state.username)
+    # --- END: NEW CODE TO ADD ---
+
     final_score = st.session_state.quiz_score
     total_questions = st.session_state.questions_attempted
     accuracy = (final_score / total_questions * 100) if total_questions > 0 else 0
@@ -7063,6 +7151,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
