@@ -5327,9 +5327,16 @@ def display_quiz_page(topic_options):
                 st.markdown("#### 🎯 Solo Practice")
                 st.caption("Focus on a single topic to improve your skills.")
                 topic_perf_df = get_topic_performance(st.session_state.username)
-                if not topic_perf_df.empty and len(topic_perf_df) > 1 and topic_perf_df['Accuracy'].iloc[-1] < 100:
-                    weakest_topic = topic_perf_df.index[-1]
+                
+                # --- START: THIS IS THE FIX ---
+                # Create a new DataFrame for suggestions that excludes 'WASSCE Prep'
+                suggestion_df = topic_perf_df[topic_perf_df.index != 'WASSCE Prep']
+                
+                if not suggestion_df.empty and len(suggestion_df) > 1 and suggestion_df['Accuracy'].iloc[-1] < 100:
+                    # Get the weakest topic from the filtered list
+                    weakest_topic = suggestion_df.index[-1]
                     st.info(f"**Practice Suggestion:** Your lowest accuracy is in **{weakest_topic}**.")
+                # --- END: THIS IS THE FIX ---
                 selected_topic = st.selectbox("Select a topic to begin:", topic_options)
                 if st.button("Start Solo Quiz", type="secondary", use_container_width=True, key="start_quiz_main"):
                     st.session_state.is_wassce_mode = False
@@ -7206,6 +7213,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
