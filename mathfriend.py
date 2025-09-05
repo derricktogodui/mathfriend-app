@@ -4862,7 +4862,16 @@ def load_css():
             background-image: url("https://github.com/derricktogodui/mathfriend-app/releases/download/v1.0-assets/ChatGPT.Image.Sep.4.2025.08_19_14.PM.png");
             background-size: cover;
             background-position: center;
+            filter: brightness(0.6) blur(2px); /* darkens + softens background */
         }
+        stApp::before {
+            content: "";
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0, 0, 0, 0.4); /* adjust opacity: 0.2 = subtle, 0.5 = darker */
+            z-index: -1; /* keeps overlay behind everything */
+        }
+
         .login-container { 
             /* Glassmorphism Effect */
             background: rgba(255, 255, 255, 0.15);
@@ -7262,6 +7271,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
