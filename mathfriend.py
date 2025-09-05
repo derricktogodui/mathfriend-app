@@ -2087,6 +2087,33 @@ def _generate_user_pill_html(username):
     
     return f'<div style="{pill_style}"><div style="{avatar_style}">{initial}</div>{username}</div>'
 
+
+# Paste this new function after _generate_user_pill_html
+
+def _poly_to_str(coeffs):
+    """Converts a list of polynomial coefficients into a LaTeX string."""
+    poly_parts = []
+    for i, c in enumerate(coeffs):
+        if c == 0: continue
+        power = len(coeffs) - 1 - i
+        
+        # Handle coefficient part
+        if power > 0 and abs(c) == 1:
+            coeff_str = "-" if c == -1 else ""
+        else:
+            coeff_str = str(c) if i == 0 else f"+ {c}" if c > 0 else f"- {abs(c)}"
+        
+        # Handle variable part
+        if power == 0:
+            var_part = ""
+        elif power == 1:
+            var_part = "x"
+        else:
+            var_part = f"x^{{{power}}}"
+            
+        poly_parts.append(f"{coeff_str}{var_part}")
+        
+    return " ".join(poly_parts).lstrip('+ ').replace("+ -", "- ")
 # --- FULLY IMPLEMENTED QUESTION GENERATION ENGINE (12 TOPICS) ---
 
 def _generate_sets_question(difficulty="Medium"):
@@ -7036,6 +7063,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
