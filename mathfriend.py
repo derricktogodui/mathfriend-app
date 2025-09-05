@@ -5398,7 +5398,7 @@ def display_quiz_summary():
         col2.metric("Accuracy", f"{accuracy:.1f}%")
         
         st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
-        st.subheader("Performance Breakdown by Topic")
+        st.subheader("Performance Breakdown & Explanation")
         
         if total_questions > 0:
             if not st.session_state.incorrect_questions:
@@ -5413,7 +5413,7 @@ def display_quiz_summary():
                     topic_performance[topic]['total'] += 1
                     if q not in st.session_state.incorrect_questions:
                         topic_performance[topic]['correct'] += 1
-                st.write("Here's how you performed in each topic during this session:")
+                st.write("Here's how you performed in WASSCE prep during this session:")
         else:
             st.info("You did not attempt any questions in this session.")
         # --- THIS IS THE FIX: ADDING THE INCORRECT QUESTION REVIEW ---
@@ -7063,6 +7063,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
