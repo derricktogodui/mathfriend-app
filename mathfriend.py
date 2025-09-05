@@ -4904,19 +4904,28 @@ def display_dashboard(username):
         st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
         st.subheader("Topic Performance")
         topic_perf_df = get_topic_performance(username)
-        if not topic_perf_df.empty:
+        
+        # --- START: THIS IS THE FIX ---
+        # Create a new, filtered DataFrame for display that excludes 'WASSCE Prep'
+        display_df = topic_perf_df[topic_perf_df.index != 'WASSCE Prep']
+        
+        if not display_df.empty:
             col1, col2 = st.columns(2)
             with col1:
-                best_topic = topic_perf_df.index[0]; best_acc = topic_perf_df['Accuracy'].iloc[0]
+                # Use the filtered display_df
+                best_topic = display_df.index[0]; best_acc = display_df['Accuracy'].iloc[0]
                 st.success(f"💪 **Strongest Topic:** {best_topic} ({best_acc:.1f}%)")
             with col2:
-                if len(topic_perf_df) > 1:
-                    worst_topic = topic_perf_df.index[-1]; worst_acc = topic_perf_df['Accuracy'].iloc[-1]
+                # Use the filtered display_df
+                if len(display_df) > 1:
+                    worst_topic = display_df.index[-1]; worst_acc = display_df['Accuracy'].iloc[-1]
                     st.warning(f"🤔 **Area for Practice:** {worst_topic} ({worst_acc:.1f}%)")
+            # Use the filtered display_df for the chart
             fig = px.bar(
-                topic_perf_df, y='Accuracy', title="Average Accuracy by Topic",
+                display_df, y='Accuracy', title="Average Accuracy by Topic",
                 labels={'Accuracy': 'Accuracy (%)', 'Topic': 'Topic'}, text_auto='.2s'
             )
+            # --- END: THIS IS THE FIX ---
             fig.update_traces(textposition='outside')
             st.plotly_chart(fig, use_container_width=True)
         else:
@@ -7213,6 +7222,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
