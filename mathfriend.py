@@ -5420,6 +5420,23 @@ def display_quiz_summary():
                         st.markdown(f"**{topic}:** {stats['correct']}/{stats['total']} correct ({acc:.0f}%)")
         else:
             st.info("You did not attempt any questions in this session.")
+        # --- THIS IS THE FIX: ADDING THE INCORRECT QUESTION REVIEW ---
+        if st.session_state.incorrect_questions:
+            with st.expander("🔍 Click here to review your incorrect answers (step-by-step)"):
+                for q in st.session_state.incorrect_questions:
+                    if q.get("is_multipart"):
+                        st.markdown(f"**Question Stem:** {q['stem']}")
+                        for i, part in enumerate(q['parts']):
+                            st.markdown(f"**Part {chr(97+i)}):** {part['question']}")
+                            st.error(f"**Correct Answer:** {part['answer']}")
+                            st.info(f"**Explanation:** {part['explanation']}")
+                    else:
+                        st.markdown(f"**Question:** {q['question']}")
+                        st.error(f"**Correct Answer:** {q['answer']}")
+                        if q.get("explanation"):
+                            st.info(f"**Explanation:** {q['explanation']}")
+                    st.write("---")
+        # --- END OF FIX ---
         
         if st.button("Back to Quiz Menu", use_container_width=True):
             st.session_state.is_wassce_mode = False
@@ -7050,6 +7067,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
