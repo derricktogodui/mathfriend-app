@@ -4958,7 +4958,6 @@ def display_help_center_page():
         4. Click **"Create Account"**. You will be taken back to the login page to sign in.
         """)
 
-    # --- NEW SECTION: GAMIFICATION ---
     st.subheader("🏆 Gamification & Rewards")
     with st.expander("How do Daily Challenges work?"):
         st.markdown("""
@@ -4968,17 +4967,28 @@ def display_help_center_page():
         st.markdown("""
         Achievements are special badges you earn for reaching important milestones in the app, like taking your first quiz or mastering a topic by getting 25 correct answers. You can view all your earned badges in the **"🏆 My Achievements"** tab on your Profile page. Each achievement also comes with a one-time coin reward!
         """)
-    # --- END OF NEW SECTION ---
         
     st.subheader("📝 Quizzes & ⚔️ Duels")
     with st.expander("How does the quiz system work?"):
         st.markdown("""
         The quiz is the core of MathFriend! 
         - **Choose a Topic:** Select any topic from the dropdown list. The app may suggest a topic where you have the lowest accuracy.
-        - **Answer Questions:** Each quiz round has 10 questions.
+        - **Answer Questions:** Each solo quiz round has 10 questions.
         - **Adaptive Difficulty:** The app tracks your "skill score" for each topic. If you score well, you'll start getting harder questions. If you struggle, the questions will get easier to help you build your foundation.
         - **Scoring:** You earn coins for correct answers and build up a "streak." Getting a high streak gives you a special balloon celebration!
         """)
+    
+    # --- START: NEW EXPANDER FOR WASSCE PREP ---
+    with st.expander("What is WASSCE Prep Mode?"):
+        st.markdown("""
+        WASSCE Prep is a special mock exam mode designed to test your readiness for the real thing. Here’s how it's different from a solo quiz:
+        - **Length:** It's a challenging **40-question** quiz.
+        - **Topics:** Questions are pulled randomly from **all available topics** to simulate a real exam.
+        - **Scoring:** Your final score **is saved** to your permanent history so you can track your improvement. You also earn coins for correct answers.
+        - **Skill Score:** Importantly, your performance in this mode **does not** affect your individual skill scores for specific topics (like Algebra or Sets). This allows you to practice without worrying about lowering your hard-earned skill levels.
+        """)
+    # --- END: NEW EXPANDER ---
+
     with st.expander("What are the 'Lifelines' (Hint, 50/50, Skip)?"):
         st.markdown("""
         These are special items you can buy from the shop to help you during quizzes. You can see how many you own at the top of the quiz page.
@@ -4994,6 +5004,17 @@ def display_help_center_page():
         4. Click the **"Duel"** button next to the name of the person you want to challenge.
         5. Choose a topic and send the challenge! The first person to answer each question correctly gets the point.
         """)
+
+    # --- START: NEW SECTION FOR LEADERBOARDS ---
+    st.subheader("🏆 Leaderboards")
+    with st.expander("How do the Leaderboards work?"):
+        st.markdown("""
+        The leaderboards are where you can see how you stack up against other MathFriend users!
+        - **Overall Performance:** This board ranks players by their **total number of correct answers** across all topics and all time (or within the selected time filter). It's a measure of total effort and knowledge.
+        - **Topic-Specific Boards:** When you select a topic like "Percentages," the ranking is based on **highest accuracy**. This allows specialists in a topic to shine, even if they haven't answered as many total questions.
+        - **Rival Snapshot:** This special box on the leaderboard page shows you the player ranked directly above you and the player directly below you, giving you a target to chase and a rival to stay ahead of!
+        """)
+    # --- END: NEW SECTION ---
 
     st.subheader("👤 Profile, Shop & Gifting")
     with st.expander("How does the coin and shop system work?"):
@@ -5030,7 +5051,6 @@ def display_help_center_page():
         The **💬 Blackboard** is the community chat room. It's a place to ask for help on difficult problems, discuss topics with your classmates, or just say hello!
         """)
         
-    # --- NEW SECTION: ACCOUNT & SUPPORT ---
     st.subheader("🔐 Account & Support")
     with st.expander("How do I change my password?"):
         st.markdown("""
@@ -5047,8 +5067,18 @@ def display_help_center_page():
         st.markdown("""
         We would love to hear your feedback! Please report any issues or suggestions directly to your teacher or the app administrator.
         """)
-    # --- END OF NEW SECTION ---
-
+        
+    # --- START: NEW SECTION FOR TROUBLESHOOTING ---
+    st.subheader("🔧 Troubleshooting & Common Issues")
+    with st.expander("Why can't I see my friend online to duel them?"):
+        st.markdown("""
+        To be visible in the Math Game Lobby and to challenge other players, both you and your friend must have the **"Enable Live Lobby"** toggle switch turned ON at the top of the **⚔️ Math Game** page. If the toggle is off, you are invisible to other players.
+        """)
+    with st.expander("Why did my quiz not resume after I logged back in?"):
+        st.markdown("""
+        The quiz resume feature is designed to save you from accidental disconnections or short breaks. However, to keep the system clean, an unfinished quiz session is automatically cleared if you do not return to it within **8 hours**. After 8 hours of inactivity, you will need to start a new quiz.
+        """)
+    # --- END: NEW SECTION ---
 def display_blackboard_page():
     st.header("칠판 Blackboard")
     st.info("This is a community space. Ask clear questions, be respectful, and help your fellow students!", icon="👋")
@@ -7176,6 +7206,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
