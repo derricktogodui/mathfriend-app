@@ -4862,54 +4862,6 @@ def load_css():
         .stDataFrame th { background-color: #e9ecef; font-weight: bold; }
         [data-testid="stForm"] { border: 1px solid #dee2e6; border-radius: 0.5rem; padding: 1.5rem; background-color: #fafafa; }
         .styled-hr { border: none; height: 2px; background: linear-gradient(to right, #0d6efd, #f0f2f5); margin: 2rem 0; }
-        .stApp {
-            position: relative;
-            background: none;   
-            
-        }
-        stApp::before {
-            content: "";
-            position: absolute;
-            top: 0; left: 0; right: 0; bottom: 0;
-            background: rgba(0, 0, 0, 0.4);
-
-            background-image: url("https://github.com/derricktogodui/mathfriend-app/releases/download/v1.0-assets/ChatGPT.Image.Sep.4.2025.08_19_14.PM.png");
-            background-size: cover;
-            background-position: center;
-
-            filter: brightness(0.6) blur(2px);
-            
-            z-index: -1; /* keeps overlay behind everything */
-        }
-
-        .login-container { 
-            /* Glassmorphism Effect */
-            background: rgba(255, 255, 255, 0.15);
-            backdrop-filter: blur(10px);
-            -webkit-backdrop-filter: blur(10px); /* For Safari */
-            
-            border-radius: 16px;
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
-
-            padding: 2rem 3rem; 
-            margin: auto; 
-            max-width: 450px; 
-        }
-        .login-container * {
-             color: white !important; /* Make text inside the container white */
-        }
-        .login-title { 
-            text-align: center; 
-            font-weight: 800; 
-            font-size: 2.2rem; 
-            color: white !important;
-        }
-        .login-subtitle { 
-            text-align: center; 
-            color: #E0E0E0 !important; /* A slightly off-white for the subtitle */
-            margin-bottom: 2rem; 
-        }
         .login-title { text-align: center; font-weight: 800; font-size: 2.2rem; }
         .login-subtitle { text-align: center; color: #6c757d; margin-bottom: 2rem; }
         .main-content { background-color: #ffffff; padding: 2rem; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
@@ -7205,11 +7157,6 @@ def show_main_app():
 def show_login_or_signup_page():
     load_css()
     st.markdown('<div class="login-container">', unsafe_allow_html=True)
-    
-    # --- START: NEW DESIGN ELEMENTS ---
-    # Add a logo icon at the top of the container
-    st.markdown("<h1 style='text-align: center; font-size: 4rem;'>🧮</h1>", unsafe_allow_html=True)
-    # --- END: NEW DESIGN ELEMENTS ---
 
     if st.session_state.page == "login":
         st.markdown('<p class="login-title">MathFriend Login</p>', unsafe_allow_html=True)
@@ -7281,6 +7228,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
