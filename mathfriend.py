@@ -5267,7 +5267,7 @@ def display_math_game_page(topic_options):
             opponent = st.session_state.challenging_user
             with st.container(border=True):
                 st.subheader(f"Challenge {opponent}")
-                duel_topic_options = [t for t in topic_options if t != "Advanced Combo"]
+                duel_topic_options = topic_options 
                 topic = st.selectbox("Choose a topic for your duel:", duel_topic_options)
                 c1, c2 = st.columns(2)
                 if c1.button("✅ Send Challenge", use_container_width=True, type="primary"):
@@ -7281,6 +7281,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
