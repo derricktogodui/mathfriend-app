@@ -3156,7 +3156,7 @@ def _generate_algebra_basics_question(difficulty="Medium"):
         num = a + b; den = a * b; common = math.gcd(num, den); num //= common; den //= common
         answer = f"$\\frac{{{num}x}}{{{den}}}$"
         hint = "To add algebraic fractions, find a common denominator, just like with regular fractions."
-        explanation = f"1. The lowest common multiple of {a} and {b} is {a*b}.\n2. $\\frac{{x}}{{{a}}} + \\frac{{x}}{{{b}}} = \\frac{{{b}x}}{{{a*b}}} + \\frac{{{a}x}}{{{a*b}}}$.\n3. Combine and simplify: $\\frac{{({a+b})x}}{{{a*b}}} = {answer}$."
+        explanation = f"1. The lowest common multiple of {a} and {b} is {a*b}.\n2. $\\frac{{x}}{{{a}}} + \\frac{{x}}{{{b}}} = \\frac{{{b}x}}{{{a*b}}} + \\frac{{{a}x}}{{{a*b}}}$.\n3. Combine and simplify: $\\frac{{({a+b})x}}{{{a*b}}} = {answer}$"
         options = {answer, f"$\\frac{{2x}}{{{a+b}}}$", f"$\\frac{{x^2}}{{{a*b}}}$"}
 
     # --- Hard Questions ---
@@ -7067,6 +7067,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
