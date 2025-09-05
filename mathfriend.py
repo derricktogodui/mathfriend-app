@@ -19,6 +19,9 @@ import json
 from streamlit_autorefresh import st_autorefresh
 from dateutil import parser
 
+UIZ_LENGTH = 10
+WASSCE_QUIZ_LENGTH = 20
+
 # --- App Configuration ---
 st.set_page_config(
     layout="wide",
@@ -7044,6 +7047,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
