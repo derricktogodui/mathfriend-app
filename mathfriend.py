@@ -4859,16 +4859,22 @@ def load_css():
         [data-testid="stForm"] { border: 1px solid #dee2e6; border-radius: 0.5rem; padding: 1.5rem; background-color: #fafafa; }
         .styled-hr { border: none; height: 2px; background: linear-gradient(to right, #0d6efd, #f0f2f5); margin: 2rem 0; }
         .stApp {
-            background-image: url("https://github.com/derricktogodui/mathfriend-app/releases/download/v1.0-assets/ChatGPT.Image.Sep.4.2025.08_19_14.PM.png");
-            background-size: cover;
-            background-position: center;
-            filter: brightness(0.6) blur(2px); /* darkens + softens background */
+            position: relative;
+            background: none;   
+            
         }
         stApp::before {
             content: "";
             position: absolute;
             top: 0; left: 0; right: 0; bottom: 0;
-            background: rgba(0, 0, 0, 0.4); /* adjust opacity: 0.2 = subtle, 0.5 = darker */
+            background: rgba(0, 0, 0, 0.4);
+
+            background-image: url("https://github.com/derricktogodui/mathfriend-app/releases/download/v1.0-assets/ChatGPT.Image.Sep.4.2025.08_19_14.PM.png");
+            background-size: cover;
+            background-position: center;
+
+            filter: brightness(0.6) blur(2px);
+            
             z-index: -1; /* keeps overlay behind everything */
         }
 
@@ -7271,6 +7277,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
