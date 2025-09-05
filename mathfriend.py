@@ -4307,6 +4307,10 @@ def get_adaptive_question(topic, username):
     """
     The new "brain" of the quiz. It gets a question based on the user's skill level.
     """
+    # --- THIS IS THE FIX: Handle 'Advanced Combo' as a special case first ---
+    if topic == "Advanced Combo":
+        # Advanced Combo questions don't have difficulty levels, so we call its generator directly.
+        return _generate_advanced_combo_question()
     skill_score = get_skill_score(username, topic)
 
     if skill_score < 40:
@@ -7277,6 +7281,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
