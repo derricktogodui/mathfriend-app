@@ -4858,7 +4858,39 @@ def load_css():
         .stDataFrame th { background-color: #e9ecef; font-weight: bold; }
         [data-testid="stForm"] { border: 1px solid #dee2e6; border-radius: 0.5rem; padding: 1.5rem; background-color: #fafafa; }
         .styled-hr { border: none; height: 2px; background: linear-gradient(to right, #0d6efd, #f0f2f5); margin: 2rem 0; }
-        .login-container { background: #ffffff; border-radius: 16px; padding: 2rem 3rem; margin: auto; max-width: 450px; box-shadow: 0 8px 32px rgba(0,0,0,0.1); }
+        .stApp {
+            background-image: url("https://github.com/derricktogodui/mathfriend-app/releases/download/v1.0-assets/geometric-background.jpg");
+            background-size: cover;
+            background-position: center;
+        }
+        .login-container { 
+            /* Glassmorphism Effect */
+            background: rgba(255, 255, 255, 0.15);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px); /* For Safari */
+            
+            border-radius: 16px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+
+            padding: 2rem 3rem; 
+            margin: auto; 
+            max-width: 450px; 
+        }
+        .login-container * {
+             color: white !important; /* Make text inside the container white */
+        }
+        .login-title { 
+            text-align: center; 
+            font-weight: 800; 
+            font-size: 2.2rem; 
+            color: white !important;
+        }
+        .login-subtitle { 
+            text-align: center; 
+            color: #E0E0E0 !important; /* A slightly off-white for the subtitle */
+            margin-bottom: 2rem; 
+        }
         .login-title { text-align: center; font-weight: 800; font-size: 2.2rem; }
         .login-subtitle { text-align: center; color: #6c757d; margin-bottom: 2rem; }
         .main-content { background-color: #ffffff; padding: 2rem; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
@@ -7154,18 +7186,27 @@ def show_main_app():
 def show_login_or_signup_page():
     load_css()
     st.markdown('<div class="login-container">', unsafe_allow_html=True)
+    
+    # --- START: NEW DESIGN ELEMENTS ---
+    # Add a logo icon at the top of the container
+    st.markdown("<h1 style='text-align: center; font-size: 4rem;'>🧮</h1>", unsafe_allow_html=True)
+    # --- END: NEW DESIGN ELEMENTS ---
+
     if st.session_state.page == "login":
-        st.markdown('<p class="login-title">🔐 MathFriend Login</p>', unsafe_allow_html=True)
-        st.markdown('<p class="login-subtitle">Welcome Back!</p>', unsafe_allow_html=True)
+        st.markdown('<p class="login-title">MathFriend Login</p>', unsafe_allow_html=True)
+
+        # --- START: NEW DESIGN ELEMENTS ---
+        # Use the time-based greeting for a dynamic welcome message
+        greeting = get_time_based_greeting()
+        st.markdown(f'<p class="login-subtitle">{greeting}! Please sign in to continue.</p>', unsafe_allow_html=True)
+        # --- END: NEW DESIGN ELEMENTS ---
+
         with st.form("login_form"):
             username = st.text_input("Username", key="login_user")
             password = st.text_input("Password", type="password", key="login_pass")
             if st.form_submit_button("Login", type="primary", use_container_width=True):
                 if login_user(username, password):
-                    
-                    # --- THIS IS THE NEW LINE YOU REQUESTED ---
                     st.toast(f"Welcome back, {username}! Ready to solve some math today?", icon="🎉")
-                    
                     st.session_state.logged_in = True
                     st.session_state.username = username
                     st.rerun()
@@ -7179,13 +7220,12 @@ def show_login_or_signup_page():
         with st.form("signup_form"):
             username = st.text_input("Username", key="signup_user")
             password = st.text_input("Password", type="password", key="signup_pass")
-            confirm_password = st.text_input("Confirm Password", type="password", key="signup_confirm")
+            confirm_password = st.text_input("Confirm New Password", type="password", key="signup_confirm")
             if st.form_submit_button("Create Account", type="primary", use_container_width=True):
                 if not username or not password:
                     st.error("All fields are required.")
                 elif password != confirm_password:
                     st.error("Passwords do not match.")
-                # --- FIX IS HERE: Add validation check for the username format ---
                 elif not re.match("^[a-zA-Z0-9_]+$", username):
                     st.error("Username is invalid. Please use only letters, numbers, and underscores (_). No spaces are allowed.")
                 elif signup_user(username, password):
@@ -7222,6 +7262,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
