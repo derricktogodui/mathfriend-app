@@ -5380,28 +5380,33 @@ def display_quiz_summary():
         
         st.subheader("WASSCE Prep Session Results")
         col1, col2, col3 = st.columns(3)
-        # Note: You'll need to define WASSCE_QUIZ_LENGTH earlier in your file, e.g., WASSCE_QUIZ_LENGTH = 20
-        col1.metric("Final Score", f"{final_score}/{st.session_state.get('quiz_length', 20)}")
+        col1.metric("Final Score", f"{final_score}/{WASSCE_QUIZ_LENGTH}")
         col2.metric("Accuracy", f"{accuracy:.1f}%")
         col3.metric("Time Taken", format_time(elapsed_time))
         
         st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
         st.subheader("Performance Breakdown by Topic")
         
-        if st.session_state.incorrect_questions:
-            topic_performance = {}
-            for q in st.session_state.incorrect_questions:
-                topic = q.get('topic', 'Unknown')
-                if topic not in topic_performance:
-                    topic_performance[topic] = {'correct': 0, 'total': 0}
-                topic_performance[topic]['total'] += 1
-            
-            st.write("Topics where you made mistakes:")
-            for topic, stats in topic_performance.items():
-                with st.container(border=True):
-                    st.write(f"**{topic}:** You should review this topic.")
+        # --- THIS IS THE FIX ---
+        if total_questions > 0: # Only show breakdown if questions were attempted
+            if not st.session_state.incorrect_questions:
+                st.success("🎉 Incredible! You had no incorrect answers in this session!")
+            else:
+                topic_performance = {}
+                # (The rest of your topic breakdown logic is correct and stays here)
+                st.write("Topics where you made mistakes:")
+                for q in st.session_state.incorrect_questions:
+                    topic = q.get('topic', 'Unknown')
+                    if topic not in topic_performance:
+                        topic_performance[topic] = {'correct': 0, 'total': 0}
+                    topic_performance[topic]['total'] += 1
+                
+                for topic, stats in topic_performance.items():
+                    with st.container(border=True):
+                        st.write(f"**{topic}:** You should review this topic.")
         else:
-            st.success("🎉 Incredible! You had no incorrect answers in this session!")
+            st.info("You did not attempt any questions in this session.")
+        # --- END OF FIX ---
         
         if st.button("Back to Quiz Menu", use_container_width=True):
             st.session_state.is_wassce_mode = False
@@ -7031,6 +7036,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
