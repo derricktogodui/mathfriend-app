@@ -259,10 +259,9 @@ def load_quiz_state(username):
     return False # No recent session was found.
 # --- END: ADD THIS NEW FUNCTION ---
 
-# --- START: ADD THIS NEW FUNCTION ---
+# Replace your previous save_quiz_state function with this corrected version
 def save_quiz_state(username):
     """Gathers the current quiz state and saves it to the database as a JSON object."""
-    # This dictionary captures a complete snapshot of the ongoing quiz.
     state_to_save = {
         "quiz_active": st.session_state.get("quiz_active", False),
         "quiz_topic": st.session_state.get("quiz_topic"),
@@ -280,15 +279,16 @@ def save_quiz_state(username):
         "user_choice": st.session_state.get("user_choice")
     }
 
-    # Convert the dictionary into a JSON string to be stored in the database.
-    session_data_json = json.dumps(state_to_save)
+    # This makes the JSON conversion more robust by turning any non-standard objects into strings.
+    session_data_json = json.dumps(state_to_save, default=str)
 
-    # Use an "UPSERT" command: It inserts a new row if one doesn't exist for the user,
-    # or updates the existing one if it does. This is the safest way to save.
     with engine.connect() as conn:
+        # --- THIS QUERY HAS BEEN CORRECTED ---
+        # The '::jsonb' cast has been removed to let SQLAlchemy handle the type conversion,
+        # which is more reliable across different database drivers.
         query = text("""
             INSERT INTO public.quiz_sessions (username, session_data, last_updated)
-            VALUES (:username, :session_data::jsonb, NOW())
+            VALUES (:username, :session_data, NOW())
             ON CONFLICT (username) DO UPDATE SET
                 session_data = EXCLUDED.session_data,
                 last_updated = NOW();
@@ -7151,6 +7151,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
