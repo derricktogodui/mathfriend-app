@@ -69,8 +69,7 @@ def initialize_session_state():
         "incorrect_questions": [],
         "on_summary_page": False,
         # --- START: ADD THESE TWO NEW LINES ---
-        "is_wassce_mode": False,
-        "quiz_start_time": None
+        "is_wassce_mode": False
         # --- END: ADD THESE TWO NEW LINES ---
     }
     for key, value in defaults.items():
@@ -5196,70 +5195,59 @@ def display_math_game_page(topic_options):
                 """)
 def display_quiz_page(topic_options):
     st.header("🧠 Quiz Time!")
-    QUIZ_LENGTH = 10
-    WASSCE_QUIZ_LENGTH = 20
 
     # --- Section 1: This block runs when NO quiz is active ---
     if not st.session_state.quiz_active:
         st.subheader("Choose Your Challenge")
         st.markdown("---")
-
         col1, col2 = st.columns(2)
 
-        # Column 1: For regular, single-topic practice
         with col1:
             with st.container(border=True):
                 st.markdown("#### 🎯 Solo Practice")
                 st.caption("Focus on a single topic to improve your skills.")
-                
                 topic_perf_df = get_topic_performance(st.session_state.username)
                 if not topic_perf_df.empty and len(topic_perf_df) > 1 and topic_perf_df['Accuracy'].iloc[-1] < 100:
                     weakest_topic = topic_perf_df.index[-1]
                     st.info(f"**Practice Suggestion:** Your lowest accuracy is in **{weakest_topic}**.")
-                
                 selected_topic = st.selectbox("Select a topic to begin:", topic_options)
-                
                 if st.button("Start Solo Quiz", type="secondary", use_container_width=True, key="start_quiz_main"):
-                    st.session_state.is_wassce_mode = False # Make sure WASSCE mode is OFF
+                    st.session_state.is_wassce_mode = False
                     st.session_state.quiz_active = True
                     st.session_state.quiz_topic = selected_topic
-                    # Reset all necessary variables for a new quiz
+                    st.session_state.on_summary_page = False
                     st.session_state.quiz_score = 0
                     st.session_state.questions_answered = 0
                     st.session_state.questions_attempted = 0
                     st.session_state.current_streak = 0
                     st.session_state.incorrect_questions = []
-                    st.session_state.on_summary_page = False
                     keys_to_clear = ['current_q_data', 'result_saved', 'checked_personal_best', 'previous_best_accuracy', 'all_wassce_questions']
                     for key in keys_to_clear:
                         if key in st.session_state: del st.session_state[key]
                     st.rerun()
 
-        # Column 2: For the new WASSCE Prep Mode
         with col2:
             with st.container(border=True):
                 st.markdown("#### 🚀 WASSCE Prep")
-                st.caption("A 20-question, 30-minute mixed-topic challenge to test your exam readiness!")
+                st.caption("A 20-question, mixed-topic challenge to test your exam readiness!")
                 st.markdown(f'<img src="https://github.com/derricktogodui/mathfriend-app/releases/download/v1.0-assets/WASSCE.Study.Session.in.Action.png" class="quiz-prep-image">', unsafe_allow_html=True)
-                
                 if st.button("Start Exam Prep", key="start_wassce", type="primary", use_container_width=True):
-                    st.session_state.is_wassce_mode = True # Turn WASSCE mode ON
+                    st.session_state.is_wassce_mode = True
                     st.session_state.quiz_active = True
                     st.session_state.quiz_topic = "WASSCE Prep"
-                    st.session_state.quiz_start_time = time.time()
-                    # Reset all necessary variables for a new quiz
+                    # The 'quiz_start_time' line has been removed
+                    st.session_state.on_summary_page = False
                     st.session_state.quiz_score = 0
                     st.session_state.questions_answered = 0
                     st.session_state.questions_attempted = 0
                     st.session_state.current_streak = 0
                     st.session_state.incorrect_questions = []
-                    st.session_state.all_wassce_questions = [] # Important for the summary
-                    st.session_state.on_summary_page = False
+                    st.session_state.all_wassce_questions = []
                     keys_to_clear = ['current_q_data', 'result_saved', 'checked_personal_best', 'previous_best_accuracy']
                     for key in keys_to_clear:
                         if key in st.session_state: del st.session_state[key]
                     st.rerun()
-        return # Important: Stop the function here so it doesn't try to run the active quiz logic
+        return
 
     # --- Section 2: This block runs when a quiz IS active ---
     quiz_length = WASSCE_QUIZ_LENGTH if st.session_state.is_wassce_mode else QUIZ_LENGTH
@@ -5268,7 +5256,6 @@ def display_quiz_page(topic_options):
         display_quiz_summary()
         return
 
-    # --- Display Scoreboard and Lifelines ---
     user_profile = get_user_profile(st.session_state.username) or {}
     hint_tokens = user_profile.get('hint_tokens', 0)
     fifty_fifty_tokens = user_profile.get('fifty_fifty_tokens', 0)
@@ -5286,13 +5273,12 @@ def display_quiz_page(topic_options):
     st.progress(st.session_state.questions_answered / quiz_length, text="Round Progress")
     st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
     
-    # --- Generate and Display Question ---
     if 'current_q_data' not in st.session_state:
         if st.session_state.is_wassce_mode:
             available_topics = [t for t in topic_options if t != "Advanced Combo"]
             random_topic = random.choice(available_topics)
             question_data = get_adaptive_question(random_topic, st.session_state.username)
-            question_data['topic'] = random_topic # Store the topic for the summary
+            question_data['topic'] = random_topic
             st.session_state.current_q_data = question_data
             if 'all_wassce_questions' not in st.session_state: st.session_state.all_wassce_questions = []
             st.session_state.all_wassce_questions.append(question_data)
@@ -5368,7 +5354,6 @@ def display_quiz_page(topic_options):
         explanation = part_data.get("explanation", "")
         question_text = (q_data.get("stem", "") + "\n\n" + part_data["question"]) if q_data.get("is_multipart") else part_data["question"]
         is_correct = str(user_choice) == str(actual_answer)
-
         st.markdown(question_text, unsafe_allow_html=True)
         st.write("Your answer:")
         if is_correct:
@@ -5378,10 +5363,8 @@ def display_quiz_page(topic_options):
         else:
             st.error(f"**{user_choice}** (Incorrect)")
             st.info(f"The correct answer was: **{actual_answer}**")
-        
         with st.expander("Show Explanation", expanded=True):
             st.markdown(explanation, unsafe_allow_html=True)
-
         if st.button("Next Question", type="primary", use_container_width=True):
             st.session_state.questions_answered += 1
             keys_to_reset = ['hint_revealed', 'fifty_fifty_used', 'current_q_data', 'user_choice', 'answer_submitted']
@@ -5395,6 +5378,7 @@ def display_quiz_page(topic_options):
         for key in keys_to_delete:
             if key in st.session_state: del st.session_state[key]
         st.rerun()
+
 def display_quiz_summary():
     st.header("🎉 Round Complete! 🎉")
     final_score = st.session_state.quiz_score
@@ -5403,42 +5387,39 @@ def display_quiz_summary():
 
     # --- WASSCE MODE SUMMARY ---
     if st.session_state.is_wassce_mode:
-        elapsed_time = time.time() - st.session_state.quiz_start_time
-        
-        st.subheader("WASSCE Prep Session Results")
-        col1, col2, col3 = st.columns(3)
+        col1, col2 = st.columns(2)
         col1.metric("Final Score", f"{final_score}/{WASSCE_QUIZ_LENGTH}")
         col2.metric("Accuracy", f"{accuracy:.1f}%")
-        col3.metric("Time Taken", format_time(elapsed_time))
         
         st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
         st.subheader("Performance Breakdown by Topic")
         
-        # --- THIS IS THE FIX ---
-        if total_questions > 0: # Only show breakdown if questions were attempted
+        if total_questions > 0:
             if not st.session_state.incorrect_questions:
                 st.success("🎉 Incredible! You had no incorrect answers in this session!")
             else:
                 topic_performance = {}
-                # (The rest of your topic breakdown logic is correct and stays here)
-                st.write("Topics where you made mistakes:")
-                for q in st.session_state.incorrect_questions:
+                all_attempted_q_data = st.session_state.get('all_wassce_questions', [])
+                for q in all_attempted_q_data:
                     topic = q.get('topic', 'Unknown')
                     if topic not in topic_performance:
                         topic_performance[topic] = {'correct': 0, 'total': 0}
                     topic_performance[topic]['total'] += 1
-                
-                for topic, stats in topic_performance.items():
+                    if q not in st.session_state.incorrect_questions:
+                        topic_performance[topic]['correct'] += 1
+                st.write("Here's how you performed in each topic during this session:")
+                for topic, stats in sorted(topic_performance.items()):
                     with st.container(border=True):
-                        st.write(f"**{topic}:** You should review this topic.")
+                        acc = (stats['correct'] / stats['total'] * 100) if stats['total'] > 0 else 0
+                        st.markdown(f"**{topic}:** {stats['correct']}/{stats['total']} correct ({acc:.0f}%)")
         else:
             st.info("You did not attempt any questions in this session.")
-        # --- END OF FIX ---
         
         if st.button("Back to Quiz Menu", use_container_width=True):
             st.session_state.is_wassce_mode = False
             st.session_state.quiz_active = False
             if 'result_saved' in st.session_state: del st.session_state['result_saved']
+            if 'all_wassce_questions' in st.session_state: del st.session_state['all_wassce_questions']
             st.rerun()
 
     # --- REGULAR QUIZ SUMMARY ---
@@ -7063,6 +7044,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
