@@ -5414,15 +5414,11 @@ def display_quiz_summary():
                     if q not in st.session_state.incorrect_questions:
                         topic_performance[topic]['correct'] += 1
                 st.write("Here's how you performed in each topic during this session:")
-                for topic, stats in sorted(topic_performance.items()):
-                    with st.container(border=True):
-                        acc = (stats['correct'] / stats['total'] * 100) if stats['total'] > 0 else 0
-                        st.markdown(f"**{topic}:** {stats['correct']}/{stats['total']} correct ({acc:.0f}%)")
         else:
             st.info("You did not attempt any questions in this session.")
         # --- THIS IS THE FIX: ADDING THE INCORRECT QUESTION REVIEW ---
         if st.session_state.incorrect_questions:
-            with st.expander("🔍 Click here to review your incorrect answers (step-by-step)"):
+            with st.expander("🔍 Click here to review your incorrect answers"):
                 for q in st.session_state.incorrect_questions:
                     if q.get("is_multipart"):
                         st.markdown(f"**Question Stem:** {q['stem']}")
@@ -7067,6 +7063,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
