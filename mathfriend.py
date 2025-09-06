@@ -786,6 +786,60 @@ def update_user_profile(username, full_name, school, age, bio):
         chat_client.upsert_user({"id": username, "name": full_name if full_name else username})
     return True
 
+# --- START: NEW FUNCTION check_and_grant_daily_reward ---
+# Reason for change: To add the backend logic for the daily login reward and streak system.
+
+def check_and_grant_daily_reward(username):
+    """Checks the user's login streak and grants a reward if applicable."""
+    from datetime import date, timedelta
+
+    today = date.today()
+    reward_message = None
+    
+    with engine.connect() as conn:
+        with conn.begin(): # Use a transaction
+            query = text("SELECT last_login_date, streak_count FROM login_streaks WHERE username = :username")
+            streak_data = conn.execute(query, {"username": username}).mappings().first()
+
+            if not streak_data:
+                # First time ever getting a daily reward
+                insert_query = text("INSERT INTO login_streaks (username, last_login_date, streak_count) VALUES (:u, :d, 1)")
+                conn.execute(insert_query, {"u": username, "d": today})
+                update_coin_balance(username, 15, "Daily Login Reward: Day 1")
+                reward_message = "🎉 Welcome! For your first daily login, you get 15 coins!"
+            else:
+                last_login = streak_data['last_login_date']
+                streak = streak_data['streak_count']
+
+                if last_login == today:
+                    # Already logged in today, no new reward
+                    return None
+                
+                yesterday = today - timedelta(days=1)
+                new_streak = streak + 1 if last_login == yesterday else 1
+
+                if new_streak >= 7:
+                    # 7-day streak prize!
+                    update_coin_balance(username, 0, "Daily Login Reward: 7-Day Streak Prize") # Log the transaction
+                    update_sql = text("UPDATE user_profiles SET mystery_boxes = COALESCE(mystery_boxes, 0) + 1 WHERE username = :username")
+                    conn.execute(update_sql, {"username": username})
+                    reward_message = "🎊 7-Day Streak! You've earned a 🎁 Mystery Box!"
+                    new_streak = 0 # Reset streak after big prize
+                else:
+                    # Standard daily reward
+                    rewards = {1: 15, 2: 20, 3: 25, 4: 30, 5: 35, 6: 40}
+                    reward_amount = rewards.get(new_streak, 15)
+                    update_coin_balance(username, reward_amount, f"Daily Login Reward: Day {new_streak}")
+                    reward_message = f"🎉 Daily Login Streak: Day {new_streak}! You get {reward_amount} coins!"
+
+                # Update the streak table
+                update_query = text("UPDATE login_streaks SET last_login_date = :d, streak_count = :s WHERE username = :u")
+                conn.execute(update_query, {"d": today, "s": new_streak, "u": username})
+
+    return reward_message
+
+# --- END: NEW FUNCTION check_and_grant_daily_reward ---
+
 def format_time(seconds):
     """Formats seconds into a MM:SS string."""
     minutes = int(seconds // 60)
@@ -6879,6 +6933,15 @@ def display_admin_panel(topic_options):
 
 def show_main_app():
     load_css()
+    # --- START: NEW DAILY REWARD LOGIC ---
+    # This block runs once per session to check for a daily login reward.
+    if 'daily_reward_checked' not in st.session_state:
+        reward_message = check_and_grant_daily_reward(st.session_state.username)
+        if reward_message:
+            st.toast(reward_message, icon="🎁")
+            st.balloons()
+        st.session_state.daily_reward_checked = True
+    # --- END: NEW DAILY REWARD LOGIC ---
     
     if st.session_state.get('challenge_completed_toast', False):
         st.toast("🎉 Daily Challenge Completed! Great job!", icon="🎉")
@@ -7038,6 +7101,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
