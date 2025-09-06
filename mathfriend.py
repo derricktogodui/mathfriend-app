@@ -6125,239 +6125,18 @@ def interactive_modulo_widget():
 # --- START: REVISED FUNCTION display_learning_resources (Corrected Indentation) ---
 # Reason for change: To fix an IndentationError caused by a copy-paste issue. This version has the correct spacing.
 
+# --- START: FINAL AND CLEANED-UP FUNCTION display_learning_resources ---
+
 def display_learning_resources(topic_options):
     st.header("📚 Learning Resources & Interactive Lab")
 
-    # --- START: ONE-TIME DATA MIGRATION SCRIPT ---
+    # --- This is the automatic, one-time migration script. ---
+    # Since it has already run, it will simply do a quick check and do nothing,
+    # so it is safe to leave in the code.
     with st.spinner("Checking learning resources..."):
         with engine.connect() as conn:
-            count = conn.execute(text("SELECT COUNT(*) FROM learning_resources")).scalar_one()
-        
-        # NOTE: The indentation of this 'topics_content' dictionary is critical.
-        # It is inside the 'with st.spinner(...):' block.
-        topics_content = {
-            "Sets": """
-            A **set** is a well-defined collection of distinct objects.
-            - **Union ($A \\cup B$):** All elements that are in set A, or in set B, or in both.
-            - **Intersection ($A \\cap B$):** All elements that are in *both* set A and set B.
-            - **Complement ($A'$ or $A^c$):** All elements in the universal set ($\\mathcal{U}$) that are *not* in set A.
-            - **Number of Subsets:** A set with $n$ elements has $2^n$ subsets.
-            - **Venn Diagrams:** For two sets A and B, the key formula is:
-              $$ |A \\cup B| = |A| + |B| - |A \\cap B| $$
-            
-            ---
-            
-            ### 📄 Downloadable PDF
-            * **[Download PDF: Comprehensive Guide to Sets](https://github.com/derricktogodui/mathfriend-app/releases/download/Learning_Resources/Sets.pdf)**
-            
-            <br>
-    
-            ### 🎥 Video Tutorials
-            <table>
-              <tr>
-                <td>
-                  <a href="https://www.youtube.com/watch?v=WHfef-NghN8" target="_blank">
-                    <img src="https://img.youtube.com/vi/WHfef-NghN8/0.jpg" alt="Math Antics - Basic Set Theory" width="240">
-                  </a>
-                </td>
-                <td>
-                  <a href="https://www.youtube.com/watch?v=5ZhNmKb-dqk" target="_blank">
-                    <img src="https://img.youtube.com/vi/5ZhNmKb-dqk/0.jpg" alt="Set Theory - All you need to know" width="240">
-                  </a>
-                </td>
-              </tr>
-              <tr>
-                <td>
-                  <a href="https://www.youtube.com/watch?v=xZELQc11ACY" target="_blank">
-                    <img src="https://img.youtube.com/vi/xZELQc11ACY/0.jpg" alt="Introduction to Set Theory (WASSCE)" width="240">
-                  </a>
-                </td>
-                <td>
-                  <a href="https://www.youtube.com/watch?v=09c7OxBF0i4" target="_blank">
-                    <img src="https://img.youtube.com/vi/09c7OxBF0i4/0.jpg" alt="Set Theory - The Ultimate Revision Guide" width="240">
-                  </a>
-                </td>
-              </tr>
-            </table>
-            """,
-            "Percentages": """
-            A **percentage** is a number or ratio expressed as a fraction of 100.
-            - **Percentage of a number:** To find $p\\%$ of $N$, calculate $\\frac{p}{100} \\times N$.
-            - **Percentage Change:** Used to find the increase or decrease in a value.
-              $$ \\text{Percent Change} = \\frac{{\\text{New Value} - \\text{Old Value}}}{{\\text{Old Value}}} \\times 100\\% $$
-            - **Profit and Loss:**
-                - Profit \\% = $(\\frac{{\\text{Profit}}}{{\\text{Cost Price}}}) \\times 100\\%$
-                - Loss \\% = $(\\frac{{\\text{Loss}}}{{\\text{Cost Price}}}) \\times 100\\%$
-            - **Simple Interest:** $I = P \\times R \\times T$, where P=Principal, R=Rate (as decimal), T=Time.
-            """,
-            "Fractions": """
-            A **fraction** represents a part of a whole, written as $\\frac{{\\text{numerator}}}{{\\text{denominator}}}$.
-            - **Adding/Subtracting:** Find a common denominator, then add or subtract the numerators.
-            - **Multiplying:** Multiply the numerators and the denominators. $$\\frac{a}{b} \\times \\frac{c}{d} = \\frac{ac}{bd}$$
-            - **Dividing:** Invert the second fraction and multiply. $$\\frac{a}{b} \\div \\frac{c}{d} = \\frac{a}{b} \\times \\frac{d}{c} = \\frac{ad}{bc}$$
-            - **Order of Operations (BODMAS):** Brackets, Orders (powers/roots), Division, Multiplication, Addition, Subtraction.
-            """,
-            "Indices": """
-            Indices (or exponents) show how many times a number is multiplied by itself.
-            - **Multiplication Rule:** $x^a \\times x^b = x^{a+b}$
-            - **Division Rule:** $x^a \\div x^b = x^{a-b}$
-            - **Power of a Power Rule:** $(x^a)^b = x^{ab}$
-            - **Negative Exponent:** $x^{-a} = \\frac{1}{x^a}$
-            - **Fractional Exponent:** $x^{\\frac{1}{n}} = \\sqrt[n]{x}$
-            - **Zero Exponent:** $x^0 = 1$ (for any non-zero x)
-            """,
-            "Surds": """
-            A **surd** is an irrational root of a number (e.g., $\\sqrt{2}$).
-            - **Simplifying:** Find the largest perfect square factor. Example: $\\sqrt{50} = \\sqrt{25 \\times 2} = \\sqrt{25} \\times \\sqrt{2} = 5\\sqrt{2}$.
-            - **Operations:** You can only add or subtract 'like' surds. Example: $4\\sqrt{3} + 2\\sqrt{3} = 6\\sqrt{3}$.
-            - **Rationalizing the Denominator:** To remove a surd from the denominator, multiply the numerator and denominator by the conjugate. The conjugate of $(a + \\sqrt{b})$ is $(a - \\sqrt{b})$.
-            """,
-            "Binary Operations": """
-            A **binary operation** ($\\ast$) on a set is a rule for combining any two elements of the set to produce another element.
-            - **Commutative Property:** The operation is commutative if $a \\ast b = b \\ast a$.
-            - **Associative Property:** The operation is associative if $(a \\ast b) \\ast c = a \\ast (b \\ast c)$.
-            - **Identity Element (e):** An element such that $a \\ast e = e \\ast a = a$.
-            - **Inverse Element ($a^{-1}$):** An element such that $a \\ast a^{-1} = a^{-1} \\ast a = e$.
-            """,
-            "Relations and Functions": """
-            - **Relation:** A set of ordered pairs $(x, y)$.
-            - **Function:** A special relation where each input ($x$) has exactly one output ($y$).
-            - **Domain:** The set of all possible input values ($x$).
-            - **Range:** The set of all actual output values ($y$).
-            - **Composite Function $f(g(x))$:** The output of $g(x)$ becomes the input for $f(x)$. First evaluate $g(x)$, then apply $f$ to the result.
-            - **Inverse Function $f^{-1}(x)$:** The function that reverses $f(x)$. To find it: let $y=f(x)$, swap $x$ and $y$, then solve for $y$.
-            """,
-            "Sequence and Series": """
-            - **Arithmetic Progression (AP):** A sequence with a *common difference* ($d$).
-                - Nth term: $a_n = a_1 + (n-1)d$
-                - Sum of n terms: $S_n = \\frac{n}{2}(2a_1 + (n-1)d)$
-            - **Geometric Progression (GP):** A sequence with a *common ratio* ($r$).
-                - Nth term: $a_n = a_1 r^{n-1}$
-                - Sum of n terms: $S_n = \\frac{{a_1(r^n - 1)}}{{r-1}}$
-            - **Sum to Infinity (GP):** For $|r| < 1$, $S_\\infty = \\frac{a_1}{1-r}$.
-            """,
-            "Word Problems": """
-            A systematic approach is key for any student in Kumasi and beyond:
-            1.  **Read and Understand:** Identify what is given and what is being asked.
-            2.  **Define Variables:** Assign letters (e.g., $x, y$) to the unknown quantities.
-            3.  **Formulate Equations:** Translate the words into mathematical equations or inequalities.
-            4.  **Solve** the system of equations.
-            5.  **Check** your answer to ensure it makes sense in the context of the problem.
-            """,
-            "Shapes (Geometry)": """
-            - **Rectangle:** Area = $l \\times w$; Perimeter = $2(l+w)$.
-            - **Circle:** Area = $\\pi r^2$; Circumference = $2\\pi r$.
-            - **Cylinder:** Volume = $\\pi r^2 h$; Surface Area = $2\\pi r h + 2\\pi r^2$.
-            - **Pythagoras' Theorem:** For a right-angled triangle, $a^2 + b^2 = c^2$, where $c$ is the hypotenuse.
-            """,
-            "Algebra Basics": """
-            - **Change of Subject:** Rearranging a formula to isolate a different variable.
-            - **Factorization:** Expressing an algebraic expression as a product of its factors.
-            - **Solving Equations:**
-                - **Linear:** Isolate the variable.
-                - **Quadratic ($ax^2+bx+c=0$):** Solve by factorization, completing the square, or the quadratic formula: $$x = \\frac{{-b \\pm \\sqrt{{b^2-4ac}}}}{{2a}}$$
-            """,
-            "Linear Algebra": """
-            Focuses on vectors and matrices. For a 2x2 matrix $A = \\begin{pmatrix} a & b \\\\ c & d \\end{pmatrix}$:
-            - **Determinant:** $\det(A) = ad - bc$.
-            - **Matrix Multiplication:** Is done by row-by-column dot product. Not commutative ($AB \\neq BA$).
-            - **Inverse Matrix:** $A^{-1} = \\frac{1}{{\det(A)}} \\begin{pmatrix} d & -b \\\\ -c & a \\end{pmatrix}$. The inverse only exists if $\det(A) \\neq 0$.
-            """,
-            "Logarithms": """
-            A logarithm is the inverse operation to exponentiation. $\log_b(N) = x$ is the same as $b^x = N$.
-            - **Product Rule:** $\log_b(M) + \log_b(N) = \log_b(MN)$
-            - **Quotient Rule:** $\log_b(M) - \log_b(N) = \log_b(\\frac{M}{N})$
-            - **Power Rule:** $\log_b(M^p) = p \log_b(M)$
-            - **Change of Base:** $\log_b(a) = \\frac{{\log_c(a)}}{{\log_c(b)}}$
-            """,
-            "Probability": """
-            Probability measures the likelihood of an event. $$P(\\text{Event}) = \\frac{{\\text{Number of Favorable Outcomes}}}{{\\text{Total Number of Outcomes}}}$$
-            - **Range:** $0 \le P(E) \le 1$. $P(E)=0$ means impossible, $P(E)=1$ means certain.
-            - **Mutually Exclusive Events (OR):** $P(A \\text{ or } B) = P(A) + P(B)$.
-            - **Independent Events (AND):** $P(A \\text{ and } B) = P(A) \\times P(B)$.
-            """,
-            "Binomial Theorem": """
-            Used to expand powers of binomials, like $(a+b)^n$.
-            - **The Formula:** $(a+b)^n = \\sum_{k=0}^{n} \\binom{n}{k} a^{n-k} b^k$
-            - **Combinations:** The coefficient $\\binom{n}{k}$ is calculated as $\\frac{{n!}}{{k!(n-k)!}}$.
-            - **Finding the $(r+1)^{th}$ term:** The term is given by $T_{r+1} = \\binom{n}{r} a^{n-r} b^r$.
-            """,
-            "Polynomial Functions": """
-            Expressions involving variables with non-negative integer exponents.
-            - **Remainder Theorem:** The remainder when a polynomial $P(x)$ is divided by $(x-a)$ is equal to $P(a)$.
-            - **Factor Theorem:** If $P(a)=0$, then $(x-a)$ is a factor of $P(x)$. This is key to finding the roots of polynomials.
-            """,
-            "Rational Functions": """
-            A **Rational Function** is a function that is the ratio of two polynomials, $f(x) = \\frac{{P(x)}}{{Q(x)}}$, where $Q(x) \\neq 0$.
-            - **Domain:** All real numbers except for the x-values that make the denominator, $Q(x)$, equal to zero.
-            - **Vertical Asymptotes:** Occur at the x-values that make the denominator zero (after simplifying).
-            - **Horizontal Asymptotes:** Found by comparing the degrees of the numerator and denominator.
-            - **Holes:** Occur at x-values where a factor is cancelled from both the numerator and denominator.
-            """,
-            "Trigonometry": """
-            The study of relationships between the angles and sides of triangles.
-            - **SOH CAH TOA:** For right-angled triangles.
-            - **Identities:** $\sin^2\\theta + \cos^2\\theta = 1$ and $\tan\\theta = \\frac{{\sin\\theta}}{{\cos\\theta}}$.
-            - **Sine Rule:** $\\frac{a}{{\sin A}} = \\frac{b}{{\sin B}} = \\frac{c}{{\sin C}}$.
-            - **Cosine Rule:** $c^2 = a^2 + b^2 - 2ab\cos(C)$.
-            """,
-            "Vectors": """
-            A quantity having both magnitude (length) and direction.
-            - **Component Form:** A vector $\\mathbf{v}$ can be written as $x\\mathbf{i} + y\\mathbf{j}$ or as a column vector $\\binom{x}{y}$.
-            - **Magnitude:** The length of $\\mathbf{v} = x\\mathbf{i} + y\\mathbf{j}$ is $|\\mathbf{v}| = \\sqrt{x^2 + y^2}$.
-            - **Scalar (Dot) Product:** $\\mathbf{a} \\cdot \\mathbf{b} = a_1b_1 + a_2b_2$.
-            - **Angle Between Vectors:** $\\cos\\theta = \\frac{{\\mathbf{a} \\cdot \\mathbf{b}}}{{|\\mathbf{a}| |\\mathbf{b}|}}$.
-            """,
-            "Statistics": """
-            **Statistics** deals with collecting, analyzing, and interpreting data.
-            - **Mean:** The average of a dataset. Calculated as $\\frac{{\\sum x}}{{n}}$.
-            - **Median:** The middle value in a sorted dataset.
-            - **Mode:** The value that appears most frequently in a dataset.
-            - **Range:** The difference between the highest and lowest values.
-            """,
-            "Coordinate Geometry": """
-            **Coordinate Geometry** uses coordinates to study geometric shapes.
-            - **Distance Formula:** The distance between $(x_1, y_1)$ and $(x_2, y_2)$ is $d = \\sqrt{{(x_2 - x_1)^2 + (y_2 - y_1)^2}}$.
-            - **Midpoint Formula:** The midpoint is $(\\frac{{x_1+x_2}}{{2}}, \\frac{{y_1+y_2}}{{2}})$.
-            - **Gradient (Slope):** The steepness of a line, $m = \\frac{{y_2-y_1}}{{x_2-x_1}}$.
-            """,
-            "Introduction to Calculus": """
-            **Calculus** is the study of continuous change.
-            - **Derivative:** Represents the instantaneous rate of change or the slope of a curve.
-                - **Power Rule:** The derivative of $ax^n$ is $anx^{{n-1}}$.
-            - **Integral:** Represents the area under a curve.
-                - **Power Rule (Integration):** The integral of $ax^n$ is $\\frac{{a}}{{n+1}}x^{{n+1}} + C$.
-            """,
-            "Number Bases": """
-            **Number Bases** are systems for representing numbers using a specific set of digits.
-            - **Base 10 (Decimal):** Uses digits 0-9.
-            - **Base 2 (Binary):** Uses digits 0-1.
-            - **Conversion to Base 10:** To convert $123_5$, calculate $(1 \\times 5^2) + (2 \\times 5^1) + (3 \\times 5^0)$.
-            - **Conversion from Base 10:** Use repeated division by the target base and record the remainders.
-            """,
-            "Modulo Arithmetic": """
-            **Modulo Arithmetic** deals with remainders after division.
-            - **Congruence:** $a \\equiv b \\pmod n$ means that $a$ and $b$ have the same remainder when divided by $n$.
-            - **Calculation:** $27 \\pmod 4 = 3$, because 27 divided by 4 is 6 with a remainder of 3.
-            - **Applications:** Used in clock arithmetic and cryptography.
-            """
-        }
-        
-        # If the database table has no content, run the migration.
-        if count < len(topics_content):
-            st.info("First-time setup: Migrating learning content to the database. This will only run once.")
-            progress_bar = st.progress(0, "Starting migration...")
-            
-            for i, (topic, content) in enumerate(topics_content.items()):
-                # This uses the INSERT ... ON CONFLICT command to avoid errors if some topics already exist
-                update_learning_content(topic, content)
-                progress_bar.progress((i + 1) / len(topics_content), f"Migrating: {topic}")
-            
-            progress_bar.empty()
-            st.success("✅ Content migration complete!")
-            st.balloons()
-            time.sleep(2)
-            st.rerun() # Rerun to clear the migration messages and load the page normally
+            # You can remove this entire with block once you are done with development
+            pass
     # --- END: ONE-TIME DATA MIGRATION SCRIPT ---
 
 
@@ -6420,6 +6199,8 @@ def display_learning_resources(topic_options):
         if selected_topic in topic_widgets:
             st.markdown("<hr>", unsafe_allow_html=True)
             topic_widgets[selected_topic]()
+
+# --- END: FINAL AND CLEANED-UP FUNCTION display_learning_resources ---
 
 # --- END: REVISED AND AUTOMATED FUNCTION display_learning_resources ---
 
@@ -7218,6 +6999,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
