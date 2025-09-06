@@ -376,23 +376,33 @@ def get_user_role(username):
 
 # --- NEW ADMIN BACKEND FUNCTIONS ---
 
+# --- START: REVISED FUNCTION get_all_users_summary ---
+# Reason for change: To gather more comprehensive data for the new admin overview table,
+# including each user's coin balance and their overall average quiz accuracy.
+
 def get_all_users_summary():
-    """Fetches a summary of all users for the admin panel."""
+    """Fetches a comprehensive summary of all users for the admin panel."""
     with engine.connect() as conn:
+        # This query is now enhanced to join with user_profiles to get coins,
+        # and to calculate average accuracy from the quiz_results table.
         query = text("""
             SELECT 
                 u.username,
-                u.role,
+                u.is_active,
                 p.full_name,
                 p.school,
+                COALESCE(p.coins, 0) as coins,
                 (SELECT COUNT(*) FROM quiz_results qr WHERE qr.username = u.username) as quizzes_taken,
+                (SELECT AVG(CASE WHEN qr.questions_answered > 0 THEN (qr.score * 100.0 / qr.questions_answered) ELSE 0 END) FROM quiz_results qr WHERE qr.username = u.username) as average_accuracy,
                 (SELECT last_seen FROM user_status us WHERE us.username = u.username) as last_seen
             FROM users u
             LEFT JOIN user_profiles p ON u.username = p.username
-            ORDER BY last_seen DESC NULLS LAST;
+            ORDER BY u.username ASC;
         """)
         result = conn.execute(query).mappings().fetchall()
         return [dict(row) for row in result]
+
+# --- END: REVISED FUNCTION get_all_users_summary ---
 
 def get_all_achievements():
     """Returns a list of all possible achievement names."""
@@ -6743,12 +6753,36 @@ def display_admin_panel():
     # --- TAB 1: USER MANAGEMENT (WITH DETAILED STUDENT REPORTS) ---
     with tabs[0]:
         st.subheader("User Management")
-        all_users = get_all_users_summary()
-        user_list = [user['username'] for user in all_users]
-
-        st.info("View a summary of all users, select a specific student for a detailed progress report, or perform administrative actions.")
         
-        st.markdown("---")
+        # --- START: NEW OVERVIEW TABLE ---
+        st.markdown("#### Comprehensive Student Overview")
+        st.info("This table provides a high-level summary of all registered users. Click on column headers to sort.")
+        
+        all_users_data = get_all_users_summary()
+        if all_users_data:
+            df = pd.DataFrame(all_users_data)
+            
+            # Format the dataframe for better display
+            df['average_accuracy'] = df['average_accuracy'].fillna(0).round(1)
+            df['last_seen'] = pd.to_datetime(df['last_seen']).dt.strftime('%Y-%m-%d %H:%M').fillna('Never')
+            
+            st.dataframe(df.rename(columns={
+                'username': 'Username',
+                'is_active': 'Is Active',
+                'full_name': 'Full Name',
+                'school': 'School',
+                'coins': 'Coins 🪙',
+                'quizzes_taken': 'Quizzes Taken',
+                'average_accuracy': 'Avg. Accuracy %',
+                'last_seen': 'Last Seen'
+            }), use_container_width=True)
+        else:
+            st.warning("No users found to display in the overview.")
+        # --- END: NEW OVERVIEW TABLE ---
+        st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
+
+        user_list = [user['username'] for user in all_users_data]
+        
         st.subheader("🔍 Detailed Student Report")
 
         if not user_list:
@@ -7262,6 +7296,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
