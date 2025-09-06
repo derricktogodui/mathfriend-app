@@ -5822,6 +5822,9 @@ def display_quiz_summary():
                 st.session_state.on_summary_page = False; st.session_state.quiz_active = False
                 if 'result_saved' in st.session_state: del st.session_state['result_saved']
                 st.rerun()
+# --- START: REVISED FUNCTION display_leaderboard ---
+# Reason for change: To make usernames clickable, allowing navigation to their public profile page.
+
 def display_leaderboard(topic_options):
     st.header("🏆 Global Leaderboard")
     
@@ -5838,13 +5841,13 @@ def display_leaderboard(topic_options):
     st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
 
     def display_rival_card(rival_data, total_players, label):
+        # (This helper function is unchanged)
         col_rank, col_rivals = st.columns([1, 2])
         with col_rank:
             if rival_data and rival_data.get('user_rank') is not None:
                 st.metric(label=label, value=f"#{rival_data['user_rank']} / {total_players} players")
             else:
                 st.metric(label=label, value="N/A")
-        
         with col_rivals:
             if rival_data and rival_data.get('user_rank') is not None:
                 card_html = """<div style="border: 1px solid #e1e4e8; border-left: 5px solid #0d6efd; border-radius: 10px; padding: 1rem; background-color: #f8f9fa; height: 100%;">
@@ -5875,7 +5878,6 @@ def display_leaderboard(topic_options):
             display_infos = get_user_display_info(top_usernames)
             titles = [ "🥇 Math Legend", "🥈 Prime Mathematician", "🥉 Grand Prodigy", "The Destroyer", "Merlin", "The Genius", "Math Ninja", "The Professor", "The Oracle", "Last Baby" ]
             
-            # This is your existing header, which we can keep.
             st.markdown("""
                 <div style="display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 2px solid #dee2e6; font-weight: bold;">
                     <div style="flex: 0 0 150px;">Rank</div>
@@ -5888,7 +5890,6 @@ def display_leaderboard(topic_options):
                 user_info = display_infos.get(username, {})
                 is_current_user = (username == st.session_state.username)
                 
-                # --- THIS IS THE CORRECTED LOGIC ---
                 active_border = user_info.get('border')
                 border_class_map = {
                     'bronze_border': 'bronze-border', 'silver_border': 'silver-border',
@@ -5896,19 +5897,14 @@ def display_leaderboard(topic_options):
                 }
                 border_class = border_class_map.get(active_border, "")
 
-                # 1. Conditionally define the style string
                 if border_class:
-                    # If there's a special border, the class handles it. Don't add a default border here.
                     style_attributes = "border-radius: 8px; padding: 10px; margin-bottom: 5px;"
                 else:
-                    # If there's no special border, apply the default one.
                     style_attributes = "border: 1px solid #e1e4e8; border-radius: 8px; padding: 10px; margin-bottom: 5px;"
                 
-                # 2. Add the highlight for the current user
                 if is_current_user:
                     style_attributes += " background-color: #e6f7ff;"
 
-                # (The rest of the logic is the same)
                 rank_title = titles[r-1] if r-1 < len(titles) else f"#{r}"
                 username_display = username
                 active_effect = user_info.get('effect')
@@ -5918,12 +5914,12 @@ def display_leaderboard(topic_options):
                     username_display = f"<i>{username_display}</i>"
                 if is_current_user:
                     username_display = f"<strong>{username_display} (You)</strong>"
-
-                # --- START: NEW CODE BLOCK ---
+                
+                # --- THIS IS THE CHANGE: Make username a clickable link ---
                 link_style = "text-decoration: none; color: inherit;"
                 clickable_username = f'<a href="?profile={username}" target="_self" style="{link_style}">{username_display}</a>'
-                # --- END: NEW CODE BLOCK ---
-                st.st.markdown(f"""
+                
+                st.markdown(f"""
                 <div class="{border_class}" style="{style_attributes}">
                     <div style="display: flex; justify-content: space-between; align-items: center;">
                         <div style="flex: 0 0 150px;">{rank_title}</div>
@@ -5936,8 +5932,6 @@ def display_leaderboard(topic_options):
             st.info(f"No scores recorded in this time period. Be the first!")
 
     else: # Topic-specific leaderboard
-        # This section can be updated with the same flexbox logic if needed.
-        # For now, focusing on the main "Overall" leaderboard as requested.
         total_players = get_total_players(leaderboard_topic, time_filter)
         rival_data = get_rival_snapshot(st.session_state.username, leaderboard_topic, time_filter)
         display_rival_card(rival_data, total_players, f"Your Rank in {leaderboard_topic}")
@@ -5962,7 +5956,6 @@ def display_leaderboard(topic_options):
                 user_info = display_infos.get(u, {})
                 is_current_user = (u == st.session_state.username)
 
-                # --- APPLY THE SAME CORRECTED LOGIC HERE ---
                 active_border = user_info.get('border')
                 border_class_map = {
                     'bronze_border': 'bronze-border', 'silver_border': 'silver-border',
@@ -5978,7 +5971,6 @@ def display_leaderboard(topic_options):
                 if is_current_user:
                     style_attributes += " background-color: #e6f7ff;"
 
-                # (The rest of the logic is the same)
                 rank_display = "🥇" if r == 1 else "🥈" if r == 2 else "🥉" if r == 3 else f"{r}"
                 username_display = u
                 active_effect = user_info.get('effect')
@@ -5988,12 +5980,12 @@ def display_leaderboard(topic_options):
                     username_display = f"<i>{username_display}</i>"
                 if is_current_user:
                     username_display = f"<strong>{username_display} (You)</strong>"
-                accuracy = (s/t)*100 if t > 0 else 0   
+                accuracy = (s/t)*100 if t > 0 else 0
                 
-                # --- START: NEW CODE BLOCK ---
+                # --- THIS IS THE CHANGE: Make username a clickable link ---
                 link_style = "text-decoration: none; color: inherit;"
                 clickable_username = f'<a href="?profile={u}" target="_self" style="{link_style}">{username_display}</a>'
-                # --- END: NEW CODE BLOCK ---
+                   
                 st.markdown(f"""
                 <div class="{border_class}" style="{style_attributes}">
                     <div style="display: flex; justify-content: space-between; align-items: center;">
@@ -6005,6 +5997,8 @@ def display_leaderboard(topic_options):
                 """, unsafe_allow_html=True)
         else:
             st.info(f"No scores recorded for **{leaderboard_topic}** in this time period. Be the first!")
+
+# --- END: REVISED FUNCTION display_leaderboard ---
 # --- NEW INTERACTIVE WIDGET FUNCTIONS (COMPLETE LIBRARY FOR ALL TOPICS) ---
 
 def interactive_check_your_understanding(q, opts, ans, msg, key):
@@ -7174,6 +7168,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
