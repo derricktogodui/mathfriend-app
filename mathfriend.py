@@ -82,6 +82,22 @@ def initialize_session_state():
         if key not in st.session_state:
             st.session_state[key] = value
 initialize_session_state()
+# --- START: NEW BLOCK for Profile Page Navigation ---
+# Reason for change: To handle URL query parameters for viewing public profiles.
+# This allows us to create clickable links that navigate to a specific user's profile.
+
+if 'viewing_profile_for' not in st.session_state:
+    st.session_state.viewing_profile_for = None
+
+# Check the URL for a profile to view. e.g., ?profile=derrick
+query_params = st.query_params
+if "profile" in query_params:
+    # Set the session state to the username from the URL
+    st.session_state.viewing_profile_for = query_params["profile"]
+    # Clear the query param from the URL bar for a cleaner look
+    st.query_params.clear()
+
+# --- END: NEW BLOCK for Profile Page Navigation ---
 
 
 # --- Database Connection ---
@@ -373,6 +389,52 @@ def get_user_role(username):
         query = text("SELECT role FROM public.users WHERE username = :username")
         result = conn.execute(query, {"username": username}).scalar_one_or_none()
         return result
+
+# --- START: NEW FUNCTIONS for Public Profiles & Player Titles ---
+# Reason for change: To add the backend logic required to fetch a user's stats and assign them a dynamic title.
+
+def _get_stats_for_profile(username):
+    """A helper function to fetch various stats for a user in one go."""
+    with engine.connect() as conn:
+        stats = {}
+        # Get quiz stats
+        quiz_query = text("""
+            SELECT COUNT(*) as quizzes_taken,
+                   AVG(CASE WHEN questions_answered > 0 THEN (score * 100.0 / questions_answered) ELSE 0 END) as avg_accuracy
+            FROM quiz_results WHERE username = :username
+        """)
+        quiz_stats = conn.execute(quiz_query, {"username": username}).mappings().first()
+        stats.update(dict(quiz_stats))
+
+        # Get duel wins
+        duel_query = text("""
+            SELECT COUNT(*) FROM duels 
+            WHERE (status = 'player1_win' AND player1_username = :username) 
+               OR (status = 'player2_win' AND player2_username = :username)
+        """)
+        stats['duel_wins'] = conn.execute(duel_query, {"username": username}).scalar_one()
+        return stats
+
+def get_player_title(username, stats):
+    """Determines a player's title based on their stats. The order of checks determines priority."""
+    avg_accuracy = stats.get('avg_accuracy') or 0
+    
+    if avg_accuracy >= 90:
+        return "Math Prodigy 🧠"
+    if stats.get('duel_wins', 0) >= 25:
+        return "Duel Master ⚔️"
+    if avg_accuracy >= 75:
+        return "Sharp Scholar 🎓"
+    if stats.get('quizzes_taken', 0) >= 50:
+        return "Veteran Learner 📚"
+    if stats.get('duel_wins', 0) >= 10:
+        return "Contender ⭐"
+    if stats.get('quizzes_taken', 0) >= 10:
+        return "Enthusiast ✨"
+    
+    return "Newcomer" # Default title
+
+# --- END: NEW FUNCTIONS for Public Profiles & Player Titles ---
 
 # --- NEW ADMIN BACKEND FUNCTIONS ---
 # --- START: NEW FUNCTIONS for Content Management ---
@@ -5015,6 +5077,39 @@ def display_dashboard(username):
             st.dataframe(df, use_container_width=True)
         else:
             st.info("Your quiz history is empty. Take a quiz to get started!")
+# --- START: NEW FUNCTION display_public_profile ---
+# Reason for change: This is the new page that will display another user's public profile information.
+
+def display_public_profile(username):
+    st.header(f"Player Showcase")
+
+    profile_data = get_user_profile(username)
+    if not profile_data:
+        st.error(f"User '{username}' not found.")
+        if st.button("⬅️ Back"):
+            st.session_state.viewing_profile_for = None
+            st.rerun()
+        return
+
+    # In the future, we will check the privacy setting here.
+    
+    stats = _get_stats_for_profile(username)
+    title = get_player_title(username, stats)
+
+    # --- Profile Header ---
+    st.markdown(f"## {username}")
+    st.markdown(f"**Title:** {title}")
+    
+    st.markdown("---")
+    # We will add the Radar Chart and other features here later.
+    st.info("More profile details coming soon!")
+
+    if st.button("⬅️ Back to Previous Page"):
+        st.session_state.viewing_profile_for = None
+        st.rerun()
+
+# --- END: NEW FUNCTION display_public_profile ---
+
 def display_help_center_page():
     st.header("❓ Help Center & FAQ")
     st.info("Find answers to common questions about how to use MathFriend. Click on any question to see the answer.")
@@ -5824,11 +5919,15 @@ def display_leaderboard(topic_options):
                 if is_current_user:
                     username_display = f"<strong>{username_display} (You)</strong>"
 
-                st.markdown(f"""
+                # --- START: NEW CODE BLOCK ---
+                link_style = "text-decoration: none; color: inherit;"
+                clickable_username = f'<a href="?profile={username}" target="_self" style="{link_style}">{username_display}</a>'
+                # --- END: NEW CODE BLOCK ---
+                st.st.markdown(f"""
                 <div class="{border_class}" style="{style_attributes}">
                     <div style="display: flex; justify-content: space-between; align-items: center;">
                         <div style="flex: 0 0 150px;">{rank_title}</div>
-                        <div style="flex: 1;">{username_display}</div>
+                        <div style="flex: 1;">{clickable_username}</div>
                         <div style="flex: 0 0 120px; text-align: right; font-weight: bold; color: #0d6efd;">{total_score} Correct</div>
                     </div>
                 </div>
@@ -5890,11 +5989,16 @@ def display_leaderboard(topic_options):
                 if is_current_user:
                     username_display = f"<strong>{username_display} (You)</strong>"
                 accuracy = (s/t)*100 if t > 0 else 0   
+                
+                # --- START: NEW CODE BLOCK ---
+                link_style = "text-decoration: none; color: inherit;"
+                clickable_username = f'<a href="?profile={u}" target="_self" style="{link_style}">{username_display}</a>'
+                # --- END: NEW CODE BLOCK ---
                 st.markdown(f"""
                 <div class="{border_class}" style="{style_attributes}">
                     <div style="display: flex; justify-content: space-between; align-items: center;">
                         <div style="flex: 0 0 70px;">{rank_display}</div>
-                        <div style="flex: 1;">{username_display}</div>
+                        <div style="flex: 1;">{clickable_username}</div>
                         <div style="flex: 0 0 150px; text-align: right; font-weight: bold; color: #0d6efd;">{s}/{t} ({accuracy:.1f}%)</div>
                     </div>
                 </div>
@@ -6247,6 +6351,29 @@ def display_profile_page():
                 if update_user_profile(st.session_state.username, full_name, school, age, bio):
                     st.success("Profile updated!"); st.rerun()
 
+        # --- START: NEW PRIVACY SETTINGS SECTION ---
+        st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
+        st.subheader("🔒 Privacy Settings")
+        with st.container(border=True):
+            st.markdown("""
+            Making your profile public will allow other users to see your achievements, active cosmetics, flair, and key game stats (like total quizzes and duel wins). **Your full name, school, and age will always be kept private.**
+            """)
+            is_public = st.toggle(
+                "Make My Gamified Profile Public", 
+                value=profile.get('is_profile_public', False),
+                key="privacy_toggle"
+            )
+            
+            # If the state of the toggle changes, update the database
+            if is_public != profile.get('is_profile_public', False):
+                with engine.connect() as conn:
+                    query = text("UPDATE user_profiles SET is_profile_public = :is_public WHERE username = :username")
+                    conn.execute(query, {"is_public": is_public, "username": st.session_state.username})
+                    conn.commit()
+                st.toast("Privacy setting updated!")
+                time.sleep(1) # Give a moment for the toast to be seen before rerun
+                st.rerun()
+        # --- END: NEW PRIVACY SETTINGS SECTION ---
         if profile.get('unlocked_flair', False):
             st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
             with st.form("flair_form"):
@@ -6877,6 +7004,10 @@ def display_admin_panel(topic_options):
 
 # Replace your existing show_main_app function with this one.
 
+# --- START: REVISED FUNCTION show_main_app ---
+# Reason for change: To add the routing logic that displays the new public profile page
+# when a user's profile is being viewed.
+
 def show_main_app():
     load_css()
     
@@ -6899,35 +7030,42 @@ def show_main_app():
         profile = get_user_profile(st.session_state.username)
         display_name = profile.get('full_name') if profile and profile.get('full_name') else st.session_state.username
         st.title(f"{greeting}, {display_name}!")
-        # --- START: NEW DATE WIDGET ---
-        # Get the current date and format it nicely
         today_date = datetime.now().strftime("%A, %B %d, %Y")
         st.caption(f"**{today_date}**")
-        # --- END: NEW DATE WIDGET ---
+        
         page_options = [
             "📊 Dashboard", "📝 Quiz", "🏆 Leaderboard", "⚔️ Math Game", "💬 Blackboard", 
             "👤 Profile", "📚 Learning Resources", "❓ Help Center"
         ]
         
-        # Check the user's role from the database
         user_role = get_user_role(st.session_state.username)
         if user_role == 'admin':
             page_options.append("⚙️ Admin Panel")
-        is_in_duel = st.session_state.get("page") == "duel"
-        selected_page = st.radio("Menu", page_options, label_visibility="collapsed", disabled=is_in_duel)
-        if is_in_duel:
+            
+        # Disable sidebar navigation if viewing a profile or in a duel
+        is_disabled = st.session_state.get("page") == "duel" or st.session_state.viewing_profile_for is not None
+        
+        selected_page = st.radio("Menu", page_options, label_visibility="collapsed", disabled=is_disabled)
+        
+        if st.session_state.get("page") == "duel":
             st.sidebar.warning("You are in a duel! Finish the game to navigate away.")
+        elif st.session_state.viewing_profile_for:
+            st.sidebar.info(f"Viewing profile for {st.session_state.viewing_profile_for}. Click 'Back' to exit.")
 
         st.write("---")
         if st.button("Logout", type="primary", use_container_width=True):
             st.session_state.logged_in = False
-            if 'challenge_completed_toast' in st.session_state: del st.session_state.challenge_completed_toast
-            if 'achievement_unlocked_toast' in st.session_state: del st.session_state.achievement_unlocked_toast
+            # Clear all session state on logout
+            for key in st.session_state.keys():
+                del st.session_state[key]
             st.rerun()
             
     st.markdown('<div class="main-content">', unsafe_allow_html=True)
     
-    if st.session_state.get("page") == "duel":
+    # --- THIS IS THE NEW ROUTING LOGIC ---
+    if st.session_state.viewing_profile_for:
+        display_public_profile(st.session_state.viewing_profile_for)
+    elif st.session_state.get("page") == "duel":
         display_duel_page()
     else:
         topic_options = [
@@ -6947,7 +7085,6 @@ def show_main_app():
         elif selected_page == "🏆 Leaderboard":
             display_leaderboard(topic_options)
         elif selected_page == "⚔️ Math Game":
-            # --- This change is necessary for the topic selector to work ---
             display_math_game_page(topic_options)
         elif selected_page == "💬 Blackboard":
             display_blackboard_page()
@@ -6955,15 +7092,14 @@ def show_main_app():
             display_profile_page()
         elif selected_page == "📚 Learning Resources":
             display_learning_resources(topic_options)
-        # 2. ADD THIS NEW ELIF BLOCK (a good place is right before the Admin Panel check)
         elif selected_page == "❓ Help Center":
             display_help_center_page()
-        # --- AND ADD THIS FINAL BLOCK RIGHT AFTER IT ---
         elif selected_page == "⚙️ Admin Panel":
             display_admin_panel(topic_options)
-        # --- END OF BLOCK ---
         
     st.markdown('</div>', unsafe_allow_html=True)
+
+# --- END: REVISED FUNCTION show_main_app ---
 def show_login_or_signup_page():
     load_css()
     st.markdown('<div class="login-container">', unsafe_allow_html=True)
@@ -7038,6 +7174,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
