@@ -6763,7 +6763,7 @@ def display_profile_page():
                 st.rerun()
             else:
                 st.error(message)
-def display_admin_panel():
+def display_admin_panel(topic_options):
     st.title("⚙️ Admin Panel: Mission Control")
 
     tab_names = [
@@ -7260,7 +7260,7 @@ def show_main_app():
             display_help_center_page()
         # --- AND ADD THIS FINAL BLOCK RIGHT AFTER IT ---
         elif selected_page == "⚙️ Admin Panel":
-            display_admin_panel()
+            display_admin_panel(topic_options)
         # --- END OF BLOCK ---
         
     st.markdown('</div>', unsafe_allow_html=True)
@@ -7338,6 +7338,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
