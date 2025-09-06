@@ -726,6 +726,31 @@ def delete_practice_question(question_id):
         conn.execute(query, {"id": question_id})
         conn.commit()
 
+# --- START: NEW FUNCTION update_practice_question ---
+# Reason for change: To add a backend function that can update an existing practice question in the database.
+
+def update_practice_question(question_id, topic, question, answer, explanation):
+    """Updates an existing practice question in the database."""
+    with engine.connect() as conn:
+        query = text("""
+            UPDATE daily_practice_questions 
+            SET topic = :topic, 
+                question_text = :question, 
+                answer_text = :answer, 
+                explanation_text = :explanation
+            WHERE id = :id
+        """)
+        conn.execute(query, {
+            "id": question_id,
+            "topic": topic,
+            "question": question,
+            "answer": answer,
+            "explanation": explanation
+        })
+        conn.commit()
+
+# --- END: NEW FUNCTION update_practice_question ---
+
 # --- NEW ADMIN BACKEND FUNCTIONS FOR USER ACTIONS ---
 
 def toggle_user_suspension(username):
@@ -6717,6 +6742,20 @@ def display_admin_panel(topic_options):
                 with st.container(border=True):
                     st.markdown(f"**ID:** {q['id']} | **Title:** {q['topic']} | **Status:** {'Active ✅' if q['is_active'] else 'Inactive ❌'}")
                     st.markdown(f"**Question:** {q['question_text']}")
+                     # --- START: NEW EDIT FUNCTIONALITY ---
+                    with st.expander("✏️ Edit this question"):
+                        with st.form(key=f"edit_pq_form_{q['id']}"):
+                            st.markdown("You can modify any of the fields below and save your changes.")
+                            edit_topic = st.text_input("Topic or Title", value=q['topic'], key=f"edit_pq_topic_{q['id']}")
+                            edit_question = st.text_area("Question Text", value=q['question_text'], height=200, key=f"edit_pq_question_{q['id']}")
+                            edit_answer = st.text_area("Answer Text", value=q['answer_text'], height=100, key=f"edit_pq_answer_{q['id']}")
+                            edit_explanation = st.text_area("Detailed Explanation", value=q['explanation_text'], height=200, key=f"edit_pq_explanation_{q['id']}")
+                            
+                            if st.form_submit_button("Save Changes", type="primary"):
+                                update_practice_question(q['id'], edit_topic, edit_question, edit_answer, edit_explanation)
+                                st.success(f"Question ID {q['id']} has been updated.")
+                                st.rerun()
+                    # --- END: NEW EDIT FUNCTIONALITY ---
                     with st.expander("View Answer & Explanation"):
                         st.markdown(f"**Answer:** {q['answer_text']}")
                         st.markdown(f"**Explanation:** {q.get('explanation_text') or 'N/A'}")
@@ -6999,6 +7038,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
