@@ -6751,10 +6751,13 @@ def display_admin_panel():
     tabs = st.tabs(tab_names)
 
     # --- TAB 1: USER MANAGEMENT (WITH DETAILED STUDENT REPORTS) ---
+    # --- START: REVISED CODE for Admin Panel Tab 0 ("User Management") ---
+# Reason for change: To fix a TypeError when displaying the overview table and to incorporate the
+# fixes for the user selection dropdowns, all within this single tab.
+
     with tabs[0]:
         st.subheader("User Management")
         
-        # --- START: NEW OVERVIEW TABLE ---
         st.markdown("#### Comprehensive Student Overview")
         st.info("This table provides a high-level summary of all registered users. Click on column headers to sort.")
         
@@ -6762,8 +6765,9 @@ def display_admin_panel():
         if all_users_data:
             df = pd.DataFrame(all_users_data)
             
-            # Format the dataframe for better display
-            df['average_accuracy'] = df['average_accuracy'].fillna(0).round(1)
+            # This corrected line fixes the TypeError
+            df['average_accuracy'] = pd.to_numeric(df['average_accuracy'], errors='coerce').fillna(0).round(1)
+            
             df['last_seen'] = pd.to_datetime(df['last_seen']).dt.strftime('%Y-%m-%d %H:%M').fillna('Never')
             
             st.dataframe(df.rename(columns={
@@ -6778,16 +6782,16 @@ def display_admin_panel():
             }), use_container_width=True)
         else:
             st.warning("No users found to display in the overview.")
-        # --- END: NEW OVERVIEW TABLE ---
+
         st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
 
         user_list = [user['username'] for user in all_users_data]
         
         st.subheader("🔍 Detailed Student Report")
-
         if not user_list:
             st.warning("No users have registered yet to generate a report.")
         else:
+            # Fix for report dropdown state
             if 'admin_report_user' not in st.session_state or st.session_state.admin_report_user not in user_list:
                 st.session_state.admin_report_user = user_list[0] if user_list else None
             try:
@@ -6802,6 +6806,7 @@ def display_admin_panel():
             if selected_user_report != st.session_state.admin_report_user:
                 st.session_state.admin_report_user = selected_user_report
                 st.rerun()
+
             if selected_user_report:
                 with st.container(border=True):
                     profile = get_user_profile(selected_user_report)
@@ -6832,31 +6837,22 @@ def display_admin_panel():
         if not user_list:
             st.warning("No users to manage yet.")
         else:
-            # --- START: BUG FIX LOGIC ---
-            # 1. Initialize session state to remember the selected user.
-            # If the stored user is no longer in the list, default to the first user.
+            # Fix for action dropdown state
             if 'admin_selected_user' not in st.session_state or st.session_state.admin_selected_user not in user_list:
                 st.session_state.admin_selected_user = user_list[0] if user_list else None
-
-            # 2. Find the index of the user we've stored in the session state.
             try:
                 default_index = user_list.index(st.session_state.admin_selected_user)
-            except ValueError:
+            except (ValueError, TypeError):
                 default_index = 0
-
-            # 3. Create the selectbox, controlling its default value with our stored index.
             selected_user_action = st.selectbox(
                 "Select a user to perform an action on",
                 user_list,
                 index=default_index
             )
-
-            # 4. If the admin chooses a new user from the dropdown, update our stored value.
             st.session_state.admin_selected_user = selected_user_action
-            # --- END: BUG FIX LOGIC ---
+
             if selected_user_action:
                 st.markdown(f"#### Actions for: `{selected_user_action}`")
-
                 with st.expander("✏️ Edit User Profile"):
                     profile = get_user_profile(selected_user_action) or {}
                     with st.form(key=f"edit_profile_{selected_user_action}"):
@@ -6866,7 +6862,6 @@ def display_admin_panel():
                             update_user_profile(selected_user_action, full_name, school, profile.get('age', 18), profile.get('bio', ''))
                             st.success(f"Profile for {selected_user_action} updated!")
                             st.rerun()
-
                 with st.expander("🔑 Reset Password"):
                     with st.form(key=f"reset_pw_{selected_user_action}"):
                         st.warning(f"This will set a new temporary password for {selected_user_action}.")
@@ -6877,12 +6872,10 @@ def display_admin_panel():
                                 st.success(f"Password for {selected_user_action} has been reset.")
                             else:
                                 st.error("Password cannot be blank.")
-                
                 with st.expander("⚖️ Suspend / Unsuspend Account"):
                     user_data_query = text("SELECT is_active FROM public.users WHERE username = :username")
                     with engine.connect() as conn:
                         is_active = conn.execute(user_data_query, {"username": selected_user_action}).scalar_one_or_none()
-
                     if is_active:
                         st.success(f"Account status for {selected_user_action} is currently **Active**.")
                         if st.button("Suspend Account", key=f"suspend_{selected_user_action}", type="primary"):
@@ -6893,15 +6886,10 @@ def display_admin_panel():
                         if st.button("Unsuspend Account", key=f"unsuspend_{selected_user_action}"):
                             toggle_user_suspension(selected_user_action)
                             st.rerun()
-
                 with st.expander("🏆 Award a Special Badge"):
                      with st.form("award_achievement_form_single", clear_on_submit=True):
                         st.markdown(f"Awarding badge to **{selected_user_action}**")
-                        
-                        # --- THIS IS THE UPGRADE ---
-                        # Changed from a selectbox to a text input for custom badge names
                         special_badge_name = st.text_input("Enter Special Badge Name", placeholder="e.g., Community Helper")
-                        
                         badge_icon = st.text_input("Badge Icon (e.g., 🌟, 💡, 🏅)", value="🏅")
                         if st.form_submit_button("Award Badge"):
                             if special_badge_name:
@@ -6912,8 +6900,6 @@ def display_admin_panel():
                                     st.warning(f"{selected_user_action} already has that badge.")
                             else:
                                 st.error("Please enter a name for the special badge.")
-
-                # Place this new expander with the others for a selected user
                 with st.expander("🪙 Grant Coins"):
                     with st.form(key=f"grant_coins_{selected_user_action}"):
                         st.write(f"Granting coins to **{selected_user_action}**")
@@ -6924,7 +6910,6 @@ def display_admin_panel():
                                 st.success(f"Successfully granted {coins_to_grant} coins to {selected_user_action}.")
                             else:
                                 st.error("Failed to grant coins.")
-                
                 if selected_user_action != st.session_state.username:
                     with st.expander("❌ Delete User"):
                         st.error(f"This is permanent and cannot be undone.")
@@ -6932,7 +6917,7 @@ def display_admin_panel():
                             delete_user_and_all_data(selected_user_action)
                             st.success(f"User {selected_user_action} has been deleted.")
                             st.rerun()
-
+# --- END: REVISED CODE for Admin Panel Tab 0 ("User Management") ---
     # --- TAB 2: DAILY CHALLENGES ---
     # --- THIS IS THE NEW CODE FOR THE SECOND ADMIN TAB ---
     with tabs[1]:
@@ -7296,6 +7281,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
