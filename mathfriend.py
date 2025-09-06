@@ -6754,7 +6754,20 @@ def display_admin_panel():
         if not user_list:
             st.warning("No users have registered yet to generate a report.")
         else:
-            selected_user_report = st.selectbox("Select a student to view their detailed report", user_list)
+            if 'admin_report_user' not in st.session_state or st.session_state.admin_report_user not in user_list:
+                st.session_state.admin_report_user = user_list[0] if user_list else None
+            try:
+                report_index = user_list.index(st.session_state.admin_report_user)
+            except (ValueError, TypeError):
+                report_index = 0
+            selected_user_report = st.selectbox(
+                "Select a student to view their detailed report",
+                user_list,
+                index=report_index
+            )
+            if selected_user_report != st.session_state.admin_report_user:
+                st.session_state.admin_report_user = selected_user_report
+                st.rerun()
             if selected_user_report:
                 with st.container(border=True):
                     profile = get_user_profile(selected_user_report)
@@ -6785,7 +6798,28 @@ def display_admin_panel():
         if not user_list:
             st.warning("No users to manage yet.")
         else:
-            selected_user_action = st.selectbox("Select a user to perform an action on", user_list, key="action_user_select")
+            # --- START: BUG FIX LOGIC ---
+            # 1. Initialize session state to remember the selected user.
+            # If the stored user is no longer in the list, default to the first user.
+            if 'admin_selected_user' not in st.session_state or st.session_state.admin_selected_user not in user_list:
+                st.session_state.admin_selected_user = user_list[0] if user_list else None
+
+            # 2. Find the index of the user we've stored in the session state.
+            try:
+                default_index = user_list.index(st.session_state.admin_selected_user)
+            except ValueError:
+                default_index = 0
+
+            # 3. Create the selectbox, controlling its default value with our stored index.
+            selected_user_action = st.selectbox(
+                "Select a user to perform an action on",
+                user_list,
+                index=default_index
+            )
+
+            # 4. If the admin chooses a new user from the dropdown, update our stored value.
+            st.session_state.admin_selected_user = selected_user_action
+            # --- END: BUG FIX LOGIC ---
             if selected_user_action:
                 st.markdown(f"#### Actions for: `{selected_user_action}`")
 
@@ -7228,6 +7262,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
