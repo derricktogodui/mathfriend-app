@@ -6122,33 +6122,21 @@ def interactive_modulo_widget():
 
 # --- END OF INTERACTIVE WIDGETS ---
 
+# --- START: REVISED AND AUTOMATED FUNCTION display_learning_resources ---
+# Reason for change: This function now contains a one-time, automatic script to migrate
+# the old hard-coded content into the database, making the setup much simpler.
+
 def display_learning_resources(topic_options):
     st.header("📚 Learning Resources & Interactive Lab")
 
-    # --- Teacher's Corner (from database) ---
-    practice_questions = get_active_practice_questions()
-    if practice_questions:
-        st.subheader("⭐ Teacher's Corner: Practice & Assignments")
-        with st.container(border=True):
-            for q in practice_questions:
-                st.markdown(f"**{q['topic']}**")
-                st.markdown(q['question_text'], unsafe_allow_html=True)
-                with st.expander("Show Answer and Explanation"):
-                    st.success("**Answer:**") 
-                    st.markdown(q['answer_text'], unsafe_allow_html=True)
-                    if q['explanation_text']:
-                        st.info("**Explanation:**")
-                        st.markdown(q['explanation_text'], unsafe_allow_html=True)
-                st.markdown("---")
-        st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
-
-    st.write("Select a topic to view notes, formulas, and interactive examples.")
-    
-    selected_topic = st.selectbox("Choose a topic to explore:", [t for t in topic_options if t != "Advanced Combo"])
-    st.markdown("---")
-
-    # This dictionary holds the static content (notes, videos, etc.)
-    topics_content = {
+    # --- START: ONE-TIME DATA MIGRATION SCRIPT ---
+    # This block will run only once to populate the database from the old hard-coded dictionary.
+    with st.spinner("Checking learning resources..."):
+        with engine.connect() as conn:
+            count = conn.execute(text("SELECT COUNT(*) FROM learning_resources")).scalar_one()
+        
+        # This is the old dictionary, kept here temporarily for the migration.
+       topics_content = {
         "Sets": """
         A **set** is a well-defined collection of distinct objects.
         - **Union ($A \\cup B$):** All elements that are in set A, or in set B, or in both.
@@ -6499,10 +6487,49 @@ def display_learning_resources(topic_options):
         - **Applications:** Used in clock arithmetic and cryptography.
         """
     }
+        
+        # If the database table is empty, run the migration.
+        if count == 0:
+            st.info("First-time setup: Migrating learning content to the database. This will only run once.")
+            progress_bar = st.progress(0, "Starting migration...")
+            
+            for i, (topic, content) in enumerate(topics_content.items()):
+                update_learning_content(topic, content)
+                progress_bar.progress((i + 1) / len(topics_content), f"Migrating: {topic}")
+            
+            progress_bar.empty()
+            st.success("✅ Content migration complete!")
+            st.balloons()
+            time.sleep(2)
+            st.rerun() # Rerun to clear the migration messages and load the page normally
+    # --- END: ONE-TIME DATA MIGRATION SCRIPT ---
 
-    # CORRECTED Master dictionary mapping topics to their proper widgets
+
+    # --- Teacher's Corner (from database) ---
+    practice_questions = get_active_practice_questions()
+    if practice_questions:
+        st.subheader("⭐ Teacher's Corner: Practice & Assignments")
+        with st.container(border=True):
+            for q in practice_questions:
+                st.markdown(f"**{q['topic']}**")
+                st.markdown(q['question_text'], unsafe_allow_html=True)
+                with st.expander("Show Answer and Explanation"):
+                    st.success("**Answer:**") 
+                    st.markdown(q['answer_text'], unsafe_allow_html=True)
+                    if q['explanation_text']:
+                        st.info("**Explanation:**")
+                        st.markdown(q['explanation_text'], unsafe_allow_html=True)
+                st.markdown("---")
+        st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
+
+    st.write("Select a topic to view notes, formulas, and interactive examples.")
+    
+    selectable_topics = [t for t in topic_options if t != "Advanced Combo"]
+    selected_topic = st.selectbox("Choose a topic to explore:", selectable_topics)
+    st.markdown("---")
+
     topic_widgets = {
-        "Sets": interactive_venn_diagram_calculator,
+         "Sets": interactive_venn_diagram_calculator,
         "Percentages": interactive_percentage_calculator,
         "Shapes (Geometry)": interactive_pythagoras_calculator,
         "Algebra Basics": interactive_quadratic_calculator,
@@ -6527,22 +6554,18 @@ def display_learning_resources(topic_options):
         "Polynomial Functions": interactive_polynomial_widget, # Calling the correct function
         "Rational Functions": interactive_rational_functions_widget, # Calling the correct function
     }
-
-    # This is the final, corrected logic block
-    if selected_topic in topics_content:
+    if selected_topic:
         st.subheader(selected_topic)
-        # --- THIS IS THE KEY CHANGE ---
-        # Fetch and display the content for the selected topic from the database
+        
         content = get_learning_content(selected_topic)
         st.markdown(content, unsafe_allow_html=True)
         
-        # Display the corresponding interactive widget if it exists
         if selected_topic in topic_widgets:
             st.markdown("<hr>", unsafe_allow_html=True)
             topic_widgets[selected_topic]()
 
-    else:
-        st.info("Select a topic to begin.")
+# --- END: REVISED AND AUTOMATED FUNCTION display_learning_resources ---
+
 def display_profile_page():
     st.header("👤 Your Profile")
 
@@ -7338,6 +7361,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
