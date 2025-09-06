@@ -375,7 +375,30 @@ def get_user_role(username):
         return result
 
 # --- NEW ADMIN BACKEND FUNCTIONS ---
+# --- START: NEW FUNCTIONS for Content Management ---
+# Reason for change: To add backend logic for reading and updating the learning resources from the database.
 
+def get_learning_content(topic):
+    """Fetches the learning content for a specific topic from the database."""
+    with engine.connect() as conn:
+        query = text("SELECT content FROM learning_resources WHERE topic = :topic")
+        result = conn.execute(query, {"topic": topic}).scalar_one_or_none()
+        return result if result else "No content available for this topic yet. The admin can add it in the Content Management panel."
+
+def update_learning_content(topic, new_content):
+    """Updates or inserts learning content for a topic in the database."""
+    with engine.connect() as conn:
+        query = text("""
+            INSERT INTO learning_resources (topic, content)
+            VALUES (:topic, :content)
+            ON CONFLICT (topic) DO UPDATE SET
+                content = EXCLUDED.content;
+        """)
+        conn.execute(query, {"topic": topic, "content": new_content})
+        conn.commit()
+    st.cache_data.clear() # Clear the cache to ensure users see the new content
+
+# --- END: NEW FUNCTIONS for Content Management ---
 # --- START: REVISED FUNCTION get_all_users_summary ---
 # Reason for change: To gather more comprehensive data for the new admin overview table,
 # including each user's coin balance and their overall average quiz accuracy.
@@ -6508,13 +6531,16 @@ def display_learning_resources(topic_options):
     # This is the final, corrected logic block
     if selected_topic in topics_content:
         st.subheader(selected_topic)
-        # Display the static content
-        st.markdown(topics_content[selected_topic], unsafe_allow_html=True)
+        # --- THIS IS THE KEY CHANGE ---
+        # Fetch and display the content for the selected topic from the database
+        content = get_learning_content(selected_topic)
+        st.markdown(content, unsafe_allow_html=True)
         
-        # Display the corresponding interactive widget
+        # Display the corresponding interactive widget if it exists
         if selected_topic in topic_widgets:
             st.markdown("<hr>", unsafe_allow_html=True)
             topic_widgets[selected_topic]()
+
     else:
         st.info("Select a topic to begin.")
 def display_profile_page():
@@ -6746,7 +6772,8 @@ def display_admin_panel():
         "🎮 Game Management", 
         "✍️ Practice Questions",
         "📣 Announcements",
-        "📈 Analytics"
+        "📈 Analytics",
+        "📝 Content Management"  # The new tab
     ]
     tabs = st.tabs(tab_names)
 
@@ -7118,6 +7145,36 @@ def display_admin_panel():
         else:
             st.info("No student activity to rank yet.")
 
+    # --- START: NEW CONTENT MANAGEMENT TAB ---
+    with tabs[6]:
+        st.subheader("📝 Content Management: Learning Resources")
+        st.info("Select a topic to view and edit the notes, formulas, and video links that students see on the Learning Resources page.")
+
+        # Get a list of all quiz topics to populate the editor
+        all_topics = sorted([t for t in topic_options if t != "Advanced Combo"])
+        
+        selected_topic_to_edit = st.selectbox("Select a topic to edit:", all_topics, key="content_topic_select")
+
+        if selected_topic_to_edit:
+            # Fetch the current content from the database
+            current_content = get_learning_content(selected_topic_to_edit)
+            
+            with st.form(key=f"edit_content_{selected_topic_to_edit}"):
+                st.markdown(f"#### Editing Content for: **{selected_topic_to_edit}**")
+                
+                new_content = st.text_area(
+                    "Content (Markdown and LaTeX are supported)",
+                    value=current_content,
+                    height=500
+                )
+                
+                if st.form_submit_button("Save Changes", type="primary"):
+                    update_learning_content(selected_topic_to_edit, new_content)
+                    st.success(f"Content for '{selected_topic_to_edit}' has been updated successfully!")
+                    # No rerun needed, as st.cache_data.clear() handles the update.
+
+    # --- END: NEW CONTENT MANAGEMENT TAB ---
+
 # Replace your existing show_main_app function with this one.
 
 def show_main_app():
@@ -7281,6 +7338,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
