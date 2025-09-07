@@ -3304,23 +3304,54 @@ def _generate_binary_ops_question(difficulty="Medium"):
 
     return {"question": question, "options": _finalize_options(options), "answer": answer, "hint": hint, "explanation": explanation, "difficulty": difficulty}
 def _generate_relations_functions_question(difficulty="Medium"):
-    """Generates a Relations and Functions question based on difficulty, preserving all original sub-types."""
-    
+    """Generates a Relations and Functions question based on the detailed, multi-level syllabus."""
+
     if difficulty == "Easy":
-        # Basic evaluation and definitions.
-        q_type = random.choice(['evaluate', 'is_function'])
+        # Level 1: Foundations & Definitions
+        q_type = random.choice(['is_function', 'domain_range_pairs', 'evaluate_simple', 'properties_of_relations'])
     elif difficulty == "Medium":
-        # Core concepts of domain/range and types of mappings.
-        q_type = random.choice(['domain_range', 'types_of_relations'])
+        # Level 2: Core Properties & Algebra
+        q_type = random.choice(['types_of_mappings', 'domain_from_equation', 'composite_evaluation', 'algebra_of_functions'])
     else: # Hard
-        # More complex, multi-step algebraic processes.
-        q_type = random.choice(['composite', 'inverse'])
+        # Level 3: Advanced Functions & Their Properties
+        q_type = random.choice(['composite_algebraic', 'inverse_function', 'properties_of_inverse', 'even_odd_functions', 'graph_transformations'])
 
     question, answer, hint, explanation = "", "", "", ""
     options = set()
-    
-    # --- Easy Questions ---
-    if q_type == 'evaluate':
+
+    # --- 1.1: Identifying Functions (Easy) ---
+    if q_type == 'is_function':
+        d = sorted(random.sample(range(1, 20), 4))
+        r = random.sample(range(5, 30), 4)
+        func_relation = str({(d[0], r[0]), (d[1], r[1]), (d[2], r[2])})
+        not_func_relation = str({(d[0], r[0]), (d[0], r[1]), (d[1], r[2])})
+        question = "Which of the following relations is also a function?"
+        answer = func_relation
+        hint = "A relation is a function if every input (first element) maps to exactly one output (second element)."
+        explanation = f"The relation {not_func_relation} is not a function because the input '{d[0]}' maps to two different outputs. The relation {answer} is a function because every input has only one output."
+        options = {answer, not_func_relation}
+
+    # --- 1.2: Domain and Range from Ordered Pairs (Easy) ---
+    elif q_type == 'domain_range_pairs':
+        domain_list = sorted(list(set(random.sample(range(-10, 10), k=random.randint(4, 5)))))
+        range_list = sorted(list(set(random.sample(range(-10, 10), k=random.randint(4, 5)))))
+        relation_pairs = list(zip(domain_list, random.sample(range_list, len(domain_list))))
+        relation_str = str(set(relation_pairs)).replace("'", "")
+        actual_domain, actual_range = set(p[0] for p in relation_pairs), set(p[1] for p in relation_pairs)
+        d_or_r = random.choice(['domain', 'range'])
+        question = f"What is the {d_or_r} of the relation $R = {relation_str}$?"
+        domain_set_str, range_set_str = str(actual_domain), str(actual_range)
+        if d_or_r == 'domain':
+            answer, distractor = domain_set_str, range_set_str
+        else:
+            answer, distractor = range_set_str, domain_set_str
+        hint = "The domain is the set of all unique first elements (x-values). The range (or image) is the set of all unique second elements (y-values)."
+        explanation = f"For the relation $R$, we collect all the first numbers to get the domain and all the second numbers to get the range.\n- Domain = ${domain_set_str}$.\n- Range = ${range_set_str}$."
+        options = {answer, distractor, str(actual_domain.union(actual_range))}
+        return {"question": question, "options": _finalize_options(options, "set_str"), "answer": answer, "hint": hint, "explanation": explanation, "difficulty": difficulty}
+
+    # --- 1.3: Basic Function Evaluation (Easy) ---
+    elif q_type == 'evaluate_simple':
         a, b, x = random.randint(2, 8), random.randint(-10, 10), random.randint(1, 7)
         question = f"If $f(x) = {a}x^2 + {b}$, find the value of $f({x})$."
         answer = str(a * (x**2) + b)
@@ -3328,71 +3359,130 @@ def _generate_relations_functions_question(difficulty="Medium"):
         explanation = f"We replace every 'x' with '{x}':\n$f({x}) = {a}({x})^2 + {b} = {a*(x**2)} + {b} = {a*(x**2)+b}$."
         options = {answer, str(a * x + b), str((a * x)**2 + b)}
 
-    elif q_type == 'is_function':
-        d = sorted(random.sample(range(1, 20), 4))
-        r = random.sample(range(5, 30), 4)
-        func_relation = str({(d[0], r[0]), (d[1], r[1]), (d[2], r[2])})
-        not_func_relation = str({(d[0], r[0]), (d[0], r[1]), (d[1], r[2])}) # d[0] is repeated
-        question = f"Which of the following relations is also a function?"
-        answer = func_relation
-        hint = "A relation is a function if every input (x-value) maps to exactly one, unique output (y-value). No x-value can be repeated with a different y-value."
-        explanation = f"The relation {not_func_relation} is not a function because the input '{d[0]}' maps to two different outputs ({r[0]} and {r[1]}). The relation {func_relation} is a function because every input has only one output."
-        options = {answer, not_func_relation}
+    # --- 1.4: Properties of Relations (Easy) ---
+    elif q_type == 'properties_of_relations':
+        s = {1, 2, 3}
+        prop, relation, ans = random.choice([
+            ("Reflexive", "$\\{(1,1), (2,2), (3,3)\\}$", "Yes"),
+            ("Symmetric", "$\\{(1,2), (2,1), (2,3), (3,2)\\}$", "Yes"),
+            ("Transitive", "$\\{(1,2), (2,3), (1,3)\\}$", "Yes"),
+            ("Symmetric", "$\\{(1,2), (2,3), (3,1)\\}$", "No")
+        ])
+        question = f"Is the relation $R = {relation}$ on the set $S = \\{{1,2,3\\}}$ **{prop}**?"
+        answer = ans
+        hint = f"A relation is {prop} if for its elements, a specific condition is met (e.g., for Symmetric, if (a,b) is in R, then (b,a) must also be in R)."
+        explanation = f"The property of being **{prop}** requires a specific rule to be followed. The given relation **{answer.lower()}**, it does satisfy this rule."
+        options = {"Yes", "No"}
 
-    # --- Medium Questions ---
-    elif q_type == 'domain_range':
-        domain_list = sorted(list(set(random.sample(range(-20, 20), k=random.randint(4, 5)))))
-        range_list = sorted(list(set(random.sample(range(-20, 20), k=random.randint(4, 5)))))
-        while set(domain_list) == set(range_list): range_list = sorted(list(set(random.sample(range(-20, 20), k=random.randint(4, 5)))))
-        relation_pairs = list(zip(domain_list, range_list))
-        random.shuffle(relation_pairs)
-        relation_str = str(set(relation_pairs)).replace("'", "")
-        actual_domain, actual_range = set(p[0] for p in relation_pairs), set(p[1] for p in relation_pairs)
-        d_or_r = random.choice(['domain', 'range'])
-        question = f"What is the {d_or_r} of the relation $R = {relation_str}$?"
-        domain_set_str, range_set_str = str(actual_domain), str(actual_range)
-        if d_or_r == 'domain':
-            answer, distractors = domain_set_str, {range_set_str, str(actual_domain.union(actual_range))}
-        else: # range
-            answer, distractors = range_set_str, {domain_set_str, str(actual_domain.union(actual_range))}
-        hint = "The domain is the set of all unique first elements (x-values). The range is the set of all unique second elements (y-values)."
-        explanation = f"Given the relation $R = {relation_str}$:\n- The domain (set of all first numbers) is ${domain_set_str}$.\n- The range (set of all second numbers) is ${range_set_str}$."
-        options = {answer, *distractors}
-        return {"question": question, "options": _finalize_options(options, "set_str"), "answer": answer, "hint": hint, "explanation": explanation, "difficulty": difficulty}
-
-    elif q_type == 'types_of_relations':
-        domain = sorted(random.sample(range(1, 20), 4))
-        codomain = random.sample(['a', 'b', 'c', 'd', 'e'], 4)
+    # --- 2.1: Types of Mappings (Medium) ---
+    elif q_type == 'types_of_mappings':
+        domain = [1, 2, 3, 4]
+        codomain = ['a', 'b', 'c', 'd', 'e']
         one_to_one = str({(domain[0], codomain[0]), (domain[1], codomain[1]), (domain[2], codomain[2])})
         many_to_one = str({(domain[0], codomain[0]), (domain[1], codomain[0]), (domain[2], codomain[1])})
         one_to_many = str({(domain[0], codomain[0]), (domain[0], codomain[1]), (domain[1], codomain[2])})
-        relation, correct_type = random.choice([(one_to_one, "One-to-one"), (many_to_one, "Many-to-one"), (one_to_many, "One-to-many")])
+        relation, correct_type = random.choice([(one_to_one, "One-to-one (injective)"), (many_to_one, "Many-to-one"), (one_to_many, "One-to-many (not a function)")])
         question = f"The relation $R = {relation}$. What type of mapping is this?"
         answer = correct_type
-        hint = "Check if any x-values (first elements) or y-values (second elements) are repeated in the ordered pairs."
-        explanation = f"In a **one-to-one** mapping, each input has a unique output. In a **many-to-one**, multiple inputs can go to the same output. In a **one-to-many**, one input goes to multiple outputs (this is not a function). The relation shown is a classic example of a **{correct_type}** mapping."
-        options = {"One-to-one", "Many-to-one", "One-to-many"}
-        options.add(answer)
+        hint = "Check if inputs (x-values) or outputs (y-values) are repeated. A one-to-many mapping is not a function."
+        explanation = f"In a **one-to-one** mapping, each input has a unique output. In a **many-to-one**, multiple inputs can go to the same output. In a **one-to-many**, one input goes to multiple outputs. The relation shown is a classic example of a **{correct_type}** mapping."
+        options = {"One-to-one (injective)", "Many-to-one", "One-to-many (not a function)"}
 
-    # --- Hard Questions ---
-    elif q_type == 'composite':
+    # --- 2.2: Finding the Domain from an Equation (Medium) ---
+    elif q_type == 'domain_from_equation':
+        a = random.randint(2, 9)
+        func_type = random.choice(['rational', 'radical'])
+        if func_type == 'rational':
+            question = f"Find the domain of the function $f(x) = \\frac{{x+1}}{{x-{a}}}$."
+            answer = f"All real numbers except $x={a}$"
+            hint = "The domain includes all real numbers except for values of x that make the denominator equal to zero."
+            explanation = f"The function is undefined when the denominator is zero. Setting $x-{a} = 0$ gives $x={a}$. Therefore, the domain is all real numbers except for **{a}**."
+            options = {answer, "All real numbers", f"x > {a}"}
+        else: # radical
+            question = f"Find the domain of the function $f(x) = \\sqrt{{x-{a}}}$."
+            answer = f"$x \ge {a}$"
+            hint = "The expression inside a square root cannot be negative. Set the expression to be greater than or equal to zero and solve."
+            explanation = f"For the function to be defined for real numbers, the term inside the square root must be non-negative. So, we solve the inequality $x-{a} \ge 0$, which gives $x \ge {a}$."
+            options = {answer, f"x > {a}", f"x \le {a}"}
+
+    # --- 2.3: Composition of Functions (Evaluation) (Medium) ---
+    elif q_type == 'composite_evaluation':
         a, b, c, d, x_val = [random.randint(1, 5) for _ in range(5)]
         g_of_x = c*x_val + d
         question = f"Given $f(x) = {a}x + {b}$ and $g(x) = {c}x + {d}$, find the value of $(f \\circ g)({x_val})$."
         answer = str(a*g_of_x + b)
-        hint = f"This means find $f(g({x_val}))$. You must calculate the inner function, $g(x)$, first."
+        hint = f"This means find $f(g({x_val}))$. You must calculate the inner function, $g({x_val})$, first, then use that result as the input for $f(x)$."
         explanation = f"1. First, find $g({x_val}) = {c}({x_val}) + {d} = {g_of_x}$.\n2. Now, use this result as the input for f: $f({g_of_x}) = {a}({g_of_x}) + {b} = {a*g_of_x+b}$."
-        options = {answer, str(c*(a*x_val + b) + d), str(a*c*x_val + b + d)}
+        distractor1 = str(c*(a*x_val + b) + d)
+        distractor2 = str(a*c*x_val + b + d)
+        options = {answer, distractor1, distractor2}
 
-    elif q_type == 'inverse':
+    # --- 2.4: Algebra of Functions (Medium) ---
+    elif q_type == 'algebra_of_functions':
+        f_coeffs = [random.randint(1,4), random.randint(-5,5)]
+        g_coeffs = [random.randint(1,4), random.randint(-5,5)]
+        f_str = _poly_to_str(f_coeffs)
+        g_str = _poly_to_str(g_coeffs)
+        op, sym = random.choice([('sum', '+'), ('product', '\\cdot')])
+        question = f"Given $f(x) = {f_str}$ and $g(x) = {g_str}$, find $(f {sym} g)(x)$."
+        if op == 'sum':
+            res_coeffs = [f_coeffs[0]+g_coeffs[0], f_coeffs[1]+g_coeffs[1]]
+            answer = f"${_poly_to_str(res_coeffs)}$"
+        else: # product
+            res_coeffs = [f_coeffs[0]*g_coeffs[0], f_coeffs[0]*g_coeffs[1] + f_coeffs[1]*g_coeffs[0], f_coeffs[1]*g_coeffs[1]]
+            answer = f"${_poly_to_str(res_coeffs)}$"
+        hint = f"To find the {op} of two functions, you simply {op} their expressions and collect like terms."
+        explanation = f"We perform the operation: $({f_str}) {sym} ({g_str})$. After simplifying, the result is **{answer}**."
+        options = {answer, f"${_poly_to_str([f_coeffs[0]-g_coeffs[0], f_coeffs[1]-g_coeffs[1]])}$"}
+
+    # --- 3.1 & 3.2: Algebraic Composition & Inverse Functions (Hard) ---
+    elif q_type in ['composite_algebraic', 'inverse_function']:
         a, b = random.randint(2,7), random.randint(1,10)
-        question = f"Find the inverse function, $f^{{-1}}(x)$, of the function $f(x) = {a}x - {b}$."
-        answer = f"$f^{{-1}}(x) = \\frac{{x + {b}}}{{{a}}}$"
-        hint = "Let y = f(x), then swap the positions of x and y, and finally make y the subject of the formula."
-        explanation = f"1. Start with $y = {a}x - {b}$.\n2. Swap x and y: $x = {a}y - {b}$.\n3. Solve for y: $x + {b} = {a}y \\implies y = \\frac{{x + {b}}}{{{a}}}$."
-        options = {answer, f"$f^{{-1}}(x) = \\frac{{x - {b}}}{{{a}}}$", f"$f^{{-1}}(x) = {a}x + {b}$"}
+        if q_type == 'composite_algebraic':
+            c, d = random.randint(2,5), random.randint(1,5)
+            question = f"Given $f(x) = {a}x + {b}$ and $g(x) = {c}x - {d}$, find the function $(f \\circ g)(x)$."
+            answer = f"${a*c}x + {b-a*d}$"
+            hint = "To find $f(g(x))$, substitute the entire expression for $g(x)$ into every 'x' in the function $f(x)$."
+            explanation = f"$f(g(x)) = {a}(g(x)) + {b} = {a}({c}x - {d}) + {b} = {a*c}x - {a*d} + {b}$, which simplifies to **{answer}**."
+            distractor1 = f"${a*c}x - {d}+{b}$"
+            options = {answer, distractor1}
+        else: # inverse_function
+            question = f"Find the inverse function, $f^{{-1}}(x)$, of the function $f(x) = {a}x - {b}$."
+            answer = f"$f^{{-1}}(x) = \\frac{{x + {b}}}{{{a}}}$"
+            hint = "Let y = f(x), then swap the positions of x and y, and finally make y the subject of the formula."
+            explanation = f"1. Start with $y = {a}x - {b}$.\n2. Swap x and y: $x = {a}y - {b}$.\n3. Solve for y: $x + {b} = {a}y \\implies y = \\frac{{x + {b}}}{{{a}}}$."
+            distractor1 = f"$f^{{-1}}(x) = \\frac{{x - {b}}}{{{a}}}$"
+            distractor2 = f"$f^{{-1}}(x) = {a}x + {b}$"
+            options = {answer, distractor1, distractor2}
+
+    # --- 3.3: Properties of Inverse Functions (Hard) ---
+    elif q_type == 'properties_of_inverse':
+        a, b = random.randint(2,7), random.randint(1,10)
+        k = random.randint(5, 20)
+        question = f"If $f(x) = {a}x + {b}$, what is the value of $f(f^{{-1}}({k}))$?"
+        answer = str(k)
+        hint = "The composition of a function and its inverse, $f(f^{-1}(x))$, always returns the original input, $x$."
+        explanation = f"By definition, a function and its inverse 'undo' each other. Therefore, for any function $f$ and any input $k$, $f(f^{{-1}}({k}))$ will always be equal to **{k}**."
+        options = {answer, str(a*k+b), str((k-b)/a)}
+
+    # --- 3.4: Even and Odd Functions (Hard) ---
+    elif q_type == 'even_odd_functions':
+        func_str, ans = random.choice([
+            ("x^4 + 2x^2", "Even"),
+            ("x^3 - 5x", "Odd"),
+            ("x^2 + 2x", "Neither")
+        ])
+        question = f"Determine if the function $f(x) = {func_str}$ is even, odd, or neither."
+        answer = ans
+        hint = "To test, find the expression for $f(-x)$. If $f(-x) = f(x)$, the function is even. If $f(-x) = -f(x)$, the function is odd."
+        explanation = f"1. First, find $f(-x) = (-x)^4 + 2(-x)^2 = x^4 + 2x^2$. Since $f(-x) = f(x)$, the function is **Even**." if ans == "Even" else \
+                    f"1. First, find $f(-x) = (-x)^3 - 5(-x) = -x^3 + 5x = -(x^3 - 5x) = -f(x)$. Since $f(-x) = -f(x)$, the function is **Odd**." if ans == "Odd" else \
+                    f"1. First, find $f(-x) = (-x)^2 + 2(-x) = x^2 - 2x$. This is not equal to $f(x)$ or $-f(x)$. Therefore, the function is **Neither** even nor odd."
+        options = {"Even", "Odd", "Neither"}
         
     return {"question": question, "options": _finalize_options(options), "answer": answer, "hint": hint, "explanation": explanation, "difficulty": difficulty}
+
+# --- END: REVISED AND FINAL FUNCTION _generate_relations_functions_question ---
 
 def _generate_sequence_series_question(difficulty="Medium"):
     """Generates a Sequence and Series question based on difficulty, preserving all original sub-types."""
@@ -7596,6 +7686,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
