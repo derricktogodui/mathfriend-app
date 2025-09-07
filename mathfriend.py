@@ -702,14 +702,21 @@ def get_all_practice_questions():
         result = conn.execute(query).mappings().fetchall()
         return [dict(row) for row in result]
 
-def add_practice_question(topic, question, answer, explanation):
+def add_practice_question(topic, question, answer, explanation, pool_name=None, unhide_at=None):
     """Adds a new practice question to the database."""
     with engine.connect() as conn:
         query = text("""
-            INSERT INTO daily_practice_questions (topic, question_text, answer_text, explanation_text)
-            VALUES (:topic, :question, :answer, :explanation)
+            INSERT INTO daily_practice_questions (topic, question_text, answer_text, explanation_text, assignment_pool_name, unhide_answer_at)
+            VALUES (:topic, :question, :answer, :explanation, :pool_name, :unhide_at)
         """)
-        conn.execute(query, {"topic": topic, "question": question, "answer": answer, "explanation": explanation})
+        conn.execute(query, {
+            "topic": topic, 
+            "question": question, 
+            "answer": answer, 
+            "explanation": explanation,
+            "pool_name": pool_name if pool_name else None, # Ensure NULL if empty
+            "unhide_at": unhide_at
+        })
         conn.commit()
 
 def toggle_practice_question_status(question_id):
@@ -729,7 +736,7 @@ def delete_practice_question(question_id):
 # --- START: NEW FUNCTION update_practice_question ---
 # Reason for change: To add a backend function that can update an existing practice question in the database.
 
-def update_practice_question(question_id, topic, question, answer, explanation):
+def update_practice_question(question_id, topic, question, answer, explanation, pool_name=None, unhide_at=None):
     """Updates an existing practice question in the database."""
     with engine.connect() as conn:
         query = text("""
@@ -737,7 +744,9 @@ def update_practice_question(question_id, topic, question, answer, explanation):
             SET topic = :topic, 
                 question_text = :question, 
                 answer_text = :answer, 
-                explanation_text = :explanation
+                explanation_text = :explanation,
+                assignment_pool_name = :pool_name,
+                unhide_answer_at = :unhide_at
             WHERE id = :id
         """)
         conn.execute(query, {
@@ -745,10 +754,73 @@ def update_practice_question(question_id, topic, question, answer, explanation):
             "topic": topic,
             "question": question,
             "answer": answer,
-            "explanation": explanation
+            "explanation": explanation,
+            "pool_name": pool_name if pool_name else None, # Ensure NULL if empty
+            "unhide_at": unhide_at
         })
         conn.commit()
 
+
+# --- START: NEW FUNCTION get_or_assign_student_question ---
+# Reason for change: To add the core backend logic for the "Dynamic Single Assignment" feature.
+# This function assigns a unique question from a pool to a student.
+
+def get_or_assign_student_question(username, pool_name):
+    """
+    Checks if a student has an assigned question from a pool.
+    If yes, returns the question ID.
+    If no, assigns a new unique question, saves it, and returns the new ID.
+    """
+    with engine.connect() as conn:
+        with conn.begin(): # Use a transaction for safety
+            # 1. Check if a question is already assigned to this user for this pool
+            find_query = text("""
+                SELECT question_id FROM student_assignments 
+                WHERE username = :username AND assignment_pool_name = :pool_name
+            """)
+            existing_assignment = conn.execute(find_query, {"username": username, "pool_name": pool_name}).scalar_one_or_none()
+            
+            if existing_assignment:
+                return existing_assignment
+
+            # 2. If no assignment exists, we need to assign a new one.
+            # Get all available question IDs in the pool.
+            pool_questions_query = text("""
+                SELECT id FROM daily_practice_questions 
+                WHERE assignment_pool_name = :pool_name AND is_active = TRUE
+            """)
+            all_pool_q_ids = {row[0] for row in conn.execute(pool_questions_query, {"pool_name": pool_name}).fetchall()}
+
+            if not all_pool_q_ids:
+                return None # No questions in this pool
+
+            # Get all question IDs that are already assigned to OTHER students from this pool.
+            assigned_q_ids_query = text("""
+                SELECT question_id FROM student_assignments
+                WHERE assignment_pool_name = :pool_name
+            """)
+            assigned_q_ids = {row[0] for row in conn.execute(assigned_q_ids_query, {"pool_name": pool_name}).fetchall()}
+            
+            # Find the questions that have not yet been assigned
+            unassigned_q_ids = list(all_pool_q_ids - assigned_q_ids)
+
+            if unassigned_q_ids:
+                # If there are unassigned questions, pick one randomly
+                chosen_q_id = random.choice(unassigned_q_ids)
+            else:
+                # If all questions have been assigned, start reusing them randomly from the full pool
+                chosen_q_id = random.choice(list(all_pool_q_ids))
+            
+            # 3. Save the new assignment to the database
+            insert_query = text("""
+                INSERT INTO student_assignments (username, assignment_pool_name, question_id)
+                VALUES (:username, :pool_name, :question_id)
+            """)
+            conn.execute(insert_query, {"username": username, "pool_name": pool_name, "question_id": chosen_q_id})
+            
+            return chosen_q_id
+
+# --- END: NEW FUNCTION get_or_assign_student_question ---
 # --- END: NEW FUNCTION update_practice_question ---
 
 # --- NEW ADMIN BACKEND FUNCTIONS FOR USER ACTIONS ---
@@ -6206,82 +6278,121 @@ def interactive_modulo_widget():
 
 # --- START: FINAL AND CLEANED-UP FUNCTION display_learning_resources ---
 
+# --- START: REVISED AND FINAL FUNCTION display_learning_resources ---
+# Reason for change: To implement the "Smart List" UI. This version replaces the old Teacher's
+# Corner with a new system that can display general, time-released, and dynamic unique assignments.
+
 def display_learning_resources(topic_options):
     st.header("📚 Learning Resources & Interactive Lab")
 
-    # --- This is the automatic, one-time migration script. ---
-    # Since it has already run, it will simply do a quick check and do nothing,
-    # so it is safe to leave in the code.
-    with st.spinner("Checking learning resources..."):
-        with engine.connect() as conn:
-            # You can remove this entire with block once you are done with development
-            pass
-    # --- END: ONE-TIME DATA MIGRATION SCRIPT ---
+    # --- START: New Teacher's Corner "Smart List" ---
+    st.subheader("⭐ Teacher's Corner: Practice & Assignments")
+    all_practice_qs = get_active_practice_questions()
+    
+    if not all_practice_qs:
+        st.info("There are no active practice questions or assignments from your teacher at the moment.")
+    else:
+        # This set will track which assignment pools we have already displayed
+        displayed_pools = set()
 
+        for q in all_practice_qs:
+            pool_name = q.get('assignment_pool_name')
+            unhide_time = q.get('unhide_answer_at')
+            created_time = q.get('created_at')
 
-    # --- Teacher's Corner (from database) ---
-    practice_questions = get_active_practice_questions()
-    if practice_questions:
-        st.subheader("⭐ Teacher's Corner: Practice & Assignments")
-        with st.container(border=True):
-            for q in practice_questions:
-                st.markdown(f"**{q['topic']}**")
-                st.markdown(q['question_text'], unsafe_allow_html=True)
-                with st.expander("Show Answer and Explanation"):
-                    st.success("**Answer:**") 
-                    st.markdown(q['answer_text'], unsafe_allow_html=True)
-                    if q['explanation_text']:
-                        st.info("**Explanation:**")
-                        st.markdown(q['explanation_text'], unsafe_allow_html=True)
-                st.markdown("---")
-        st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
+            # --- LOGIC FOR DYNAMIC ASSIGNMENTS ---
+            if pool_name:
+                if pool_name in displayed_pools:
+                    continue # Skip if we've already handled this pool
 
+                with st.container(border=True):
+                    st.markdown(f"#### {pool_name}") # Display the assignment title
+                    
+                    with st.spinner("Fetching your unique question..."):
+                        # Get the specific question ID for this student and this pool
+                        assigned_q_id = get_or_assign_student_question(st.session_state.username, pool_name)
+                        
+                        # Find the full question data from our list
+                        assigned_q_data = next((item for item in all_practice_qs if item['id'] == assigned_q_id), None)
+                    
+                    if assigned_q_data:
+                        st.markdown(assigned_q_data['question_text'], unsafe_allow_html=True)
+                        
+                        # Use the specific unhide time for this question, or the default
+                        deadline = assigned_q_data.get('unhide_answer_at')
+                        if not deadline and created_time:
+                            deadline = created_time + timedelta(hours=48)
+                        
+                        # Logic to hide/show the answer based on the deadline
+                        if deadline and datetime.now(deadline.tzinfo) < deadline:
+                            st.warning(f"The answer and explanation will be revealed after: **{deadline.strftime('%A, %b %d at %I:%M %p')}**")
+                        else:
+                            with st.expander("Show Answer and Explanation"):
+                                st.success("**Answer:**")
+                                st.markdown(assigned_q_data['answer_text'], unsafe_allow_html=True)
+                                if assigned_q_data['explanation_text']:
+                                    st.info("**Explanation:**")
+                                    st.markdown(assigned_q_data['explanation_text'], unsafe_allow_html=True)
+                    else:
+                        st.error("Could not load your assigned question.")
+
+                displayed_pools.add(pool_name) # Mark this pool as displayed
+
+            # --- LOGIC FOR GENERAL AND TIME-RELEASED QUESTIONS ---
+            else:
+                with st.container(border=True):
+                    st.markdown(f"**{q['topic']}**")
+                    st.markdown(q['question_text'], unsafe_allow_html=True)
+
+                    # Determine the deadline (custom set time or 48h default)
+                    deadline = unhide_time
+                    if not deadline and created_time:
+                        from datetime import timedelta
+                        deadline = created_time + timedelta(hours=48)
+                        
+                    # Logic to hide/show the answer based on the deadline
+                    if deadline and datetime.now(deadline.tzinfo) < deadline:
+                        st.warning(f"The answer and explanation will be revealed after: **{deadline.strftime('%A, %b %d at %I:%M %p')}**")
+                    else:
+                        with st.expander("Show Answer and Explanation"):
+                            st.success("**Answer:**")
+                            st.markdown(q['answer_text'], unsafe_allow_html=True)
+                            if q['explanation_text']:
+                                st.info("**Explanation:**")
+                                st.markdown(q['explanation_text'], unsafe_allow_html=True)
+
+    # --- END: New Teacher's Corner ---
+
+    st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
     st.write("Select a topic to view notes, formulas, and interactive examples.")
     
+    # (The rest of the function for displaying topic notes and widgets is unchanged)
     selectable_topics = [t for t in topic_options if t != "Advanced Combo"]
     selected_topic = st.selectbox("Choose a topic to explore:", selectable_topics)
     st.markdown("---")
-
     topic_widgets = {
-        "Sets": interactive_venn_diagram_calculator,
-        "Percentages": interactive_percentage_calculator,
-        "Shapes (Geometry)": interactive_pythagoras_calculator,
-        "Algebra Basics": interactive_quadratic_calculator,
-        "Linear Algebra": interactive_matrix_determinant_calculator,
-        "Logarithms": interactive_logarithm_converter,
-        "Trigonometry": interactive_trigonometry_widget,
-        "Vectors": interactive_vectors_widget,
-        "Statistics": interactive_statistics_widget,
-        "Coordinate Geometry": interactive_coord_geometry_widget,
-        "Introduction to Calculus": interactive_calculus_widget,
-        "Number Bases": interactive_number_bases_widget,
-        "Modulo Arithmetic": interactive_modulo_widget,
-        "Relations and Functions": interactive_functions_widget,
-        "Sequence and Series": interactive_sequence_series_widget,
-        "Indices": interactive_indices_widget,
-        "Fractions": interactive_fraction_widget,
-        "Surds": interactive_surds_widget,
-        "Binary Operations": interactive_binary_ops_widget,
-        "Word Problems": interactive_word_problems_widget,
-        "Probability": interactive_probability_widget,
-        "Binomial Theorem": interactive_binomial_widget,
-        "Polynomial Functions": interactive_polynomial_widget,
-        "Rational Functions": interactive_rational_functions_widget,
+        "Sets": interactive_venn_diagram_calculator,"Percentages": interactive_percentage_calculator,
+        "Shapes (Geometry)": interactive_pythagoras_calculator, "Algebra Basics": interactive_quadratic_calculator,
+        "Linear Algebra": interactive_matrix_determinant_calculator, "Logarithms": interactive_logarithm_converter,
+        "Trigonometry": interactive_trigonometry_widget, "Vectors": interactive_vectors_widget,
+        "Statistics": interactive_statistics_widget, "Coordinate Geometry": interactive_coord_geometry_widget,
+        "Introduction to Calculus": interactive_calculus_widget, "Number Bases": interactive_number_bases_widget,
+        "Modulo Arithmetic": interactive_modulo_widget, "Relations and Functions": interactive_functions_widget,
+        "Sequence and Series": interactive_sequence_series_widget, "Indices": interactive_indices_widget,
+        "Fractions": interactive_fraction_widget, "Surds": interactive_surds_widget,
+        "Binary Operations": interactive_binary_ops_widget, "Word Problems": interactive_word_problems_widget,
+        "Probability": interactive_probability_widget, "Binomial Theorem": interactive_binomial_widget,
+        "Polynomial Functions": interactive_polynomial_widget, "Rational Functions": interactive_rational_functions_widget,
     }
-
     if selected_topic:
         st.subheader(selected_topic)
-        
         content = get_learning_content(selected_topic)
         st.markdown(content, unsafe_allow_html=True)
-        
         if selected_topic in topic_widgets:
             st.markdown("<hr>", unsafe_allow_html=True)
             topic_widgets[selected_topic]()
 
-# --- END: FINAL AND CLEANED-UP FUNCTION display_learning_resources ---
-
-# --- END: REVISED AND AUTOMATED FUNCTION display_learning_resources ---
+# --- END: REVISED AND FINAL FUNCTION display_learning_resources ---
 
 def display_profile_page():
     st.header("👤 Your Profile")
@@ -6772,7 +6883,7 @@ def display_admin_panel(topic_options):
     # --- TAB 4: PRACTICE QUESTIONS ---
     with tabs[3]:
         st.subheader("Manage Practice Questions / Assignments")
-        st.info("Use this section to post special questions or assignments for your students. You can use another AI to generate LaTeX and paste it here.")
+        st.info("Use the optional fields below to create special assignments.")
         st.markdown("---")
         st.subheader("Add New Question/Assignment")
         with st.form("new_practice_q_form", clear_on_submit=True):
@@ -6780,12 +6891,18 @@ def display_admin_panel(topic_options):
             pq_question = st.text_area("Question Text (Supports Markdown & LaTeX)", height=200)
             pq_answer = st.text_area("Answer Text", height=100)
             pq_explanation = st.text_area("Detailed Explanation (Optional)", height=200)
+
+            st.markdown("##### **Optional Assignment Settings**")
+            pq_pool_name = st.text_input("Assignment Pool Name (Optional)", placeholder="e.g., Vacation Task 1", help="Group questions by giving them the same pool name. Students will be assigned one question randomly from the pool.")
+            pq_unhide_at = st.datetime_input("Hide Answer Until (Optional)", value=None, help="The answer will be hidden from students until this time. If left blank, it will be hidden for a default of 48 hours.")
+            
             if st.form_submit_button("Add Practice Question", type="primary"):
                 if pq_topic and pq_question and pq_answer:
-                    add_practice_question(pq_topic, pq_question, pq_answer, pq_explanation)
+                    add_practice_question(pq_topic, pq_question, pq_answer, pq_explanation, pq_pool_name, pq_unhide_at)
                     st.success("New practice question added!")
                     st.rerun()
                 else: st.error("Title, Question, and Answer are required.")
+        
         st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
         st.subheader("Existing Practice Questions")
         all_practice_q = get_all_practice_questions()
@@ -6795,8 +6912,11 @@ def display_admin_panel(topic_options):
             for q in all_practice_q:
                 with st.container(border=True):
                     st.markdown(f"**ID:** {q['id']} | **Title:** {q['topic']} | **Status:** {'Active ✅' if q['is_active'] else 'Inactive ❌'}")
-                    st.markdown(f"**Question:** {q['question_text']}")
-                     # --- START: NEW EDIT FUNCTIONALITY ---
+                    if q.get('assignment_pool_name'):
+                        st.info(f"**Pool Name:** {q['assignment_pool_name']}")
+                    st.markdown(f"**Question:**")
+                    st.markdown(q['question_text'], unsafe_allow_html=True)
+                    
                     with st.expander("✏️ Edit this question"):
                         with st.form(key=f"edit_pq_form_{q['id']}"):
                             st.markdown("You can modify any of the fields below and save your changes.")
@@ -6805,14 +6925,21 @@ def display_admin_panel(topic_options):
                             edit_answer = st.text_area("Answer Text", value=q['answer_text'], height=100, key=f"edit_pq_answer_{q['id']}")
                             edit_explanation = st.text_area("Detailed Explanation", value=q['explanation_text'], height=200, key=f"edit_pq_explanation_{q['id']}")
                             
+                            st.markdown("##### **Optional Assignment Settings**")
+                            edit_pool_name = st.text_input("Assignment Pool Name (Optional)", value=q.get('assignment_pool_name'), key=f"edit_pq_pool_{q['id']}")
+                            edit_unhide_at = st.datetime_input("Hide Answer Until (Optional)", value=q.get('unhide_answer_at'), key=f"edit_pq_unhide_{q['id']}")
+
                             if st.form_submit_button("Save Changes", type="primary"):
-                                update_practice_question(q['id'], edit_topic, edit_question, edit_answer, edit_explanation)
+                                update_practice_question(q['id'], edit_topic, edit_question, edit_answer, edit_explanation, edit_pool_name, edit_unhide_at)
                                 st.success(f"Question ID {q['id']} has been updated.")
                                 st.rerun()
-                    # --- END: NEW EDIT FUNCTIONALITY ---
+                    
                     with st.expander("View Answer & Explanation"):
-                        st.markdown(f"**Answer:** {q['answer_text']}")
-                        st.markdown(f"**Explanation:** {q.get('explanation_text') or 'N/A'}")
+                        st.success(f"**Answer:**")
+                        st.markdown(q['answer_text'], unsafe_allow_html=True)
+                        st.info(f"**Explanation:**")
+                        st.markdown(q.get('explanation_text') or '_No explanation provided._', unsafe_allow_html=True)
+                        
                     c1, c2 = st.columns(2)
                     if c1.button("Activate/Deactivate", key=f"pq_toggle_{q['id']}", use_container_width=True):
                         toggle_practice_question_status(q['id'])
@@ -7101,6 +7228,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
