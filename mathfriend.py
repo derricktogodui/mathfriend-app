@@ -697,27 +697,16 @@ def get_duel_topic_popularity():
 # --- NEW ADMIN BACKEND FUNCTIONS FOR PRACTICE QUESTIONS ---
 
 def get_active_practice_questions():
-    """Fetches all active practice questions, hiding answers until unhide time."""
+    """Fetches all practice questions marked as active for the student view."""
     with engine.connect() as conn:
         query = text("""
-            SELECT id, topic, question_text, answer_text, explanation_text, unhide_answer_at
-            FROM daily_practice_questions
-            WHERE is_active = TRUE
+            SELECT id, topic, question_text, answer_text, explanation_text 
+            FROM daily_practice_questions 
+            WHERE is_active = TRUE 
             ORDER BY created_at DESC
         """)
-        rows = conn.execute(query).mappings().fetchall()
-
-    result = []
-    now = datetime.now()
-    for row in rows:
-        q = dict(row)
-        unhide_time = q.get("unhide_answer_at")
-        if unhide_time and unhide_time > now:
-            # Hide answers until it's time
-            q["answer_text"] = None
-            q["explanation_text"] = None
-        result.append(q)
-    return result
+        result = conn.execute(query).mappings().fetchall()
+        return [dict(row) for row in result]
 
 def get_all_practice_questions():
     """Fetches all practice questions for the admin view."""
@@ -7428,39 +7417,35 @@ def display_admin_panel(topic_options):
 
         # --- START: CORRECTED "ADD NEW" FORM LOGIC ---
         # The checkbox now directly manages its state via the 'key'.
-        # --- THIS IS THE NEW CODE (AFTER) ---
+        st.checkbox(
+            "Set a specific answer reveal time (optional)", 
+            key="add_pq_set_deadline" # The key IS the session state variable.
+        )
 
-        st.subheader("Add New Question/Assignment")
-
-        # Step 1: Place the configuration widgets OUTSIDE the form.
-        # Use keys to help them remember their state.
-        st.checkbox("Set a specific answer reveal time (optional)", key="add_pq_set_deadline")
-        
-        if st.session_state.add_pq_set_deadline:
-            c1, c2 = st.columns(2)
-            c1.date_input("Reveal Date", key="add_reveal_date")
-            c2.time_input("Reveal Time", key="add_reveal_time")
-
-        # Step 2: The form now only contains the text inputs and the button.
         with st.form("new_practice_q_form", clear_on_submit=True):
             pq_topic = st.text_input("Topic or Title", placeholder="e.g., Week 5 Assignment on Surds")
             pq_question = st.text_area("Question Text (Supports Markdown & LaTeX)", height=200)
             pq_answer = st.text_area("Answer Text", height=100)
             pq_explanation = st.text_area("Detailed Explanation (Optional)", height=200)
-            pq_pool_name = st.text_input("Assignment Pool Name (Optional)", placeholder="e.g., Vacation Task 1", help="Group questions by giving them the same pool name...")
-            
-            submitted = st.form_submit_button("Add Practice Question", type="primary")
-            if submitted:
-                # Step 3: Read the deadline values from session_state when the form is submitted.
-                pq_unhide_at = None
-                if st.session_state.add_pq_set_deadline:
-                    # Combine the date and time from the widgets outside the form
-                    pq_unhide_at = datetime.combine(st.session_state.add_reveal_date, st.session_state.add_reveal_time)
 
+            st.markdown("##### **Optional Assignment Settings**")
+            pq_pool_name = st.text_input("Assignment Pool Name (Optional)", placeholder="e.g., Vacation Task 1", help="Group questions by giving them the same pool name. Students will be assigned one question randomly from the pool.")
+            
+            pq_unhide_at = None
+            # We check the session state that the checkbox controls.
+            if st.session_state.add_pq_set_deadline:
+                c1, c2 = st.columns(2)
+                picked_date = c1.date_input("Reveal Date")
+                picked_time = c2.time_input("Reveal Time")
+                if picked_date and picked_time:
+                    pq_unhide_at = datetime.combine(picked_date, picked_time)
+            
+            if st.form_submit_button("Add Practice Question", type="primary"):
                 if pq_topic and pq_question and pq_answer:
                     add_practice_question(pq_topic, pq_question, pq_answer, pq_explanation, pq_pool_name, pq_unhide_at)
                     st.success("New practice question added!")
-                    # No st.rerun() is needed here; the form handles it.
+                    st.session_state.add_pq_set_deadline = False # Reset checkbox
+                    st.rerun()
                 else: 
                     st.error("Title, Question, and Answer are required.")
         # --- END: CORRECTED "ADD NEW" FORM LOGIC ---
@@ -7814,9 +7799,6 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
-
-
-
 
 
 
