@@ -3419,21 +3419,44 @@ def _generate_relations_functions_question(difficulty="Medium"):
 
     # --- 2.4: Algebra of Functions (Medium) ---
     elif q_type == 'algebra_of_functions':
-        f_coeffs = [random.randint(1,4), random.randint(-5,5)]
-        g_coeffs = [random.randint(1,4), random.randint(-5,5)]
+        f_coeffs = [random.randint(1, 5), random.randint(-5, 5)] # e.g., [2, 3] -> 2x+3
+        g_coeffs = [random.randint(1, 5), random.randint(-5, 5)] # e.g., [1, 4] -> x+4
         f_str = _poly_to_str(f_coeffs)
         g_str = _poly_to_str(g_coeffs)
-        op, sym = random.choice([('sum', '+'), ('product', '\\cdot')])
-        question = f"Given $f(x) = {f_str}$ and $g(x) = {g_str}$, find $(f {sym} g)(x)$."
+        
+        op, sym = random.choice([('sum', '+'), ('product', '*')])
+        question = f"Given $f(x) = {f_str}$ and $g(x) = {g_str}$, find $({f_str}) {sym} ({g_str})$."
+
+        # --- Generate ALL possible results from different operations ---
+        # Correct Sum: (f+g)(x)
+        sum_coeffs = [f_coeffs[0] + g_coeffs[0], f_coeffs[1] + g_coeffs[1]]
+        sum_ans = f"${_poly_to_str(sum_coeffs)}$"
+
+        # Correct Product: (f*g)(x) = acx^2 + (ad+bc)x + bd
+        prod_coeffs = [f_coeffs[0]*g_coeffs[0], f_coeffs[0]*g_coeffs[1] + f_coeffs[1]*g_coeffs[0], f_coeffs[1]*g_coeffs[1]]
+        prod_ans = f"${_poly_to_str(prod_coeffs)}$"
+
+        # Common Error 1: Subtraction (f-g)(x)
+        sub_coeffs = [f_coeffs[0] - g_coeffs[0], f_coeffs[1] - g_coeffs[1]]
+        sub_ans_distractor = f"${_poly_to_str(sub_coeffs)}$"
+
+        # Common Error 2: Composition f(g(x)) = a(cx+d) + b = acx + ad + b
+        fg_coeffs = [f_coeffs[0]*g_coeffs[0], f_coeffs[0]*g_coeffs[1] + f_coeffs[1]]
+        fg_ans_distractor = f"${_poly_to_str(fg_coeffs)}$"
+        
         if op == 'sum':
-            res_coeffs = [f_coeffs[0]+g_coeffs[0], f_coeffs[1]+g_coeffs[1]]
-            answer = f"${_poly_to_str(res_coeffs)}$"
-        else: # product
-            res_coeffs = [f_coeffs[0]*g_coeffs[0], f_coeffs[0]*g_coeffs[1] + f_coeffs[1]*g_coeffs[0], f_coeffs[1]*g_coeffs[1]]
-            answer = f"${_poly_to_str(res_coeffs)}$"
-        hint = f"To find the {op} of two functions, you simply {op} their expressions and collect like terms."
-        explanation = f"We perform the operation: $({f_str}) {sym} ({g_str})$. After simplifying, the result is **{answer}**."
-        options = {answer, f"${_poly_to_str([f_coeffs[0]-g_coeffs[0], f_coeffs[1]-g_coeffs[1]])}$"}
+            answer = sum_ans
+            # The distractors are the results of doing the WRONG operations
+            options = {answer, prod_ans, sub_ans_distractor, fg_ans_distractor}
+            hint = "To find the sum of two functions, add their corresponding like terms (the x-terms and the constant terms)."
+            explanation = f"We add the expressions: $({f_str}) + ({g_str})$.\nCombine the x-terms: ${f_coeffs[0]}x + {g_coeffs[0]}x = {sum_coeffs[0]}x$.\nCombine the constants: ${f_coeffs[1]} + {g_coeffs[1]} = {sum_coeffs[1]}$.\nThe result is **{answer}**."
+        else: # Product
+            answer = prod_ans
+            # The distractors are the results of doing the WRONG operations
+            options = {answer, sum_ans, sub_ans_distractor, fg_ans_distractor}
+            hint = "To find the product of two functions, use the FOIL method to expand the brackets and collect like terms."
+            explanation = f"We multiply the expressions using FOIL: $({f_str})({g_str})$.\nThis gives ${f_coeffs[0]*g_coeffs[0]}x^2 + {f_coeffs[0]*g_coeffs[1]}x + {f_coeffs[1]*g_coeffs[0]}x + {f_coeffs[1]*g_coeffs[1]}$.\nCombining like terms gives **{answer}**."
+
 
     # --- 3.1 & 3.2: Algebraic Composition & Inverse Functions (Hard) ---
     elif q_type in ['composite_algebraic', 'inverse_function']:
@@ -7686,6 +7709,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
