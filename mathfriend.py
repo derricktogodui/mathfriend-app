@@ -3378,15 +3378,30 @@ def _generate_relations_functions_question(difficulty="Medium"):
     elif q_type == 'types_of_mappings':
         domain = [1, 2, 3, 4]
         codomain = ['a', 'b', 'c', 'd', 'e']
+        
+        # Create clear examples for each type
         one_to_one = str({(domain[0], codomain[0]), (domain[1], codomain[1]), (domain[2], codomain[2])})
         many_to_one = str({(domain[0], codomain[0]), (domain[1], codomain[0]), (domain[2], codomain[1])})
         one_to_many = str({(domain[0], codomain[0]), (domain[0], codomain[1]), (domain[1], codomain[2])})
-        relation, correct_type = random.choice([(one_to_one, "One-to-one (injective)"), (many_to_one, "Many-to-one"), (one_to_many, "One-to-many (not a function)")])
+        
+        relation, correct_type = random.choice([
+            (one_to_one, "One-to-one (injective)"), 
+            (many_to_one, "Many-to-one"), 
+            (one_to_many, "One-to-many (not a function)")
+        ])
+        
         question = f"The relation $R = {relation}$. What type of mapping is this?"
         answer = correct_type
-        hint = "Check if inputs (x-values) or outputs (y-values) are repeated. A one-to-many mapping is not a function."
-        explanation = f"In a **one-to-one** mapping, each input has a unique output. In a **many-to-one**, multiple inputs can go to the same output. In a **one-to-many**, one input goes to multiple outputs. The relation shown is a classic example of a **{correct_type}** mapping."
-        options = {"One-to-one (injective)", "Many-to-one", "One-to-many (not a function)"}
+        hint = "Check if inputs (first elements) or outputs (second elements) are repeated in the ordered pairs."
+        explanation = f"In a **one-to-one** mapping, each input has a unique output. In a **many-to-one**, multiple inputs can go to the same output. In a **one-to-many**, one input goes to multiple outputs (this is not a function). The relation shown is a classic example of a **{correct_type}** mapping."
+        
+        # --- THIS IS THE FIX ---
+        # We explicitly define the options and do not use the generic option filler.
+        # This ensures no random numbers will ever be added.
+        final_options = ["One-to-one (injective)", "Many-to-one", "One-to-many (not a function)"]
+        random.shuffle(final_options)
+        
+        return {"question": question, "options": final_options, "answer": answer, "hint": hint, "explanation": explanation, "difficulty": difficulty}
 
     # --- 2.2: Finding the Domain from an Equation (Medium) ---
     elif q_type == 'domain_from_equation':
@@ -7719,6 +7734,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
