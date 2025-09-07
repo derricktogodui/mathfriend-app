@@ -368,6 +368,18 @@ def get_coin_balance(username):
         result = conn.execute(query, {"username": username}).scalar_one_or_none()
         return result if result is not None else 0
 
+def get_user_transactions(username):
+    """Fetches all coin transactions for a given user, ordered by most recent."""
+    with engine.connect() as conn:
+        query = text("""
+            SELECT timestamp, amount, description 
+            FROM coin_transactions 
+            WHERE username = :username 
+            ORDER BY timestamp DESC
+        """)
+        result = conn.execute(query, {"username": username}).mappings().fetchall()
+        return [dict(row) for row in result]
+
 def get_user_role(username):
     """Fetches the role of a user from the database."""
     with engine.connect() as conn:
@@ -6709,6 +6721,16 @@ def display_admin_panel(topic_options):
                             st.dataframe(df_history.rename(columns={'topic':'Topic', 'score':'Score', 'questions_answered':'Total', 'timestamp':'Date'}), use_container_width=True)
                         else:
                             st.info("No quiz history found.")
+                    # --- START: NEW COIN TRANSACTION VIEWER ---
+                    with st.expander("View Coin Transaction History"):
+                        transactions = get_user_transactions(selected_user_report)
+                        if transactions:
+                            df_trans = pd.DataFrame(transactions)
+                            df_trans['timestamp'] = pd.to_datetime(df_trans['timestamp']).dt.strftime('%Y-%m-%d %H:%M')
+                            st.dataframe(df_trans.rename(columns={'timestamp': 'Date', 'amount': 'Amount 🪙', 'description': 'Description'}), use_container_width=True)
+                        else:
+                            st.info("No coin transactions found for this user.")
+                    # --- END: NEW COIN TRANSACTION VIEWER ---
         
         st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
         st.subheader("🛠️ Administrative Actions")
@@ -7272,6 +7294,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
