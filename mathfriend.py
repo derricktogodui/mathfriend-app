@@ -6889,14 +6889,10 @@ def display_admin_panel(topic_options):
         st.subheader("Add New Question/Assignment")
 
         # --- START: CORRECTED "ADD NEW" FORM LOGIC ---
-        # We use session state to remember if the deadline checkbox is ticked.
-        if 'add_pq_set_deadline' not in st.session_state:
-            st.session_state.add_pq_set_deadline = False
-        
-        # The checkbox is now OUTSIDE the form. Clicking it will trigger a rerun.
-        st.session_state.add_pq_set_deadline = st.checkbox(
+        # The checkbox now directly manages its state via the 'key'.
+        st.checkbox(
             "Set a specific answer reveal time (optional)", 
-            key="add_deadline_cb"
+            key="add_pq_set_deadline" # The key IS the session state variable.
         )
 
         with st.form("new_practice_q_form", clear_on_submit=True):
@@ -6909,7 +6905,7 @@ def display_admin_panel(topic_options):
             pq_pool_name = st.text_input("Assignment Pool Name (Optional)", placeholder="e.g., Vacation Task 1", help="Group questions by giving them the same pool name. Students will be assigned one question randomly from the pool.")
             
             pq_unhide_at = None
-            # The date/time pickers are INSIDE the form but only show if the checkbox is ticked.
+            # We check the session state that the checkbox controls.
             if st.session_state.add_pq_set_deadline:
                 c1, c2 = st.columns(2)
                 picked_date = c1.date_input("Reveal Date")
@@ -6921,8 +6917,7 @@ def display_admin_panel(topic_options):
                 if pq_topic and pq_question and pq_answer:
                     add_practice_question(pq_topic, pq_question, pq_answer, pq_explanation, pq_pool_name, pq_unhide_at)
                     st.success("New practice question added!")
-                    # Reset checkbox after submission
-                    st.session_state.add_pq_set_deadline = False
+                    st.session_state.add_pq_set_deadline = False # Reset checkbox
                     st.rerun()
                 else: 
                     st.error("Title, Question, and Answer are required.")
@@ -6944,12 +6939,12 @@ def display_admin_panel(topic_options):
                     
                     with st.expander("✏️ Edit this question"):
                         # --- START: CORRECTED "EDIT" FORM LOGIC ---
-                        # We need a unique session state key for each edit form's checkbox
                         edit_deadline_key = f"edit_deadline_cb_{q['id']}"
                         if edit_deadline_key not in st.session_state:
                             st.session_state[edit_deadline_key] = q.get('unhide_answer_at') is not None
 
-                        st.session_state[edit_deadline_key] = st.checkbox(
+                        # The checkbox now correctly manages its own state via its unique key.
+                        st.checkbox(
                             "Set a specific answer reveal time (optional)", 
                             key=edit_deadline_key
                         )
@@ -6964,11 +6959,12 @@ def display_admin_panel(topic_options):
                             edit_pool_name = st.text_input("Assignment Pool Name (Optional)", value=q.get('assignment_pool_name'), key=f"edit_pq_pool_{q['id']}")
                             
                             edit_unhide_at = None
+                            # We check the session state that the checkbox controls.
                             if st.session_state[edit_deadline_key]:
                                 current_deadline = q.get('unhide_answer_at')
                                 c1, c2 = st.columns(2)
                                 default_date = current_deadline.date() if current_deadline else date.today()
-                                default_time = current_deadline.time() if current_deadline else time(12, 0)
+                                default_time = current_deadline.time() if current_deadline else datetime.time(12, 0)
                                 
                                 edit_picked_date = c1.date_input("Reveal Date", value=default_date, key=f"edit_date_{q['id']}")
                                 edit_picked_time = c2.time_input("Reveal Time", value=default_time, key=f"edit_time_{q['id']}")
@@ -6996,7 +6992,6 @@ def display_admin_panel(topic_options):
                         delete_practice_question(q['id'])
                         st.success(f"Question {q['id']} deleted.")
                         st.rerun()
-
         
     # --- TAB 5: ANNOUNCEMENTS ---
     with tabs[4]:
@@ -7277,6 +7272,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
