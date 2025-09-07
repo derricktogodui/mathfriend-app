@@ -712,10 +712,27 @@ def get_active_practice_questions():
     for row in rows:
         q = dict(row)
         unhide_time = q.get("unhide_answer_at")
-        if unhide_time and unhide_time > now:
-            # Hide answers until it's time
-            q["answer_text"] = None
-            q["explanation_text"] = None
+
+        if unhide_time:
+            # If DB returned a string, parse it to a datetime
+            if isinstance(unhide_time, str):
+                try:
+                    unhide_time = parser.parse(unhide_time)
+                except Exception:
+                    # If parsing fails, ignore unhide_time (show answer)
+                    unhide_time = None
+
+            # If we now have a datetime object, align tz-awareness and compare
+            if isinstance(unhide_time, datetime):
+                # If unhide_time is timezone-aware but 'now' is naive, make 'now' aware with same tz
+                if unhide_time.tzinfo is not None and now.tzinfo is None:
+                    now = datetime.now(tz=unhide_time.tzinfo)
+
+                # Safe to compare after alignment
+                if unhide_time > now:
+                    q["answer_text"] = None
+                    q["explanation_text"] = None
+
         result.append(q)
     return result
 
@@ -7814,6 +7831,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
