@@ -2466,7 +2466,10 @@ def _generate_sets_question(difficulty="Medium"):
         op, sym = random.choice([('union', '\\cup'), ('intersection', '\\cap')])
         question = f"Given $A = {set_a}$ and $B = {set_b}$, find $A {sym} B$."
         res = set_a.union(set_b) if op == 'union' else set_a.intersection(set_b)
-        answer = str(res) if res else "{}"
+        
+        # --- FIX for empty set display ---
+        answer = str(res) if res else "$\\emptyset$"
+        
         hint = "Union (∪) means 'all elements combined'. Intersection (∩) means 'only elements in common'."
         explanation = f"The {op} of sets A and B results in the set **{answer}**."
         options = {answer, str(set_a.difference(set_b)), str(set_b.difference(set_a))}
@@ -2490,18 +2493,20 @@ def _generate_sets_question(difficulty="Medium"):
         op = random.choice(['complement', 'difference'])
         if op == 'complement':
             question = f"Given the universal set $\mathcal{{U}} = \\{{1, 2, ..., 20\\}}$ and $A = {set_a}$, find the complement, $A'$."
-            answer = str(universal_set - set_a)
+            res = universal_set - set_a
+            answer = str(res) if res else "$\\emptyset$"
             hint = "The complement contains all elements in the universal set that are NOT in set A."
             explanation = f"$A' = \mathcal{{U}} - A = {answer}$."
             options = {answer, str(set_a), str(universal_set)}
         else: # Difference
             question = f"Given $A = {set_a}$ and $B = {set_b}$, find the set difference $A - B$."
-            answer = str(set_a.difference(set_b))
+            res = set_a.difference(set_b)
+            answer = str(res) if res else "$\\emptyset$"
             hint = "The difference A - B contains all elements that are in A but NOT in B."
             explanation = f"We take all the elements of set A and remove any that also appear in set B. The result is {answer}."
             options = {answer, str(set_b.difference(set_a)), str(set_a.intersection(set_b))}
 
-    # --- 2.2: Proper Subsets (Medium) ---
+    # --- 2.2: Proper Subsets & Power Sets (Medium) ---
     elif q_type == 'proper_subsets':
         num_elements = random.randint(3, 6)
         s = set(random.sample(range(1, 100), k=num_elements))
@@ -2533,7 +2538,8 @@ def _generate_sets_question(difficulty="Medium"):
         set_a = set(random.sample(range(1, 20), k=random.randint(4, 6)))
         set_b = set(random.sample(range(1, 20), k=random.randint(4, 6)))
         question = f"Given $A = {set_a}$ and $B = {set_b}$, find the symmetric difference $A \\Delta B$."
-        answer = str(set_a.symmetric_difference(set_b))
+        res = set_a.symmetric_difference(set_b)
+        answer = str(res) if res else "$\\emptyset$"
         hint = "Symmetric difference contains elements in A or in B, but NOT in both. It can be calculated as $(A \\cup B) - (A \\cap B)$."
         explanation = f"The union is $A \\cup B = {set_a.union(set_b)}$.\nThe intersection is $A \\cap B = {set_a.intersection(set_b)}$.\nThe difference between these two sets is **{answer}**."
         options = {answer, str(set_a.union(set_b)), str(set_a.intersection(set_b)), str(set_a.difference(set_b))}
@@ -2551,7 +2557,7 @@ def _generate_sets_question(difficulty="Medium"):
         explanation = f"This is a direct application of the standard laws of the algebra of sets. The correct identity is **{answer}**."
         if "De Morgan" in law: options = {"$A' \\cap B'$", "$A' \\cup B'$", "$A \\cap B'"}
         elif "Distributive" in law: options = {"$(A \\cap B) \\cup (A \\cap C)$", "$(A \\cup B) \\cap (A \\cup C)$", "$A \\cup (B \\cap C)$"}
-        else: options = {"$\\mathcal{U}$ (the universal set)", "$\\emptyset$ (the empty set)", "A"}
+        else: options = {"$\\mathcal{U}$ (the universal set)", "$\\emptyset$", "A"}
 
     # --- 3.3: 3-Set Venn Diagram Problems (Hard) ---
     elif q_type == 'venn_three':
@@ -2563,7 +2569,6 @@ def _generate_sets_question(difficulty="Medium"):
         question = f"A survey of students in Kumasi found that {total_A} liked Maths, {total_B} liked Science, and {total_C} liked English. Of these, {ab_only+abc} liked Maths and Science, {ac_only+abc} liked Maths and English, {bc_only+abc} liked Science and English, and {abc} liked all three. How many students liked **only** Maths?"
         answer = str(a)
         hint = "Draw a three-circle Venn diagram. Start by filling in the center region (all three subjects) and work your way outwards by subtracting."
-        # --- THIS IS THE CORRECTED LINE ---
         explanation = f"1. Start with $n(M \\cap S \\cap E) = {abc}$.\n2. Find 'Maths and Science only': $n(M \\cap S) - n(M \\cap S \\cap E) = {ab_only+abc} - {abc} = {ab_only}$.\n3. Similarly, 'Maths and English only' = {ac_only} and 'Science and English only' = {bc_only}.\n4. Finally, find 'Maths only': $n(M) - (\\text{{the other Maths regions}}) = {total_A} - ({ab_only} + {ac_only} + {abc}) = {a}$."
         options = {str(a), str(ab_only), str(ac_only), str(total_A)}
 
@@ -7734,6 +7739,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
