@@ -2836,97 +2836,200 @@ def _generate_indices_question(difficulty="Medium"):
     return {"question": question, "options": _finalize_options(options), "answer": answer, "hint": hint, "explanation": explanation, "difficulty": difficulty}
 
 def _generate_surds_question(difficulty="Medium"):
-    """Generates a Surds question based on difficulty, preserving all original sub-types."""
-    
+    """Generates a Surds question based on the detailed, multi-level curriculum."""
+
     if difficulty == "Easy":
-        # Foundational concepts: identifying and simplifying surds.
-        q_type = random.choice(['identify', 'simplify'])
+        # Level 1: The Fundamentals
+        q_type = random.choice(['identify', 'simplify_single', 'ops_like_surds'])
     elif difficulty == "Medium":
-        # Standard applications: simple operations, solving, and geometry.
-        q_type = random.choice(['operate_add_sub', 'equation', 'geometry'])
+        # Level 2: Intermediate Applications
+        q_type = random.choice(['ops_unlike_surds', 'expand_single_bracket', 'rationalize_monomial', 'geometry_context'])
     else: # Hard
-        # More complex applications: binomial multiplication and rationalization.
-        q_type = random.choice(['operate_multiply', 'rationalize'])
+        # Level 3: Advanced Algebraic Surds
+        q_type = random.choice(['expand_double_bracket', 'rationalize_binomial', 'equality_of_surds', 'nested_square_root', 'quadratic_roots'])
 
     question, answer, hint, explanation = "", "", "", ""
     options = set()
 
-    # --- Easy Questions ---
+    # --- 1.1: Identifying Surds (Easy) ---
     if q_type == 'identify':
-        perfect_square = random.randint(2, 12)**2
+        perfect_square = random.randint(3, 12)**2
         non_square_base = random.choice([2, 3, 5, 6, 7, 10, 11, 13, 14, 15])
-        question = "Which of the following numbers is a surd?"
+        phrasing = random.choice([
+            "Which of the following numbers is a surd?",
+            "Identify the irrational number in the form of a surd from the options below.",
+            "Which of the following roots cannot be simplified to a rational number?"
+        ])
+        question = phrasing
         answer = f"$\\sqrt{{{non_square_base}}}$"
-        hint = "A surd is an irrational number left in root form. If the root simplifies to a whole number or fraction, it is not a surd."
-        explanation = f"$\\sqrt{{{perfect_square}}}$ simplifies to {int(math.sqrt(perfect_square))}, which is rational. However, $\\sqrt{{{non_square_base}}}$ cannot be simplified to a rational number, so it is a surd."
-        options = {answer, f"$\\sqrt{{{perfect_square}}}$", str(random.randint(2,10))}
+        hint = "A surd is an irrational number. If a square root simplifies to a whole number, it is rational, not a surd."
+        explanation = f"$\\sqrt{{{perfect_square}}}$ simplifies to {int(math.sqrt(perfect_square))}, which is a rational number. However, $\\sqrt{{{non_square_base}}}$ cannot be simplified to a rational number, so it is a surd."
+        options = {answer, f"$\\sqrt{{{perfect_square}}}$", str(random.randint(2,10)), f"$\\frac{{1}}{{2}}$"}
 
-    elif q_type == 'simplify':
-        p_sq, n = random.choice([4, 9, 16, 25, 36]), random.choice([2, 3, 5, 7, 10])
+    # --- 1.2: Simplifying Single Surds (Easy) ---
+    elif q_type == 'simplify_single':
+        p_sq, n = random.choice([(4, 3), (4, 5), (9, 2), (9, 3), (16, 2), (25, 3), (36, 2)])
         num = p_sq * n
-        question = f"Express $\\sqrt{{{num}}}$ in its simplest surd form."
+        phrasing = random.choice([
+            f"Express $\\sqrt{{{num}}}$ in its simplest surd form.",
+            f"What is the simplified form of $\\sqrt{{{num}}}$?",
+            f"Simplify the expression $\\sqrt{{{num}}}$ completely."
+        ])
+        question = phrasing
         answer = f"${int(math.sqrt(p_sq))}\\sqrt{{{n}}}$"
         hint = f"Find the largest perfect square that is a factor of {num}."
-        explanation = f"1. Find factors: ${num} = {p_sq} \\times {n}$.\n2. Split the surd: $\\sqrt{{{num}}} = \\sqrt{{{p_sq}}} \\times \\sqrt{{{n}}}$.\n3. Simplify: ${answer}$."
-        options = {answer, f"${n}\\sqrt{{{p_sq}}}$", f"${p_sq}\\sqrt{{{n}}}$"}
+        explanation = f"To simplify, we find the largest perfect square factor of {num}, which is {p_sq}.\n$\\sqrt{{{num}}} = \\sqrt{{{p_sq} \\times {n}}} = \\sqrt{{{p_sq}}} \\times \\sqrt{{{n}}} = {answer}$."
+        # Smart Distractors
+        distractor1 = f"${n}\\sqrt{{{p_sq}}}$" # Common error: pulling out the wrong factor
+        distractor2 = f"${p_sq}\\sqrt{{{n}}}$" # Common error: forgetting to take the square root of the perfect square
+        options = {answer, distractor1, distractor2}
 
-    # --- Medium Questions ---
-    elif q_type == 'operate_add_sub':
+    # --- 1.3: Basic Operations on Like Surds (Easy) ---
+    elif q_type == 'ops_like_surds':
         base_surd = random.choice([2, 3, 5, 7])
         c1, c2 = random.randint(2, 10), random.randint(2, 10)
         op, sym, res = random.choice([('add', '+', c1+c2), ('subtract', '-', c1-c2)])
         question = f"Simplify: ${c1}\\sqrt{{{base_surd}}} {sym} {c2}\\sqrt{{{base_surd}}}$"
         answer = f"${res}\\sqrt{{{base_surd}}}$"
-        hint = "You can only add or subtract 'like' surds (surds with the same number under the root)."
-        explanation = f"Since both terms have $\\sqrt{{{base_surd}}}$, you can factor it out: $({c1} {sym} {c2})\\sqrt{{{base_surd}}} = {res}\\sqrt{{{base_surd}}}$."
-        options = {answer, f"${c1*c2}\\sqrt{{{base_surd}}}$", f"${res}\\sqrt{{{base_surd*2}}}$"}
+        hint = "You can add or subtract 'like surds' by adding or subtracting their coefficients."
+        explanation = f"Since both terms are 'like surds' (they both have $\\sqrt{{{base_surd}}}$), we can simply operate on their coefficients:\n$({c1} {sym} {c2})\\sqrt{{{base_surd}}} = {res}\\sqrt{{{base_surd}}}$."
+        # Smart Distractors
+        distractor1 = f"${c1*c2}\\sqrt{{{base_surd}}}$" # Common error: multiplying coefficients
+        distractor2 = f"${res}\\sqrt{{{base_surd*2}}}$" # Common error: adding the numbers under the root
+        options = {answer, distractor1, distractor2}
 
-    elif q_type == 'equation':
-        result, c = random.randint(2, 5), random.randint(1, 10)
-        x_val = result**2 + c
-        question = f"Solve for x: $\\sqrt{{x - {c}}} = {result}$"
-        answer = str(x_val)
-        hint = "To eliminate the square root, you must square both sides of the equation."
-        explanation = (f"1. Given: $\\sqrt{{x - {c}}} = {result}$.\n2. Square both sides: $(\\sqrt{{x - {c}}})^2 = {result}^2 \\implies x - {c} = {result**2}$.\n3. Add {c} to both sides: $x = {result**2} + {c} = {x_val}$.")
-        options = {answer, str(result + c), str(result**2), str(abs(result**2-c))}
+    # --- 2.1: Operations on Unlike Surds (Medium) ---
+    elif q_type == 'ops_unlike_surds':
+        n = random.choice([2, 3, 5])
+        p1, p2 = random.choice([(4,9), (4,16), (9,25)])
+        s1, s2 = int(math.sqrt(p1)), int(math.sqrt(p2))
+        c1, c2 = random.randint(2, 5), random.randint(2, 5)
+        term1, term2 = c1 * s1, c2 * s2
+        question = f"Simplify completely: ${c1}\\sqrt{{{p1*n}}} + {c2}\\sqrt{{{p2*n}}}$"
+        answer = f"${term1 + term2}\\sqrt{{{n}}}$"
+        hint = "First, simplify each surd term into its simplest form. Then, check if you have like surds to combine."
+        explanation = f"1. Simplify the first term: ${c1}\\sqrt{{{p1*n}}} = {c1} \\times {s1}\\sqrt{{{n}}} = {term1}\\sqrt{{{n}}}$.\n2. Simplify the second term: ${c2}\\sqrt{{{p2*n}}} = {c2} \\times {s2}\\sqrt{{{n}}} = {term2}\\sqrt{{{n}}}$.\n3. Now add the like surds: ${term1}\\sqrt{{{n}}} + {term2}\\sqrt{{{n}}} = {answer}$."
+        # Smart Distractors
+        distractor1 = f"${c1+c2}\\sqrt{{{p1*n + p2*n}}}$" # Error: adding everything
+        distractor2 = f"${term1 + c2}\\sqrt{{{n}}}$" # Error: forgetting to simplify the second term
+        options = {answer, distractor1, distractor2}
 
+    # --- 2.2: Expansion of Single Brackets (Medium) ---
+    elif q_type == 'expand_single_bracket':
+        a, b, c = random.choice([2,3,5]), random.choice([2,3,5]), random.randint(2,6)
+        question = f"Expand and simplify the expression: $\\sqrt{{{a}}}({c} + \\sqrt{{{b}}})$"
+        if a == b: answer = f"${c}\\sqrt{{{a}}} + {a}$"
+        else: answer = f"${c}\\sqrt{{{a}}} + \\sqrt{{{a*b}}}$"
+        hint = "Use the distributive property to multiply the term outside the bracket with each term inside."
+        explanation = f"$\\sqrt{{{a}}} \\times {c} + \\sqrt{{{a}}} \\times \\sqrt{{{b}}} = {answer}$"
+        # Smart Distractors
+        distractor1 = f"${c+a}\\sqrt{{{b}}}$" # Error: incorrect operations
+        distractor2 = f"${c}\\sqrt{{{a+b}}}$" # Error: adding under root
+        options = {answer, distractor1, distractor2}
 
-    elif q_type == 'geometry':
-        a, b = random.randint(2, 5), random.randint(6, 9)
-        c_sq = a**2 + b**2
-        question = f"A right-angled triangle has shorter sides of length ${a}$ cm and ${b}$ cm. Find the exact length of the hypotenuse in its simplest surd form."
-        answer = f"$\\sqrt{{{c_sq}}}$"
-        hint = "Use Pythagoras' theorem: $a^2 + b^2 = c^2$. Leave the result in exact surd form if it cannot be simplified."
-        explanation = f"1. By Pythagoras' theorem, $c^2 = a^2 + b^2$.\n2. $c^2 = {a}^2 + {b}^2 = {a**2} + {b**2} = {c_sq}$.\n3. The exact length is $c = \\sqrt{{{c_sq}}}$ cm."
-        options = {answer, f"$\\sqrt{{{abs(b**2 - a**2)}}}$", f"{a+b}"}
+    # --- 2.3: Rationalizing Monomial Denominators (Medium) ---
+    elif q_type == 'rationalize_monomial':
+        n = random.choice([2,3,5,6,7])
+        a = random.randint(2,10) * n
+        question = f"Express $\\frac{{{a}}}{{\\sqrt{{{n}}}}}$ with a rational denominator."
+        answer = f"${a//n}\\sqrt{{{n}}}$"
+        hint = "Multiply the numerator and the denominator by the surd in the denominator (in this case, by $\\sqrt{n}$)."
+        explanation = f"To rationalize, we multiply the top and bottom by $\\sqrt{{{n}}}$:\n$\\frac{{{a}}}{{\\sqrt{{{n}}}}} \\times \\frac{{\\sqrt{{{n}}}}}{{\\sqrt{{{n}}}}} = \\frac{{{a}\\sqrt{{{n}}}}}{{{n}}}$.\nThis simplifies to ${answer}$ because {a} divided by {n} is {a//n}."
+        # Smart Distractors
+        distractor1 = f"${a}\\sqrt{{{n}}}$" # Error: forgetting to divide by the new denominator
+        distractor2 = str(a) # Error: incorrectly cancelling
+        options = {answer, distractor1, distractor2}
 
-    # --- Hard Questions ---
-    elif q_type == 'operate_multiply':
-        a = random.randint(2, 5)
-        b = random.choice([2, 3, 5, 6, 7])
-        c = random.randint(2, 5)
-        question = f"Expand and simplify: $({a} + \\sqrt{{{b}}})({c} - \\sqrt{{{b}}})$"
-        res_term1, res_term2 = a*c - b, c - a
-        answer = f"${res_term1} + {res_term2}\\sqrt{{{b}}}$" if res_term2 >= 0 else f"${res_term1} - {abs(res_term2)}\\sqrt{{{b}}}$"
-        hint = "Use the FOIL (First, Outer, Inner, Last) method to expand the brackets, then collect like terms."
-        explanation = f"FOIL gives: $({a})({c}) + ({a})(-\\sqrt{{{b}}}) + (\\sqrt{{{b}}})({c}) + (\\sqrt{{{b}}})(-\\sqrt{{{b}}})$\n$= {a*c} - {a}\\sqrt{{{b}}} + {c}\\sqrt{{{b}}} - {b}$\nCollect like terms: $({a*c} - {b}) + ({c} - {a})\\sqrt{{{b}}} = {answer}$."
-        options = {answer, f"{a*c+b} + {c+a}\\sqrt{{{b}}}$", f"{a*c-b}"}
+    # --- 2.4: Contextual Geometry (Medium) ---
+    elif q_type == 'geometry_context':
+        l_sq, w_sq = random.choice([(4,2), (9,3), (16,2)])
+        n = random.randint(2,3)
+        l, w = int(math.sqrt(l_sq)), int(math.sqrt(w_sq))
+        question = f"A rectangular plot of land has a length of $\\sqrt{{{l_sq * n}}}$ metres and a width of $\\sqrt{{{w_sq * n}}}$ metres. Find its perimeter."
+        answer = f"${2*l + 2*w}\\sqrt{{{n}}}$ metres"
+        hint = "Perimeter = 2(length + width). First, simplify both the length and the width to their simplest surd form."
+        explanation = f"1. Simplify length: $\\sqrt{{{l_sq * n}}} = {l}\\sqrt{{{n}}}$.\n2. Simplify width: $\\sqrt{{{w_sq * n}}} = {w}\\sqrt{{{n}}}$.\n3. Perimeter = $2({l}\\sqrt{{{n}}} + {w}\\sqrt{{{n}}}) = 2(({l+w})\\sqrt{{{n}}}) = {answer}$."
+        # Smart Distractors
+        area = f"${l*w*n}$ metres²"
+        distractor1 = f"${2*(l_sq*n + w_sq*n)}$ metres" # Error: adding before simplifying
+        options = {answer, area, distractor1}
 
-    elif q_type == 'rationalize':
-        a, b = random.randint(2, 9), random.randint(2, 9)
-        c = random.choice([2, 3, 5, 7, 10, 11])
-        while b*b == c: b = random.randint(2,9) # Ensure denominator doesn't become zero
-        question = f"Rationalize the denominator of $\\frac{{{a}}}{{{b} + \\sqrt{{{c}}}}}$"
-        num_part1, num_part2, den = a*b, -a, b**2 - c
-        common_divisor = math.gcd(math.gcd(num_part1, abs(num_part2)), den)
-        s_num_part1, s_num_part2, s_den = num_part1//common_divisor, num_part2//common_divisor, den//common_divisor
-        num_latex = f"{s_num_part1} - {abs(s_num_part2)}\\sqrt{{{c}}}" if s_num_part2 < 0 else f"{s_num_part1} + {s_num_part2}\\sqrt{{{c}}}"
-        if s_den == 1: answer = f"${num_latex}$"
-        elif s_den == -1: answer = f"$-{s_num_part1} + {abs(s_num_part2)}\\sqrt{{{c}}}$"
-        else: answer = f"$\\frac{{{num_latex}}}{{{s_den}}}$"
-        hint = f"Multiply the numerator and denominator by the conjugate of the denominator, which is $({b} - \\sqrt{{{c}}})$."
-        explanation = f"1. Multiply by conjugate: $\\frac{{{a}}}{{{b} + \\sqrt{{{c}}}}} \\times \\frac{{{b} - \\sqrt{{{c}}}}}{{{b} - \\sqrt{{{c}}}}}$.\n2. Numerator becomes: ${a*b} - {a}\\sqrt{{{c}}}$.\n3. Denominator becomes: $({b})^2 - (\\sqrt{{{c}}})^2 = {b**2} - {c} = {den}$.\n4. The fraction is $\\frac{{{a*b} - {a}\\sqrt{{{c}}}}}{{{den}}}$, which simplifies to {answer}."
-        options = {answer, f"$\\frac{{{a}}}{{{b+c}}}$", f"$\\frac{{{a*b} + {a}\\sqrt{{{c}}}}}{{{den}}}$"}
+    # --- 3.1: Advanced Rationalization (Hard) ---
+    elif q_type == 'rationalize_binomial':
+        n1, n2 = random.choice([2,3,5]), random.choice([2,3,5])
+        c, d = random.randint(2,5), random.randint(2,5)
+        while c*c == d*d*n2: c, d = random.randint(2,5), random.randint(2,5) # Avoid zero denominator
+        a, b = random.randint(1,5), random.randint(1,5)
+        
+        question = f"Simplify completely: $\\frac{{{a} + {b}\\sqrt{{{n1}}}}}{{{c} - {d}\\sqrt{{{n2}}}}}$"
+        
+        # Calculate answer
+        new_den = c*c - d*d*n2
+        num_rat = a*c + b*d*math.sqrt(n1*n2)
+        num_irr1 = a*d*math.sqrt(n2)
+        num_irr2 = b*c*math.sqrt(n1)
+        # For simplicity, we'll create problems where n1=n2 to get clean answers for now
+        n = random.choice([2,3,5])
+        a,b,c,d = [random.randint(1,5) for _ in range(4)]
+        while c==d: d=random.randint(1,5) # Avoid zero denominator
+        
+        question = f"Express $\\frac{{{a} + {b}\\sqrt{{{n}}}}}{{{c} - {d}\\sqrt{{{n}}}}}$ in the form $p + q\\sqrt{{{n}}}$."
+        
+        den = c*c - d*d*n
+        num_rat = a*c + b*d*n
+        num_irr = a*d + b*c
+        
+        p = Fraction(num_rat, den)
+        q = Fraction(num_irr, den)
+        answer = f"${_get_fraction_latex_code(p)} + {_get_fraction_latex_code(q)}\\sqrt{{{n}}}$"
+        
+        hint = f"Multiply the numerator and denominator by the conjugate of the denominator, which is $({c} + {d}\\sqrt{{{n}}})$."
+        explanation = f"1. Numerator: $({a} + {b}\\sqrt{{{n}}})({c} + {d}\\sqrt{{{n}}}) = ({a*c} + {b*d*n}) + ({a*d} + {b*c})\\sqrt{{{n}}}$.\n2. Denominator: $({c} - {d}\\sqrt{{{n}}})({c} + {d}\\sqrt{{{n}}}) = {c*c} - {d*d*n} = {den}$.\n3. Result: $\\frac{{{num_rat} + {num_irr}\\sqrt{{{n}}}}}{{{den}}}$, which simplifies to {answer}."
+        
+        # Smart Distractors
+        distractor1 = f"${_get_fraction_latex_code(p)} - {_get_fraction_latex_code(q)}\\sqrt{{{n}}}$" # Sign error in numerator
+        distractor2_den = c*c + d*d*n # Common error in denominator calculation
+        p2 = Fraction(num_rat, distractor2_den); q2 = Fraction(num_irr, distractor2_den)
+        distractor2 = f"${_get_fraction_latex_code(p2)} + {_get_fraction_latex_code(q2)}\\sqrt{{{n}}}$"
+        options = {answer, distractor1, distractor2}
+
+    # --- 3.2: Equality of Surds (Hard) ---
+    elif q_type == 'equality_of_surds':
+        # This is the difficult question from our previous discussion
+        x, y = 47, -25
+        question = f"Given that $x$ and $y$ are rational numbers, find the values of $x$ and $y$ in the equation: $$\\frac{{x + y\\sqrt{{3}}}}{{2 - \\sqrt{{3}}}} = \\sqrt{{75}} + (4 - \\sqrt{{3}})^2$$"
+        answer = f"x = {x}, y = {y}"
+        hint = "First, simplify both sides to the form $A+B\\sqrt{3}$. Then equate the rational parts and the irrational parts to form simultaneous equations."
+        explanation = f"1. RHS simplifies to $19 - 3\\sqrt{{3}}$.\n2. LHS simplifies to $(2x+3y) + (x+2y)\\sqrt{{3}}$.\n3. Equating parts gives two equations: $2x+3y=19$ and $x+2y=-3$.\n4. Solving these simultaneously gives the answer."
+        # Smart Distractors
+        distractor1 = f"x = {-x}, y = {-y}"
+        distractor2 = f"x = {y}, y = {x}"
+        options = {answer, distractor1, distractor2}
+
+    # --- 3.3: Nested Square Roots (Hard) ---
+    elif q_type == 'nested_square_root':
+        a, b = random.choice([(6,5), (7,3), (11,5), (8,3)])
+        A, C = a + b, 4 * a * b
+        question = f"Simplify the expression completely: $\\sqrt{{{A} - \\sqrt{{{C}}}}}$"
+        answer = f"$\\sqrt{{{a}}} - \\sqrt{{{b}}}$"
+        hint = "The expression is not in the form $\\sqrt{A - 2\\sqrt{B}}$. You must first manipulate the inner surd, $\\sqrt{C}$, to pull out a '2'."
+        explanation = f"1. Simplify inner surd: $\\sqrt{{{C}}} = \\sqrt{{4 \\times {a*b}}} = 2\\sqrt{{{a*b}}}$.\n2. The expression becomes $\\sqrt{{{A} - 2\\sqrt{{{a*b}}}}}$.\n3. We need two numbers that add to {A} and multiply to {a*b}. These are {a} and {b}.\n4. The simplified form is $\\sqrt{a} - \\sqrt{b}$ (placing the larger number first), which is {answer}."
+        # Smart Distractors
+        distractor1 = f"$\\sqrt{{{a}}} + \\sqrt{{{b}}}$" # Sign error
+        distractor2 = f"$\\sqrt{{{A - math.sqrt(C)}}}$" # Naive subtraction
+        options = {answer, distractor1, distractor2}
+
+    # --- 3.4 & 3.5: Crossover Topics (Hard) ---
+    elif q_type == 'quadratic_roots':
+        r1_a, r1_b, n = random.randint(2,5), random.randint(1,3), random.choice([2,3,5])
+        # Roots are a + b√n and a - b√n
+        sum_of_roots = 2*r1_a
+        product_of_roots = r1_a*r1_a - r1_b*r1_b*n
+        question = f"Find the quadratic equation in the form $x^2 + px + q = 0$ whose roots are $({r1_a} + {r1_b}\\sqrt{{{n}}})$ and $({r1_a} - {r1_b}\\sqrt{{{n}}})$."
+        answer = f"$x^2 - {sum_of_roots}x + {product_of_roots} = 0$"
+        hint = "A quadratic equation can be formed from its roots using $x^2 - (\\text{sum of roots})x + (\\text{product of roots}) = 0$."
+        explanation = f"1. Sum of roots = $({r1_a} + {r1_b}\\sqrt{{{n}}}) + ({r1_a} - {r1_b}\\sqrt{{{n}}}) = {sum_of_roots}$.\n2. Product of roots = $({r1_a} + {r1_b}\\sqrt{{{n}}})({r1_a} - {r1_b}\\sqrt{{{n}}}) = {r1_a**2} - {r1_b**2 * n} = {product_of_roots}$.\n3. The equation is $x^2 - ({sum_of_roots})x + ({product_of_roots}) = 0$."
+        options = {answer, f"$x^2 + {sum_of_roots}x + {product_of_roots} = 0$", f"$x^2 - {sum_of_roots}x - {product_of_roots} = 0$"}
 
     return {"question": question, "options": _finalize_options(options), "answer": answer, "hint": hint, "explanation": explanation, "difficulty": difficulty}
 def _generate_binary_ops_question(difficulty="Medium"):
@@ -7326,6 +7429,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
