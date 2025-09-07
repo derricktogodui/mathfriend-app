@@ -6887,6 +6887,18 @@ def display_admin_panel(topic_options):
         st.info("Use the optional fields below to create special assignments.")
         st.markdown("---")
         st.subheader("Add New Question/Assignment")
+
+        # --- START: CORRECTED "ADD NEW" FORM LOGIC ---
+        # We use session state to remember if the deadline checkbox is ticked.
+        if 'add_pq_set_deadline' not in st.session_state:
+            st.session_state.add_pq_set_deadline = False
+        
+        # The checkbox is now OUTSIDE the form. Clicking it will trigger a rerun.
+        st.session_state.add_pq_set_deadline = st.checkbox(
+            "Set a specific answer reveal time (optional)", 
+            key="add_deadline_cb"
+        )
+
         with st.form("new_practice_q_form", clear_on_submit=True):
             pq_topic = st.text_input("Topic or Title", placeholder="e.g., Week 5 Assignment on Surds")
             pq_question = st.text_area("Question Text (Supports Markdown & LaTeX)", height=200)
@@ -6896,23 +6908,25 @@ def display_admin_panel(topic_options):
             st.markdown("##### **Optional Assignment Settings**")
             pq_pool_name = st.text_input("Assignment Pool Name (Optional)", placeholder="e.g., Vacation Task 1", help="Group questions by giving them the same pool name. Students will be assigned one question randomly from the pool.")
             
-            # --- START: CORRECTED DATETIME PICKER ---
-            set_deadline = st.checkbox("Set a specific answer reveal time (optional)")
             pq_unhide_at = None
-            if set_deadline:
+            # The date/time pickers are INSIDE the form but only show if the checkbox is ticked.
+            if st.session_state.add_pq_set_deadline:
                 c1, c2 = st.columns(2)
                 picked_date = c1.date_input("Reveal Date")
                 picked_time = c2.time_input("Reveal Time")
                 if picked_date and picked_time:
                     pq_unhide_at = datetime.combine(picked_date, picked_time)
-            # --- END: CORRECTED DATETIME PICKER ---
             
             if st.form_submit_button("Add Practice Question", type="primary"):
                 if pq_topic and pq_question and pq_answer:
                     add_practice_question(pq_topic, pq_question, pq_answer, pq_explanation, pq_pool_name, pq_unhide_at)
                     st.success("New practice question added!")
+                    # Reset checkbox after submission
+                    st.session_state.add_pq_set_deadline = False
                     st.rerun()
-                else: st.error("Title, Question, and Answer are required.")
+                else: 
+                    st.error("Title, Question, and Answer are required.")
+        # --- END: CORRECTED "ADD NEW" FORM LOGIC ---
         
         st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
         st.subheader("Existing Practice Questions")
@@ -6929,8 +6943,18 @@ def display_admin_panel(topic_options):
                     st.markdown(q['question_text'], unsafe_allow_html=True)
                     
                     with st.expander("✏️ Edit this question"):
+                        # --- START: CORRECTED "EDIT" FORM LOGIC ---
+                        # We need a unique session state key for each edit form's checkbox
+                        edit_deadline_key = f"edit_deadline_cb_{q['id']}"
+                        if edit_deadline_key not in st.session_state:
+                            st.session_state[edit_deadline_key] = q.get('unhide_answer_at') is not None
+
+                        st.session_state[edit_deadline_key] = st.checkbox(
+                            "Set a specific answer reveal time (optional)", 
+                            key=edit_deadline_key
+                        )
+
                         with st.form(key=f"edit_pq_form_{q['id']}"):
-                            st.markdown("You can modify any of the fields below and save your changes.")
                             edit_topic = st.text_input("Topic or Title", value=q['topic'], key=f"edit_pq_topic_{q['id']}")
                             edit_question = st.text_area("Question Text", value=q['question_text'], height=200, key=f"edit_pq_question_{q['id']}")
                             edit_answer = st.text_area("Answer Text", value=q['answer_text'], height=100, key=f"edit_pq_answer_{q['id']}")
@@ -6939,26 +6963,24 @@ def display_admin_panel(topic_options):
                             st.markdown("##### **Optional Assignment Settings**")
                             edit_pool_name = st.text_input("Assignment Pool Name (Optional)", value=q.get('assignment_pool_name'), key=f"edit_pq_pool_{q['id']}")
                             
-                            # --- START: CORRECTED DATETIME PICKER FOR EDIT FORM ---
-                            current_deadline = q.get('unhide_answer_at')
-                            set_edit_deadline = st.checkbox("Set a specific answer reveal time (optional)", value=(current_deadline is not None), key=f"edit_deadline_cb_{q['id']}")
                             edit_unhide_at = None
-                            if set_edit_deadline:
+                            if st.session_state[edit_deadline_key]:
+                                current_deadline = q.get('unhide_answer_at')
                                 c1, c2 = st.columns(2)
                                 default_date = current_deadline.date() if current_deadline else date.today()
-                                default_time = current_deadline.time() if current_deadline else datetime.time(12, 0)
+                                default_time = current_deadline.time() if current_deadline else time(12, 0)
                                 
                                 edit_picked_date = c1.date_input("Reveal Date", value=default_date, key=f"edit_date_{q['id']}")
                                 edit_picked_time = c2.time_input("Reveal Time", value=default_time, key=f"edit_time_{q['id']}")
                                 
                                 if edit_picked_date and edit_picked_time:
                                     edit_unhide_at = datetime.combine(edit_picked_date, edit_picked_time)
-                            # --- END: CORRECTED DATETIME PICKER FOR EDIT FORM ---
                             
                             if st.form_submit_button("Save Changes", type="primary"):
                                 update_practice_question(q['id'], edit_topic, edit_question, edit_answer, edit_explanation, edit_pool_name, edit_unhide_at)
                                 st.success(f"Question ID {q['id']} has been updated.")
                                 st.rerun()
+                        # --- END: CORRECTED "EDIT" FORM LOGIC ---
                     
                     with st.expander("View Answer & Explanation"):
                         st.success(f"**Answer:**")
@@ -6974,6 +6996,7 @@ def display_admin_panel(topic_options):
                         delete_practice_question(q['id'])
                         st.success(f"Question {q['id']} deleted.")
                         st.rerun()
+
         
     # --- TAB 5: ANNOUNCEMENTS ---
     with tabs[4]:
@@ -7254,6 +7277,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
