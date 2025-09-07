@@ -18,6 +18,7 @@ import stream_chat
 import json
 from streamlit_autorefresh import st_autorefresh
 from dateutil import parser
+from datetime import date, time, timedelta
 
 # --- START: ADD THIS NEW BLOCK ---
 # --- Global Game Constants ---
@@ -6894,7 +6895,17 @@ def display_admin_panel(topic_options):
 
             st.markdown("##### **Optional Assignment Settings**")
             pq_pool_name = st.text_input("Assignment Pool Name (Optional)", placeholder="e.g., Vacation Task 1", help="Group questions by giving them the same pool name. Students will be assigned one question randomly from the pool.")
-            pq_unhide_at = st.datetime_input("Hide Answer Until (Optional)", value=None, help="The answer will be hidden from students until this time. If left blank, it will be hidden for a default of 48 hours.")
+            
+            # --- START: CORRECTED DATETIME PICKER ---
+            set_deadline = st.checkbox("Set a specific answer reveal time (optional)")
+            pq_unhide_at = None
+            if set_deadline:
+                c1, c2 = st.columns(2)
+                picked_date = c1.date_input("Reveal Date")
+                picked_time = c2.time_input("Reveal Time")
+                if picked_date and picked_time:
+                    pq_unhide_at = datetime.combine(picked_date, picked_time)
+            # --- END: CORRECTED DATETIME PICKER ---
             
             if st.form_submit_button("Add Practice Question", type="primary"):
                 if pq_topic and pq_question and pq_answer:
@@ -6927,8 +6938,23 @@ def display_admin_panel(topic_options):
                             
                             st.markdown("##### **Optional Assignment Settings**")
                             edit_pool_name = st.text_input("Assignment Pool Name (Optional)", value=q.get('assignment_pool_name'), key=f"edit_pq_pool_{q['id']}")
-                            edit_unhide_at = st.datetime_input("Hide Answer Until (Optional)", value=q.get('unhide_answer_at'), key=f"edit_pq_unhide_{q['id']}")
-
+                            
+                            # --- START: CORRECTED DATETIME PICKER FOR EDIT FORM ---
+                            current_deadline = q.get('unhide_answer_at')
+                            set_edit_deadline = st.checkbox("Set a specific answer reveal time (optional)", value=(current_deadline is not None), key=f"edit_deadline_cb_{q['id']}")
+                            edit_unhide_at = None
+                            if set_edit_deadline:
+                                c1, c2 = st.columns(2)
+                                default_date = current_deadline.date() if current_deadline else date.today()
+                                default_time = current_deadline.time() if current_deadline else time(12, 0)
+                                
+                                edit_picked_date = c1.date_input("Reveal Date", value=default_date, key=f"edit_date_{q['id']}")
+                                edit_picked_time = c2.time_input("Reveal Time", value=default_time, key=f"edit_time_{q['id']}")
+                                
+                                if edit_picked_date and edit_picked_time:
+                                    edit_unhide_at = datetime.combine(edit_picked_date, edit_picked_time)
+                            # --- END: CORRECTED DATETIME PICKER FOR EDIT FORM ---
+                            
                             if st.form_submit_button("Save Changes", type="primary"):
                                 update_practice_question(q['id'], edit_topic, edit_question, edit_answer, edit_explanation, edit_pool_name, edit_unhide_at)
                                 st.success(f"Question ID {q['id']} has been updated.")
@@ -7228,6 +7254,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
