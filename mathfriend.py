@@ -697,16 +697,27 @@ def get_duel_topic_popularity():
 # --- NEW ADMIN BACKEND FUNCTIONS FOR PRACTICE QUESTIONS ---
 
 def get_active_practice_questions():
-    """Fetches all practice questions marked as active for the student view."""
+    """Fetches all active practice questions, hiding answers until unhide time."""
     with engine.connect() as conn:
         query = text("""
-            SELECT id, topic, question_text, answer_text, explanation_text 
-            FROM daily_practice_questions 
-            WHERE is_active = TRUE 
+            SELECT id, topic, question_text, answer_text, explanation_text, unhide_answer_at
+            FROM daily_practice_questions
+            WHERE is_active = TRUE
             ORDER BY created_at DESC
         """)
-        result = conn.execute(query).mappings().fetchall()
-        return [dict(row) for row in result]
+        rows = conn.execute(query).mappings().fetchall()
+
+    result = []
+    now = datetime.now()
+    for row in rows:
+        q = dict(row)
+        unhide_time = q.get("unhide_answer_at")
+        if unhide_time and unhide_time > now:
+            # Hide answers until it's time
+            q["answer_text"] = None
+            q["explanation_text"] = None
+        result.append(q)
+    return result
 
 def get_all_practice_questions():
     """Fetches all practice questions for the admin view."""
@@ -7803,6 +7814,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
