@@ -2523,15 +2523,36 @@ def _generate_sets_question(difficulty="Medium"):
         neither = total - union
         if neither < 0: return _generate_sets_question(difficulty=difficulty)
         
+        # --- THIS IS THE NEW, EXPANDED PHRASING BANK ---
+        contexts = [
+            # Each tuple contains: (Item A, Item B, Group, Location/Context)
+            ("read the Chronicle newspaper", "read the Graphic", "people", "in a survey in Accra"),
+            ("play football", "play volleyball", "students", "in a class"),
+            ("like Waakye", "like Jollof rice", "customers", "at a local chop bar"),
+            ("speak Twi", "speak Ga", "traders", "at Makola Market"),
+            ("use Instagram", "use TikTok", "teenagers", "in a focus group"),
+            ("study Chemistry", "study Physics", "SHS students", "in a school")
+        ]
+        item_a, item_b, group, context = random.choice(contexts)
+        
         phrasing, unknown = random.choice([
-            (f"In a survey of {total} people in Accra, {a_val} read the Chronicle newspaper and {b_val} read the Graphic. If {both} read both, how many read neither?", "neither"),
-            (f"In a class of {total} students, {a_val} play football and {b_val} play volleyball. If {neither} play neither sport, how many play both?", "both")
+            (f"Of {total} {group} {context}, {a_val} {item_a} and {b_val} {item_b}. If {both} do both, how many do neither?", "neither"),
+            (f"Of {total} {group} {context}, {a_val} {item_a} and {b_val} {item_b}. If {neither} do neither, how many do both?", "both")
         ])
+        # --- END OF THE PHRASING BANK ---
+        
         question = phrasing
         answer = str(neither) if unknown == "neither" else str(both)
-        hint = "Use the formula $n(Total) = n(A) + n(B) - n(A \cap B) + n(Neither)$."
-        explanation = f"Let C be Chronicle readers and G be Graphic readers. We have $n(C) = {a_val}$, $n(G) = {b_val}$, and $n(C \cap G) = {both}$.\nThe number of people who read at least one is $n(C \cup G) = n(C) + n(G) - n(C \cap G) = {a_val} + {b_val} - {both} = {union}$.\nThe number who read neither is $n(Total) - n(C \cup G) = {total} - {union} = {neither}$."
-        options = {str(both), str(neither), str(total - a_val), str(total - b_val)}
+        hint = "Use the formula $n(Total) = n(A) + n(B) - n(A \\cap B) + n(Neither)$ or draw a Venn diagram."
+        explanation = f"We have $n(A) = {a_val}$, $n(B) = {b_val}$, and $n(A \\cap B) = {both}$.\nThe number who are in at least one set is $n(A \\cup B) = n(A) + n(B) - n(A \\cap B) = {a_val} + {b_val} - {both} = {union}$.\nThe number in neither set is $n(Total) - n(A \\cup B) = {total} - {union} = {neither}$."
+        
+        a_only = a_val - both
+        b_only = b_val - both
+        options = {str(neither), str(both), str(a_only), str(b_only)}
+        
+        return {"question": question, "options": list(options), "answer": answer, "hint": hint, "explanation": explanation, "difficulty": difficulty}
+
+# --- END: REVISED "2-Set Venn Diagram" Block ---
     
     # --- 3.1: Symmetric Difference (Hard) ---
     elif q_type == 'symmetric_difference':
@@ -2560,17 +2581,54 @@ def _generate_sets_question(difficulty="Medium"):
         else: options = {"$\\mathcal{U}$ (the universal set)", "$\\emptyset$", "A"}
 
     # --- 3.3: 3-Set Venn Diagram Problems (Hard) ---
-    elif q_type == 'venn_three':
+   elif q_type == 'venn_three':
         regions = [random.randint(5, 15) for _ in range(7)]
-        a,b,c,ab_only,bc_only,ac_only,abc = regions
-        total_A = a+ab_only+ac_only+abc
-        total_B = b+ab_only+bc_only+abc
-        total_C = c+ac_only+bc_only+abc
-        question = f"A survey of students in Kumasi found that {total_A} liked Maths, {total_B} liked Science, and {total_C} liked English. Of these, {ab_only+abc} liked Maths and Science, {ac_only+abc} liked Maths and English, {bc_only+abc} liked Science and English, and {abc} liked all three. How many students liked **only** Maths?"
-        answer = str(a)
-        hint = "Draw a three-circle Venn diagram. Start by filling in the center region (all three subjects) and work your way outwards by subtracting."
-        explanation = f"1. Start with $n(M \\cap S \\cap E) = {abc}$.\n2. Find 'Maths and Science only': $n(M \\cap S) - n(M \\cap S \\cap E) = {ab_only+abc} - {abc} = {ab_only}$.\n3. Similarly, 'Maths and English only' = {ac_only} and 'Science and English only' = {bc_only}.\n4. Finally, find 'Maths only': $n(M) - (\\text{{the other Maths regions}}) = {total_A} - ({ab_only} + {ac_only} + {abc}) = {a}$."
-        options = {str(a), str(ab_only), str(ac_only), str(total_A)}
+        r1, r2, r3, r12, r23, r13, r123 = regions
+        
+        # --- THIS IS THE NEW, EXPANDED PHRASING BANK ---
+        contexts = [
+            # Each tuple contains: (Group, Item A, Item B, Item C, Location)
+            ("students", "Maths", "Science", "English", "in a school in Kumasi"),
+            ("tourists", "visiting Kakum National Park", "visiting Cape Coast Castle", "visiting Elmina Castle", "surveyed at a hotel"),
+            ("farmers", "growing maize", "growing cassava", "growing yam", "in the Ashanti Region"),
+            ("shoppers", "buying Milo", "buying Nido", "buying Peak Milk", "at a supermarket")
+        ]
+        group, item_a, item_b, item_c, context = random.choice(contexts)
+        
+        # Calculate totals based on regions
+        total_A = r1 + r12 + r13 + r123
+        total_B = r2 + r12 + r23 + r123
+        total_C = r3 + r13 + r23 + r123
+        
+        # Ask for a random "only" region to increase variety
+        asked_for, answer_val = random.choice([
+            (f"liked **only** {item_a}", r1),
+            (f"liked **only** {item_b}", r2),
+            (f"liked **only** {item_c}", r3)
+        ])
+
+        question = (f"A survey of {group} {context} found the following:\n"
+                    f"- {total_A} liked {item_a}\n"
+                    f"- {total_B} liked {item_b}\n"
+                    f"- {total_C} liked {item_c}\n"
+                    f"- {r12+r123} liked {item_a} and {item_b}\n"
+                    f"- {r13+r123} liked {item_a} and {item_c}\n"
+                    f"- {r23+r123} liked {item_b} and {item_c}\n"
+                    f"- {r123} liked all three.\n\n"
+                    f"How many {group} {asked_for}?")
+        answer = str(answer_val)
+        hint = "Draw a three-circle Venn diagram. Start by filling in the center region (all three items) and work your way outwards by subtracting."
+        explanation = (f"1. Start with the intersection of all three: ${r123}$.\n"
+                       f"2. Find the 'two-item only' regions by subtracting the center: e.g., '{item_a} and {item_b} only' is ${r12+r123} - {r123} = {r12}$.\n"
+                       f"3. Finally, find the 'only' regions by subtracting all other overlaps from the total for that item. For example, 'only {item_a}' is ${total_A} - ({r12} + {r13} + {r123}) = {r1}$."
+                      )
+        
+        # Smart distractors are the other calculated regions of the diagram
+        options = {str(r1), str(r2), str(r3), str(r12), str(r13), str(r23), str(r123)}
+        # Ensure the correct answer is in the set before finalizing
+        options.add(answer) 
+        
+        return {"question": question, "options": _finalize_options(options), "answer": answer, "hint": hint, "explanation": explanation, "difficulty": difficulty}
 
     # --- 3.4: Power Sets (Hard) ---
     elif q_type == 'power_sets':
@@ -7739,6 +7797,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
