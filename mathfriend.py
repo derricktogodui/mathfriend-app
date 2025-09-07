@@ -2563,7 +2563,8 @@ def _generate_sets_question(difficulty="Medium"):
         question = f"A survey of students in Kumasi found that {total_A} liked Maths, {total_B} liked Science, and {total_C} liked English. Of these, {ab_only+abc} liked Maths and Science, {ac_only+abc} liked Maths and English, {bc_only+abc} liked Science and English, and {abc} liked all three. How many students liked **only** Maths?"
         answer = str(a)
         hint = "Draw a three-circle Venn diagram. Start by filling in the center region (all three subjects) and work your way outwards by subtracting."
-        explanation = f"1. Start with $n(M \\cap S \\cap E) = {abc}$.\n2. Find 'Maths and Science only': $n(M \\cap S) - n(M \\cap S \\cap E) = {ab_only+abc} - {abc} = {ab_only}$.\n3. Similarly, 'Maths and English only' = {ac_only} and 'Science and English only' = {bc_only}.\n4. Finally, find 'Maths only': $n(M) - (\text{the other Maths regions}) = {total_A} - ({ab_only} + {ac_only} + {abc}) = {a}$."
+        # --- THIS IS THE CORRECTED LINE ---
+        explanation = f"1. Start with $n(M \\cap S \\cap E) = {abc}$.\n2. Find 'Maths and Science only': $n(M \\cap S) - n(M \\cap S \\cap E) = {ab_only+abc} - {abc} = {ab_only}$.\n3. Similarly, 'Maths and English only' = {ac_only} and 'Science and English only' = {bc_only}.\n4. Finally, find 'Maths only': $n(M) - (\\text{{the other Maths regions}}) = {total_A} - ({ab_only} + {ac_only} + {abc}) = {a}$."
         options = {str(a), str(ab_only), str(ac_only), str(total_A)}
 
     # --- 3.4: Power Sets (Hard) ---
@@ -7595,6 +7596,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
