@@ -2432,13 +2432,10 @@ def _generate_sets_question(difficulty="Medium"):
     """Generates a Sets question based on the detailed, multi-level syllabus."""
 
     if difficulty == "Easy":
-        # Level 1: Foundational Concepts
         q_type = random.choice(['notation_cardinality', 'basic_ops', 'total_subsets'])
     elif difficulty == "Medium":
-        # Level 2: Intermediate Operations & 2-Set Problems
         q_type = random.choice(['complement_difference', 'proper_subsets', 'venn_two', 'symmetric_difference'])
     else: # Hard
-        # Level 3: Advanced Properties & 3-Set Problems
         q_type = random.choice(['set_laws', 'venn_three', 'power_sets', 'sets_probability'])
 
     question, answer, hint, explanation = "", "", "", ""
@@ -2466,10 +2463,7 @@ def _generate_sets_question(difficulty="Medium"):
         op, sym = random.choice([('union', '\\cup'), ('intersection', '\\cap')])
         question = f"Given $A = {set_a}$ and $B = {set_b}$, find $A {sym} B$."
         res = set_a.union(set_b) if op == 'union' else set_a.intersection(set_b)
-        
-        # --- FIX for empty set display ---
         answer = str(res) if res else "$\\emptyset$"
-        
         hint = "Union (∪) means 'all elements combined'. Intersection (∩) means 'only elements in common'."
         explanation = f"The {op} of sets A and B results in the set **{answer}**."
         options = {answer, str(set_a.difference(set_b)), str(set_b.difference(set_a))}
@@ -2523,9 +2517,7 @@ def _generate_sets_question(difficulty="Medium"):
         neither = total - union
         if neither < 0: return _generate_sets_question(difficulty=difficulty)
         
-        # --- THIS IS THE NEW, EXPANDED PHRASING BANK ---
         contexts = [
-            # Each tuple contains: (Item A, Item B, Group, Location/Context)
             ("read the Chronicle newspaper", "read the Graphic", "people", "in a survey in Accra"),
             ("play football", "play volleyball", "students", "in a class"),
             ("like Waakye", "like Jollof rice", "customers", "at a local chop bar"),
@@ -2539,21 +2531,15 @@ def _generate_sets_question(difficulty="Medium"):
             (f"Of {total} {group} {context}, {a_val} {item_a} and {b_val} {item_b}. If {both} do both, how many do neither?", "neither"),
             (f"Of {total} {group} {context}, {a_val} {item_a} and {b_val} {item_b}. If {neither} do neither, how many do both?", "both")
         ])
-        # --- END OF THE PHRASING BANK ---
-        
         question = phrasing
         answer = str(neither) if unknown == "neither" else str(both)
         hint = "Use the formula $n(Total) = n(A) + n(B) - n(A \\cap B) + n(Neither)$ or draw a Venn diagram."
         explanation = f"We have $n(A) = {a_val}$, $n(B) = {b_val}$, and $n(A \\cap B) = {both}$.\nThe number who are in at least one set is $n(A \\cup B) = n(A) + n(B) - n(A \\cap B) = {a_val} + {b_val} - {both} = {union}$.\nThe number in neither set is $n(Total) - n(A \\cup B) = {total} - {union} = {neither}$."
-        
         a_only = a_val - both
         b_only = b_val - both
         options = {str(neither), str(both), str(a_only), str(b_only)}
-        
         return {"question": question, "options": list(options), "answer": answer, "hint": hint, "explanation": explanation, "difficulty": difficulty}
 
-# --- END: REVISED "2-Set Venn Diagram" Block ---
-    
     # --- 3.1: Symmetric Difference (Hard) ---
     elif q_type == 'symmetric_difference':
         set_a = set(random.sample(range(1, 20), k=random.randint(4, 6)))
@@ -2581,13 +2567,10 @@ def _generate_sets_question(difficulty="Medium"):
         else: options = {"$\\mathcal{U}$ (the universal set)", "$\\emptyset$", "A"}
 
     # --- 3.3: 3-Set Venn Diagram Problems (Hard) ---
-   elif q_type == 'venn_three':
+    elif q_type == 'venn_three':
         regions = [random.randint(5, 15) for _ in range(7)]
         r1, r2, r3, r12, r23, r13, r123 = regions
-        
-        # --- THIS IS THE NEW, EXPANDED PHRASING BANK ---
         contexts = [
-            # Each tuple contains: (Group, Item A, Item B, Item C, Location)
             ("students", "Maths", "Science", "English", "in a school in Kumasi"),
             ("tourists", "visiting Kakum National Park", "visiting Cape Coast Castle", "visiting Elmina Castle", "surveyed at a hotel"),
             ("farmers", "growing maize", "growing cassava", "growing yam", "in the Ashanti Region"),
@@ -2595,18 +2578,15 @@ def _generate_sets_question(difficulty="Medium"):
         ]
         group, item_a, item_b, item_c, context = random.choice(contexts)
         
-        # Calculate totals based on regions
         total_A = r1 + r12 + r13 + r123
         total_B = r2 + r12 + r23 + r123
         total_C = r3 + r13 + r23 + r123
         
-        # Ask for a random "only" region to increase variety
         asked_for, answer_val = random.choice([
             (f"liked **only** {item_a}", r1),
             (f"liked **only** {item_b}", r2),
             (f"liked **only** {item_c}", r3)
         ])
-
         question = (f"A survey of {group} {context} found the following:\n"
                     f"- {total_A} liked {item_a}\n"
                     f"- {total_B} liked {item_b}\n"
@@ -2620,14 +2600,10 @@ def _generate_sets_question(difficulty="Medium"):
         hint = "Draw a three-circle Venn diagram. Start by filling in the center region (all three items) and work your way outwards by subtracting."
         explanation = (f"1. Start with the intersection of all three: ${r123}$.\n"
                        f"2. Find the 'two-item only' regions by subtracting the center: e.g., '{item_a} and {item_b} only' is ${r12+r123} - {r123} = {r12}$.\n"
-                       f"3. Finally, find the 'only' regions by subtracting all other overlaps from the total for that item. For example, 'only {item_a}' is ${total_A} - ({r12} + {r13} + {r123}) = {r1}$."
-                      )
+                       f"3. Finally, find the 'only' regions by subtracting all other overlaps from the total for that item. For example, 'only {item_a}' is ${total_A} - ({r12} + {r13} + {r123}) = {r1}$.")
         
-        # Smart distractors are the other calculated regions of the diagram
         options = {str(r1), str(r2), str(r3), str(r12), str(r13), str(r23), str(r123)}
-        # Ensure the correct answer is in the set before finalizing
         options.add(answer) 
-        
         return {"question": question, "options": _finalize_options(options), "answer": answer, "hint": hint, "explanation": explanation, "difficulty": difficulty}
 
     # --- 3.4: Power Sets (Hard) ---
@@ -2652,11 +2628,8 @@ def _generate_sets_question(difficulty="Medium"):
         explanation = f"Let T be the event of speaking Twi and G be the event of speaking Ga.\n$P(T \\cup G) = P(T) + P(G) - P(T \\cap G)$\n$P(T \\cup G) = {_get_fraction_latex_code(prob_a)} + {_get_fraction_latex_code(prob_b)} - {_get_fraction_latex_code(prob_intersect)} = {_get_fraction_latex_code(prob_union)}$."
         options = {answer, f"${_get_fraction_latex_code(prob_a+prob_b)}$", f"${_get_fraction_latex_code(prob_intersect)}$"}
 
-    # Finalize options and return the dictionary
     final_options = _finalize_options(options, default_type="set_str")
     return {"question": question, "options": final_options, "answer": answer, "hint": hint, "explanation": explanation, "difficulty": difficulty}
-
-# --- END: REVISED AND FINAL FUNCTION _generate_sets_question ---
 def _generate_percentages_question(difficulty="Medium"):
     """Generates a Percentages question based on difficulty, preserving all original sub-types."""
     
@@ -7797,6 +7770,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
