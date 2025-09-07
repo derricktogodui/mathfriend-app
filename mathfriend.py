@@ -3391,19 +3391,29 @@ def _generate_relations_functions_question(difficulty="Medium"):
     # --- 2.2: Finding the Domain from an Equation (Medium) ---
     elif q_type == 'domain_from_equation':
         a = random.randint(2, 9)
+        b = random.randint(1, 9)
         func_type = random.choice(['rational', 'radical'])
+
         if func_type == 'rational':
-            question = f"Find the domain of the function $f(x) = \\frac{{x+1}}{{x-{a}}}$."
+            question = f"Find the domain of the function $f(x) = \\frac{{x+{b}}}{{x-{a}}}$."
             answer = f"All real numbers except $x={a}$"
-            hint = "The domain includes all real numbers except for values of x that make the denominator equal to zero."
-            explanation = f"The function is undefined when the denominator is zero. Setting $x-{a} = 0$ gives $x={a}$. Therefore, the domain is all real numbers except for **{a}**."
-            options = {answer, "All real numbers", f"x > {a}"}
+            hint = "The domain of a rational function includes all real numbers except for values of x that make the denominator equal to zero."
+            explanation = f"The function is undefined when its denominator is zero. We solve the equation $x-{a} = 0$, which gives $x={a}$. Therefore, the domain is all real numbers except for **{a}**."
+            # Smart Distractors based on common errors:
+            distractor1 = f"All real numbers except $x={-b}$" # Error: Student uses the root of the numerator.
+            distractor2 = f"x = {a}" # Error: Student thinks the domain IS the excluded value.
+            distractor3 = f"x \ge {a}" # Error: Student confuses the rule with radical functions.
+            options = {answer, distractor1, distractor2, distractor3}
         else: # radical
             question = f"Find the domain of the function $f(x) = \\sqrt{{x-{a}}}$."
             answer = f"$x \ge {a}$"
             hint = "The expression inside a square root cannot be negative. Set the expression to be greater than or equal to zero and solve."
-            explanation = f"For the function to be defined for real numbers, the term inside the square root must be non-negative. So, we solve the inequality $x-{a} \ge 0$, which gives $x \ge {a}$."
-            options = {answer, f"x > {a}", f"x \le {a}"}
+            explanation = f"For the function to be defined for real numbers, the term inside the square root must be non-negative. We solve the inequality $x-{a} \ge 0$, which gives $x \ge {a}$."
+            # Smart Distractors based on common errors:
+            distractor1 = f"x > {a}" # Error: Forgetting the "or equal to" part.
+            distractor2 = f"x \le {a}" # Error: Flipping the inequality sign.
+            distractor3 = f"All real numbers" # Error: Ignoring the radical entirely.
+            options = {answer, distractor1, distractor2, distractor3}
 
     # --- 2.3: Composition of Functions (Evaluation) (Medium) ---
     elif q_type == 'composite_evaluation':
@@ -7709,6 +7719,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
