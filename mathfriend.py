@@ -2941,18 +2941,76 @@ def _generate_surds_question(difficulty="Medium"):
         options = {answer, distractor1, distractor2}
 
     # --- 2.4: Contextual Geometry (Medium) ---
-    elif q_type == 'geometry_context':
-        l_sq, w_sq = random.choice([(4,2), (9,3), (16,2)])
-        n = random.randint(2,3)
-        l, w = int(math.sqrt(l_sq)), int(math.sqrt(w_sq))
-        question = f"A rectangular plot of land has a length of $\\sqrt{{{l_sq * n}}}$ metres and a width of $\\sqrt{{{w_sq * n}}}$ metres. Find its perimeter."
-        answer = f"${2*l + 2*w}\\sqrt{{{n}}}$ metres"
-        hint = "Perimeter = 2(length + width). First, simplify both the length and the width to their simplest surd form."
-        explanation = f"1. Simplify length: $\\sqrt{{{l_sq * n}}} = {l}\\sqrt{{{n}}}$.\n2. Simplify width: $\\sqrt{{{w_sq * n}}} = {w}\\sqrt{{{n}}}$.\n3. Perimeter = $2({l}\\sqrt{{{n}}} + {w}\\sqrt{{{n}}}) = 2(({l+w})\\sqrt{{{n}}}) = {answer}$."
-        # Smart Distractors
-        area = f"${l*w*n}$ metres²"
-        distractor1 = f"${2*(l_sq*n + w_sq*n)}$ metres" # Error: adding before simplifying
-        options = {answer, area, distractor1}
+   elif q_type in ['geometry_context', 'geometry_hard']:
+        
+        if difficulty == "Medium":
+            # Medium focuses on 2D shapes and Pythagoras
+            problem_type = random.choice(['pythagoras', 'rectangle_area', 'rectangle_perimeter'])
+        else: # Hard
+            # Hard introduces 3D shapes and trigonometry
+            problem_type = random.choice(['cuboid_volume', 'trigonometry_sohcahtoa'])
+
+        if problem_type == 'pythagoras':
+            a_val, b_val = random.choice([(2,3), (5,7), (6,3), (11,5)])
+            c_sq = a_val + b_val
+            question = f"A right-angled triangle has shorter sides of length $\\sqrt{{{a_val}}}$ cm and $\\sqrt{{{b_val}}}$ cm. Find the exact length of the hypotenuse."
+            answer = f"$\\sqrt{{{c_sq}}}$ cm"
+            hint = "Use Pythagoras' theorem: $a^2 + b^2 = c^2$. Remember that $(\\sqrt{x})^2 = x$."
+            explanation = f"1. Let the sides be $a = \\sqrt{{{a_val}}}$ and $b = \\sqrt{{{b_val}}}$.\n2. By Pythagoras' theorem, $c^2 = a^2 + b^2 = (\\sqrt{{{a_val}}})^2 + (\\sqrt{{{b_val}}})^2 = {a_val} + {b_val} = {c_sq}$.\n3. The exact length of the hypotenuse is $c = \\sqrt{{{c_sq}}}$ cm."
+            # Smart Distractors
+            distractor1 = f"${c_sq}$ cm" # Forgetting the final square root
+            distractor2 = f"$\\sqrt{{{a_val+b_val-2*math.sqrt(a_val*b_val)}}}$ cm" # Confusing with binomial expansion
+            options = {answer, distractor1, distractor2}
+
+        elif problem_type in ['rectangle_area', 'rectangle_perimeter']:
+            n = random.choice([2, 3, 5])
+            p1, p2 = random.choice([(4,9), (4,16), (9,25)])
+            l_simp, w_simp = int(math.sqrt(p1)), int(math.sqrt(p2))
+            l_unsimp, w_unsimp = p1*n, p2*n
+            
+            if problem_type == 'rectangle_area':
+                question = f"A rectangle has a length of $\\sqrt{{{l_unsimp}}}$ metres and a width of $\\sqrt{{{w_unsimp}}}$ metres. Find its exact area."
+                answer = f"${l_simp * w_simp * n}$ m²"
+                hint = "Area = length × width. First, simplify both surds, then multiply."
+                explanation = f"1. Simplify Length: $\\sqrt{{{l_unsimp}}} = {l_simp}\\sqrt{{{n}}}$.\n2. Simplify Width: $\\sqrt{{{w_unsimp}}} = {w_simp}\\sqrt{{{n}}}$.\n3. Area = $({l_simp}\\sqrt{{{n}}}) \\times ({w_simp}\\sqrt{{{n}}}) = {l_simp*w_simp} \\times (\\sqrt{{{n}}})^2 = {l_simp*w_simp} \\times {n} = {answer}$."
+                # Smart Distractors
+                perimeter = f"${2*l_simp + 2*w_simp}\\sqrt{{{n}}}$ m"
+                distractor1 = f"${l_simp * w_simp}\\sqrt{{{n}}}$ m²" # Forgetting to multiply the final surds
+                options = {answer, perimeter, distractor1}
+            else: # Perimeter
+                question = f"A rectangle has a length of $\\sqrt{{{l_unsimp}}}$ metres and a width of $\\sqrt{{{w_unsimp}}}$ metres. Find its perimeter."
+                answer = f"${2*l_simp + 2*w_simp}\\sqrt{{{n}}}$ m"
+                hint = "Perimeter = 2(length + width). First, simplify both surds, then add and multiply by 2."
+                explanation = f"1. Simplify Length: $\\sqrt{{{l_unsimp}}} = {l_simp}\\sqrt{{{n}}}$.\n2. Simplify Width: $\\sqrt{{{w_unsimp}}} = {w_simp}\\sqrt{{{n}}}$.\n3. Perimeter = $2({l_simp}\\sqrt{{{n}}} + {w_simp}\\sqrt{{{n}}}) = 2(({l_simp+w_simp})\\sqrt{{{n}}}) = {answer}$."
+                # Smart Distractors
+                area = f"${l_simp * w_simp * n}$ m²"
+                distractor1 = f"${l_simp + w_simp}\\sqrt{{{n}}}$ m" # Forgetting to multiply by 2
+                options = {answer, area, distractor1}
+
+        elif problem_type == 'cuboid_volume':
+            l, w, h = 2, 3, 5 # Use prime numbers to avoid simplification
+            c1, c2, c3 = random.randint(2,4), random.randint(2,4), random.randint(2,4)
+            question = f"A cuboid has dimensions of ${c1}\\sqrt{{{l}}}$ cm, ${c2}\\sqrt{{{w}}}$ cm, and ${c3}\\sqrt{{{h}}}$ cm. Find its exact volume."
+            answer = f"${c1*c2*c3}\\sqrt{{{l*w*h}}}$ cm³"
+            hint = "Volume of a cuboid = length × width × height. Multiply the rational coefficients and the surds separately."
+            explanation = f"Volume = $({c1}\\sqrt{{{l}}}) \\times ({c2}\\sqrt{{{w}}}) \\times ({c3}\\sqrt{{{h}}})$.\n= $({c1} \\times {c2} \\times {c3}) \\times (\\sqrt{{{l}}} \\times \\sqrt{{{w}}} \\times \\sqrt{{{h}}})$.\n= ${c1*c2*c3}\\sqrt{{{l*w*h}}}$ cm³."
+            # Smart Distractors
+            surface_area_approx = 2*(c1*c2*math.sqrt(l*w) + c2*c3*math.sqrt(w*h) + c1*c3*math.sqrt(l*h))
+            distractor1 = f"${c1+c2+c3}\\sqrt{{{l+w+h}}}$ cm³" # Adding instead of multiplying
+            options = {answer, distractor1, f"{surface_area_approx:.0f} cm²"}
+        
+        elif problem_type == 'trigonometry_sohcahtoa':
+            opp, hyp = random.choice([(1,2), (math.sqrt(3), 2), (1, math.sqrt(2))])
+            adj_sq = hyp**2 - opp**2
+            adj = math.sqrt(adj_sq)
+            question = f"In a right-angled triangle, the side opposite angle $\\theta$ is $\\sqrt{{{int(opp**2)}}}$ cm and the hypotenuse is ${int(hyp)}$ cm. What is the exact length of the adjacent side?"
+            answer = f"$\\sqrt{{{int(adj_sq)}}}$ cm" if adj != int(adj) else f"{int(adj)} cm"
+            hint = "Use Pythagoras' theorem, $a^2 + b^2 = c^2$, to find the missing side."
+            explanation = f"1. Let the adjacent side be 'a'. Then $a^2 + (opposite)^2 = (hypotenuse)^2$.\n2. $a^2 + (\\sqrt{{{int(opp**2)}}})^2 = ({int(hyp)})^2$.\n3. $a^2 + {int(opp**2)} = {int(hyp**2)}$.\n4. $a^2 = {int(hyp**2)} - {int(opp**2)} = {int(adj_sq)}$.\n5. $a = \\sqrt{{{int(adj_sq)}}}$. The final answer is **{answer}**."
+            # Smart Distractors
+            distractor1 = f"$\\sqrt{{{int(hyp**2 + opp**2)}}}$ cm" # Adding instead of subtracting
+            distractor2 = f"{int(hyp**2 - opp**2)} cm" # Forgetting the final square root
+            options = {answer, distractor1, distractor2}
 
     # --- 3.1: Advanced Rationalization (Hard) ---
     elif q_type == 'rationalize_binomial':
@@ -7429,6 +7487,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
