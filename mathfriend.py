@@ -18,7 +18,7 @@ import stream_chat
 import json
 from streamlit_autorefresh import st_autorefresh
 from dateutil import parser
-from datetime import date, time, timedelta
+from datetime import date, timedelta
 
 # --- START: ADD THIS NEW BLOCK ---
 # --- Global Game Constants ---
@@ -6946,7 +6946,7 @@ def display_admin_panel(topic_options):
                             if set_edit_deadline:
                                 c1, c2 = st.columns(2)
                                 default_date = current_deadline.date() if current_deadline else date.today()
-                                default_time = current_deadline.time() if current_deadline else time(12, 0)
+                                default_time = current_deadline.time() if current_deadline else datetime.time(12, 0)
                                 
                                 edit_picked_date = c1.date_input("Reveal Date", value=default_date, key=f"edit_date_{q['id']}")
                                 edit_picked_time = c2.time_input("Reveal Time", value=default_time, key=f"edit_time_{q['id']}")
@@ -7254,6 +7254,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
