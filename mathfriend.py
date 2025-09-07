@@ -3061,107 +3061,175 @@ def _generate_surds_question(difficulty="Medium"):
 
 # --- END: REVISED FUNCTION _generate_surds_question ---
 def _generate_binary_ops_question(difficulty="Medium"):
-    """Generates a Binary Operations question based on difficulty, preserving all original sub-types."""
+    """Generates a Binary Operations question based on the detailed, multi-level curriculum."""
 
     if difficulty == "Easy":
-        # Direct evaluation and reading from a table.
+        # Level 1: Foundations & Direct Computation
         q_type = random.choice(['evaluate', 'table_read'])
     elif difficulty == "Medium":
-        # Multi-step problems involving identity/inverse and commutativity.
-        q_type = random.choice(['identity_inverse', 'properties_commutative'])
+        # Level 2: Core Properties & Simple Equations
+        q_type = random.choice(['identity', 'inverse', 'commutative', 'solve_simple'])
     else: # Hard
-        # More abstract properties like associativity and closure.
-        q_type = random.choice(['properties_associative', 'properties_closure'])
+        # Level 3: Advanced & Abstract Properties
+        q_type = random.choice(['associative', 'closure', 'modular_wassce', 'distributive'])
 
     question, answer, hint, explanation = "", "", "", ""
     options = set()
 
-    # --- Easy Questions ---
+    # --- 1.1: Direct Evaluation (Easy) ---
     if q_type == 'evaluate':
-        a, b = random.randint(-10, 15), random.randint(-10, 15)
-        c, d = random.randint(2, 8), random.randint(2, 8)
-        while a == 0 or b == 0: a, b = random.randint(-10, 15), random.randint(-10, 15)
-        op_def, op_func, op_sym = random.choice([
-            (f"p \\ast q = pq - ({c})p + ({d})q", lambda x, y: x*y - c*x + d*y, r"\ast"),
-            (f"x \\oplus y = x^2 - y^2", lambda x, y: x**2 - y**2, r"\oplus"),
-            (f"m \\nabla n = m + n - ({c})", lambda x, y: x + y - c, r"\nabla"),
+        a, b = random.randint(-5, 8), random.randint(-5, 8)
+        while a==0 or b==0: a, b = random.randint(-5, 8), random.randint(-5, 8)
+        
+        op_templates = [
+            (f"p \\ast q = pq - p + 2q", lambda p,q: p*q - p + 2*q),
+            (f"x \\oplus y = x^2 - 2y", lambda p,q: p**2 - 2*q),
+            (f"m \\nabla n = m + n - 5", lambda p,q: p + q - 5),
+            (f"a \\Delta b = 3a - b^2", lambda p,q: 3*p - q**2)
+        ]
+        op_def, op_func = random.choice(op_templates)
+        op_sym = op_def.split(" ")[1]
+        
+        phrasing = random.choice([
+            f"A binary operation {op_sym} is defined by ${op_def}$. Evaluate $({a} {op_sym} {b})$.",
+            f"Given the operation {op_sym} on the set of real numbers by ${op_def}$, find the value of $({a} {op_sym} {b})$.",
+            f"If $p {op_sym} q = {op_def.split('=')[1].strip()}$, what is the value of $({a} {op_sym} {b})$?"
         ])
-        question = f"A binary operation {op_sym} is defined by ${op_def}$. Evaluate $({a} {op_sym} {b})$."
+        question = phrasing
         answer = str(op_func(a, b))
-        hint = "Carefully substitute the first value for the first variable and the second value for the second variable in the formula."
-        explanation = f"1. The definition is ${op_def}$.\n2. Substitute the first variable with {a} and the second with {b}.\n3. The calculation is: ${op_func(a,b)}$."
-        options = {answer, str(op_func(b, a)), str(op_func(a,b)+1)}
+        hint = "Carefully substitute the first value for the first variable (e.g., 'p') and the second value for the second variable (e.g., 'q')."
+        explanation = f"1. The rule is ${op_def}$.\n2. Substitute the first value ({a}) and the second value ({b}).\n3. Calculation: ${op_func(a,b)}$."
+        # Smart Distractors
+        distractor1 = str(op_func(b, a)) # Swapped order
+        distractor2 = str(op_func(a, b) + random.choice([-1, 1])) # Off by one
+        options = {answer, distractor1, distractor2}
 
+    # --- 1.2: Reading Cayley Tables (Easy) ---
     elif q_type == 'table_read':
-        s = [1, 2, 3, 4]
-        op_sym = random.choice(["$\\oplus$", "$\\otimes$", "$\\boxplus$"])
+        s = ['a', 'b', 'c', 'd']
+        op_sym = random.choice(["$\\ast$", "$\\otimes$", "$\\circ$"])
         results = {}
         for row in s:
             for col in s:
-                results[(row, col)] = random.randint(1,4)
-        table_md = f"| {op_sym} | 1 | 2 | 3 | 4 |\n|---|---|---|---|---|\n"
+                results[(row, col)] = random.choice(s)
+        table_md = f"| {op_sym} | a | b | c | d |\n|---|---|---|---|---|\n"
         for row in s:
             table_md += f"| **{row}** |";
             for col in s: table_md += f" {results.get((row, col))} |"
             table_md += "\n"
-        a, b = random.choice(s), random.choice(s)
-        question = f"The operation {op_sym} is defined by the Cayley table below. Find the value of $({a} {op_sym} {b})$.\n\n{table_md}"
+        a, b = random.sample(s, 2)
+        question = f"The operation {op_sym} on the set $\\{{a, b, c, d\\}}$ is defined by the Cayley table below. Find the value of $({a} {op_sym} {b})$.\n\n{table_md}"
         answer = str(results.get((a,b)))
-        hint = "Locate the row for the first element ('a') and the column for the second element ('b'). The answer is where they intersect."
-        explanation = f"Find the row labeled **{a}** and the column labeled **{b}**. The value in the cell where they meet is **{answer}**."
-        options = {answer, str(results.get((b,a)))}
+        hint = "Find the row for the first element and the column for the second element. The answer is where they intersect."
+        explanation = f"To find $({a} {op_sym} {b})$, we locate the row labeled **{a}** and move across to the column labeled **{b}**. The value in that cell is **{answer}**."
+        options = set(s)
 
-    # --- Medium Questions ---
-    elif q_type == 'identity_inverse':
-        k = random.randint(5, 20)
-        identity_element = k
-        element = random.randint(k + 1, k + 15)
-        inverse_element = 2 * k - element
-        question = f"For the binary operation $a \\ast b = a+b-{k}$ on the set of real numbers, find the inverse of the element ${element}$."
-        answer = str(inverse_element)
-        hint = f"First, find the identity element 'e' by solving $a \\ast e = a$. Then, find the inverse 'inv' by solving ${element} \\ast inv = e$."
-        explanation = f"1. Find identity (e): $a+e-{k}=a \implies e={k}$.\n2. Let the inverse of {element} be $inv$.\n3. Solve for inverse: ${element} \\ast inv = e \implies {element} + inv - {k} = {k}$.\n4. $inv = {k} + {k} - {element} = {2*k - element}$."
-        options = {answer, str(-element), str(k - element), str(k)}
+    # --- 2.1 & 2.2: Identity & Inverse (Medium) ---
+    elif q_type in ['identity', 'inverse']:
+        k = random.randint(2, 9)
+        op_def, identity_element = random.choice([
+            (f"a \\ast b = a+b-{k}", k),
+            (f"a \\ast b = a+b+\\frac{{ab}}{{{k}}}", 0),
+            (f"a \\ast b = ab", 1)
+        ])
+        op_sym = op_def.split(" ")[1]
 
-    elif q_type == 'properties_commutative':
-        op_sym = random.choice([r"\Delta", r"\circ", r"\star"])
-        a_coeff, b_coeff, const = random.randint(1, 8), random.randint(1, 8), random.randint(1, 8)
-        op_def = f"a {op_sym} b = {a_coeff}a + {b_coeff}b + {const}ab"
-        is_comm = (a_coeff == b_coeff)
-        question = f"Is the binary operation ${op_def}$ commutative on the set of real numbers?"
-        answer = "Yes" if is_comm else "No"
-        hint = "An operation * is commutative if $a * b = b * a$ for all values. Check if the formula is symmetric."
-        explanation = f"$a {op_sym} b = {a_coeff}a + {b_coeff}b + {const}ab$.\n$b {op_sym} a = {a_coeff}b + {b_coeff}a + {const}ba$.\nThese are only equal if {a_coeff}a + {b_coeff}b = {a_coeff}b + {b_coeff}a$, which requires {a_coeff} = {b_coeff}. In this case, this is {str(is_comm).lower()}."
-        options = {"Yes", "No"}
+        if q_type == 'identity':
+            question = f"Find the identity element, $e$, for the binary operation ${op_def}$ on the set of real numbers."
+            answer = str(identity_element)
+            hint = "The identity element 'e' is the number that satisfies the equation $a \\ast e = a$ for any 'a'."
+            explanation = f"We solve the equation $a \\ast e = a$.\nFor the rule ${op_def}$, this becomes an equation we solve for $e$. The result is $e = {answer}$."
+            options = {answer, "0", "1", str(k)}
+        else: # Inverse
+            element_to_invert = random.randint(identity_element + 1, identity_element + 10)
+            if op_def == f"a \\ast b = a+b-{k}": inverse_val = 2*k - element_to_invert
+            elif op_def == f"a \\ast b = a+b+\\frac{{ab}}{{{k}}}": inverse_val = Fraction(-k * element_to_invert, k + element_to_invert)
+            else: inverse_val = Fraction(1, element_to_invert)
+            
+            question = f"For the binary operation ${op_def}$, find the inverse of the element ${element_to_invert}$."
+            answer = _format_fraction_text(inverse_val) if isinstance(inverse_val, Fraction) else str(inverse_val)
+            hint = f"First, find the identity element 'e'. Then, find the inverse '$a^{{-1}}$' by solving ${element_to_invert} \\ast a^{{-1}} = e$."
+            explanation = f"1. Find the identity element, $e$, which is {identity_element}.\n2. Let the inverse of {element_to_invert} be $inv$.\n3. Solve the equation ${element_to_invert} \\ast inv = {identity_element}$.\n4. The result of this calculation is **{answer}**."
+            options = {answer, str(-element_to_invert), str(identity_element)}
 
-    # --- Hard Questions ---
-    elif q_type == 'properties_associative':
+    # --- 2.3: Commutativity (Medium) ---
+    elif q_type == 'commutative':
         op_sym = random.choice([r"\Delta", r"\circ", r"\star"])
         templates = [
-            (f"a {op_sym} b = a + b + {random.randint(2,10)}", "Yes"), # Associative
-            (f"a {op_sym} b = ab", "Yes"), # Associative
-            (f"a {op_sym} b = a + {random.randint(2,5)}b", "No"), # Not associative
-            (f"a {op_sym} b = a^2 + b", "No") # Not associative
+            (f"a {op_sym} b = a+b-ab", "Yes"),
+            (f"a {op_sym} b = 2a+2b", "Yes"),
+            (f"a {op_sym} b = a-b", "No"),
+            (f"a {op_sym} b = a^2 - 2b", "No")
         ]
         op_def, answer = random.choice(templates)
-        question = f"Is the binary operation ${op_def}$ associative on the set of real numbers?"
-        hint = "An operation * is associative if $(a * b) * c = a * (b * c)$. Test this with small numbers (e.g., 1, 2, 3) or algebraic expansion."
-        explanation = f"To test for associativity, we must check if $(a {op_sym} b) {op_sym} c$ is equal to $a {op_sym} (b {op_sym} c)$. For the operation ${op_def}$, this property is found to be **{answer.lower()}** after algebraic expansion."
+        question = f"The operation {op_sym} is defined by ${op_def}$ on the set of real numbers. Is this operation commutative?"
+        hint = "An operation is commutative if $a \\ast b = b \\ast a$ for all values. Check if the formula is symmetric when you swap 'a' and 'b'."
+        explanation = f"We must check if $a {op_sym} b = b {op_sym} a$.\n$a {op_sym} b = {op_def.split('=')[1].strip()}$.\n$b {op_sym} a$ would be `{op_def.split('=')[1].strip().replace('a', 'TEMP').replace('b', 'a').replace('TEMP', 'b')}`.\nComparing these two expressions, we see they are {'equal' if answer == 'Yes' else 'not equal'}. Therefore, the operation is **{answer.lower()}**."
         options = {"Yes", "No"}
 
-    elif q_type == 'properties_closure':
+    # --- 2.4: Simple Equations (Medium) ---
+    elif q_type == 'solve_simple':
+        k_val = random.randint(2, 8)
+        b, c = random.randint(2, 8), random.randint(10, 30)
+        op_def = f"x \\ast y = 2x + 3y"
+        result = 2*k_val + 3*b
+        question = f"A binary operation is defined by ${op_def}$. Find the value of $k$ such that $k \\ast {b} = {result}$."
+        answer = str(k_val)
+        hint = "Substitute the values into the given formula to form a linear equation, then solve for k."
+        explanation = f"1. We are given the equation $k \\ast {b} = {result}$.\n2. Using the definition, this becomes $2k + 3({b}) = {result}$.\n3. $2k + {3*b} = {result}$.\n4. $2k = {result - 3*b}$.\n5. $k = {k_val}$."
+        options = {answer, str(b), str(result)}
+
+    # --- 3.1 & 3.2: Associativity & Closure (Hard) ---
+    elif q_type in ['associative', 'closure']:
         op_sym = random.choice([r"\ast", r"\otimes"])
-        set_name, set_desc = random.choice([("the set of Even Integers", "{..., -2, 0, 2, 4, ...}"), ("the set of Odd Integers", "{..., -3, -1, 1, 3, ...}")])
-        if "Odd" in set_name:
-            op_def, answer = random.choice([(f"a {op_sym} b = ab", "Yes"), (f"a {op_sym} b = a + b", "No")])
-            counter_example = "For example, $3, 5$ are odd. $3+5 = 8$, which is even. So the set is not closed under addition."
-        else: # Even
-             op_def, answer = random.choice([(f"a {op_sym} b = a + b", "Yes"), (f"a {op_sym} b = ab + 1", "No")])
-             counter_example = "For example, $2, 4$ are even. $(2)(4)+1 = 9$, which is odd. So the set is not closed under this operation."
-        question = f"Is the operation ${op_def}$ closed on {set_name}, $S = {set_desc}$?"
-        hint = "A set is closed under an operation if performing the operation on any two elements of the set results in an element that is also in the set."
-        explanation = f"We must check if taking any two elements from {set_name} and applying the operation {op_sym} always gives a result that is also in the set. {counter_example}"
-        options = {"Yes", "No"}
+        if q_type == 'associative':
+            templates = [
+                (f"a {op_sym} b = a + b + 2", "Yes"), (f"a {op_sym} b = ab", "Yes"),
+                (f"a {op_sym} b = 2a + b", "No"), (f"a {op_sym} b = a - b", "No")
+            ]
+            op_def, answer = random.choice(templates)
+            question = f"Is the binary operation ${op_def}$ associative on the set of real numbers?"
+            hint = "An operation is associative if $(a \\ast b) \\ast c = a \\ast (b \\ast c)$. You must expand both sides algebraically and compare them."
+            explanation = f"To test for associativity, we check if $(a {op_sym} b) {op_sym} c = a {op_sym} (b {op_sym} c)$. For the operation ${op_def}$, this property is found to be **{answer.lower()}**."
+            options = {"Yes", "No", "Commutative"} # Smart distractor: Commutative
+        else: # Closure
+            set_name, set_desc, op_def, answer = random.choice([
+                ("the set of Odd Integers", "\\{..., -3, -1, 1, 3, ...\\}", "a \\ast b = ab", "Yes"),
+                ("the set of Even Integers", "\\{..., -2, 0, 2, 4, ...\\}", "a \\ast b = a + b", "Yes"),
+                ("the set of Odd Integers", "\\{..., -3, -1, 1, 3, ...\\}", "a \\ast b = a + b", "No"),
+                ("the set $\\{ -1, 0, 1 \\}$", "", "a \\ast b = ab", "Yes")
+            ])
+            question = f"Consider the operation ${op_def}$ on {set_name}{'' if not set_desc else f', $S = {set_desc}$'}. Is the set S closed under this operation?"
+            hint = "A set is closed under an operation if performing the operation on any two elements from the set always results in an answer that is also in the set."
+            explanation = f"We must check if taking any two elements from {set_name} and applying the operation always produces a result that is also a member of that set. For this combination, the property is **{answer.lower()}**."
+            options = {"Yes", "No"}
+
+    # --- 3.3: WASSCE-Style Modular Arithmetic (Hard) ---
+    elif q_type == 'modular_wassce':
+        n = 5; a_coeff = 2
+        set_str = "\\{0, 1, 2, 3, 4\\}"
+        op_def = f"p \\ast q = (p + {a_coeff}q) \\pmod{{{n}}}"
+        identity = 0 # p + 2*0 = p
+        inverse_of_3 = 1 # 3 + 2*1 = 5 = 0 mod 5
+        phrasing = random.choice([
+            f"An operation $\\ast$ is defined on the set $S = {set_str}$ by the rule ${op_def}$. Find the inverse of the element 3.",
+            f"On the set of integers modulo {n}, an operation is defined by ${op_def}$. What is the inverse of 3 under this operation?"
+        ])
+        question = phrasing
+        answer = str(inverse_of_3)
+        hint = "First find the identity element 'e' by solving $p \\ast e = p$. Then, find the inverse of 3, let's call it 'inv', by solving $3 \\ast inv = e$."
+        explanation = f"1. Find identity (e): $p \\ast e = p \\implies p + {a_coeff}e \\equiv p \\pmod{{{n}}} \\implies {a_coeff}e \\equiv 0 \\pmod{{{n}}}$. The identity element is $e={identity}$.\n2. Find inverse of 3: $3 \\ast inv = {identity} \\implies 3 + {a_coeff}(inv) \\equiv {identity} \\pmod{{{n}}}$.\n3. $2(inv) \\equiv -3 \\equiv 2 \\pmod{{{n}}}$. By testing values in S, we find $2(1) = 2$. So the inverse is **{inverse_of_3}**."
+        options = {answer, str(identity), "2", "4"}
+
+    # --- 3.4: Distributivity (Hard) ---
+    elif q_type == 'distributive':
+        op1_def = "a \\ast b = ab"
+        op2_def = "p \\circ q = p+q"
+        question = f"Two binary operations are defined on the set of real numbers as ${op1_def}$ and ${op2_def}$. Is the operation $\\ast$ (multiplication) distributive over $\\circ$ (addition)?"
+        answer = "Yes"
+        hint = "To check if $\\ast$ is distributive over $\\circ$, you must test if $a \\ast (p \\circ q) = (a \\ast p) \\circ (a \\ast q)$ holds true."
+        explanation = f"We must check if $a \\times (p+q) = (a \\times p) + (a \\times q)$.\n- LHS: $a(p+q) = ap + aq$.\n- RHS: $ap + aq$.\nSince the Left Hand Side equals the Right Hand Side, the operation **is distributive**."
+        options = {"Yes", "No", "Only for positive numbers"}
 
     return {"question": question, "options": _finalize_options(options), "answer": answer, "hint": hint, "explanation": explanation, "difficulty": difficulty}
 def _generate_relations_functions_question(difficulty="Medium"):
@@ -7457,6 +7525,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
