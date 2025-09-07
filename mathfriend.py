@@ -2429,114 +2429,170 @@ def _poly_to_str(coeffs):
 # --- FULLY IMPLEMENTED QUESTION GENERATION ENGINE (12 TOPICS) ---
 
 def _generate_sets_question(difficulty="Medium"):
-    """Generates a Sets question based on difficulty, preserving all original sub-types."""
+    """Generates a Sets question based on the detailed, multi-level syllabus."""
 
-    # Difficulty determines which pool of questions we draw from.
     if difficulty == "Easy":
-        q_type = random.choice(['operation_simple', 'subsets_all'])
+        # Level 1: Foundational Concepts
+        q_type = random.choice(['notation_cardinality', 'basic_ops', 'total_subsets'])
     elif difficulty == "Medium":
-        # RE-INTEGRATED: 'operation_difference' and 'subsets_proper' are now here.
-        q_type = random.choice(['venn_two', 'complement', 'operation_difference', 'subsets_proper'])
+        # Level 2: Intermediate Operations & 2-Set Problems
+        q_type = random.choice(['complement_difference', 'proper_subsets', 'venn_two', 'symmetric_difference'])
     else: # Hard
-        q_type = random.choice(['venn_three', 'properties', 'demorgan', 'operation_symmetric'])
+        # Level 3: Advanced Properties & 3-Set Problems
+        q_type = random.choice(['set_laws', 'venn_three', 'power_sets', 'sets_probability'])
 
-    universal_set = set(range(1, 21))
     question, answer, hint, explanation = "", "", "", ""
     options = set()
+    universal_set = set(range(1, 21))
 
-    # --- Easy Questions ---
-    if q_type == 'operation_simple':
+    # --- 1.1: Set Notation & Cardinality (Easy) ---
+    if q_type == 'notation_cardinality':
+        set_a = set(random.sample(range(1, 30), k=random.randint(4, 7)))
+        phrasing = random.choice([
+            f"What is the cardinality of the set $A = {set_a}$?",
+            f"For the set $A = {set_a}$, find $n(A)$.",
+            f"How many distinct elements are in the set $A = {set_a}$?"
+        ])
+        question = phrasing
+        answer = str(len(set_a))
+        hint = "The cardinality of a set, denoted n(A) or |A|, is the number of elements in the set."
+        explanation = f"To find the cardinality, we count the number of distinct elements in the set A. The set has **{answer}** elements."
+        options = {answer, str(len(set_a) + 1), str(len(set_a) - 1), str(sum(set_a))}
+
+    # --- 1.2: Basic Operations (Union & Intersection) (Easy) ---
+    elif q_type == 'basic_ops':
         set_a = set(random.sample(range(1, 15), k=random.randint(3, 5)))
         set_b = set(random.sample(range(1, 15), k=random.randint(3, 5)))
         op, sym = random.choice([('union', '\\cup'), ('intersection', '\\cap')])
         question = f"Given $A = {set_a}$ and $B = {set_b}$, find $A {sym} B$."
         res = set_a.union(set_b) if op == 'union' else set_a.intersection(set_b)
-        answer = str(res)
-        hint = "Union means 'all elements combined'; Intersection means 'only elements in common'."
-        explanation = f"The {op} of sets A and B results in the set {res}."
-        options = {answer, str(set_a.difference(set_b))}
+        answer = str(res) if res else "{}"
+        hint = "Union (∪) means 'all elements combined'. Intersection (∩) means 'only elements in common'."
+        explanation = f"The {op} of sets A and B results in the set **{answer}**."
+        options = {answer, str(set_a.difference(set_b)), str(set_b.difference(set_a))}
 
-    elif q_type == 'subsets_all':
-        num_elements = random.randint(2, 5)
+    # --- 1.3: Subsets (Easy) ---
+    elif q_type == 'total_subsets':
+        num_elements = random.randint(3, 6)
         s = set(random.sample(range(1, 100), k=num_elements))
-        question = f"How many total subsets can be formed from the set $S = {s}$?"
+        question = f"How many subsets can be formed from the set $S = {s}$?"
         answer = str(2**num_elements)
-        hint = "The number of subsets of a set with 'n' elements is $2^n$."
+        hint = "The formula for the total number of subsets of a set with 'n' elements is $2^n$."
         explanation = f"The set has {num_elements} elements. The total number of subsets is $2^{{{num_elements}}} = {answer}$."
-        options = {answer, str(2**num_elements - 1), str(num_elements*2)}
+        distractor1 = str(2**num_elements - 1)
+        distractor2 = str(num_elements**2)
+        options = {answer, distractor1, distractor2}
 
-    # --- Medium Questions ---
-    elif q_type == 'venn_two':
-        total, a_only, b_only, both = random.randint(50, 100), random.randint(10, 25), random.randint(10, 25), random.randint(5, 15)
-        neither, total_a, total_b = total - (a_only + b_only + both), a_only + both, b_only + both
-        question = f"In a class of {total} students, {total_a} like Physics and {total_b} like Chemistry. If {neither} like neither subject, how many like BOTH?"
-        answer = str(both)
-        hint = "Use the formula $|A \\cup B| = |A| + |B| - |A \\cap B|$."
-        explanation = f"Total students liking at least one subject = {total} - {neither} = {a_only+b_only+both}.\nUsing the formula, {total_a} + {total_b} - Both = {a_only+b_only+both}, so Both = {both}."
-        options = {answer, str(a_only), str(b_only)}
-
-    elif q_type == 'complement':
+    # --- 2.1: Complements and Set Difference (Medium) ---
+    elif q_type == 'complement_difference':
         set_a = set(random.sample(range(1, 20), k=random.randint(5, 8)))
-        question = f"Given $\mathcal{{U}} = \\{{1, ..., 20\\}}$ and $A = {set_a}$, find $A'$."
-        answer = str(universal_set - set_a)
-        hint = "The complement contains all elements in the universal set that are NOT in set A."
-        explanation = f"A' = U - A = {answer}."
-        options = {answer, str(set_a)}
+        set_b = set(random.sample(range(1, 20), k=random.randint(5, 8)))
+        op = random.choice(['complement', 'difference'])
+        if op == 'complement':
+            question = f"Given the universal set $\mathcal{{U}} = \\{{1, 2, ..., 20\\}}$ and $A = {set_a}$, find the complement, $A'$."
+            answer = str(universal_set - set_a)
+            hint = "The complement contains all elements in the universal set that are NOT in set A."
+            explanation = f"$A' = \mathcal{{U}} - A = {answer}$."
+            options = {answer, str(set_a), str(universal_set)}
+        else: # Difference
+            question = f"Given $A = {set_a}$ and $B = {set_b}$, find the set difference $A - B$."
+            answer = str(set_a.difference(set_b))
+            hint = "The difference A - B contains all elements that are in A but NOT in B."
+            explanation = f"We take all the elements of set A and remove any that also appear in set B. The result is {answer}."
+            options = {answer, str(set_b.difference(set_a)), str(set_a.intersection(set_b))}
 
-    elif q_type == 'operation_difference': # RESTORED FROM YOUR ORIGINAL CODE
-        set_a = set(random.sample(range(1, 20), k=random.randint(4, 7)))
-        set_b = set(random.sample(range(1, 20), k=random.randint(4, 7)))
-        question = f"Given $A = {set_a}$ and $B = {set_b}$, find the difference $A - B$."
-        answer = str(set_a.difference(set_b))
-        hint = "The difference A - B contains all elements that are in A but NOT in B."
-        explanation = f"We take all the elements of set A and remove any that also appear in set B. The result is {answer}."
-        options = {answer, str(set_b.difference(set_a)), str(set_a.intersection(set_b))}
-
-    elif q_type == 'subsets_proper': # RESTORED FROM YOUR ORIGINAL CODE
+    # --- 2.2: Proper Subsets (Medium) ---
+    elif q_type == 'proper_subsets':
         num_elements = random.randint(3, 6)
         s = set(random.sample(range(1, 100), k=num_elements))
         question = f"How many **proper** subsets does the set $S = {s}$ have?"
         answer = str(2**num_elements - 1)
-        hint = "The number of proper subsets is $2^n - 1$. It includes all subsets except the set itself."
-        explanation = f"Total subsets = $2^{{{num_elements}}} = {2**num_elements}$. Proper subsets exclude the original set, so we subtract 1, giving {answer}."
-        options = {answer, str(2**num_elements), str(num_elements**2)}
+        hint = "The number of proper subsets is one less than the total number of subsets ($2^n - 1$)."
+        explanation = f"The total number of subsets is $2^{{{num_elements}}} = {2**num_elements}$. A proper subset is any subset except the set itself, so we subtract 1, giving **{answer}**."
+        options = {answer, str(2**num_elements), str(num_elements - 1)}
 
-    # --- Hard Questions ---
-    elif q_type == 'venn_three':
-        a,b,c,ab,bc,ac,abc = [random.randint(5, 15) for _ in range(7)]
-        total_a, total_b, total_c = a+ab+ac+abc, b+ab+bc+abc, c+ac+bc+abc
-        total = sum([a,b,c,ab,bc,ac,abc])
-        question = f"Of {total} people, {total_a} liked Item 1, {total_b} liked Item 2, & {total_c} liked Item 3. {ab+abc} liked 1&2, {ac+abc} liked 1&3, {bc+abc} liked 2&3, & {abc} liked all three. How many liked EXACTLY one item?"
-        answer = str(a+b+c)
-        hint = "Draw a Venn diagram and subtract outwards from the center to find the 'only' regions."
-        explanation = f"Item 1 only = {a}, Item 2 only = {b}, Item 3 only = {c}. Total = {a+b+c}."
-        options = {answer, str(ab+bc+ac), str(abc)}
-
-    elif q_type == 'properties':
-        law, is_true_str = random.choice([("Commutative: $A - B = B - A$", "False"), ("Associative: $(A \\cup B) \\cup C = A \\cup (B \\cup C)$", "True"), ("Distributive: $A \\cap (B \\cup C) = (A \\cap B) \\cup (A \\cap C)$", "True")])
-        question = f"Is the following statement about set properties generally true or false? ${law}$"
-        answer = is_true_str
-        hint = "Think about whether the order or grouping matters for different operations."
-        explanation = f"The statement ${law}$ is **{answer.lower()}**. Commutativity and associativity hold for union and intersection, but not for difference."
-        options = {"True", "False"}
-
-    elif q_type == 'demorgan':
-        question = "According to De Morgan's Laws, $(A \\cup B)'$ is equivalent to which of the following?"
-        answer = "$A' \\cap B'$"
-        hint = "The complement of a union is the intersection of the complements."
-        explanation = "De Morgan's Laws state: $(A \\cup B)' = A' \\cap B'$ and $(A \\cap B)' = A' \\cup B'$."
-        options = {"$A' \\cap B'$", "$A' \\cup B'$", "$A \\cap B'"}
-
-    elif q_type == 'operation_symmetric':
+    # --- 2.3: 2-Set Venn Diagram Problems (Medium) ---
+    elif q_type == 'venn_two':
+        total, a_val, b_val, both = random.randint(80, 120), random.randint(30, 50), random.randint(30, 50), random.randint(10, 25)
+        union = a_val + b_val - both
+        neither = total - union
+        if neither < 0: return _generate_sets_question(difficulty=difficulty)
+        
+        phrasing, unknown = random.choice([
+            (f"In a survey of {total} people in Accra, {a_val} read the Chronicle newspaper and {b_val} read the Graphic. If {both} read both, how many read neither?", "neither"),
+            (f"In a class of {total} students, {a_val} play football and {b_val} play volleyball. If {neither} play neither sport, how many play both?", "both")
+        ])
+        question = phrasing
+        answer = str(neither) if unknown == "neither" else str(both)
+        hint = "Use the formula $n(Total) = n(A) + n(B) - n(A \cap B) + n(Neither)$."
+        explanation = f"Let C be Chronicle readers and G be Graphic readers. We have $n(C) = {a_val}$, $n(G) = {b_val}$, and $n(C \cap G) = {both}$.\nThe number of people who read at least one is $n(C \cup G) = n(C) + n(G) - n(C \cap G) = {a_val} + {b_val} - {both} = {union}$.\nThe number who read neither is $n(Total) - n(C \cup G) = {total} - {union} = {neither}$."
+        options = {str(both), str(neither), str(total - a_val), str(total - b_val)}
+    
+    # --- 3.1: Symmetric Difference (Hard) ---
+    elif q_type == 'symmetric_difference':
         set_a = set(random.sample(range(1, 20), k=random.randint(4, 6)))
         set_b = set(random.sample(range(1, 20), k=random.randint(4, 6)))
         question = f"Given $A = {set_a}$ and $B = {set_b}$, find the symmetric difference $A \\Delta B$."
         answer = str(set_a.symmetric_difference(set_b))
-        hint = "Symmetric difference contains elements in one set or the other, but not both. Formula: $(A \\cup B) - (A \\cap B)$."
-        explanation = f"The union is {set_a.union(set_b)} and the intersection is {set_a.intersection(set_b)}. The difference between these sets is {answer}."
-        options = {answer, str(set_a.union(set_b)), str(set_a.intersection(set_b))}
+        hint = "Symmetric difference contains elements in A or in B, but NOT in both. It can be calculated as $(A \\cup B) - (A \\cap B)$."
+        explanation = f"The union is $A \\cup B = {set_a.union(set_b)}$.\nThe intersection is $A \\cap B = {set_a.intersection(set_b)}$.\nThe difference between these two sets is **{answer}**."
+        options = {answer, str(set_a.union(set_b)), str(set_a.intersection(set_b)), str(set_a.difference(set_b))}
 
-    return {"question": question, "options": _finalize_options(options, default_type="set_str"), "answer": answer, "hint": hint, "explanation": explanation, "difficulty": difficulty}
+    # --- 3.2: Laws of Algebra of Sets (Hard) ---
+    elif q_type == 'set_laws':
+        law, answer = random.choice([
+            ("De Morgan's Law states that $(A \\cup B)'$ is equivalent to:", "$A' \\cap B'$"),
+            ("The Distributive Law states that $A \\cap (B \\cup C)$ is equivalent to:", "$(A \\cap B) \\cup (A \\cap C)$"),
+            ("The Complement Law states that $A \\cup A'$ is equal to:", "$\\mathcal{U}$ (the universal set)"),
+            ("The Associative Law states that $(A \\cup B) \\cup C$ is equivalent to:", "$A \\cup (B \\cup C)$")
+        ])
+        question = law
+        hint = "Recall the fundamental laws governing set operations."
+        explanation = f"This is a direct application of the standard laws of the algebra of sets. The correct identity is **{answer}**."
+        if "De Morgan" in law: options = {"$A' \\cap B'$", "$A' \\cup B'$", "$A \\cap B'"}
+        elif "Distributive" in law: options = {"$(A \\cap B) \\cup (A \\cap C)$", "$(A \\cup B) \\cap (A \\cup C)$", "$A \\cup (B \\cap C)$"}
+        else: options = {"$\\mathcal{U}$ (the universal set)", "$\\emptyset$ (the empty set)", "A"}
+
+    # --- 3.3: 3-Set Venn Diagram Problems (Hard) ---
+    elif q_type == 'venn_three':
+        regions = [random.randint(5, 15) for _ in range(7)]
+        a,b,c,ab_only,bc_only,ac_only,abc = regions
+        total_A = a+ab_only+ac_only+abc
+        total_B = b+ab_only+bc_only+abc
+        total_C = c+ac_only+bc_only+abc
+        question = f"A survey of students in Kajaji found that {total_A} liked Maths, {total_B} liked Science, and {total_C} liked English. Of these, {ab_only+abc} liked Maths and Science, {ac_only+abc} liked Maths and English, {bc_only+abc} liked Science and English, and {abc} liked all three. How many students liked **only** Maths?"
+        answer = str(a)
+        hint = "Draw a three-circle Venn diagram. Start by filling in the center region (all three subjects) and work your way outwards by subtracting."
+        explanation = f"1. Start with $n(M \\cap S \\cap E) = {abc}$.\n2. Find 'Maths and Science only': $n(M \\cap S) - n(M \\cap S \\cap E) = {ab_only+abc} - {abc} = {ab_only}$.\n3. Similarly, 'Maths and English only' = {ac_only} and 'Science and English only' = {bc_only}.\n4. Finally, find 'Maths only': $n(M) - (\text{the other Maths regions}) = {total_A} - ({ab_only} + {ac_only} + {abc}) = {a}$."
+        options = {str(a), str(ab_only), str(ac_only), str(total_A)}
+
+    # --- 3.4: Power Sets (Hard) ---
+    elif q_type == 'power_sets':
+        s_elements = sorted(random.sample(range(1, 10), 3))
+        s = set(s_elements)
+        answer = f"$\\{{\\emptyset, \\{{{s_elements[0]}\\}}, \\{{{s_elements[1]}\\}}, \\{{{s_elements[2]}\\}}, \\{{{s_elements[0]}, {s_elements[1]}\\}}, \\{{{s_elements[0]}, {s_elements[2]}\\}}, \\{{{s_elements[1]}, {s_elements[2]}\\}}, \\{{{s_elements[0]}, {s_elements[1]}, {s_elements[2]}\\}}\\}}"
+        question = f"What is the Power Set, $\mathcal{{P}}(S)$, of the set $S = {s}$?"
+        hint = "The Power Set is the set of all possible subsets of S, including the empty set and the set S itself."
+        explanation = f"A set with 3 elements has $2^3 = 8$ subsets. We must list all of them, from the empty set to the full set, to form the Power Set. The correct listing is **{answer}**."
+        options = {answer, f"${2**len(s)}$", f"$\\{{\\{{{s_elements[0]}\\}}, \\{{{s_elements[1]}\\}}, \\{{{s_elements[2]}\\}}\\}}"}
+
+    # --- 3.5: Sets and Probability (Hard) ---
+    elif q_type == 'sets_probability':
+        total = 100
+        a, b, intersection = random.randint(30, 50), random.randint(20, 40), random.randint(10, 20)
+        prob_a = Fraction(a, total); prob_b = Fraction(b, total); prob_intersect = Fraction(intersection, total)
+        prob_union = prob_a + prob_b - prob_intersect
+        question = f"In a group of students, the probability that a student speaks Twi is ${prob_a.numerator}/{prob_a.denominator}$ and the probability that a student speaks Ga is ${prob_b.numerator}/{prob_b.denominator}$. If the probability that a student speaks both is ${prob_intersect.numerator}/{prob_intersect.denominator}$, what is the probability that a student speaks either Twi or Ga?"
+        answer = f"${_get_fraction_latex_code(prob_union)}$"
+        hint = "Use the formula for the probability of the union of two events: $P(A \\cup B) = P(A) + P(B) - P(A \\cap B)$."
+        explanation = f"Let T be the event of speaking Twi and G be the event of speaking Ga.\n$P(T \\cup G) = P(T) + P(G) - P(T \\cap G)$\n$P(T \\cup G) = {_get_fraction_latex_code(prob_a)} + {_get_fraction_latex_code(prob_b)} - {_get_fraction_latex_code(prob_intersect)} = {_get_fraction_latex_code(prob_union)}$."
+        options = {answer, f"${_get_fraction_latex_code(prob_a+prob_b)}$", f"${_get_fraction_latex_code(prob_intersect)}$"}
+
+    # Finalize options and return the dictionary
+    final_options = _finalize_options(options, default_type="set_str")
+    return {"question": question, "options": final_options, "answer": answer, "hint": hint, "explanation": explanation, "difficulty": difficulty}
+
+# --- END: REVISED AND FINAL FUNCTION _generate_sets_question ---
 def _generate_percentages_question(difficulty="Medium"):
     """Generates a Percentages question based on difficulty, preserving all original sub-types."""
     
@@ -7539,6 +7595,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
