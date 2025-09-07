@@ -3126,25 +3126,29 @@ def _generate_binary_ops_question(difficulty="Medium"):
 
     # --- 2.1 & 2.2: Identity & Inverse (Medium) ---
     elif q_type in ['identity', 'inverse']:
-        k = random.randint(2, 9)
-        op_def, identity_element = random.choice([
-            (f"a \\ast b = a+b-{k}", k),
-            (f"a \\ast b = a+b+\\frac{{ab}}{{{k}}}", 0),
-            (f"a \\ast b = ab", 1)
-        ])
+        # Create a large pool of varied operation templates
+        op_templates = [
+            (f"a \\ast b = a+b-{random.randint(2, 9)}", lambda k: k, lambda e, elem: 2*e - elem),
+            (f"a \\ast b = a+b+\\frac{{ab}}{{2}}", lambda k: 0, lambda e, elem: Fraction(-2 * elem, 2 + elem)),
+            (f"p \\circ q = pq", lambda k: 1, lambda e, elem: Fraction(1, elem)),
+            (f"m \\nabla n = m+n-mn", lambda k: 0, lambda e, elem: Fraction(-elem, 1 - elem))
+        ]
+        op_def, identity_func, inverse_func = random.choice(op_templates)
         op_sym = op_def.split(" ")[1]
+        
+        # We need a dummy 'k' for the functions, though it's not always used
+        dummy_k = int(re.search(r'\d+', op_def).group()) if re.search(r'\d+', op_def) else 1
+        identity_element = identity_func(dummy_k)
 
         if q_type == 'identity':
             question = f"Find the identity element, $e$, for the binary operation ${op_def}$ on the set of real numbers."
             answer = str(identity_element)
             hint = "The identity element 'e' is the number that satisfies the equation $a \\ast e = a$ for any 'a'."
-            explanation = f"We solve the equation $a \\ast e = a$.\nFor the rule ${op_def}$, this becomes an equation we solve for $e$. The result is $e = {answer}$."
-            options = {answer, "0", "1", str(k)}
+            explanation = f"We solve the equation $a \\ast e = a$. For the rule ${op_def}$, this becomes an equation we solve for $e$. The result is $e = {answer}$."
+            options = {answer, "0", "1", "a"}
         else: # Inverse
-            element_to_invert = random.randint(identity_element + 1, identity_element + 10)
-            if op_def == f"a \\ast b = a+b-{k}": inverse_val = 2*k - element_to_invert
-            elif op_def == f"a \\ast b = a+b+\\frac{{ab}}{{{k}}}": inverse_val = Fraction(-k * element_to_invert, k + element_to_invert)
-            else: inverse_val = Fraction(1, element_to_invert)
+            element_to_invert = random.randint(identity_element + 2, identity_element + 10)
+            inverse_val = inverse_func(identity_element, element_to_invert)
             
             question = f"For the binary operation ${op_def}$, find the inverse of the element ${element_to_invert}$."
             answer = _format_fraction_text(inverse_val) if isinstance(inverse_val, Fraction) else str(inverse_val)
@@ -3169,14 +3173,24 @@ def _generate_binary_ops_question(difficulty="Medium"):
 
     # --- 2.4: Simple Equations (Medium) ---
     elif q_type == 'solve_simple':
-        k_val = random.randint(2, 8)
-        b, c = random.randint(2, 8), random.randint(10, 30)
-        op_def = f"x \\ast y = 2x + 3y"
-        result = 2*k_val + 3*b
-        question = f"A binary operation is defined by ${op_def}$. Find the value of $k$ such that $k \\ast {b} = {result}$."
-        answer = str(k_val)
-        hint = "Substitute the values into the given formula to form a linear equation, then solve for k."
-        explanation = f"1. We are given the equation $k \\ast {b} = {result}$.\n2. Using the definition, this becomes $2k + 3({b}) = {result}$.\n3. $2k + {3*b} = {result}$.\n4. $2k = {result - 3*b}$.\n5. $k = {k_val}$."
+        unknown_var = random.choice(['k', 'x', 'n', 'p'])
+        var_val = random.randint(2, 8)
+        b = random.randint(2, 8)
+        
+        op_templates = [
+            (f"a \\ast b = 2a + 3b", lambda var, const: 2*var + 3*const),
+            (f"a \\ast b = ab - a", lambda var, const: var*const - var),
+            (f"a \\ast b = a^2 + b", lambda var, const: var**2 + const)
+        ]
+        op_def, op_func = random.choice(op_templates)
+        op_sym = op_def.split(" ")[1]
+        
+        result = op_func(var_val, b)
+        
+        question = f"A binary operation is defined by ${op_def}$. Find the value of ${unknown_var}$ such that ${unknown_var} \\ast {b} = {result}$."
+        answer = str(var_val)
+        hint = f"Substitute the values into the given formula to form an equation, then solve for {unknown_var}."
+        explanation = f"1. We are given the equation ${unknown_var} \\ast {b} = {result}$.\n2. Using the definition, this becomes `{op_def.replace('a', unknown_var).replace('b', str(b)).split('=')[1].strip()} = {result}`.\n3. Solving this equation for ${unknown_var}$ gives the answer **{answer}**."
         options = {answer, str(b), str(result)}
 
     # --- 3.1 & 3.2: Associativity & Closure (Hard) ---
@@ -7525,6 +7539,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
