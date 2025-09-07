@@ -2442,7 +2442,7 @@ def _generate_sets_question(difficulty="Medium"):
     options = set()
     universal_set = set(range(1, 21))
 
-    # --- 1.1: Set Notation & Cardinality (Easy) ---
+    # (The code for Easy questions and other question types remains unchanged)
     if q_type == 'notation_cardinality':
         set_a = set(random.sample(range(1, 30), k=random.randint(4, 7)))
         phrasing = random.choice([
@@ -2456,7 +2456,6 @@ def _generate_sets_question(difficulty="Medium"):
         explanation = f"To find the cardinality, we count the number of distinct elements in the set A. The set has **{answer}** elements."
         options = {answer, str(len(set_a) + 1), str(len(set_a) - 1), str(sum(set_a))}
 
-    # --- 1.2: Basic Operations (Union & Intersection) (Easy) ---
     elif q_type == 'basic_ops':
         set_a = set(random.sample(range(1, 15), k=random.randint(3, 5)))
         set_b = set(random.sample(range(1, 15), k=random.randint(3, 5)))
@@ -2468,7 +2467,6 @@ def _generate_sets_question(difficulty="Medium"):
         explanation = f"The {op} of sets A and B results in the set **{answer}**."
         options = {answer, str(set_a.difference(set_b)), str(set_b.difference(set_a))}
 
-    # --- 1.3: Subsets (Easy) ---
     elif q_type == 'total_subsets':
         num_elements = random.randint(3, 6)
         s = set(random.sample(range(1, 100), k=num_elements))
@@ -2480,7 +2478,6 @@ def _generate_sets_question(difficulty="Medium"):
         distractor2 = str(num_elements**2)
         options = {answer, distractor1, distractor2}
 
-    # --- 2.1: Complements and Set Difference (Medium) ---
     elif q_type == 'complement_difference':
         set_a = set(random.sample(range(1, 20), k=random.randint(5, 8)))
         set_b = set(random.sample(range(1, 20), k=random.randint(5, 8)))
@@ -2500,7 +2497,6 @@ def _generate_sets_question(difficulty="Medium"):
             explanation = f"We take all the elements of set A and remove any that also appear in set B. The result is {answer}."
             options = {answer, str(set_b.difference(set_a)), str(set_a.intersection(set_b))}
 
-    # --- 2.2: Proper Subsets & Power Sets (Medium) ---
     elif q_type == 'proper_subsets':
         num_elements = random.randint(3, 6)
         s = set(random.sample(range(1, 100), k=num_elements))
@@ -2517,13 +2513,27 @@ def _generate_sets_question(difficulty="Medium"):
         neither = total - union
         if neither < 0: return _generate_sets_question(difficulty=difficulty)
         
+        # --- THIS IS THE NEW, MASSIVELY EXPANDED PHRASING BANK ---
+        student_names = ["Joana","Happy","Doris","Gladys","Grace","Wassado","Jemima","Clementina","Bertha","Delight","Ampofo", "Julia", "Albert", "Confidence", "David", "Edmond", "Nuzrat", "Rawlings", "Georgina", "Isaac", "Korbey", "Wisdom", "Stephen", "Nnyibi", "Martin", "Yussif", "Awake", "Ferguson", "Grace", "Bernice", "Lazarus", "Agbey", "Emic", "Melody", "Christable", "Benedicta", "Irene"]
+        local_schools = ["Ho Mawuli","Mawuko Girls","Prang SHS","Sunyani SHS","Keta SHTS","Jinijini SHS","Krachi SHS","Ola Girls","Kajaji SHS", "Bassa Community SHS", "Kwame Danso SHS", "Atebubu SHS"]
+        student_1, student_2 = random.sample(student_names, 2)
+        school_1, school_2 = random.sample(local_schools, 2)
+
         contexts = [
-            ("read the Chronicle newspaper", "read the Graphic", "people", "in a survey in Accra"),
-            ("play football", "play volleyball", "students", "in a class"),
-            ("like Waakye", "like Jollof rice", "customers", "at a local chop bar"),
-            ("speak Twi", "speak Ga", "traders", "at Makola Market"),
-            ("use Instagram", "use TikTok", "teenagers", "in a focus group"),
-            ("study Chemistry", "study Physics", "SHS students", "in a school")
+            (f"like {student_1}'s favourite food, Waakye", f"like {student_2}'s favourite, Jollof rice", "customers", "at a chop bar in Kojokrom"),
+            ("play football", "play volleyball", "students", f"at {school_1}"),
+            ("speak Twi", "speak Bono", "traders", "at the Kajaji Market"),
+            ("passed Elective Maths", "passed Core Maths", "WASSCE candidates", "at a learning center in the Bono East Region"),
+            ("study Chemistry", "study Physics", "SHS students", f"in {school_2}"),
+            ("use Instagram", "use TikTok", "teenagers", "in a focus group in Atebubu"),
+            ("eat Banku", "eat Kenkey", "patrons", "at a restaurant in Kwame Danso"),
+            ("listen to Afrobeats", "listen to Highlife music", "music fans", "at a local festival"),
+            ("use MTN", "use Vodafone", "mobile phone users", "in a small town near Kajaji"),
+            ("take a Trotro", "take an Uber", "commuters", "in Kumasi"),
+            ("own a cat", "own a dog", "pet owners", "in a neighborhood in Accra"),
+            ("watch Ghanaian movies", "watch Nigerian movies", "viewers", "surveyed last month"),
+            ("shop at Melcom", "shop at Shoprite", "customers", "at the mall"),
+            (f"support {student_1}'s team, Asante Kotoko", f"support {student_2}'s team, Hearts of Oak", "football fans", "in a survey")
         ]
         item_a, item_b, group, context = random.choice(contexts)
         
@@ -2531,13 +2541,17 @@ def _generate_sets_question(difficulty="Medium"):
             (f"Of {total} {group} {context}, {a_val} {item_a} and {b_val} {item_b}. If {both} do both, how many do neither?", "neither"),
             (f"Of {total} {group} {context}, {a_val} {item_a} and {b_val} {item_b}. If {neither} do neither, how many do both?", "both")
         ])
+        # --- END OF THE PHRASING BANK ---
+        
         question = phrasing
         answer = str(neither) if unknown == "neither" else str(both)
         hint = "Use the formula $n(Total) = n(A) + n(B) - n(A \\cap B) + n(Neither)$ or draw a Venn diagram."
         explanation = f"We have $n(A) = {a_val}$, $n(B) = {b_val}$, and $n(A \\cap B) = {both}$.\nThe number who are in at least one set is $n(A \\cup B) = n(A) + n(B) - n(A \\cap B) = {a_val} + {b_val} - {both} = {union}$.\nThe number in neither set is $n(Total) - n(A \\cup B) = {total} - {union} = {neither}$."
+        
         a_only = a_val - both
         b_only = b_val - both
         options = {str(neither), str(both), str(a_only), str(b_only)}
+        
         return {"question": question, "options": list(options), "answer": answer, "hint": hint, "explanation": explanation, "difficulty": difficulty}
 
     # --- 3.1: Symmetric Difference (Hard) ---
@@ -2570,13 +2584,24 @@ def _generate_sets_question(difficulty="Medium"):
     elif q_type == 'venn_three':
         regions = [random.randint(5, 15) for _ in range(7)]
         r1, r2, r3, r12, r23, r13, r123 = regions
+        
+        # --- THIS IS THE NEW, MASSIVELY EXPANDED PHRASING BANK ---
+        student_names = ["Joana","Happy","Doris","Gladys","Grace","Wassado","Jemima","Clementina","Bertha","Delight","Ampofo", "Julia", "Albert", "Confidence", "David", "Edmond", "Nuzrat", "Rawlings", "Georgina", "Isaac", "Korbey", "Wisdom", "Stephen", "Nnyibi", "Martin", "Yussif", "Awake", "Ferguson", "Grace", "Bernice", "Lazarus", "Agbey", "Emic", "Melody", "Christable", "Benedicta", "Irene"]
+        local_schools = ["Ho Mawuli","Mawuko Girls","Prang SHS","Sunyani SHS","Keta SHTS","Jinijini SHS","Krachi SHS","Ola Girls","Kajaji SHS", "Bassa Community SHS", "Kwame Danso SHS", "Atebubu SHS"]
+        student_1, student_2, student_3 = random.sample(student_names, 3)
+        school_1 = random.choice(local_schools)
+        
         contexts = [
-            ("students", "Maths", "Science", "English", "in a school in Kumasi"),
-            ("tourists", "visiting Kakum National Park", "visiting Cape Coast Castle", "visiting Elmina Castle", "surveyed at a hotel"),
-            ("farmers", "growing maize", "growing cassava", "growing yam", "in the Ashanti Region"),
-            ("shoppers", "buying Milo", "buying Nido", "buying Peak Milk", "at a supermarket")
+            ("students", "Maths", "Science", "English", f"at {school_1}"),
+            ("tourists", "Kakum National Park", "Cape Coast Castle", "Elmina Castle", "surveyed at a hotel"),
+            ("farmers", "growing maize", "growing cassava", "growing yam", "in the Bono East Region"),
+            ("shoppers", "buying Milo", "buying Nido", "buying Peak Milk", "at the Kajaji Market"),
+            (f"friends of {student_1}", f"watching {student_2}'s favourite show", f"listening to {student_3}'s favourite music", "playing video games", "in a survey"),
+            ("commuters", "taking a Trotro", "riding an Okada", "taking a taxi", "in a busy city"),
+            ("patients", "having a headache", "having a cough", "having a fever", "at a clinic in Kojokrom")
         ]
         group, item_a, item_b, item_c, context = random.choice(contexts)
+        # --- END OF THE PHRASING BANK ---
         
         total_A = r1 + r12 + r13 + r123
         total_B = r2 + r12 + r23 + r123
@@ -2587,6 +2612,7 @@ def _generate_sets_question(difficulty="Medium"):
             (f"liked **only** {item_b}", r2),
             (f"liked **only** {item_c}", r3)
         ])
+
         question = (f"A survey of {group} {context} found the following:\n"
                     f"- {total_A} liked {item_a}\n"
                     f"- {total_B} liked {item_b}\n"
@@ -2604,6 +2630,7 @@ def _generate_sets_question(difficulty="Medium"):
         
         options = {str(r1), str(r2), str(r3), str(r12), str(r13), str(r23), str(r123)}
         options.add(answer) 
+        
         return {"question": question, "options": _finalize_options(options), "answer": answer, "hint": hint, "explanation": explanation, "difficulty": difficulty}
 
     # --- 3.4: Power Sets (Hard) ---
@@ -2630,6 +2657,8 @@ def _generate_sets_question(difficulty="Medium"):
 
     final_options = _finalize_options(options, default_type="set_str")
     return {"question": question, "options": final_options, "answer": answer, "hint": hint, "explanation": explanation, "difficulty": difficulty}
+
+# --- END: REVISED AND FINAL FUNCTION _generate_sets_question ---
 def _generate_percentages_question(difficulty="Medium"):
     """Generates a Percentages question based on difficulty, preserving all original sub-types."""
     
@@ -7770,6 +7799,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
