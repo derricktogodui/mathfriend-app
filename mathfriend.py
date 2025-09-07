@@ -2278,6 +2278,32 @@ def get_user_achievements(username):
         result = conn.execute(query, {"username": username}).mappings().fetchall()
         return [dict(row) for row in result]
 
+def _check_and_award_perfect_score_bonus(username, topic):
+    """
+    Checks if a user has the 'Perfect Score' achievement for a topic.
+    If not, it awards the achievement and returns True (eligible for bonus).
+    If they do, it returns False (not eligible for bonus).
+    """
+    achievement_name = f"Perfect Score: {topic}"
+    badge_icon = "🎯"
+
+    # First, check if the user already has this specific achievement
+    with engine.connect() as conn:
+        check_query = text("""
+            SELECT 1 FROM user_achievements 
+            WHERE username = :username AND achievement_name = :achievement_name
+        """)
+        exists = conn.execute(check_query, {"username": username, "achievement_name": achievement_name}).first()
+
+    if not exists:
+        # If the achievement does not exist, award it.
+        award_achievement_to_user(username, achievement_name, badge_icon)
+        # Return True because this is the first time, and they should get the bonus.
+        return True
+    else:
+        # If they already have the achievement, they are not eligible for the bonus.
+        return False
+
 def update_gamification_progress(username, topic, score):
     """Umbrella function to update all gamification systems."""
     update_daily_challenge_progress(username, topic, score)
@@ -5807,10 +5833,16 @@ def display_quiz_summary():
         if total_questions > 0:
             coins_earned = final_score * 5
             description = f"Completed Quiz on {st.session_state.quiz_topic}"
-            if final_score == total_questions:
-                coins_earned += 25
-                description += " (Perfect Score Bonus!)"
-
+            # --- START: NEW ONE-TIME BONUS LOGIC ---
+            # Check for a perfect score
+            if final_score == total_questions and total_questions > 0:
+                # Check if the user is eligible for the one-time bonus for this topic
+                is_bonus_eligible = _check_and_award_perfect_score_bonus(st.session_state.username, st.session_state.quiz_topic)
+                if is_bonus_eligible:
+                    coins_earned += 25
+                    description += " (First-Time Perfect Score Bonus!)"
+                    st.toast(f"🎯 New Achievement! You perfected '{st.session_state.quiz_topic}'!", icon="🎉")
+            # --- END: NEW ONE-TIME BONUS LOGIC ---
         if is_double_coins_active(st.session_state.username):
             st.success(f"🚀 Double Coins booster was active! Your earnings are doubled: {coins_earned} -> {coins_earned * 2}", icon="🎉")
             coins_earned *= 2
@@ -7294,6 +7326,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
