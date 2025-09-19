@@ -7415,30 +7415,26 @@ def display_admin_panel(topic_options):
         st.info("Use the optional fields below to create special assignments.")
         st.markdown("---")
 
-        # --- START: NEW "SET DEFAULTS" FEATURE ---
         with st.expander("⚙️ Set Defaults for this Session"):
-            st.caption("Set a default topic and pool name here to pre-fill the form below, saving you from repetitive typing.")
+            st.caption("Set a default topic and pool name here to pre-fill the form below.")
             st.text_input("Default Topic/Title", key="pq_default_topic")
             st.text_input("Default Assignment Pool Name", key="pq_default_pool")
-        # --- END: NEW "SET DEFAULTS" FEATURE ---
 
         st.subheader("Add New Question/Assignment")
+        st.checkbox("Set a specific answer reveal time (optional)", key="add_pq_set_deadline")
         with st.form("new_practice_q_form", clear_on_submit=True):
-            # The 'value' of these inputs is now read from session state for the defaults
             pq_topic = st.text_input("Topic or Title", placeholder="e.g., Week 5 Assignment on Surds", value=st.session_state.get("pq_default_topic", ""))
             pq_question = st.text_area("Question Text (Supports Markdown & LaTeX)", height=200)
             pq_answer = st.text_area("Answer Text", height=100)
             pq_explanation = st.text_area("Detailed Explanation (Optional)", height=200)
-
             st.markdown("##### **Optional Assignment Settings**")
             pq_pool_name = st.text_input("Assignment Pool Name (Optional)", placeholder="e.g., Vacation Task 1", help="Group questions by giving them the same pool name.", value=st.session_state.get("pq_default_pool", ""))
             
-            set_deadline = st.checkbox("Set a specific answer reveal time (optional)", key="add_pq_set_deadline_form")
             pq_unhide_at = None
-            if set_deadline:
+            if st.session_state.add_pq_set_deadline:
                 c1, c2 = st.columns(2)
-                picked_date = c1.date_input("Reveal Date")
-                picked_time = c2.time_input("Reveal Time")
+                picked_date = c1.date_input("Reveal Date", key="add_reveal_date")
+                picked_time = c2.time_input("Reveal Time", key="add_reveal_time")
                 if picked_date and picked_time:
                     pq_unhide_at = datetime.combine(picked_date, picked_time)
             
@@ -7446,6 +7442,7 @@ def display_admin_panel(topic_options):
                 if pq_topic and pq_question and pq_answer:
                     add_practice_question(pq_topic, pq_question, pq_answer, pq_explanation, pq_pool_name, pq_unhide_at)
                     st.success(f"New question added to pool '{pq_pool_name}'!")
+                    st.session_state.add_pq_set_deadline = False
                     st.rerun()
                 else: 
                     st.error("Title, Question, and Answer are required.")
@@ -7454,8 +7451,6 @@ def display_admin_panel(topic_options):
         st.subheader("Existing Practice Questions")
         
         all_practice_q = get_all_practice_questions()
-        
-        # --- START: NEW "BULK ACTIONS" FEATURE ---
         st.markdown("#### Bulk Actions for Assignment Pools")
         pool_names = sorted(list(set(q['assignment_pool_name'] for q in all_practice_q if q['assignment_pool_name'])))
         
@@ -7463,16 +7458,15 @@ def display_admin_panel(topic_options):
             st.info("No assignment pools found. Add a question with a pool name to enable bulk actions.")
         else:
             selected_pool = st.selectbox("Select an assignment pool to manage:", pool_names)
-            c1, c2 = st.columns(2)
+            c1, c2, c3 = st.columns(3)
             if c1.button("✅ Activate All in Pool", key=f"activate_{selected_pool}", use_container_width=True):
                 bulk_toggle_question_status(selected_pool, True)
                 st.success(f"All questions in '{selected_pool}' have been activated.")
                 st.rerun()
-            if c2.button("❌ Deactivate All in Pool", key=f"deactivate_{selected_pool}", use_container_width=True, type="primary"):
+            if c2.button("❌ Deactivate All in Pool", key=f"deactivate_{selected_pool}", use_container_width=True):
                 bulk_toggle_question_status(selected_pool, False)
                 st.warning(f"All questions in '{selected_pool}' have been deactivated.")
                 st.rerun()
-            # --- THIS IS THE NEW DELETE BUTTON ---
             if c3.button("🗑️ Delete All in Pool", key=f"delete_{selected_pool}", use_container_width=True, type="primary"):
                 bulk_delete_questions(selected_pool)
                 st.error(f"All questions in '{selected_pool}' have been permanently deleted.")
@@ -7491,6 +7485,10 @@ def display_admin_panel(topic_options):
                     st.markdown(q['question_text'], unsafe_allow_html=True)
                     
                     with st.expander("✏️ Edit this question"):
+                        edit_deadline_key = f"edit_deadline_cb_{q['id']}"
+                        if edit_deadline_key not in st.session_state:
+                            st.session_state[edit_deadline_key] = q.get('unhide_answer_at') is not None
+                        st.checkbox("Set a specific answer reveal time (optional)", key=edit_deadline_key)
                         with st.form(key=f"edit_pq_form_{q['id']}"):
                             edit_topic = st.text_input("Topic or Title", value=q['topic'], key=f"edit_pq_topic_{q['id']}")
                             edit_question = st.text_area("Question Text", value=q['question_text'], height=200, key=f"edit_pq_question_{q['id']}")
@@ -7499,10 +7497,9 @@ def display_admin_panel(topic_options):
                             st.markdown("##### **Optional Assignment Settings**")
                             edit_pool_name = st.text_input("Assignment Pool Name (Optional)", value=q.get('assignment_pool_name'), key=f"edit_pq_pool_{q['id']}")
                             
-                            current_deadline = q.get('unhide_answer_at')
-                            set_edit_deadline = st.checkbox("Set a specific answer reveal time (optional)", value=(current_deadline is not None), key=f"edit_deadline_cb_{q['id']}_form")
                             edit_unhide_at = None
-                            if set_edit_deadline:
+                            if st.session_state[edit_deadline_key]:
+                                current_deadline = q.get('unhide_answer_at')
                                 c1, c2 = st.columns(2)
                                 default_date = current_deadline.date() if current_deadline else date.today()
                                 default_time = datetime.now().time() if current_deadline is None else current_deadline.time()
@@ -7810,6 +7807,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
