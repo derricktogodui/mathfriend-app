@@ -760,6 +760,16 @@ def bulk_toggle_question_status(pool_name, is_active):
         conn.execute(query, {"is_active": is_active, "pool_name": pool_name})
         conn.commit()
 
+def bulk_delete_questions(pool_name):
+    """Deletes all practice questions associated with a given pool name."""
+    with engine.connect() as conn:
+        query = text("""
+            DELETE FROM daily_practice_questions 
+            WHERE assignment_pool_name = :pool_name
+        """)
+        conn.execute(query, {"pool_name": pool_name})
+        conn.commit()
+
 # --- START: NEW FUNCTION update_practice_question ---
 # Reason for change: To add a backend function that can update an existing practice question in the database.
 
@@ -7462,6 +7472,10 @@ def display_admin_panel(topic_options):
                 bulk_toggle_question_status(selected_pool, False)
                 st.warning(f"All questions in '{selected_pool}' have been deactivated.")
                 st.rerun()
+            if c3.button("🗑️ Delete All in Pool", key=f"delete_{selected_pool}", use_container_width=True, type="primary"):
+                bulk_delete_questions(selected_pool)
+                st.error(f"All questions in '{selected_pool}' have been permanently deleted.")
+                st.rerun()
         st.markdown("---")
         # --- END: NEW "BULK ACTIONS" FEATURE ---
 
@@ -7800,6 +7814,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
