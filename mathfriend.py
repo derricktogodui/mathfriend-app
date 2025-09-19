@@ -697,44 +697,19 @@ def get_duel_topic_popularity():
 # --- NEW ADMIN BACKEND FUNCTIONS FOR PRACTICE QUESTIONS ---
 
 def get_active_practice_questions():
-    """Fetches all active practice questions, hiding answers until unhide time."""
+    """Fetches all practice questions marked as active, including new assignment fields."""
     with engine.connect() as conn:
+        # --- THIS IS THE FIX ---
+        # The query now selects all necessary columns for all assignment types.
         query = text("""
-            SELECT id, topic, question_text, answer_text, explanation_text, unhide_answer_at
-            FROM daily_practice_questions
-            WHERE is_active = TRUE
+            SELECT id, topic, question_text, answer_text, explanation_text, 
+                   assignment_pool_name, unhide_answer_at, created_at
+            FROM daily_practice_questions 
+            WHERE is_active = TRUE 
             ORDER BY created_at DESC
         """)
-        rows = conn.execute(query).mappings().fetchall()
-
-    result = []
-    now = datetime.now()
-    for row in rows:
-        q = dict(row)
-        unhide_time = q.get("unhide_answer_at")
-
-        if unhide_time:
-            # If DB returned a string, parse it to a datetime
-            if isinstance(unhide_time, str):
-                try:
-                    unhide_time = parser.parse(unhide_time)
-                except Exception:
-                    # If parsing fails, ignore unhide_time (show answer)
-                    unhide_time = None
-
-            # If we now have a datetime object, align tz-awareness and compare
-            if isinstance(unhide_time, datetime):
-                # If unhide_time is timezone-aware but 'now' is naive, make 'now' aware with same tz
-                if unhide_time.tzinfo is not None and now.tzinfo is None:
-                    now = datetime.now(tz=unhide_time.tzinfo)
-
-                # Safe to compare after alignment
-                if unhide_time > now:
-                    q["answer_text"] = None
-                    q["explanation_text"] = None
-
-        result.append(q)
-    return result
+        result = conn.execute(query).mappings().fetchall()
+        return [dict(row) for row in result]
 
 def get_all_practice_questions():
     """Fetches all practice questions for the admin view."""
@@ -7831,6 +7806,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
