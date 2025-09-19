@@ -7462,25 +7462,24 @@ def display_admin_panel(topic_options):
         st.info("You can add questions one-by-one, or use the Bulk Import feature for large assignments.")
         st.markdown("---")
 
-        # --- START: NEW "BULK IMPORT" FEATURE ---
+        # --- START: FULLY FUNCTIONAL "BULK IMPORT" FEATURE ---
         with st.expander("🚀 Bulk Import Questions from File"):
-            st.warning("Ensure your CSV file has the correct headers: `topic`, `question_text`, `answer_text`, `explanation_text`, `assignment_pool_name`, `unhide_answer_at`")
+            st.warning("Ensure your CSV file has the correct headers: `topic`, `question_text`, `answer_text`, and optionally `explanation_text`, `assignment_pool_name`, `unhide_answer_at`")
             uploaded_file = st.file_uploader("Choose a CSV file", type="csv")
             
             if uploaded_file is not None:
-                # This button is for the next step, it won't work yet
+                # --- THIS IS THE FIX ---
+                # The button now correctly calls our backend function.
                 if st.button("Import Questions from CSV", type="primary"):
-                    # We will add the backend logic for this in the next step
-                    st.info("Backend processing for this feature is coming soon!")
-        # --- END: NEW "BULK IMPORT" FEATURE ---
-
+                    bulk_import_questions(uploaded_file)
+        # --- END: FULLY FUNCTIONAL "BULK IMPORT" FEATURE ---
+        
         st.subheader("Add a Single Question/Assignment")
         with st.expander("⚙️ Set Defaults for this Session"):
             st.caption("Set a default topic and pool name here to pre-fill the form below.")
             st.text_input("Default Topic/Title", key="pq_default_topic")
             st.text_input("Default Assignment Pool Name", key="pq_default_pool")
 
-        # (The rest of the tab, including the single-add form and existing questions list, is unchanged)
         st.checkbox("Set a specific answer reveal time (optional)", key="add_pq_set_deadline")
         with st.form("new_practice_q_form", clear_on_submit=True):
             pq_topic = st.text_input("Topic or Title", placeholder="e.g., Week 5 Assignment on Surds", value=st.session_state.get("pq_default_topic", ""))
@@ -7866,6 +7865,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
