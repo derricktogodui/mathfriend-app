@@ -7472,18 +7472,17 @@ def display_admin_panel(topic_options):
                 bulk_toggle_question_status(selected_pool, False)
                 st.warning(f"All questions in '{selected_pool}' have been deactivated.")
                 st.rerun()
+            # --- THIS IS THE NEW DELETE BUTTON ---
             if c3.button("🗑️ Delete All in Pool", key=f"delete_{selected_pool}", use_container_width=True, type="primary"):
                 bulk_delete_questions(selected_pool)
                 st.error(f"All questions in '{selected_pool}' have been permanently deleted.")
                 st.rerun()
         st.markdown("---")
-        # --- END: NEW "BULK ACTIONS" FEATURE ---
 
         if not all_practice_q:
             st.warning("No practice questions have been added yet.")
         else:
             for q in all_practice_q:
-                # (The rest of the loop for displaying and editing individual questions is unchanged)
                 with st.container(border=True):
                     st.markdown(f"**ID:** {q['id']} | **Title:** {q['topic']} | **Status:** {'Active ✅' if q['is_active'] else 'Inactive ❌'}")
                     if q.get('assignment_pool_name'):
@@ -7497,7 +7496,6 @@ def display_admin_panel(topic_options):
                             edit_question = st.text_area("Question Text", value=q['question_text'], height=200, key=f"edit_pq_question_{q['id']}")
                             edit_answer = st.text_area("Answer Text", value=q['answer_text'], height=100, key=f"edit_pq_answer_{q['id']}")
                             edit_explanation = st.text_area("Detailed Explanation", value=q['explanation_text'], height=200, key=f"edit_pq_explanation_{q['id']}")
-                            
                             st.markdown("##### **Optional Assignment Settings**")
                             edit_pool_name = st.text_input("Assignment Pool Name (Optional)", value=q.get('assignment_pool_name'), key=f"edit_pq_pool_{q['id']}")
                             
@@ -7508,10 +7506,8 @@ def display_admin_panel(topic_options):
                                 c1, c2 = st.columns(2)
                                 default_date = current_deadline.date() if current_deadline else date.today()
                                 default_time = datetime.now().time() if current_deadline is None else current_deadline.time()
-                                
                                 edit_picked_date = c1.date_input("Reveal Date", value=default_date, key=f"edit_date_{q['id']}")
                                 edit_picked_time = c2.time_input("Reveal Time", value=default_time, key=f"edit_time_{q['id']}")
-                                
                                 if edit_picked_date and edit_picked_time:
                                     edit_unhide_at = datetime.combine(edit_picked_date, edit_picked_time)
                             
@@ -7534,7 +7530,7 @@ def display_admin_panel(topic_options):
                         delete_practice_question(q['id'])
                         st.success(f"Question {q['id']} deleted.")
                         st.rerun()
-        
+
     # --- TAB 5: ANNOUNCEMENTS ---
     with tabs[4]:
         st.subheader("📣 Site-Wide Announcements")
@@ -7814,6 +7810,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
