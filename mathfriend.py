@@ -6792,17 +6792,6 @@ def interactive_modulo_widget():
         end_time = (start + hours - 1) % 12 + 1
         st.success(f"**Result:** {hours} hours after {start} o'clock, it will be **{end_time} o'clock**.")
 
-# --- END OF INTERACTIVE WIDGETS ---
-
-# --- START: REVISED FUNCTION display_learning_resources (Corrected Indentation) ---
-# Reason for change: To fix an IndentationError caused by a copy-paste issue. This version has the correct spacing.
-
-# --- START: FINAL AND CLEANED-UP FUNCTION display_learning_resources ---
-
-# --- START: REVISED AND FINAL FUNCTION display_learning_resources ---
-# Reason for change: To implement the "Smart List" UI. This version replaces the old Teacher's
-# Corner with a new system that can display general, time-released, and dynamic unique assignments.
-
 def display_learning_resources(topic_options):
     st.header("📚 Learning Resources & Interactive Lab")
 
@@ -6813,38 +6802,31 @@ def display_learning_resources(topic_options):
     if not all_practice_qs:
         st.info("There are no active practice questions or assignments from your teacher at the moment.")
     else:
-        # This set will track which assignment pools we have already displayed
         displayed_pools = set()
 
         for q in all_practice_qs:
             pool_name = q.get('assignment_pool_name')
-            unhide_time = q.get('unhide_answer_at')
-            created_time = q.get('created_at')
 
             # --- LOGIC FOR DYNAMIC ASSIGNMENTS ---
             if pool_name:
                 if pool_name in displayed_pools:
-                    continue # Skip if we've already handled this pool
+                    continue 
 
                 with st.container(border=True):
-                    st.markdown(f"#### {pool_name}") # Display the assignment title
+                    st.markdown(f"#### {pool_name}")
                     
                     with st.spinner("Fetching your unique question..."):
-                        # Get the specific question ID for this student and this pool
                         assigned_q_id = get_or_assign_student_question(st.session_state.username, pool_name)
-                        
-                        # Find the full question data from our list
                         assigned_q_data = next((item for item in all_practice_qs if item['id'] == assigned_q_id), None)
                     
                     if assigned_q_data:
                         st.markdown(assigned_q_data['question_text'], unsafe_allow_html=True)
                         
-                        # Use the specific unhide time for this question, or the default
                         deadline = assigned_q_data.get('unhide_answer_at')
+                        created_time = assigned_q_data.get('created_at')
                         if not deadline and created_time:
                             deadline = created_time + timedelta(hours=48)
                         
-                        # Logic to hide/show the answer based on the deadline
                         if deadline and datetime.now(deadline.tzinfo) < deadline:
                             st.warning(f"The answer and explanation will be revealed after: **{deadline.strftime('%A, %b %d at %I:%M %p')}**")
                         else:
@@ -6857,7 +6839,7 @@ def display_learning_resources(topic_options):
                     else:
                         st.error("Could not load your assigned question.")
 
-                displayed_pools.add(pool_name) # Mark this pool as displayed
+                displayed_pools.add(pool_name)
 
             # --- LOGIC FOR GENERAL AND TIME-RELEASED QUESTIONS ---
             else:
@@ -6865,13 +6847,11 @@ def display_learning_resources(topic_options):
                     st.markdown(f"**{q['topic']}**")
                     st.markdown(q['question_text'], unsafe_allow_html=True)
 
-                    # Determine the deadline (custom set time or 48h default)
-                    deadline = unhide_time
+                    deadline = q.get('unhide_answer_at')
+                    created_time = q.get('created_at')
                     if not deadline and created_time:
-                        from datetime import timedelta
                         deadline = created_time + timedelta(hours=48)
                         
-                    # Logic to hide/show the answer based on the deadline
                     if deadline and datetime.now(deadline.tzinfo) < deadline:
                         st.warning(f"The answer and explanation will be revealed after: **{deadline.strftime('%A, %b %d at %I:%M %p')}**")
                     else:
@@ -6887,7 +6867,6 @@ def display_learning_resources(topic_options):
     st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
     st.write("Select a topic to view notes, formulas, and interactive examples.")
     
-    # (The rest of the function for displaying topic notes and widgets is unchanged)
     selectable_topics = [t for t in topic_options if t != "Advanced Combo"]
     selected_topic = st.selectbox("Choose a topic to explore:", selectable_topics)
     st.markdown("---")
@@ -6912,8 +6891,6 @@ def display_learning_resources(topic_options):
         if selected_topic in topic_widgets:
             st.markdown("<hr>", unsafe_allow_html=True)
             topic_widgets[selected_topic]()
-
-# --- END: REVISED AND FINAL FUNCTION display_learning_resources ---
 
 def display_profile_page():
     st.header("👤 Your Profile")
@@ -7806,6 +7783,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
