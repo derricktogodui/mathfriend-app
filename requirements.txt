@@ -6,3 +6,4 @@ psycopg2-binary
 numpy
 stream-chat
 streamlit-autorefresh
+supabase
