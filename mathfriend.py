@@ -106,6 +106,14 @@ def get_stream_chat_client():
 
 chat_client = get_stream_chat_client()
 
+@st.cache_resource
+def get_supabase_client():
+    """Initializes the Supabase client for file storage."""
+    from supabase import create_client
+    url = st.secrets["SUPABASE_URL"]
+    key = st.secrets["SUPABASE_KEY"]
+    return create_client(url, key)
+
 def create_and_verify_tables():
     """Creates, verifies, and populates necessary database tables."""
     try:
@@ -6914,7 +6922,6 @@ def display_learning_resources(topic_options):
         for q in all_practice_qs:
             pool_name = q.get('assignment_pool_name')
 
-            # --- LOGIC FOR DYNAMIC ASSIGNMENTS ---
             if pool_name:
                 if pool_name in displayed_pools:
                     continue 
@@ -6935,7 +6942,26 @@ def display_learning_resources(topic_options):
                             deadline = created_time + timedelta(hours=48)
                         
                         if deadline and datetime.now(deadline.tzinfo) < deadline:
-                            st.warning(f"The answer and explanation will be revealed after: **{deadline.strftime('%A, %b %d at %I:%M %p')}**")
+                            # --- START: NEW FILE UPLOAD LOGIC ---
+                            st.markdown("---")
+                            st.subheader("Submit Your Work")
+                            existing_submission = get_student_submission(st.session_state.username, pool_name)
+                            if existing_submission:
+                                st.success("✅ Your work has been submitted successfully.")
+                            else:
+                                uploaded_file = st.file_uploader(
+                                    "Upload an image of your completed work (JPG, PNG)", 
+                                    type=['png', 'jpg', 'jpeg'],
+                                    key=f"upload_{pool_name}"
+                                )
+                                if uploaded_file is not None:
+                                    success, message = upload_assignment_file(st.session_state.username, pool_name, uploaded_file)
+                                    if success:
+                                        st.success(message)
+                                        st.rerun()
+                                    else:
+                                        st.error(message)
+                            # --- END: NEW FILE UPLOAD LOGIC ---
                         else:
                             with st.expander("Show Answer and Explanation"):
                                 st.success("**Answer:**")
@@ -6945,20 +6971,16 @@ def display_learning_resources(topic_options):
                                     st.markdown(assigned_q_data['explanation_text'], unsafe_allow_html=True)
                     else:
                         st.error("Could not load your assigned question.")
-
                 displayed_pools.add(pool_name)
 
-            # --- LOGIC FOR GENERAL AND TIME-RELEASED QUESTIONS ---
-            else:
+            else: # For general and time-released questions
                 with st.container(border=True):
                     st.markdown(f"**{q['topic']}**")
                     st.markdown(q['question_text'], unsafe_allow_html=True)
-
                     deadline = q.get('unhide_answer_at')
                     created_time = q.get('created_at')
                     if not deadline and created_time:
                         deadline = created_time + timedelta(hours=48)
-                        
                     if deadline and datetime.now(deadline.tzinfo) < deadline:
                         st.warning(f"The answer and explanation will be revealed after: **{deadline.strftime('%A, %b %d at %I:%M %p')}**")
                     else:
@@ -6969,11 +6991,9 @@ def display_learning_resources(topic_options):
                                 st.info("**Explanation:**")
                                 st.markdown(q['explanation_text'], unsafe_allow_html=True)
 
-    # --- END: New Teacher's Corner ---
-
+    # (The rest of the function is unchanged)
     st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
     st.write("Select a topic to view notes, formulas, and interactive examples.")
-    
     selectable_topics = [t for t in topic_options if t != "Advanced Combo"]
     selected_topic = st.selectbox("Choose a topic to explore:", selectable_topics)
     st.markdown("---")
@@ -6998,7 +7018,6 @@ def display_learning_resources(topic_options):
         if selected_topic in topic_widgets:
             st.markdown("<hr>", unsafe_allow_html=True)
             topic_widgets[selected_topic]()
-
 def display_profile_page():
     st.header("👤 Your Profile")
 
@@ -7411,9 +7430,29 @@ def display_admin_panel(topic_options):
                             st.success(f"User {selected_user_action} has been deleted.")
                             st.rerun()
 # --- END: REVISED CODE for Admin Panel Tab 0 ("User Management") ---
+    # --- TAB 2: NEW "SUBMISSIONS" TAB ---
+    with tabs[1]:
+        st.subheader("View Assignment Submissions")
+        st.info("Here you can view the work your students have uploaded for each dynamic assignment.")
+
+        # Get a list of all assignment pools to populate the dropdown
+        all_practice_q = get_all_practice_questions()
+        pool_names = sorted(list(set(q['assignment_pool_name'] for q in all_practice_q if q['assignment_pool_name'])))
+        
+        if not pool_names:
+            st.warning("No assignment pools have been created yet.")
+        else:
+            selected_pool = st.selectbox("Select an assignment pool to view submissions:", pool_names)
+            
+            if selected_pool:
+                st.markdown(f"#### Submissions for: **{selected_pool}**")
+                # We need a new backend function for this
+                # submissions = get_all_submissions_for_pool(selected_pool)
+                # For now, we will build the UI. The backend will be our next step.
+                st.info("Backend for fetching submissions is the next step. This is the UI placeholder.")
     # --- TAB 2: DAILY CHALLENGES ---
     # --- THIS IS THE NEW CODE FOR THE SECOND ADMIN TAB ---
-    with tabs[1]:
+    with tabs[2]:
         st.subheader("Manage Daily Challenges")
         st.info("Here you can control the pool of challenges that are randomly assigned to students each day.")
 
@@ -7476,7 +7515,7 @@ def display_admin_panel(topic_options):
                                 st.success(f"Challenge {challenge['id']} deleted!")
                                 st.rerun()
     # --- TAB 3: GAME MANAGEMENT ---
-    with tabs[2]:
+    with tabs[3]:
         st.subheader("Manage Active Duels")
         st.info("This panel shows all duels currently in progress. If a game appears to be stuck, you can use the 'Force End Duel' button to resolve it.")
         active_duels = get_all_active_duels_admin()
@@ -7496,7 +7535,7 @@ def display_admin_panel(topic_options):
                         st.success(f"Duel ID {duel['id']} has been ended.")
                         st.rerun()
     # --- TAB 4: PRACTICE QUESTIONS ---
-    with tabs[3]:
+    with tabs[4]:
         st.subheader("Manage Practice Questions / Assignments")
         st.info("You can add questions one-by-one, or use the Bulk Import feature for large assignments.")
         st.markdown("---")
@@ -7626,7 +7665,7 @@ def display_admin_panel(topic_options):
                         st.success(f"Question {q['id']} deleted.")
                         st.rerun()
     # --- TAB 5: ANNOUNCEMENTS ---
-    with tabs[4]:
+    with tabs[5]:
         st.subheader("📣 Site-Wide Announcements")
         st.info("Post a message that will appear at the top of every student's dashboard.")
         current_announcement = get_config_value("announcement_text", "")
@@ -7643,7 +7682,7 @@ def display_admin_panel(topic_options):
                 st.rerun()
     
     # --- TAB 6: ANALYTICS ---
-    with tabs[5]:
+    with tabs[6]:
         st.subheader("📈 App Analytics & Insights")
         kpis = get_admin_kpis()
         c1, c2, c3 = st.columns(3)
@@ -7703,7 +7742,7 @@ def display_admin_panel(topic_options):
             st.info("No student activity to rank yet.")
 
     # --- START: NEW CONTENT MANAGEMENT TAB ---
-    with tabs[6]:
+    with tabs[7]:
         st.subheader("📝 Content Management: Learning Resources")
         st.info("Select a topic to view and edit the notes, formulas, and video links that students see on the Learning Resources page.")
 
@@ -7904,6 +7943,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
