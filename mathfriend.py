@@ -113,6 +113,8 @@ def get_supabase_client():
     url = st.secrets["SUPABASE_URL"]
     key = st.secrets["SUPABASE_KEY"]
     return create_client(url, key)
+
+# --- THIS IS THE MISSING LINE ---
 supabase_client = get_supabase_client()
 
 def create_and_verify_tables():
@@ -7992,6 +7994,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
