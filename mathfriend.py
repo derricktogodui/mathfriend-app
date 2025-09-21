@@ -1010,7 +1010,7 @@ def upload_assignment_file(username, pool_name, uploaded_file):
         file_path = f"{username}/{pool_name}/{uploaded_file.name}"
         
         # --- THIS IS THE FIX ---
-        # The variable is now correctly named 'supabase_client'.
+        # The function now correctly uses 'supabase_client'.
         supabase_client.storage.from_('assignment_submissions').upload(file=uploaded_file.getvalue(), path=file_path)
 
         with engine.connect() as conn:
@@ -1026,8 +1026,6 @@ def upload_assignment_file(username, pool_name, uploaded_file):
         return True, "File uploaded successfully!"
     except Exception as e:
         if "duplicate" in str(e).lower():
-            # This is not an error, it's an update. We can handle it gracefully.
-            # To update a file, Supabase requires you to remove the old one first.
             try:
                 supabase_client.storage.from_('assignment_submissions').remove([file_path])
                 supabase_client.storage.from_('assignment_submissions').upload(file=uploaded_file.getvalue(), path=file_path)
@@ -1060,18 +1058,18 @@ def get_all_submissions_for_pool(pool_name):
         """)
         submissions = conn.execute(query, {"pool_name": pool_name}).mappings().fetchall()
 
-    # Now, create a signed (temporary & secure) URL for each submission
     processed_submissions = []
     for sub in submissions:
         sub_dict = dict(sub)
         try:
-            # Create a URL that is valid for 1 hour (3600 seconds)
+            # --- THIS IS THE FIX ---
+            # This now also uses the correct 'supabase_client'.
             response = supabase_client.storage.from_('assignment_submissions').create_signed_url(sub_dict['file_path'], 3600)
             sub_dict['view_url'] = response.get('signedURL')
             processed_submissions.append(sub_dict)
         except Exception as e:
             print(f"Error creating signed URL for {sub_dict['file_path']}: {e}")
-            sub_dict['view_url'] = None # Handle cases where a file might be missing
+            sub_dict['view_url'] = None
             processed_submissions.append(sub_dict)
             
     return processed_submissions
@@ -7993,6 +7991,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
