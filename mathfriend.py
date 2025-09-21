@@ -1007,14 +1007,12 @@ def check_and_grant_daily_reward(username):
 def upload_assignment_file(username, pool_name, uploaded_file):
     """Uploads a file to Supabase Storage and records the submission."""
     try:
-        # Create a unique path for the file based on the user and assignment
         file_path = f"{username}/{pool_name}/{uploaded_file.name}"
         
-        # Upload the file to the 'assignment_submissions' bucket
-        # The from_supabase=False is important for the client library
-        client.storage.from_('assignment_submissions').upload(file=uploaded_file.getvalue(), path=file_path)
+        # --- THIS IS THE FIX ---
+        # The variable is now correctly named 'supabase_client'.
+        supabase_client.storage.from_('assignment_submissions').upload(file=uploaded_file.getvalue(), path=file_path)
 
-        # Record the submission in our own database table
         with engine.connect() as conn:
             query = text("""
                 INSERT INTO assignment_submissions (username, assignment_pool_name, file_path)
@@ -1027,9 +1025,17 @@ def upload_assignment_file(username, pool_name, uploaded_file):
             conn.commit()
         return True, "File uploaded successfully!"
     except Exception as e:
-        # Check for a specific Supabase error for duplicate files
         if "duplicate" in str(e).lower():
-            return True, "You have updated your submission successfully!"
+            # This is not an error, it's an update. We can handle it gracefully.
+            # To update a file, Supabase requires you to remove the old one first.
+            try:
+                supabase_client.storage.from_('assignment_submissions').remove([file_path])
+                supabase_client.storage.from_('assignment_submissions').upload(file=uploaded_file.getvalue(), path=file_path)
+                return True, "You have updated your submission successfully!"
+            except Exception as update_e:
+                print(f"Error updating file: {update_e}")
+                return False, f"An error occurred while updating your file: {update_e}"
+        
         print(f"Error uploading file: {e}")
         return False, f"An error occurred: {e}"
 
@@ -7987,6 +7993,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
