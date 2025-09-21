@@ -1043,6 +1043,33 @@ def get_student_submission(username, pool_name):
         result = conn.execute(query, {"username": username, "pool_name": pool_name}).scalar_one_or_none()
         return result
 
+def get_all_submissions_for_pool(pool_name):
+    """Fetches all submissions for a pool and creates signed URLs for viewing."""
+    with engine.connect() as conn:
+        query = text("""
+            SELECT username, file_path, submitted_at
+            FROM assignment_submissions
+            WHERE assignment_pool_name = :pool_name
+            ORDER BY username ASC
+        """)
+        submissions = conn.execute(query, {"pool_name": pool_name}).mappings().fetchall()
+
+    # Now, create a signed (temporary & secure) URL for each submission
+    processed_submissions = []
+    for sub in submissions:
+        sub_dict = dict(sub)
+        try:
+            # Create a URL that is valid for 1 hour (3600 seconds)
+            response = supabase_client.storage.from_('assignment_submissions').create_signed_url(sub_dict['file_path'], 3600)
+            sub_dict['view_url'] = response.get('signedURL')
+            processed_submissions.append(sub_dict)
+        except Exception as e:
+            print(f"Error creating signed URL for {sub_dict['file_path']}: {e}")
+            sub_dict['view_url'] = None # Handle cases where a file might be missing
+            processed_submissions.append(sub_dict)
+            
+    return processed_submissions
+
 def format_time(seconds):
     """Formats seconds into a MM:SS string."""
     minutes = int(seconds // 60)
@@ -7436,7 +7463,6 @@ def display_admin_panel(topic_options):
         st.subheader("View Assignment Submissions")
         st.info("Here you can view the work your students have uploaded for each dynamic assignment.")
 
-        # Get a list of all assignment pools to populate the dropdown
         all_practice_q = get_all_practice_questions()
         pool_names = sorted(list(set(q['assignment_pool_name'] for q in all_practice_q if q['assignment_pool_name'])))
         
@@ -7447,10 +7473,27 @@ def display_admin_panel(topic_options):
             
             if selected_pool:
                 st.markdown(f"#### Submissions for: **{selected_pool}**")
-                # We need a new backend function for this
-                # submissions = get_all_submissions_for_pool(selected_pool)
-                # For now, we will build the UI. The backend will be our next step.
-                st.info("Backend for fetching submissions is the next step. This is the UI placeholder.")
+                
+                # --- THIS IS THE FIX ---
+                # We now call our new backend function to get the data
+                submissions = get_all_submissions_for_pool(selected_pool)
+                
+                if not submissions:
+                    st.info("No students have submitted work for this assignment yet.")
+                else:
+                    # Display the submissions in a clean, two-column layout
+                    for sub in submissions:
+                        with st.container(border=True):
+                            col1, col2 = st.columns([1, 1])
+                            with col1:
+                                st.markdown(f"**Student:** `{sub['username']}`")
+                                st.caption(f"Submitted at: {sub['submitted_at'].strftime('%Y-%m-%d %I:%M %p')}")
+                            with col2:
+                                if sub['view_url']:
+                                    # Create a clickable link to the secure URL
+                                    st.link_button("View Submission ↗️", sub['view_url'], use_container_width=True)
+                                else:
+                                    st.error("Could not load file.")
     # --- TAB 2: DAILY CHALLENGES ---
     # --- THIS IS THE NEW CODE FOR THE SECOND ADMIN TAB ---
     with tabs[2]:
@@ -7944,6 +7987,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
