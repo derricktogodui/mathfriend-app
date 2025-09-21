@@ -7243,6 +7243,7 @@ def display_admin_panel(topic_options):
 
     tab_names = [
         "📊 User Management", 
+        "📝 Submissions",
         "🎯 Daily Challenges", 
         "🎮 Game Management", 
         "✍️ Practice Questions",
@@ -7943,6 +7944,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
