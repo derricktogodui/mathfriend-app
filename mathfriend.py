@@ -996,6 +996,45 @@ def check_and_grant_daily_reward(username):
 
 # --- END: NEW FUNCTION check_and_grant_daily_reward ---
 
+def upload_assignment_file(username, pool_name, uploaded_file):
+    """Uploads a file to Supabase Storage and records the submission."""
+    try:
+        # Create a unique path for the file based on the user and assignment
+        file_path = f"{username}/{pool_name}/{uploaded_file.name}"
+        
+        # Upload the file to the 'assignment_submissions' bucket
+        # The from_supabase=False is important for the client library
+        client.storage.from_('assignment_submissions').upload(file=uploaded_file.getvalue(), path=file_path)
+
+        # Record the submission in our own database table
+        with engine.connect() as conn:
+            query = text("""
+                INSERT INTO assignment_submissions (username, assignment_pool_name, file_path)
+                VALUES (:username, :pool_name, :file_path)
+                ON CONFLICT (username, assignment_pool_name) DO UPDATE SET
+                    file_path = EXCLUDED.file_path,
+                    submitted_at = NOW();
+            """)
+            conn.execute(query, {"username": username, "pool_name": pool_name, "file_path": file_path})
+            conn.commit()
+        return True, "File uploaded successfully!"
+    except Exception as e:
+        # Check for a specific Supabase error for duplicate files
+        if "duplicate" in str(e).lower():
+            return True, "You have updated your submission successfully!"
+        print(f"Error uploading file: {e}")
+        return False, f"An error occurred: {e}"
+
+def get_student_submission(username, pool_name):
+    """Checks if a student has already submitted for an assignment pool."""
+    with engine.connect() as conn:
+        query = text("""
+            SELECT file_path FROM assignment_submissions
+            WHERE username = :username AND assignment_pool_name = :pool_name
+        """)
+        result = conn.execute(query, {"username": username, "pool_name": pool_name}).scalar_one_or_none()
+        return result
+
 def format_time(seconds):
     """Formats seconds into a MM:SS string."""
     minutes = int(seconds // 60)
@@ -7865,6 +7904,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
