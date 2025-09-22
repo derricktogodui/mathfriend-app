@@ -19,6 +19,7 @@ import json
 from streamlit_autorefresh import st_autorefresh
 from dateutil import parser
 from datetime import date, timedelta
+import streamlit_pdf_viewer as st_pdf_viewer
 
 # --- START: ADD THIS NEW BLOCK ---
 # --- Global Game Constants ---
@@ -7283,14 +7284,15 @@ def display_learning_resources(topic_options):
                             
                             # Add a preview for PDF files
                             if file_extension == 'pdf':
-                                with st.expander("Show Preview"):
-                                    try:
-                                        pdf_bytes = supabase_client.storage.from_('shared_resources').download(res['file_path'])
-                                        base64_pdf = base64.b64encode(pdf_bytes).decode('utf-8')
-                                        pdf_display = f'<iframe src="data:application/pdf;base64,{base64_pdf}" width="100%" height="500px" type="application/pdf"></iframe>'
-                                        st.markdown(pdf_display, unsafe_allow_html=True)
-                                    except Exception as e:
-                                        st.warning("Could not generate PDF preview.")
+                                # The new, working code
+                                if file_extension == 'pdf':
+                                    with st.expander("Show Preview"):
+                                        try:
+                                            pdf_bytes = supabase_client.storage.from_('shared_resources').download(res['file_path'])
+                                            # The new component takes the raw file bytes directly
+                                            st_pdf_viewer.viewer(pdf_bytes, height=500)
+                                        except Exception as e:
+                                            st.warning("Could not generate PDF preview.")
         
                     st.markdown("---")
         current_tab_index += 1
@@ -8413,6 +8415,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
