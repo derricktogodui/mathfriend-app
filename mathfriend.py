@@ -7617,175 +7617,137 @@ def display_admin_panel(topic_options):
     # This is the complete, redesigned code for your "Submissions" tab
     
     with tabs[1]:
-        st.subheader("Submissions Dashboard")
-        
-        all_practice_q = get_all_practice_questions()
-        pool_names = sorted(list(set(q['assignment_pool_name'] for q in all_practice_q if q['assignment_pool_name'])))
-        
-        if not pool_names:
-            st.warning("No assignment pools have been created yet.")
-        else:
-            selected_pool = st.selectbox(
-                "Select an assignment pool to view and grade:",  # Better label
-                pool_names,
-                key="submissions_pool_select"  # The unique key
-            )
-
-            
-            if selected_pool:
-                # Create the two-tab layout
-                grading_tab, settings_tab = st.tabs(["Dashboard & Grading", "Assignment Settings"])
+    st.subheader("Submissions Dashboard")
     
-                # --- Tab for Assignment Settings ---
-                with settings_tab:
-                    st.subheader(f"Settings for '{selected_pool}'")
-                    st.write("**Manage Submissions:**")
-                    col1, col2 = st.columns(2)
-                    if col1.button("📥 Enable Uploads for Pool", key=f"sub_enable_uploads_{selected_pool}", use_container_width=True):
-                        bulk_toggle_uploads_for_pool(selected_pool, True)
-                        st.success(f"Uploads for '{selected_pool}' have been enabled.")
-                        st.rerun()
-                    if col2.button("🚫 Disable Uploads for Pool", key=f"sub_disable_uploads_{selected_pool}", use_container_width=True):
-                        bulk_toggle_uploads_for_pool(selected_pool, False)
-                        st.warning(f"Uploads for '{selected_pool}' have been disabled.")
-                        st.rerun()
-                    
-                    st.write("**Destructive Actions:**")
-                    if st.button("🗑️ Delete All Questions in Pool", key=f"sub_delete_{selected_pool}", use_container_width=True, type="primary"):
-                        bulk_delete_questions(selected_pool)
-                        st.error(f"All questions in '{selected_pool}' have been permanently deleted.")
-                        st.rerun()
+    all_practice_q = get_all_practice_questions()
+    pool_names = sorted(list(set(q['assignment_pool_name'] for q in all_practice_q if q['assignment_pool_name'])))
     
-                # In your display_admin_panel() function, replace the 'with grading_tab:' block
+    if not pool_names:
+        st.warning("No assignment pools have been created yet.")
+    else:
+        selected_pool = st.selectbox(
+            "Select an assignment pool to view and grade:", 
+            pool_names, 
+            key="submissions_pool_select"
+        )
+        
+        if selected_pool:
+            grading_tab, settings_tab = st.tabs(["Dashboard & Grading", "Assignment Settings"])
 
-                with grading_tab:
-                    # 1. Fetch all necessary data at the beginning
-                    all_students = get_all_students()
-                    submissions = get_all_submissions_for_pool(selected_pool)
-                    grades = get_grades_for_pool(selected_pool)
-                    
-                    # Create dictionaries for quick lookups
-                    submissions_dict = {sub['username']: sub for sub in submissions}
-                    
-                    # 2. Calculate and Display Analytics Header (this part is the same)
-                    total_students = len(all_students)
-                    num_submitted = len(submissions)
-                    num_graded = len(grades)
-                    submission_rate = (num_submitted / total_students * 100) if total_students > 0 else 0
-                    grading_progress = (num_graded / num_submitted * 100) if num_submitted > 0 else 0
+            with settings_tab:
+                st.subheader(f"Settings for '{selected_pool}'")
+                st.write("**Manage Submissions:**")
+                col1, col2 = st.columns(2)
+                if col1.button("📥 Enable Uploads for Pool", key=f"sub_enable_uploads_{selected_pool}", use_container_width=True):
+                    bulk_toggle_uploads_for_pool(selected_pool, True)
+                    st.success(f"Uploads for '{selected_pool}' have been enabled.")
+                    st.rerun()
+                if col2.button("🚫 Disable Uploads for Pool", key=f"sub_disable_uploads_{selected_pool}", use_container_width=True):
+                    bulk_toggle_uploads_for_pool(selected_pool, False)
+                    st.warning(f"Uploads for '{selected_pool}' have been disabled.")
+                    st.rerun()
                 
-                    st.markdown(f"#### Analytics for '{selected_pool}'")
-                    an_col1, an_col2, an_col3 = st.columns(3)
-                    an_col1.metric("Total Students", total_students)
-                    an_col2.metric("Submission Rate", f"{submission_rate:.1f}%", f"{num_submitted}/{total_students} submitted")
-                    an_col3.metric("Grading Progress", f"{grading_progress:.1f}%", f"{num_graded}/{num_submitted} graded")
-                    if num_submitted > 0:
-                        st.progress(grading_progress / 100)
-                    
-                    st.markdown("<hr>", unsafe_allow_html=True)
-                
-                    # --- START: NEW SPLIT-VIEW DESIGN ---
-                    
-                    # 3. Prepare the data for the interactive roster table
-                    roster_data = []
-                    for username in all_students:
-                        status = "Not Submitted"
-                        grade = "N/A"
-                        if username in grades:
-                            status = "Graded"
-                            grade = grades[username].get('grade', 'N/A')
-                        elif username in submissions_dict:
-                            status = "Awaiting Grade"
-                        roster_data.append({"Student": username, "Status": status, "Grade": grade})
-                    
-                    roster_df = pd.DataFrame(roster_data)
-                
-                    # Create the two-column layout
-                    col1, col2 = st.columns([1, 1])
-                
-                    with col1:
-                        st.subheader("Class Roster")
-                        st.caption("Click on a student to view their submission and grade.")
-                        # Make the dataframe interactive. When a row is selected, the app will rerun.
-                        st.dataframe(
-                            roster_df, 
-                            use_container_width=True, 
-                            on_select="rerun", 
-                            selection_mode="single-row",
-                            key="roster_selection"
-                        )
-                
-                    # In display_admin_panel(), inside the grading_tab
+                st.write("**Destructive Actions:**")
+                if st.button("🗑️ Delete All Questions in Pool", key=f"sub_delete_{selected_pool}", use_container_width=True, type="primary"):
+                    bulk_delete_questions(selected_pool)
+                    st.error(f"All questions in '{selected_pool}' have been permanently deleted.")
+                    st.rerun()
 
-                    with col2:
-                        st.subheader("Grading Pane")
-                        
-                        # Check if the selection state exists and if any rows have been selected
-                        if "roster_selection" in st.session_state and st.session_state.roster_selection["selection"]["rows"]:
-                            selected_row_index = st.session_state.roster_selection["selection"]["rows"][0]
-                            selected_username = roster_df.iloc[selected_row_index]["Student"]
-                    
-                            # --- START: NEW CONFIRMATION LOGIC ---
-                            # Check if we are in the process of confirming a deletion for this student
-                            confirming_key = f"confirming_clear_{selected_username}_{selected_pool}"
-                    
-                            if st.session_state.get(confirming_key, False):
-                                st.error(f"**Are you sure you want to permanently delete all submission data for {selected_username}?** This cannot be undone.")
-                                c1, c2 = st.columns(2)
-                                if c1.button("Yes, Permanently Delete", type="primary", use_container_width=True):
-                                    success, message = clear_student_submission(selected_username, selected_pool)
-                                    if success:
-                                        st.success(message)
-                                    else:
-                                        st.error(message)
-                                    st.session_state[confirming_key] = False # Clear the flag
-                                    st.rerun()
-                                if c2.button("Cancel", use_container_width=True):
-                                    st.session_state[confirming_key] = False # Clear the flag
-                                    st.rerun()
-                            
-                            else: # Show the normal grading pane
-                                st.markdown(f"#### Grading: **{selected_username}**")
-                    
-                                if selected_username in submissions_dict:
-                                    sub = submissions_dict[selected_username]
-                                    existing_grade_data = grades.get(selected_username, {})
-                    
-                                    if sub['view_url']:
-                                        st.link_button("View Submission ↗️", sub['view_url'], use_container_width=True)
-                                    else:
-                                        st.error("Could not load file.")
-                                    
-                                    with st.form(key=f"grade_form_{selected_username}"):
-                                        grade = st.text_input("Grade", value=existing_grade_data.get('grade', ''))
-                                        feedback = st.text_area("Feedback", value=existing_grade_data.get('feedback', ''))
-                                        
-                                        b1, b2 = st.columns(2)
-                                        if b1.form_submit_button("Save or Update Grade", type="primary", use_container_width=True):
-                                            save_grade(selected_username, selected_pool, grade, feedback)
-                                            st.success(f"Grade for {selected_username} saved!")
-                                            st.session_state.roster_selection["selection"]["rows"] = []
-                                            st.rerun()
-                    
-                                        if b2.form_submit_button("Clear Submission", type="secondary", use_container_width=True):
-                                            # This button just sets the flag to show the confirmation message
-                                            st.session_state[confirming_key] = True
-                                            st.rerun()
+            with grading_tab:
+                all_students = get_all_students()
+                submissions = get_all_submissions_for_pool(selected_pool)
+                grades = get_grades_for_pool(selected_pool)
+                submissions_dict = {sub['username']: sub for sub in submissions}
+                
+                total_students = len(all_students)
+                num_submitted = len(submissions)
+                num_graded = len(grades)
+                submission_rate = (num_submitted / total_students * 100) if total_students > 0 else 0
+                grading_progress = (num_graded / num_submitted * 100) if num_submitted > 0 else 0
+
+                st.markdown(f"#### Analytics for '{selected_pool}'")
+                an_col1, an_col2, an_col3 = st.columns(3)
+                an_col1.metric("Total Students", total_students)
+                an_col2.metric("Submission Rate", f"{submission_rate:.1f}%", f"{num_submitted}/{total_students} submitted")
+                an_col3.metric("Grading Progress", f"{grading_progress:.1f}%", f"{num_graded}/{num_submitted} graded")
+                if num_submitted > 0:
+                    st.progress(grading_progress / 100)
+                
+                st.markdown("<hr>", unsafe_allow_html=True)
+                
+                roster_data = []
+                for username in all_students:
+                    status = "Not Submitted"
+                    grade = "N/A"
+                    if username in grades:
+                        status = "Graded"
+                        grade = grades[username].get('grade', 'N/A')
+                    elif username in submissions_dict:
+                        status = "Awaiting Grade"
+                    roster_data.append({"Student": username, "Status": status, "Grade": grade})
+                
+                roster_df = pd.DataFrame(roster_data)
+                col1, col2 = st.columns([1, 1])
+
+                with col1:
+                    st.subheader("Class Roster")
+                    st.caption("Click on a student to view their submission and grade.")
+                    st.dataframe(
+                        roster_df, 
+                        use_container_width=True, 
+                        on_select="rerun", 
+                        selection_mode="single-row",
+                        key="roster_selection"
+                    )
+
+                with col2:
+                    st.subheader("Grading Pane")
+                    if "roster_selection" in st.session_state and st.session_state.roster_selection["selection"]["rows"]:
+                        selected_row_index = st.session_state.roster_selection["selection"]["rows"][0]
+                        selected_username = roster_df.iloc[selected_row_index]["Student"]
+                        confirming_key = f"confirming_clear_{selected_username}_{selected_pool}"
+
+                        if st.session_state.get(confirming_key, False):
+                            st.error(f"**Are you sure you want to permanently delete all submission data for {selected_username}?** This cannot be undone.")
+                            c1_confirm, c2_confirm = st.columns(2)
+                            if c1_confirm.button("Yes, Permanently Delete", type="primary", use_container_width=True):
+                                success, message = clear_student_submission(selected_username, selected_pool)
+                                if success:
+                                    st.success(message)
                                 else:
-                                    st.info("This student has not submitted their work yet.")
-                            # --- END: NEW CONFIRMATION LOGIC ---
-                    
+                                    st.error(message)
+                                st.session_state[confirming_key] = False
+                                st.rerun()
+                            if c2_confirm.button("Cancel", use_container_width=True):
+                                st.session_state[confirming_key] = False
+                                st.rerun()
+                        
                         else:
-                            st.info("Select a student from the roster on the left to begin grading.")
-        # --- END: NEW CONFIRMATION LOGIC ---
-
-    else:
-        st.info("Select a student from the roster on the left to begin grading.")
-        # --- END: NEW CONFIRMATION LOGIC ---
-
-    else:
-        st.info("Select a student from the roster on the left to begin grading.")
-                        # --- END: NEW SPLIT-VIEW DESIGN ---
+                            st.markdown(f"#### Grading: **{selected_username}**")
+                            if selected_username in submissions_dict:
+                                sub = submissions_dict[selected_username]
+                                existing_grade_data = grades.get(selected_username, {})
+                                if sub['view_url']:
+                                    st.link_button("View Submission ↗️", sub['view_url'], use_container_width=True)
+                                else:
+                                    st.error("Could not load file.")
+                                
+                                with st.form(key=f"grade_form_{selected_username}"):
+                                    grade = st.text_input("Grade", value=existing_grade_data.get('grade', ''))
+                                    feedback = st.text_area("Feedback", value=existing_grade_data.get('feedback', ''))
+                                    b1, b2 = st.columns(2)
+                                    if b1.form_submit_button("Save or Update Grade", type="primary", use_container_width=True):
+                                        save_grade(selected_username, selected_pool, grade, feedback)
+                                        st.success(f"Grade for {selected_username} saved!")
+                                        st.session_state.roster_selection["selection"]["rows"] = []
+                                        st.rerun()
+                                    if b2.form_submit_button("Clear Submission", type="secondary", use_container_width=True):
+                                        st.session_state[confirming_key] = True
+                                        st.rerun()
+                            else:
+                                st.info("This student has not submitted their work yet.")
+                    else:
+                        st.info("Select a student from the roster on the left to begin grading.")
     # --- TAB 2: DAILY CHALLENGES ---
     # --- THIS IS THE NEW CODE FOR THE SECOND ADMIN TAB ---
     with tabs[2]:
@@ -8275,6 +8237,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
