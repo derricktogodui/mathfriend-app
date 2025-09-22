@@ -7252,20 +7252,46 @@ def display_learning_resources(topic_options):
         current_tab_index += 1
 
     if has_resources:
+        # In display_learning_resources(), inside the "Downloads & Resources" tab
+
         with tabs[current_tab_index]:
             st.subheader("📁 Downloadable Resources")
+            all_resources = get_all_shared_resources()
             if not all_resources:
                 st.info("There are no downloadable resources from your teacher at the moment.")
             else:
                 for topic, files in all_resources.items():
                     st.markdown(f"#### {topic}")
                     for res in files:
-                        try:
-                            signed_url_response = supabase_client.storage.from_('shared_resources').create_signed_url(res['file_path'], 3600)
-                            if signed_url_response and 'signedURL' in signed_url_response:
-                                st.link_button(f"📄 Download '{res['file_name']}'", signed_url_response['signedURL'])
-                        except Exception as e:
-                            st.error(f"Could not load download link for {res['file_name']}.")
+                        with st.container(border=True):
+                            file_extension = res['file_name'].split('.')[-1].lower()
+                            icon = "📄" # Default icon
+                            if file_extension == 'pdf': icon = "📕"
+                            elif file_extension in ['doc', 'docx']: icon = "📝"
+                            elif file_extension in ['ppt', 'pptx']: icon = "📊"
+        
+                            col1, col2 = st.columns([3, 1])
+                            with col1:
+                                st.markdown(f"**{icon} {res['file_name']}**")
+                            with col2:
+                                try:
+                                    signed_url_response = supabase_client.storage.from_('shared_resources').create_signed_url(res['file_path'], 3600)
+                                    if signed_url_response and 'signedURL' in signed_url_response:
+                                        st.link_button("Download File", signed_url_response['signedURL'], use_container_width=True)
+                                except Exception as e:
+                                    st.error("Could not load link.")
+                            
+                            # Add a preview for PDF files
+                            if file_extension == 'pdf':
+                                with st.expander("Show Preview"):
+                                    try:
+                                        pdf_bytes = supabase_client.storage.from_('shared_resources').download(res['file_path'])
+                                        base64_pdf = base64.b64encode(pdf_bytes).decode('utf-8')
+                                        pdf_display = f'<iframe src="data:application/pdf;base64,{base64_pdf}" width="100%" height="500px" type="application/pdf"></iframe>'
+                                        st.markdown(pdf_display, unsafe_allow_html=True)
+                                    except Exception as e:
+                                        st.warning("Could not generate PDF preview.")
+        
                     st.markdown("---")
         current_tab_index += 1
     
@@ -8184,24 +8210,23 @@ def display_admin_panel(topic_options):
     st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
     st.subheader("📁 Upload & Manage Shared Resources")
     
+    # The upload form now uses the main topic selector ('selected_topic_to_edit')
+    # This is much simpler and avoids conflicts.
     with st.form("upload_resource_form", clear_on_submit=True):
-        st.write("Upload a file (e.g., PDF, DOCX) for students to download.")
-        # This uses the topic_options list that is already available in the function
-        resource_topic = st.selectbox("Assign to Topic:", topic_options, key="resource_topic")
-        resource_file = st.file_uploader("Choose a file", type=['pdf', 'docx', 'pptx', 'txt'])
+        st.info(f"You are currently managing resources for the topic: **{selected_topic_to_edit}**")
+        resource_file = st.file_uploader("Choose a file to upload for this topic", type=['pdf', 'docx', 'pptx', 'txt'])
         
         if st.form_submit_button("Upload Resource", type="primary"):
-            if resource_topic and resource_file:
-                if upload_shared_resource(resource_topic, resource_file):
-                    st.success(f"File '{resource_file.name}' uploaded successfully for {resource_topic}!")
+            if selected_topic_to_edit and resource_file:
+                if upload_shared_resource(selected_topic_to_edit, resource_file):
+                    st.success(f"File '{resource_file.name}' uploaded successfully!")
                     st.rerun()
                 else:
                     st.error("Upload failed. The file may already exist with that name.")
             else:
-                st.warning("Please select a topic and a file.")
+                st.warning("Please select a file to upload.")
     
-    st.write("Existing Resources for this Topic:")
-    # This uses the 'selected_topic_to_edit' variable that already exists in this tab
+    st.write("Existing Resources:")
     resources = get_resources_for_topic(selected_topic_to_edit) 
     if not resources:
         st.caption("No resources uploaded for this topic yet.")
@@ -8213,8 +8238,6 @@ def display_admin_panel(topic_options):
                 if delete_shared_resource(res['id'], res['file_path']):
                     st.success("Resource deleted.")
                     st.rerun()
-                else:
-                    st.error("Failed to delete resource.")
     
     # --- END: NEW CONTENT MANAGEMENT TAB ---
 
@@ -8390,6 +8413,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
