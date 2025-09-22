@@ -7134,21 +7134,24 @@ def interactive_modulo_widget():
 def display_learning_resources(topic_options):
     st.header("📚 Learning Resources & Interactive Lab")
 
-    # --- 1. Check if there are any active assignments first ---
+    # 1. Check for both assignments AND downloadable resources
     all_practice_qs = get_active_practice_questions()
+    all_resources = get_all_shared_resources() # Assumes get_all_shared_resources() exists
     has_assignments = bool(all_practice_qs)
+    has_resources = bool(all_resources)
 
-    # --- 2. Dynamically create the list of tabs based on the check ---
+    # 2. Dynamically build the tab list based on what exists
+    tab_labels = []
     if has_assignments:
-        tab_labels = ["📝 Assignments & Practice", "📁 Downloads & Resources", "🔍 Topic Explorer"]
-    else:
-        tab_labels = ["📁 Downloads & Resources", "🔍 Topic Explorer"]
+        tab_labels.append("📝 Assignments & Practice")
+    if has_resources:
+        tab_labels.append("📁 Downloads & Resources")
+    tab_labels.append("🔍 Topic Explorer")
 
-    # --- 3. Create the tabs ---
+    # 3. Create and populate the tabs in the correct order
     tabs = st.tabs(tab_labels)
     current_tab_index = 0
 
-    # --- 4. Populate the "Assignments" tab, only if it exists ---
     if has_assignments:
         with tabs[current_tab_index]:
             st.subheader("⭐ All Active Assignments")
@@ -7229,7 +7232,7 @@ def display_learning_resources(topic_options):
                         else:
                             st.error("Could not load your assigned question.")
                     displayed_pools.add(pool_name)
-                else: # Logic for questions not in a pool
+                else:
                     with st.container(border=True):
                         st.markdown(f"**{q['topic']}**")
                         st.markdown(q['question_text'], unsafe_allow_html=True)
@@ -7248,24 +7251,24 @@ def display_learning_resources(topic_options):
                                     st.markdown(q['explanation_text'], unsafe_allow_html=True)
         current_tab_index += 1
 
-    # --- Populate the Downloads Tab ---
-    with tabs[current_tab_index]:
-        st.subheader("📁 Downloadable Resources")
-        # You will need to create the get_all_shared_resources() function
-        # all_resources = get_all_shared_resources()
-        all_resources = {} # Placeholder
-        if not all_resources:
-            st.info("There are no downloadable resources from your teacher at the moment.")
-        else:
-            for topic, files in all_resources.items():
-                st.markdown(f"#### {topic}")
-                for res in files:
-                    # Logic to create signed URLs and download buttons will go here
-                    pass
-                st.markdown("---")
-    current_tab_index += 1
-
-    # --- Populate the Topic Explorer Tab ---
+    if has_resources:
+        with tabs[current_tab_index]:
+            st.subheader("📁 Downloadable Resources")
+            if not all_resources:
+                st.info("There are no downloadable resources from your teacher at the moment.")
+            else:
+                for topic, files in all_resources.items():
+                    st.markdown(f"#### {topic}")
+                    for res in files:
+                        try:
+                            signed_url_response = supabase_client.storage.from_('shared_resources').create_signed_url(res['file_path'], 3600)
+                            if signed_url_response and 'signedURL' in signed_url_response:
+                                st.link_button(f"📄 Download '{res['file_name']}'", signed_url_response['signedURL'])
+                        except Exception as e:
+                            st.error(f"Could not load download link for {res['file_name']}.")
+                    st.markdown("---")
+        current_tab_index += 1
+    
     with tabs[current_tab_index]:
         st.subheader("🔍 Topic Explorer")
         st.write("Select a topic from the dropdown to find notes, video tutorials, and interactive tools.")
@@ -8387,6 +8390,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
