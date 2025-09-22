@@ -7773,6 +7773,14 @@ def display_admin_panel(topic_options):
                                             st.rerun()
                                 else:
                                     st.info("This student has not submitted their work yet.")
+                            # --- END: NEW CONFIRMATION LOGIC ---
+                    
+                        else:
+                            st.info("Select a student from the roster on the left to begin grading.")
+        # --- END: NEW CONFIRMATION LOGIC ---
+
+    else:
+        st.info("Select a student from the roster on the left to begin grading.")
         # --- END: NEW CONFIRMATION LOGIC ---
 
     else:
@@ -8267,6 +8275,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
