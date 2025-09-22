@@ -1146,6 +1146,24 @@ def format_time(seconds):
     secs = int(seconds % 60)
     return f"{minutes:02d}:{secs:02d}"
     
+def format_timedelta_to_dhms(td):
+    """Formats a timedelta object into a human-readable string."""
+    days = td.days
+    hours, rem = divmod(td.seconds, 3600)
+    minutes, _ = divmod(rem, 60)
+    
+    parts = []
+    if days > 0:
+        parts.append(f"{days} day{'s' if days != 1 else ''}")
+    if hours > 0:
+        parts.append(f"{hours} hour{'s' if hours != 1 else ''}")
+    if minutes > 0:
+        parts.append(f"{minutes} minute{'s' if minutes != 1 else ''}")
+    
+    if not parts:
+        return "less than a minute"
+    return ", ".join(parts)
+
 def set_user_flair(username, flair_text):
     """Updates the user_flair for a given user."""
     # Add a length limit to keep the flair short and clean
@@ -7036,8 +7054,8 @@ def display_learning_resources(topic_options):
                     if assigned_q_data:
                         st.markdown(assigned_q_data['question_text'], unsafe_allow_html=True)
                     
-                        # --- START: NEW AND IMPROVED LOGIC ---
-                    
+                        # --- START: FINALIZED LOGIC BLOCK ---
+                        
                         # 1. Check for the student's grade first
                         my_grade = get_student_grade(st.session_state.username, pool_name)
                         
@@ -7049,28 +7067,35 @@ def display_learning_resources(topic_options):
                                 feedback_display = my_grade.get('feedback') or "No feedback provided."
                                 
                                 st.metric("Grade", grade_display)
-                                
                                 st.markdown("**Teacher's Feedback:**")
                                 st.info(feedback_display)
-                                
                                 if my_grade.get('graded_at'):
                                     st.caption(f"Graded on: {my_grade['graded_at'].strftime('%b %d, %Y')}")
                     
-                        # 3. If NO grade exists, then check if they can submit.
+                        # 3. If NO grade exists, show either the submission UI or the answer.
                         else:
                             deadline = assigned_q_data.get('unhide_answer_at')
                             created_time = assigned_q_data.get('created_at')
                             if not deadline and created_time:
                                 deadline = created_time + timedelta(hours=48)
                             
-                            # Show the uploader if the deadline has not passed
-                            if not deadline or datetime.now(deadline.tzinfo) < deadline:
+                            # Check if the deadline has passed
+                            deadline_passed = deadline and datetime.now(deadline.tzinfo) >= deadline
+                    
+                            if not deadline_passed:
+                                # --- THIS IS THE NEW STATUS BOX ---
+                                with st.container(border=True):
+                                    st.subheader("Assignment Status")
+                                    time_remaining = deadline - datetime.now(deadline.tzinfo)
+                                    st.info(f"**Answer will be revealed in: {format_timedelta_to_dhms(time_remaining)}**")
+                                    st.caption(f"Deadline: {deadline.strftime('%A, %b %d at %I:%M %p')}")
+                    
+                                # Show the uploader
                                 st.markdown("---")
                                 st.subheader("Submit Your Work")
-                                
                                 if assigned_q_data.get('uploads_enabled', True): 
+                                    # (Your existing file uploader logic goes here and is correct)
                                     existing_submission = get_student_submission(st.session_state.username, pool_name)
-                                    
                                     if existing_submission:
                                         st.success("✅ Your work has been submitted successfully.")
                                         st.info("You can upload a new file to replace your previous submission.")
@@ -7081,11 +7106,9 @@ def display_learning_resources(topic_options):
                                         key=f"upload_{pool_name}"
                                     )
                                     if uploaded_file is not None:
-                                        # Use the improved version for re-submissions
                                         success, message = upload_assignment_file(st.session_state.username, pool_name, uploaded_file)
                                         if success:
-                                            st.success(message)
-                                            st.rerun()
+                                            st.success(message); st.rerun()
                                         else:
                                             st.error(message)
                                 else:
@@ -7099,8 +7122,6 @@ def display_learning_resources(topic_options):
                                     if assigned_q_data['explanation_text']:
                                         st.info("**Explanation:**")
                                         st.markdown(assigned_q_data['explanation_text'], unsafe_allow_html=True)
-                    
-                        # --- END: NEW AND IMPROVED LOGIC ---
                                                 
                     else:
                         st.error("Could not load your assigned question.")
@@ -8111,6 +8132,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
