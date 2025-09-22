@@ -7030,74 +7030,78 @@ def display_learning_resources(topic_options):
                         assigned_q_id = get_or_assign_student_question(st.session_state.username, pool_name)
                         assigned_q_data = next((item for item in all_practice_qs if item['id'] == assigned_q_id), None)
                     
+                    # In display_learning_resources(), find the 'if assigned_q_data:' line
+                    # and replace the entire block with this one.
+                    
                     if assigned_q_data:
                         st.markdown(assigned_q_data['question_text'], unsafe_allow_html=True)
-                        # --- START: ADD THIS NEW CODE BLOCK ---
-                        # Check for and display the student's grade
+                    
+                        # --- START: NEW AND IMPROVED LOGIC ---
+                    
+                        # 1. Check for the student's grade first
                         my_grade = get_student_grade(st.session_state.username, pool_name)
+                        
+                        # 2. If a grade exists, show the grade and feedback.
                         if my_grade:
                             with st.container(border=True):
                                 st.subheader("📝 Your Grade & Feedback")
                                 grade_display = my_grade.get('grade') or "Not yet graded"
                                 feedback_display = my_grade.get('feedback') or "No feedback provided."
-        
+                                
                                 st.metric("Grade", grade_display)
-        
+                                
                                 st.markdown("**Teacher's Feedback:**")
                                 st.info(feedback_display)
-        
+                                
                                 if my_grade.get('graded_at'):
                                     st.caption(f"Graded on: {my_grade['graded_at'].strftime('%b %d, %Y')}")
-                        # --- END: ADD THIS NEW CODE BLOCK ---
-                        deadline = assigned_q_data.get('unhide_answer_at')
-                        created_time = assigned_q_data.get('created_at')
-                        if not deadline and created_time:
-                            deadline = created_time + timedelta(hours=48)
-                        
-                        # --- START: THIS IS THE CORRECTED AND REPLACED CODE BLOCK ---
-                        # This logic now handles both the deadline and the new 'uploads_enabled' switch.
-                        
-                        # First, check if the deadline has passed. We only show the upload logic if it hasn't.
-                        if not deadline or datetime.now(deadline.tzinfo) < deadline:
+                    
+                        # 3. If NO grade exists, then check if they can submit.
+                        else:
+                            deadline = assigned_q_data.get('unhide_answer_at')
+                            created_time = assigned_q_data.get('created_at')
+                            if not deadline and created_time:
+                                deadline = created_time + timedelta(hours=48)
                             
-                            st.markdown("---")
-                            st.subheader("Submit Your Work")
-                            
-                            # Second, check the 'uploads_enabled' flag before showing the button.
-                            # The .get() method safely defaults to True if the flag isn't set in the database yet.
-                            if assigned_q_data.get('uploads_enabled', True): 
-                                existing_submission = get_student_submission(st.session_state.username, pool_name)
+                            # Show the uploader if the deadline has not passed
+                            if not deadline or datetime.now(deadline.tzinfo) < deadline:
+                                st.markdown("---")
+                                st.subheader("Submit Your Work")
                                 
-                                if existing_submission:
-                                    st.success("✅ Your work has been submitted successfully.")
-                                    st.info("You can upload a new file to replace your previous submission.")
-
-                                uploaded_file = st.file_uploader(
-                                    "Upload an image of your completed work (JPG, PNG)", 
-                                    type=['png', 'jpg', 'jpeg'],
-                                    key=f"upload_{pool_name}"
-                                )
-                                if uploaded_file is not None:
-                                    success, message = upload_assignment_file(st.session_state.username, pool_name, uploaded_file)
-                                    if success:
-                                        st.success(message)
-                                        st.rerun()
-                                    else:
-                                        st.error(message)
+                                if assigned_q_data.get('uploads_enabled', True): 
+                                    existing_submission = get_student_submission(st.session_state.username, pool_name)
+                                    
+                                    if existing_submission:
+                                        st.success("✅ Your work has been submitted successfully.")
+                                        st.info("You can upload a new file to replace your previous submission.")
+                    
+                                    uploaded_file = st.file_uploader(
+                                        "Upload an image of your completed work (JPG, PNG)", 
+                                        type=['png', 'jpg', 'jpeg'],
+                                        key=f"upload_{pool_name}"
+                                    )
+                                    if uploaded_file is not None:
+                                        # Use the improved version for re-submissions
+                                        success, message = upload_assignment_file(st.session_state.username, pool_name, uploaded_file)
+                                        if success:
+                                            st.success(message)
+                                            st.rerun()
+                                        else:
+                                            st.error(message)
+                                else:
+                                    st.warning("Submissions are currently closed for this assignment by the teacher.")
+                            
+                            # Show the answer if the deadline HAS passed and it's still not graded
                             else:
-                                # This message will now show if you have disabled uploads.
-                                st.warning("Submissions are currently closed for this assignment by the teacher.")
-                        
-                        else: # This 'else' belongs to the deadline check
-                            with st.expander("Show Answer and Explanation"):
-                                st.success("**Answer:**")
-                                st.markdown(assigned_q_data['answer_text'], unsafe_allow_html=True)
-                                if assigned_q_data['explanation_text']:
-                                    st.info("**Explanation:**")
-                                    st.markdown(assigned_q_data['explanation_text'], unsafe_allow_html=True)
-
-                        # --- END: REPLACEMENT CODE BLOCK ---
-                                
+                                with st.expander("Show Answer and Explanation"):
+                                    st.success("**Answer:**")
+                                    st.markdown(assigned_q_data['answer_text'], unsafe_allow_html=True)
+                                    if assigned_q_data['explanation_text']:
+                                        st.info("**Explanation:**")
+                                        st.markdown(assigned_q_data['explanation_text'], unsafe_allow_html=True)
+                    
+                        # --- END: NEW AND IMPROVED LOGIC ---
+                                                
                     else:
                         st.error("Could not load your assigned question.")
                 displayed_pools.add(pool_name)
@@ -8107,6 +8111,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
