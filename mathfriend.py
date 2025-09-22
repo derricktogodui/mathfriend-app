@@ -7604,7 +7604,12 @@ def display_admin_panel(topic_options):
         if not pool_names:
             st.warning("No assignment pools have been created yet.")
         else:
-            selected_pool = st.selectbox("Select an assignment pool to manage:", pool_names)
+            selected_pool = st.selectbox(
+                "Select an assignment pool to view and grade:",  # Better label
+                pool_names,
+                key="submissions_pool_select"  # The unique key
+            )
+
             
             if selected_pool:
                 # Create the two-tab layout
@@ -7835,7 +7840,11 @@ def display_admin_panel(topic_options):
         if not pool_names:
             st.info("No assignment pools found. Add a question with a pool name to enable bulk actions.")
         else:
-            selected_pool = st.selectbox("Select an assignment pool to manage:", pool_names)
+            selected_pool = st.selectbox(
+                "Select an assignment pool to manage:", 
+                pool_names,
+                key="practice_pool_select"  # A different unique key
+            )
             # --- START: New and improved button layout ---
         st.write("**Manage Question Status:**")
         col1, col2 = st.columns(2)
@@ -8181,6 +8190,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
