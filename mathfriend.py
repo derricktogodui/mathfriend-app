@@ -7635,9 +7635,10 @@ def display_admin_panel(topic_options):
                         st.error(f"All questions in '{selected_pool}' have been permanently deleted.")
                         st.rerun()
     
-                # --- Tab for Grading and Dashboard ---
+                # In your display_admin_panel() function, replace the 'with grading_tab:' block
+
                 with grading_tab:
-                    # 1. Fetch all necessary data
+                    # 1. Fetch all necessary data at the beginning
                     all_students = get_all_students()
                     submissions = get_all_submissions_for_pool(selected_pool)
                     grades = get_grades_for_pool(selected_pool)
@@ -7645,13 +7646,13 @@ def display_admin_panel(topic_options):
                     # Create dictionaries for quick lookups
                     submissions_dict = {sub['username']: sub for sub in submissions}
                     
-                    # 2. Calculate and Display Analytics Header
+                    # 2. Calculate and Display Analytics Header (this part is the same)
                     total_students = len(all_students)
                     num_submitted = len(submissions)
                     num_graded = len(grades)
                     submission_rate = (num_submitted / total_students * 100) if total_students > 0 else 0
                     grading_progress = (num_graded / num_submitted * 100) if num_submitted > 0 else 0
-    
+                
                     st.markdown(f"#### Analytics for '{selected_pool}'")
                     an_col1, an_col2, an_col3 = st.columns(3)
                     an_col1.metric("Total Students", total_students)
@@ -7661,46 +7662,71 @@ def display_admin_panel(topic_options):
                         st.progress(grading_progress / 100)
                     
                     st.markdown("<hr>", unsafe_allow_html=True)
+                
+                    # --- START: NEW SPLIT-VIEW DESIGN ---
                     
-                    # 3. Build the Unified Roster and Grading View
-                    st.markdown("#### Student Roster & Grading")
-                    for student_username in all_students:
-                        status = ""
-                        status_color = "gray"
+                    # 3. Prepare the data for the interactive roster table
+                    roster_data = []
+                    for username in all_students:
+                        status = "Not Submitted"
+                        grade = "N/A"
+                        if username in grades:
+                            status = "Graded"
+                            grade = grades[username].get('grade', 'N/A')
+                        elif username in submissions_dict:
+                            status = "Awaiting Grade"
+                        roster_data.append({"Student": username, "Status": status, "Grade": grade})
+                    
+                    roster_df = pd.DataFrame(roster_data)
+                
+                    # Create the two-column layout
+                    col1, col2 = st.columns([1, 1])
+                
+                    with col1:
+                        st.subheader("Class Roster")
+                        st.caption("Click on a student to view their submission and grade.")
+                        # Make the dataframe interactive. When a row is selected, the app will rerun.
+                        st.dataframe(
+                            roster_df, 
+                            use_container_width=True, 
+                            on_select="rerun", 
+                            selection_mode="single-row",
+                            key="roster_selection"
+                        )
+                
+                    with col2:
+                        st.subheader("Grading Pane")
                         
-                        # Determine the student's status
-                        if student_username in grades:
-                            status = "✅ Graded"
-                            status_color = "green"
-                        elif student_username in submissions_dict:
-                            status = "🟡 Awaiting Grade"
-                            status_color = "orange"
-                        else:
-                            status = "🔴 Not Submitted"
-                            status_color = "red"
-                        
-                        with st.expander(f"**{student_username}** - Status: :{status_color}[{status}]"):
-                            if student_username in submissions_dict:
-                                sub = submissions_dict[student_username]
-                                existing_grade_data = grades.get(student_username, {})
-    
-                                col1, col2 = st.columns([1, 1])
-                                with col1:
-                                    st.caption(f"Submitted: {sub['submitted_at'].strftime('%Y-%m-%d %I:%M %p')}")
-                                    if sub['view_url']:
-                                        st.link_button("View Submission ↗️", sub['view_url'], use_container_width=True)
-                                    else:
-                                        st.error("Could not load file.")
-                                with col2:
-                                    with st.form(key=f"grade_form_{student_username}_{selected_pool}"):
-                                        grade = st.text_input("Grade", value=existing_grade_data.get('grade', ''), key=f"grade_{student_username}")
-                                        feedback = st.text_area("Feedback", value=existing_grade_data.get('feedback', ''), key=f"feedback_{student_username}")
-                                        if st.form_submit_button("Save Grade", type="primary", use_container_width=True):
-                                            save_grade(student_username, selected_pool, grade, feedback)
-                                            st.success(f"Grade for {student_username} saved!")
-                                            st.rerun()
+                        # Check if a row has been selected in the dataframe
+                        if st.session_state.roster_selection['rows']:
+                            selected_row_index = st.session_state.roster_selection['rows'][0]
+                            selected_username = roster_df.iloc[selected_row_index]["Student"]
+                
+                            st.markdown(f"#### Grading: **{selected_username}**")
+                
+                            # Display the grading form only for the selected student
+                            if selected_username in submissions_dict:
+                                sub = submissions_dict[selected_username]
+                                existing_grade_data = grades.get(selected_username, {})
+                
+                                if sub['view_url']:
+                                    st.link_button("View Submission ↗️", sub['view_url'], use_container_width=True)
+                                else:
+                                    st.error("Could not load file.")
+                                
+                                with st.form(key=f"grade_form_{selected_username}"):
+                                    grade = st.text_input("Grade", value=existing_grade_data.get('grade', ''))
+                                    feedback = st.text_area("Feedback", value=existing_grade_data.get('feedback', ''))
+                                    if st.form_submit_button("Save Grade", type="primary", use_container_width=True):
+                                        save_grade(selected_username, selected_pool, grade, feedback)
+                                        st.success(f"Grade for {selected_username} saved!")
+                                        st.rerun()
                             else:
                                 st.info("This student has not submitted their work yet.")
+                        else:
+                            st.info("Select a student from the roster on the left to begin grading.")
+                            
+                    # --- END: NEW SPLIT-VIEW DESIGN ---
     # --- TAB 2: DAILY CHALLENGES ---
     # --- THIS IS THE NEW CODE FOR THE SECOND ADMIN TAB ---
     with tabs[2]:
@@ -8190,6 +8216,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
