@@ -5703,36 +5703,37 @@ def load_css():
 
         # In your load_css() function, add this inside the <style> tag
 
-        /* --- Custom Tab Styles: "Pill" --- */
+        /* --- Custom Tab Styles: "Underline" --- */
+        /* Remove the default top padding of the tab container */
         div[data-testid="stTabs"] {
-            background-color: #f0f2f5;
-            padding: 5px;
-            border-radius: 12px;
+            padding-top: 0;
         }
         
         /* Style for each individual tab button */
         button[data-baseweb="tab"] {
             background-color: transparent;
             border: none;
-            border-radius: 8px;
-            transition: background-color 0.2s ease-in-out;
-            color: #4F4F4F !important;
+            /* Create a transparent bottom border on all tabs */
+            border-bottom: 3px solid transparent; 
+            transition: border-bottom-color 0.2s ease-in-out;
+            color: #808080 !important;
+            padding-bottom: 10px;
+            margin-bottom: -3px; /* Pull the content up slightly */
         }
         
         /* Style for the tab button on hover */
         button[data-baseweb="tab"]:hover {
-            background-color: #e0e0e0;
+            border-bottom-color: #808080;
         }
         
         /* Style for the SELECTED/ACTIVE tab button */
         button[data-baseweb="tab"][aria-selected="true"] {
-            background-color: #FFFFFF;
             color: #0d6efd !important;
             font-weight: bold;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            /* This creates the thick blue line under the active tab */
+            border-bottom-color: #0d6efd; 
         }
-
-        /* --- NEW CHAT STYLES --- */
+            /* --- NEW CHAT STYLES --- */
         .chat-container {
             display: flex;
             flex-direction: column-reverse; /* This makes the chat feel "anchored" to the bottom */
@@ -8269,6 +8270,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
