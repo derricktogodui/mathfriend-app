@@ -7698,7 +7698,7 @@ def display_admin_panel(topic_options):
                         st.subheader("Grading Pane")
                         
                         # Check if a row has been selected in the dataframe
-                        if st.session_state.roster_selection['rows']:
+                        if st.session_state.roster_selection.get('rows'):
                             selected_row_index = st.session_state.roster_selection['rows'][0]
                             selected_username = roster_df.iloc[selected_row_index]["Student"]
                 
@@ -8216,6 +8216,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
