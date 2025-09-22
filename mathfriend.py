@@ -7503,42 +7503,43 @@ def display_admin_panel(topic_options):
                             st.success(f"User {selected_user_action} has been deleted.")
                             st.rerun()
 # --- END: REVISED CODE for Admin Panel Tab 0 ("User Management") ---
-   # In display_admin_panel()
 
-with tabs[1]:
-    st.subheader("View Assignment Submissions")
-    st.info("Here you can view the work your students have uploaded for each dynamic assignment.")
+    # In display_admin_panel()
 
-    all_practice_q = get_all_practice_questions()
-    pool_names = sorted(list(set(q['assignment_pool_name'] for q in all_practice_q if q['assignment_pool_name'])))
+    with tabs[1]:
+        st.subheader("View Assignment Submissions")
+        st.info("Here you can view the work your students have uploaded for each dynamic assignment.")
+
+        all_practice_q = get_all_practice_questions()
+        pool_names = sorted(list(set(q['assignment_pool_name'] for q in all_practice_q if q['assignment_pool_name'])))
     
-    if not pool_names:
-        st.warning("No assignment pools have been created yet.")
-    else:
-        selected_pool = st.selectbox("Select an assignment pool to view submissions:", pool_names)
+        if not pool_names:
+            st.warning("No assignment pools have been created yet.")
+        else:
+            selected_pool = st.selectbox("Select an assignment pool to view submissions:", pool_names)
         
-        # --- THIS IS THE FIX ---
-        # The logic below is now correctly indented inside the 'else' block.
-        # It will only run if 'selected_pool' is guaranteed to exist.
-        if selected_pool:
-            st.markdown(f"#### Submissions for: **{selected_pool}**")
+            # --- THIS IS THE FIX ---
+            # The logic below is now correctly indented inside the 'else' block.
+            # It will only run if 'selected_pool' is guaranteed to exist.
+            if selected_pool:
+                st.markdown(f"#### Submissions for: **{selected_pool}**")
             
-            submissions = get_all_submissions_for_pool(selected_pool)
+                submissions = get_all_submissions_for_pool(selected_pool)
             
-            if not submissions:
-                st.info("No students have submitted work for this assignment yet.")
-            else:
-                for sub in submissions:
-                    with st.container(border=True):
-                        col1, col2 = st.columns([1, 1])
-                        with col1:
-                            st.markdown(f"**Student:** `{sub['username']}`")
-                            st.caption(f"Submitted at: {sub['submitted_at'].strftime('%Y-%m-%d %I:%M %p')}")
-                        with col2:
-                            if sub['view_url']:
-                                st.link_button("View Submission ↗️", sub['view_url'], use_container_width=True)
-                            else:
-                                st.error("Could not load file.")
+                if not submissions:
+                    st.info("No students have submitted work for this assignment yet.")
+                else:
+                    for sub in submissions:
+                        with st.container(border=True):
+                            col1, col2 = st.columns([1, 1])
+                            with col1:
+                                st.markdown(f"**Student:** `{sub['username']}`")
+                                st.caption(f"Submitted at: {sub['submitted_at'].strftime('%Y-%m-%d %I:%M %p')}")
+                            with col2:
+                                if sub['view_url']:
+                                    st.link_button("View Submission ↗️", sub['view_url'], use_container_width=True)
+                                else:
+                                    st.error("Could not load file.")
     # --- TAB 2: DAILY CHALLENGES ---
     # --- THIS IS THE NEW CODE FOR THE SECOND ADMIN TAB ---
     with tabs[2]:
@@ -8037,6 +8038,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
