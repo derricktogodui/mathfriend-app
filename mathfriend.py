@@ -7503,8 +7503,9 @@ def display_admin_panel(topic_options):
                             st.success(f"User {selected_user_action} has been deleted.")
                             st.rerun()
 # --- END: REVISED CODE for Admin Panel Tab 0 ("User Management") ---
-    # --- TAB 2: NEW "SUBMISSIONS" TAB ---
-    with tabs[1]:
+   # In display_admin_panel()
+
+with tabs[1]:
     st.subheader("View Assignment Submissions")
     st.info("Here you can view the work your students have uploaded for each dynamic assignment.")
 
@@ -8036,6 +8037,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
