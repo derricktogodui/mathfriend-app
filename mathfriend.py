@@ -1099,6 +1099,13 @@ def save_grade(username, pool_name, grade, feedback):
         conn.commit()
     return True
 
+def toggle_upload_status_for_question(question_id):
+    """Flips the uploads_enabled status of a question."""
+    with engine.connect() as conn:
+        query = text("UPDATE daily_practice_questions SET uploads_enabled = NOT uploads_enabled WHERE id = :id")
+        conn.execute(query, {"id": question_id})
+        conn.commit()
+
 def format_time(seconds):
     """Formats seconds into a MM:SS string."""
     minutes = int(seconds // 60)
@@ -7751,11 +7758,19 @@ def display_admin_panel(topic_options):
                         st.info(f"**Explanation:**")
                         st.markdown(q.get('explanation_text') or '_No explanation provided._', unsafe_allow_html=True)
                         
-                    c1, c2 = st.columns(2)
+                    # Corrected code with the new button
+                    c1, c2, c3 = st.columns(3) # Use three columns now
+
                     if c1.button("Activate/Deactivate", key=f"pq_toggle_{q['id']}", use_container_width=True):
                         toggle_practice_question_status(q['id'])
                         st.rerun()
-                    if c2.button("Delete", key=f"pq_delete_{q['id']}", use_container_width=True, type="secondary"):
+
+                    if c2.button("Enable/Disable Uploads", key=f"pq_uploads_toggle_{q['id']}", use_container_width=True):
+                        # This button calls a new function we will create in Step 2
+                        toggle_upload_status_for_question(q['id'])
+                        st.rerun()
+
+                    if c3.button("Delete", key=f"pq_delete_{q['id']}", use_container_width=True, type="secondary"):
                         delete_practice_question(q['id'])
                         st.success(f"Question {q['id']} deleted.")
                         st.rerun()
@@ -8038,6 +8053,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
