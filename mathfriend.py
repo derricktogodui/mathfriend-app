@@ -8205,39 +8205,39 @@ def display_admin_panel(topic_options):
                     st.success(f"Content for '{selected_topic_to_edit}' has been updated successfully!")
                     # No rerun needed, as st.cache_data.clear() handles the update.
 
-    # In display_admin_panel(), at the end of the "Content Management" tab
-
-    st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
-    st.subheader("📁 Upload & Manage Shared Resources")
+        # In display_admin_panel(), at the end of the "Content Management" tab
     
-    # The upload form now uses the main topic selector ('selected_topic_to_edit')
-    # This is much simpler and avoids conflicts.
-    with st.form("upload_resource_form", clear_on_submit=True):
-        st.info(f"You are currently managing resources for the topic: **{selected_topic_to_edit}**")
-        resource_file = st.file_uploader("Choose a file to upload for this topic", type=['pdf', 'docx', 'pptx', 'txt'])
+        st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
+        st.subheader("📁 Upload & Manage Shared Resources")
         
-        if st.form_submit_button("Upload Resource", type="primary"):
-            if selected_topic_to_edit and resource_file:
-                if upload_shared_resource(selected_topic_to_edit, resource_file):
-                    st.success(f"File '{resource_file.name}' uploaded successfully!")
-                    st.rerun()
+        # The upload form now uses the main topic selector ('selected_topic_to_edit')
+        # This is much simpler and avoids conflicts.
+        with st.form("upload_resource_form", clear_on_submit=True):
+            st.info(f"You are currently managing resources for the topic: **{selected_topic_to_edit}**")
+            resource_file = st.file_uploader("Choose a file to upload for this topic", type=['pdf', 'docx', 'pptx', 'txt'])
+            
+            if st.form_submit_button("Upload Resource", type="primary"):
+                if selected_topic_to_edit and resource_file:
+                    if upload_shared_resource(selected_topic_to_edit, resource_file):
+                        st.success(f"File '{resource_file.name}' uploaded successfully!")
+                        st.rerun()
+                    else:
+                        st.error("Upload failed. The file may already exist with that name.")
                 else:
-                    st.error("Upload failed. The file may already exist with that name.")
-            else:
-                st.warning("Please select a file to upload.")
-    
-    st.write("Existing Resources:")
-    resources = get_resources_for_topic(selected_topic_to_edit) 
-    if not resources:
-        st.caption("No resources uploaded for this topic yet.")
-    else:
-        for res in resources:
-            col1, col2 = st.columns([4, 1])
-            col1.write(f"📄 {res['file_name']}")
-            if col2.button("Delete", key=f"delete_res_{res['id']}", use_container_width=True):
-                if delete_shared_resource(res['id'], res['file_path']):
-                    st.success("Resource deleted.")
-                    st.rerun()
+                    st.warning("Please select a file to upload.")
+        
+        st.write("Existing Resources:")
+        resources = get_resources_for_topic(selected_topic_to_edit) 
+        if not resources:
+            st.caption("No resources uploaded for this topic yet.")
+        else:
+            for res in resources:
+                col1, col2 = st.columns([4, 1])
+                col1.write(f"📄 {res['file_name']}")
+                if col2.button("Delete", key=f"delete_res_{res['id']}", use_container_width=True):
+                    if delete_shared_resource(res['id'], res['file_path']):
+                        st.success("Resource deleted.")
+                        st.rerun()
     
     # --- END: NEW CONTENT MANAGEMENT TAB ---
 
@@ -8413,6 +8413,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
