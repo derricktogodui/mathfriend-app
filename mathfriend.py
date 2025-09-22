@@ -5701,6 +5701,37 @@ def load_css():
         }
         /* --- END OF BORDER STYLES --- */
 
+        # In your load_css() function, add this inside the <style> tag
+
+        /* --- Custom Tab Styles: "Pill" --- */
+        div[data-testid="stTabs"] {
+            background-color: #f0f2f5;
+            padding: 5px;
+            border-radius: 12px;
+        }
+        
+        /* Style for each individual tab button */
+        button[data-baseweb="tab"] {
+            background-color: transparent;
+            border: none;
+            border-radius: 8px;
+            transition: background-color 0.2s ease-in-out;
+            color: #4F4F4F !important;
+        }
+        
+        /* Style for the tab button on hover */
+        button[data-baseweb="tab"]:hover {
+            background-color: #e0e0e0;
+        }
+        
+        /* Style for the SELECTED/ACTIVE tab button */
+        button[data-baseweb="tab"][aria-selected="true"] {
+            background-color: #FFFFFF;
+            color: #0d6efd !important;
+            font-weight: bold;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
         /* --- NEW CHAT STYLES --- */
         .chat-container {
             display: flex;
@@ -7046,135 +7077,161 @@ def interactive_modulo_widget():
 def display_learning_resources(topic_options):
     st.header("📚 Learning Resources & Interactive Lab")
 
-    # --- 1. ASSIGNMENTS & PRACTICE (ALWAYS VISIBLE AT THE TOP) ---
-    st.subheader("⭐ Assignments & Practice")
-    all_practice_qs = get_active_practice_questions()
+    # --- Create the two main tabs that structure the entire page ---
+    assignments_tab, explorer_tab = st.tabs(["📝 Assignments & Practice", "🔍 Topic Explorer"])
 
-    if not all_practice_qs:
-        st.info("There are no active assignments from your teacher at the moment.")
-    else:
-        # This loop shows ALL active assignments, regardless of topic
-        displayed_pools = set()
-        for q in all_practice_qs:
-            pool_name = q.get('assignment_pool_name')
-            if pool_name:
-                if pool_name in displayed_pools:
-                    continue
-                with st.container(border=True):
-                    st.markdown(f"#### {pool_name}")
-                    st.caption(f"Topic: {q.get('topic', 'General')}") # Show the topic for context
-                    with st.spinner("Fetching your unique question..."):
-                        assigned_q_id = get_or_assign_student_question(st.session_state.username, pool_name)
-                        assigned_q_data = next((item for item in all_practice_qs if item['id'] == assigned_q_id), None)
-                    
-                    if assigned_q_data:
-                        st.markdown(assigned_q_data['question_text'], unsafe_allow_html=True)
-                        my_grade = get_student_grade(st.session_state.username, pool_name)
-                        if my_grade:
-                            with st.container(border=True):
-                                st.subheader("📝 Your Grade & Feedback")
-                                st.metric("Grade", my_grade.get('grade', 'N/A'))
-                                st.markdown("**Teacher's Feedback:**")
-                                st.info(my_grade.get('feedback', 'No feedback provided.'))
-                                if my_grade.get('graded_at'):
-                                    st.caption(f"Graded on: {my_grade['graded_at'].strftime('%b %d, %Y')}")
-                        else:
-                            deadline = assigned_q_data.get('unhide_answer_at')
-                            if not deadline or datetime.now(deadline.tzinfo) < deadline:
-                                if deadline:
-                                    with st.container(border=True):
-                                        st.subheader("Assignment Status")
-                                        time_remaining = deadline - datetime.now(deadline.tzinfo)
-                                        st.info(f"**Answer will be revealed in: {format_timedelta_to_dhms(time_remaining)}**")
-                                        st.caption(f"Deadline: {deadline.strftime('%A, %b %d at %I:%M %p')}")
-                                st.markdown("---"); st.subheader("Submit Your Work")
-                                if assigned_q_data.get('uploads_enabled', True):
-                                    existing_submission = get_student_submission(st.session_state.username, pool_name)
-                                    if existing_submission:
-                                        st.success("✅ Your work has been submitted successfully.")
-                                        st.info("You can upload additional files for this assignment.")
-                                    uploaded_files = st.file_uploader(
-                                        "Upload one or more images of your completed work (JPG, PNG)", 
-                                        type=['png', 'jpg', 'jpeg'],
-                                        key=f"upload_{pool_name}",
-                                        accept_multiple_files=True
-                                    )
-                                    if uploaded_files:
-                                        if st.button("Submit My Work", key=f"submit_button_{pool_name}", type="primary", use_container_width=True):
-                                            success_count = 0
-                                            for uploaded_file in uploaded_files:
-                                                success, message = upload_assignment_file(st.session_state.username, pool_name, uploaded_file)
-                                                if success:
-                                                    success_count += 1
-                                            st.success(f"Successfully uploaded {success_count} file(s)!")
-                                            st.rerun()
-                                else:
-                                    st.warning("Submissions are currently closed for this assignment by the teacher.")
+    # --- Tab 1: Displays ALL active assignments ---
+    with assignments_tab:
+        st.subheader("⭐ All Active Assignments")
+        st.info("Here you can find all active practice questions and assignments from your teacher.")
+        all_practice_qs = get_active_practice_questions()
+
+        if not all_practice_qs:
+            st.info("There are no active assignments at the moment.")
+        else:
+            # This loop shows ALL active assignments without any topic filter
+            displayed_pools = set()
+            for q in all_practice_qs:
+                pool_name = q.get('assignment_pool_name')
+                if pool_name:
+                    if pool_name in displayed_pools:
+                        continue
+                    with st.container(border=True):
+                        st.markdown(f"#### {pool_name}")
+                        st.caption(f"Topic: {q.get('topic', 'General')}")
+                        with st.spinner("Fetching your unique question..."):
+                            assigned_q_id = get_or_assign_student_question(st.session_state.username, pool_name)
+                            assigned_q_data = next((item for item in all_practice_qs if item['id'] == assigned_q_id), None)
+                        
+                        if assigned_q_data:
+                            st.markdown(assigned_q_data['question_text'], unsafe_allow_html=True)
+                            my_grade = get_student_grade(st.session_state.username, pool_name)
+                            if my_grade:
+                                with st.container(border=True):
+                                    st.subheader("📝 Your Grade & Feedback")
+                                    st.metric("Grade", my_grade.get('grade', 'N/A'))
+                                    st.markdown("**Teacher's Feedback:**")
+                                    st.info(my_grade.get('feedback', 'No feedback provided.'))
+                                    if my_grade.get('graded_at'):
+                                        st.caption(f"Graded on: {my_grade['graded_at'].strftime('%b %d, %Y')}")
                             else:
-                                with st.expander("Show Answer and Explanation"):
-                                    st.success(f"**Answer:**"); st.markdown(assigned_q_data['answer_text'], unsafe_allow_html=True)
-                                    st.info(f"**Explanation:**"); st.markdown(assigned_q_data['explanation_text'], unsafe_allow_html=True)
-                displayed_pools.add(pool_name)
-            else:
-                with st.container(border=True):
-                    st.markdown(f"**{q['topic']}**")
-                    st.markdown(q['question_text'], unsafe_allow_html=True)
-                    deadline = q.get('unhide_answer_at')
-                    if deadline and datetime.now(deadline.tzinfo) < deadline:
-                        st.warning(f"The answer will be revealed after: **{deadline.strftime('%A, %b %d at %I:%M %p')}**")
-                    else:
-                        with st.expander("Show Answer and Explanation"):
-                            st.success(f"**Answer:**"); st.markdown(q['answer_text'], unsafe_allow_html=True)
-                            if q.get('explanation_text'):
-                                st.info(f"**Explanation:**"); st.markdown(q['explanation_text'], unsafe_allow_html=True)
+                                deadline = assigned_q_data.get('unhide_answer_at')
+                                created_time = assigned_q_data.get('created_at')
+                                if not deadline and created_time:
+                                    deadline = created_time + timedelta(hours=48)
+                                
+                                deadline_passed = deadline and datetime.now(deadline.tzinfo) >= deadline
+                                
+                                if not deadline_passed:
+                                    if deadline:
+                                        with st.container(border=True):
+                                            st.subheader("Assignment Status")
+                                            time_remaining = deadline - datetime.now(deadline.tzinfo)
+                                            st.info(f"**Answer will be revealed in: {format_timedelta_to_dhms(time_remaining)}**")
+                                            st.caption(f"Deadline: {deadline.strftime('%A, %b %d at %I:%M %p')}")
+                                    
+                                    st.markdown("---")
+                                    st.subheader("Submit Your Work")
+                                    if assigned_q_data.get('uploads_enabled', True):
+                                        existing_submission = get_student_submission(st.session_state.username, pool_name)
+                                        if existing_submission:
+                                            st.success("✅ Your work has been submitted successfully.")
+                                            st.info("You can upload additional files for this assignment.")
+                                        
+                                        uploaded_files = st.file_uploader(
+                                            "Upload one or more images of your completed work (JPG, PNG)", 
+                                            type=['png', 'jpg', 'jpeg'],
+                                            key=f"upload_{pool_name}",
+                                            accept_multiple_files=True
+                                        )
+                                        if uploaded_files:
+                                            if st.button("Submit My Work", key=f"submit_button_{pool_name}", type="primary", use_container_width=True):
+                                                success_count = 0
+                                                for uploaded_file in uploaded_files:
+                                                    success, message = upload_assignment_file(st.session_state.username, pool_name, uploaded_file)
+                                                    if success:
+                                                        success_count += 1
+                                                st.success(f"Successfully uploaded {success_count} file(s)!")
+                                                st.rerun()
+                                    else:
+                                        st.warning("Submissions are currently closed for this assignment by the teacher.")
+                                else:
+                                    with st.expander("Show Answer and Explanation"):
+                                        st.success("**Answer:**")
+                                        st.markdown(assigned_q_data['answer_text'], unsafe_allow_html=True)
+                                        if assigned_q_data['explanation_text']:
+                                            st.info("**Explanation:**")
+                                            st.markdown(assigned_q_data['explanation_text'], unsafe_allow_html=True)
+                        displayed_pools.add(pool_name)
+                else: # Logic for questions not in a pool
+                    with st.container(border=True):
+                        st.markdown(f"**{q['topic']}**")
+                        st.markdown(q['question_text'], unsafe_allow_html=True)
+                        deadline = q.get('unhide_answer_at')
+                        created_time = q.get('created_at')
+                        if not deadline and created_time:
+                            deadline = created_time + timedelta(hours=48)
+                        if deadline and datetime.now(deadline.tzinfo) < deadline:
+                            st.warning(f"The answer and explanation will be revealed after: **{deadline.strftime('%A, %b %d at %I:%M %p')}**")
+                        else:
+                            with st.expander("Show Answer and Explanation"):
+                                st.success("**Answer:**")
+                                st.markdown(q['answer_text'], unsafe_allow_html=True)
+                                if q['explanation_text']:
+                                    st.info("**Explanation:**")
+                                    st.markdown(q['explanation_text'], unsafe_allow_html=True)
 
-    # --- 2. TOPIC EXPLORER (FOR NOTES, VIDEOS, AND LABS) ---
-    st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
-    st.subheader("🔍 Topic Explorer")
-    st.write("Select a topic to find notes, video tutorials, and interactive tools.")
-    
-    selectable_topics = [t for t in topic_options if t != "Advanced Combo"]
-    selected_topic = st.selectbox("Choose a topic to explore:", selectable_topics, index=None, placeholder="Select a topic...")
+    # --- Tab 2: Contains the topic selector and nested tabs for learning materials ---
+    with explorer_tab:
+        st.subheader("🔍 Topic Explorer")
+        st.write("Select a topic from the dropdown to find notes, video tutorials, and interactive tools.")
+        
+        selectable_topics = [t for t in topic_options if t != "Advanced Combo"]
+        selected_topic = st.selectbox("Choose a topic:", selectable_topics, index=None, placeholder="Select a topic...")
 
-    if selected_topic:
-        content = get_learning_content(selected_topic)
-        notes_content = content
-        video_content = ""
-        if "### Videos" in content:
-            parts = content.split("### Videos")
-            notes_content = parts[0]
-            video_content = parts[1]
+        if selected_topic:
+            content = get_learning_content(selected_topic)
+            notes_content = content
+            video_content = ""
 
-        tab2, tab3, tab4 = st.tabs(["📖 Notes & Formulas", "🎬 Video Tutorials", "🔬 Interactive Lab"])
+            if "### Videos" in content:
+                parts = content.split("### Videos")
+                notes_content = parts[0]
+                video_content = parts[1]
+            
+            # Create the three NESTED tabs for the selected topic
+            notes_tab, video_tab, lab_tab = st.tabs(["📖 Notes & Formulas", "🎬 Video Tutorials", "🔬 Interactive Lab"])
 
-        with tab2:
-            st.markdown(notes_content, unsafe_allow_html=True)
-        with tab3:
-            youtube_links = re.findall(r'(https?://www\.youtube\.com/watch\?v=[\w-]+)', video_content)
-            if youtube_links:
-                for link in youtube_links:
-                    st.video(link)
-            else:
-                st.info("There are no video tutorials for this topic yet.")
-        with tab4:
-            topic_widgets = {
-                "Sets": interactive_venn_diagram_calculator, "Percentages": interactive_percentage_calculator,
-                "Shapes (Geometry)": interactive_pythagoras_calculator, "Algebra Basics": interactive_quadratic_calculator,
-                "Linear Algebra": interactive_matrix_determinant_calculator, "Logarithms": interactive_logarithm_converter,
-                "Trigonometry": interactive_trigonometry_widget, "Vectors": interactive_vectors_widget,
-                "Statistics": interactive_statistics_widget, "Coordinate Geometry": interactive_coord_geometry_widget,
-                "Introduction to Calculus": interactive_calculus_widget, "Number Bases": interactive_number_bases_widget,
-                "Modulo Arithmetic": interactive_modulo_widget, "Relations and Functions": interactive_functions_widget,
-                "Sequence and Series": interactive_sequence_series_widget, "Indices": interactive_indices_widget,
-                "Fractions": interactive_fraction_widget, "Surds": interactive_surds_widget,
-                "Binary Operations": interactive_binary_ops_widget, "Word Problems": interactive_word_problems_widget,
-                "Probability": interactive_probability_widget, "Binomial Theorem": interactive_binomial_widget,
-                "Polynomial Functions": interactive_polynomial_widget, "Rational Functions": interactive_rational_functions_widget,
-            }
-            if selected_topic in topic_widgets:
-                topic_widgets[selected_topic]()
-            else:
-                st.info(f"There is no interactive widget for {selected_topic} yet.")
+            with notes_tab:
+                st.markdown(notes_content, unsafe_allow_html=True)
+
+            with video_tab:
+                youtube_links = re.findall(r'(https?://www\.youtube\.com/watch\?v=[\w-]+)', video_content)
+                if youtube_links:
+                    for link in youtube_links:
+                        st.video(link)
+                else:
+                    st.info("There are no video tutorials for this topic yet.")
+
+            with lab_tab:
+                topic_widgets = {
+                    "Sets": interactive_venn_diagram_calculator, "Percentages": interactive_percentage_calculator,
+                    "Shapes (Geometry)": interactive_pythagoras_calculator, "Algebra Basics": interactive_quadratic_calculator,
+                    "Linear Algebra": interactive_matrix_determinant_calculator, "Logarithms": interactive_logarithm_converter,
+                    "Trigonometry": interactive_trigonometry_widget, "Vectors": interactive_vectors_widget,
+                    "Statistics": interactive_statistics_widget, "Coordinate Geometry": interactive_coord_geometry_widget,
+                    "Introduction to Calculus": interactive_calculus_widget, "Number Bases": interactive_number_bases_widget,
+                    "Modulo Arithmetic": interactive_modulo_widget, "Relations and Functions": interactive_functions_widget,
+                    "Sequence and Series": interactive_sequence_series_widget, "Indices": interactive_indices_widget,
+                    "Fractions": interactive_fraction_widget, "Surds": interactive_surds_widget,
+                    "Binary Operations": interactive_binary_ops_widget, "Word Problems": interactive_word_problems_widget,
+                    "Probability": interactive_probability_widget, "Binomial Theorem": interactive_binomial_widget,
+                    "Polynomial Functions": interactive_polynomial_widget, "Rational Functions": interactive_rational_functions_widget,
+                }
+                if selected_topic in topic_widgets:
+                    topic_widgets[selected_topic]()
+                else:
+                    st.info(f"There is no interactive widget for {selected_topic} yet.")
 def display_profile_page():
     st.header("👤 Your Profile")
 
@@ -8212,6 +8269,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
