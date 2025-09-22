@@ -783,6 +783,17 @@ def bulk_delete_questions(pool_name):
         conn.execute(query, {"pool_name": pool_name})
         conn.commit()
 
+def bulk_toggle_uploads_for_pool(pool_name, uploads_enabled):
+    """Activates or deactivates uploads for all questions in a pool."""
+    with engine.connect() as conn:
+        query = text("""
+            UPDATE daily_practice_questions 
+            SET uploads_enabled = :uploads_enabled 
+            WHERE assignment_pool_name = :pool_name
+        """)
+        conn.execute(query, {"uploads_enabled": uploads_enabled, "pool_name": pool_name})
+        conn.commit()
+
 def bulk_import_questions(uploaded_file):
     """Reads a CSV file, validates it, and adds the questions to the database."""
     try:
@@ -1098,6 +1109,18 @@ def save_grade(username, pool_name, grade, feedback):
         })
         conn.commit()
     return True
+
+def get_grades_for_pool(pool_name):
+    """Fetches all existing grades for an assignment pool."""
+    with engine.connect() as conn:
+        query = text("""
+            SELECT username, grade, feedback 
+            FROM assignment_grades
+            WHERE assignment_pool_name = :pool_name
+        """)
+        result = conn.execute(query, {"pool_name": pool_name}).mappings().fetchall()
+        # Return as a dictionary keyed by username for easy lookup
+        return {row['username']: {'grade': row['grade'], 'feedback': row['feedback']} for row in result}
 
 def toggle_upload_status_for_question(question_id):
     """Flips the uploads_enabled status of a question."""
@@ -7511,11 +7534,11 @@ def display_admin_panel(topic_options):
                             st.rerun()
 # --- END: REVISED CODE for Admin Panel Tab 0 ("User Management") ---
 
-    # In display_admin_panel()
+ # This is the complete code for your "Submissions" tab with the grading UI
 
     with tabs[1]:
-        st.subheader("View Assignment Submissions")
-        st.info("Here you can view the work your students have uploaded for each dynamic assignment.")
+        st.subheader("View and Grade Assignment Submissions")
+        st.info("Select an assignment to view submissions, enter grades, and provide feedback.")
 
         all_practice_q = get_all_practice_questions()
         pool_names = sorted(list(set(q['assignment_pool_name'] for q in all_practice_q if q['assignment_pool_name'])))
@@ -7523,30 +7546,55 @@ def display_admin_panel(topic_options):
         if not pool_names:
             st.warning("No assignment pools have been created yet.")
         else:
-            selected_pool = st.selectbox("Select an assignment pool to view submissions:", pool_names)
+            selected_pool = st.selectbox("Select an assignment pool to view and grade:", pool_names)
         
-            # --- THIS IS THE FIX ---
-            # The logic below is now correctly indented inside the 'else' block.
-            # It will only run if 'selected_pool' is guaranteed to exist.
             if selected_pool:
-                st.markdown(f"#### Submissions for: **{selected_pool}**")
+                st.markdown(f"#### Grading for: **{selected_pool}**")
             
+                # Fetch all submissions and all existing grades for the selected pool
                 submissions = get_all_submissions_for_pool(selected_pool)
+                grades = get_grades_for_pool(selected_pool)
             
                 if not submissions:
                     st.info("No students have submitted work for this assignment yet.")
                 else:
                     for sub in submissions:
+                        username = sub['username']
+                        # Get the existing grade for this user, or an empty dict if not yet graded
+                        existing_grade_data = grades.get(username, {})
+
                         with st.container(border=True):
                             col1, col2 = st.columns([1, 1])
+                        
                             with col1:
-                                st.markdown(f"**Student:** `{sub['username']}`")
-                                st.caption(f"Submitted at: {sub['submitted_at'].strftime('%Y-%m-%d %I:%M %p')}")
-                            with col2:
+                                st.markdown(f"**Student:** `{username}`")
+                                st.caption(f"Submitted: {sub['submitted_at'].strftime('%Y-%m-%d %I:%M %p')}")
                                 if sub['view_url']:
                                     st.link_button("View Submission ↗️", sub['view_url'], use_container_width=True)
                                 else:
                                     st.error("Could not load file.")
+                        
+                            with col2:
+                                # Create a unique form for each student's grading
+                                with st.form(key=f"grade_form_{username}_{selected_pool}"):
+                                    st.markdown("**Enter Grade & Feedback**")
+                                
+                                    # Pre-fill the form with existing data if it exists
+                                    grade = st.text_input(
+                                        "Grade (e.g., 18/20)", 
+                                        value=existing_grade_data.get('grade', ''), 
+                                        key=f"grade_{username}"
+                                    )
+                                    feedback = st.text_area(
+                                        "Feedback for Student", 
+                                        value=existing_grade_data.get('feedback', ''), 
+                                        key=f"feedback_{username}"
+                                    )
+                                
+                                    if st.form_submit_button("Save Grade", type="primary", use_container_width=True):
+                                        save_grade(username, selected_pool, grade, feedback)
+                                        st.success(f"Grade for {username} saved!")
+                                        st.rerun()
     # --- TAB 2: DAILY CHALLENGES ---
     # --- THIS IS THE NEW CODE FOR THE SECOND ADMIN TAB ---
     with tabs[2]:
@@ -7687,19 +7735,35 @@ def display_admin_panel(topic_options):
             st.info("No assignment pools found. Add a question with a pool name to enable bulk actions.")
         else:
             selected_pool = st.selectbox("Select an assignment pool to manage:", pool_names)
-            c1, c2, c3 = st.columns(3)
-            if c1.button("✅ Activate All in Pool", key=f"activate_{selected_pool}", use_container_width=True):
-                bulk_toggle_question_status(selected_pool, True)
-                st.success(f"All questions in '{selected_pool}' have been activated.")
-                st.rerun()
-            if c2.button("❌ Deactivate All in Pool", key=f"deactivate_{selected_pool}", use_container_width=True):
-                bulk_toggle_question_status(selected_pool, False)
-                st.warning(f"All questions in '{selected_pool}' have been deactivated.")
-                st.rerun()
-            if c3.button("🗑️ Delete All in Pool", key=f"delete_{selected_pool}", use_container_width=True, type="primary"):
-                bulk_delete_questions(selected_pool)
-                st.error(f"All questions in '{selected_pool}' have been permanently deleted.")
-                st.rerun()
+            # --- START: New and improved button layout ---
+        st.write("**Manage Question Status:**")
+        col1, col2 = st.columns(2)
+        if col1.button("✅ Activate All in Pool", key=f"activate_{selected_pool}", use_container_width=True):
+            bulk_toggle_question_status(selected_pool, True)
+            st.success(f"All questions in '{selected_pool}' have been activated.")
+            st.rerun()
+        if col2.button("❌ Deactivate All in Pool", key=f"deactivate_{selected_pool}", use_container_width=True):
+            bulk_toggle_question_status(selected_pool, False)
+            st.warning(f"All questions in '{selected_pool}' have been deactivated.")
+            st.rerun()
+
+        st.write("**Manage Submissions:**")
+        col3, col4 = st.columns(2)
+        if col3.button("📥 Enable Uploads for Pool", key=f"enable_uploads_{selected_pool}", use_container_width=True):
+            bulk_toggle_uploads_for_pool(selected_pool, True)
+            st.success(f"Uploads for '{selected_pool}' have been enabled.")
+            st.rerun()
+        if col4.button("🚫 Disable Uploads for Pool", key=f"disable_uploads_{selected_pool}", use_container_width=True):
+            bulk_toggle_uploads_for_pool(selected_pool, False)
+            st.warning(f"Uploads for '{selected_pool}' have been disabled.")
+            st.rerun()
+    
+        st.write("**Destructive Actions:**")
+        if st.button("🗑️ Delete All in Pool", key=f"delete_{selected_pool}", use_container_width=True, type="primary"):
+            bulk_delete_questions(selected_pool)
+            st.error(f"All questions in '{selected_pool}' have been permanently deleted.")
+            st.rerun()
+        # --- END: New and improved button layout ---
     
         st.markdown("---")
 
@@ -7731,10 +7795,6 @@ def display_admin_panel(topic_options):
                 
                     if c1.button("Activate/Deactivate", key=f"pq_toggle_{q['id']}", use_container_width=True):
                         toggle_practice_question_status(q['id'])
-                        st.rerun()
-                
-                    if c2.button("Enable/Disable Uploads", key=f"pq_uploads_toggle_{q['id']}", use_container_width=True):
-                        toggle_upload_status_for_question(q['id'])
                         st.rerun()
 
                     if c3.button("Delete", key=f"pq_delete_{q['id']}", use_container_width=True, type="secondary"):
@@ -8020,6 +8080,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
