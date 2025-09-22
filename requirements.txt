@@ -7,3 +7,4 @@ numpy
 stream-chat
 streamlit-autorefresh
 supabase
+streamlit-pdf-viewer
