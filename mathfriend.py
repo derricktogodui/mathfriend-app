@@ -1051,33 +1051,26 @@ def check_and_grant_daily_reward(username):
 def upload_assignment_file(username, pool_name, uploaded_file):
     """Uploads a file to Supabase Storage and records the submission."""
     try:
-        file_path = f"{username}/{pool_name}/{uploaded_file.name}"
+        # Use a unique name for each file to prevent overwrites, e.g., by adding a timestamp
+        timestamp = int(time.time() * 1000)
+        file_path = f"{username}/{pool_name}/{timestamp}_{uploaded_file.name}"
         
-        # --- THIS IS THE FIX ---
-        # The function now correctly uses 'supabase_client'.
-        supabase_client.storage.from_('assignment_submissions').upload(file=uploaded_file.getvalue(), path=file_path)
+        # Upload the file with upsert=False as we now have unique names
+        supabase_client.storage.from_('assignment_submissions').upload(
+            file=uploaded_file.getvalue(),
+            path=file_path
+        )
 
         with engine.connect() as conn:
+            # Use a simple INSERT now
             query = text("""
                 INSERT INTO assignment_submissions (username, assignment_pool_name, file_path)
                 VALUES (:username, :pool_name, :file_path)
-                ON CONFLICT (username, assignment_pool_name) DO UPDATE SET
-                    file_path = EXCLUDED.file_path,
-                    submitted_at = NOW();
             """)
             conn.execute(query, {"username": username, "pool_name": pool_name, "file_path": file_path})
             conn.commit()
         return True, "File uploaded successfully!"
     except Exception as e:
-        if "duplicate" in str(e).lower():
-            try:
-                supabase_client.storage.from_('assignment_submissions').remove([file_path])
-                supabase_client.storage.from_('assignment_submissions').upload(file=uploaded_file.getvalue(), path=file_path)
-                return True, "You have updated your submission successfully!"
-            except Exception as update_e:
-                print(f"Error updating file: {update_e}")
-                return False, f"An error occurred while updating your file: {update_e}"
-        
         print(f"Error uploading file: {e}")
         return False, f"An error occurred: {e}"
 
@@ -7122,23 +7115,33 @@ def display_learning_resources(topic_options):
                                 st.markdown("---")
                                 st.subheader("Submit Your Work")
                                 if assigned_q_data.get('uploads_enabled', True): 
-                                    # (Your existing file uploader logic goes here and is correct)
                                     existing_submission = get_student_submission(st.session_state.username, pool_name)
+                                    
                                     if existing_submission:
                                         st.success("✅ Your work has been submitted successfully.")
-                                        st.info("You can upload a new file to replace your previous submission.")
-                    
-                                    uploaded_file = st.file_uploader(
-                                        "Upload an image of your completed work (JPG, PNG)", 
+                                        st.info("You can upload additional files for this assignment.")
+                                
+                                    # --- START: MODIFIED CODE ---
+                                    uploaded_files = st.file_uploader(
+                                        "Upload one or more images of your completed work (JPG, PNG)", 
                                         type=['png', 'jpg', 'jpeg'],
-                                        key=f"upload_{pool_name}"
+                                        key=f"upload_{pool_name}",
+                                        accept_multiple_files=True  # This is the key change
                                     )
-                                    if uploaded_file is not None:
-                                        success, message = upload_assignment_file(st.session_state.username, pool_name, uploaded_file)
-                                        if success:
-                                            st.success(message); st.rerun()
-                                        else:
-                                            st.error(message)
+                                
+                                    if uploaded_files:
+                                        if st.button("Submit My Work", key=f"submit_button_{pool_name}", type="primary", use_container_width=True):
+                                            success_count = 0
+                                            # Loop through each uploaded file
+                                            for uploaded_file in uploaded_files:
+                                                success, message = upload_assignment_file(st.session_state.username, pool_name, uploaded_file)
+                                                if success:
+                                                    success_count += 1
+                                            
+                                            st.success(f"Successfully uploaded {success_count} file(s)!")
+                                            st.rerun()
+                                    # --- END: MODIFIED CODE ---
+                                
                                 else:
                                     st.warning("Submissions are currently closed for this assignment by the teacher.")
                             
@@ -8237,6 +8240,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
