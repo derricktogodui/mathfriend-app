@@ -108,10 +108,12 @@ chat_client = get_stream_chat_client()
 
 @st.cache_resource
 def get_supabase_client():
-    """Initializes the Supabase client for file storage."""
+    """Initializes the Supabase client for file storage using the admin key."""
     from supabase import create_client
     url = st.secrets["SUPABASE_URL"]
-    key = st.secrets["SUPABASE_KEY"]
+    # --- THIS IS THE FIX ---
+    # We now use the powerful service_role key to bypass RLS for storage operations.
+    key = st.secrets["SUPABASE_SERVICE_KEY"]
     return create_client(url, key)
 
 supabase_client = get_supabase_client()
@@ -7993,6 +7995,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
