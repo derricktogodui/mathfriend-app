@@ -1110,6 +1110,17 @@ def save_grade(username, pool_name, grade, feedback):
         conn.commit()
     return True
 
+def get_student_grade(username, pool_name):
+    """Fetches the grade and feedback for a single student on a specific assignment."""
+    with engine.connect() as conn:
+        query = text("""
+            SELECT grade, feedback, graded_at
+            FROM assignment_grades
+            WHERE username = :username AND assignment_pool_name = :pool_name
+        """)
+        result = conn.execute(query, {"username": username, "pool_name": pool_name}).mappings().first()
+        return dict(result) if result else None
+
 def get_grades_for_pool(pool_name):
     """Fetches all existing grades for an assignment pool."""
     with engine.connect() as conn:
@@ -7021,7 +7032,23 @@ def display_learning_resources(topic_options):
                     
                     if assigned_q_data:
                         st.markdown(assigned_q_data['question_text'], unsafe_allow_html=True)
-                        
+                        # --- START: ADD THIS NEW CODE BLOCK ---
+                        # Check for and display the student's grade
+                        my_grade = get_student_grade(st.session_state.username, pool_name)
+                        if my_grade:
+                            with st.container(border=True):
+                                st.subheader("📝 Your Grade & Feedback")
+                                grade_display = my_grade.get('grade') or "Not yet graded"
+                                feedback_display = my_grade.get('feedback') or "No feedback provided."
+        
+                                st.metric("Grade", grade_display)
+        
+                                st.markdown("**Teacher's Feedback:**")
+                                st.info(feedback_display)
+        
+                                if my_grade.get('graded_at'):
+                                    st.caption(f"Graded on: {my_grade['graded_at'].strftime('%b %d, %Y')}")
+                        # --- END: ADD THIS NEW CODE BLOCK ---
                         deadline = assigned_q_data.get('unhide_answer_at')
                         created_time = assigned_q_data.get('created_at')
                         if not deadline and created_time:
@@ -8080,6 +8107,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
