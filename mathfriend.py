@@ -7699,13 +7699,9 @@ def display_admin_panel(topic_options):
                     with col2:
                         st.subheader("Grading Pane")
                         
-                        # --- START: THIS IS THE CORRECTED CODE BLOCK ---
-                    
-                        # First, check if the selection state exists and then if any rows are selected
-                        selection = st.session_state.get("roster_selection", {"rows": []})
-                        
-                        if selection["rows"]:
-                            selected_row_index = selection["rows"][0]
+                        # Check if the selection state exists AND if any rows have been selected
+                        if "roster_selection" in st.session_state and st.session_state.roster_selection["selection"]["rows"]:
+                            selected_row_index = st.session_state.roster_selection["selection"]["rows"][0]
                             selected_username = roster_df.iloc[selected_row_index]["Student"]
                     
                             st.markdown(f"#### Grading: **{selected_username}**")
@@ -7727,16 +7723,11 @@ def display_admin_panel(topic_options):
                                         save_grade(selected_username, selected_pool, grade, feedback)
                                         st.success(f"Grade for {selected_username} saved!")
                                         # Clear selection after grading to avoid stale state
-                                        st.session_state.roster_selection = {"rows": [], "columns": []}
+                                        st.session_state.roster_selection["selection"]["rows"] = []
                                         st.rerun()
-                            else:
-                                st.info("This student has not submitted their work yet.")
                         else:
                             st.info("Select a student from the roster on the left to begin grading.")
-                            
-                        # --- END: CORRECTED CODE BLOCK ---
-                            
-                    # --- END: NEW SPLIT-VIEW DESIGN ---
+                        # --- END: NEW SPLIT-VIEW DESIGN ---
     # --- TAB 2: DAILY CHALLENGES ---
     # --- THIS IS THE NEW CODE FOR THE SECOND ADMIN TAB ---
     with tabs[2]:
@@ -8226,6 +8217,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
