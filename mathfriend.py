@@ -7620,17 +7620,17 @@ def display_admin_panel(topic_options):
                     st.subheader(f"Settings for '{selected_pool}'")
                     st.write("**Manage Submissions:**")
                     col1, col2 = st.columns(2)
-                    if col1.button("📥 Enable Uploads for Pool", key=f"enable_uploads_{selected_pool}", use_container_width=True):
+                    if col1.button("📥 Enable Uploads for Pool", key=f"sub_enable_uploads_{selected_pool}", use_container_width=True):
                         bulk_toggle_uploads_for_pool(selected_pool, True)
                         st.success(f"Uploads for '{selected_pool}' have been enabled.")
                         st.rerun()
-                    if col2.button("🚫 Disable Uploads for Pool", key=f"disable_uploads_{selected_pool}", use_container_width=True):
+                    if col2.button("🚫 Disable Uploads for Pool", key=f"sub_disable_uploads_{selected_pool}", use_container_width=True):
                         bulk_toggle_uploads_for_pool(selected_pool, False)
                         st.warning(f"Uploads for '{selected_pool}' have been disabled.")
                         st.rerun()
                     
                     st.write("**Destructive Actions:**")
-                    if st.button("🗑️ Delete All Questions in Pool", key=f"delete_{selected_pool}", use_container_width=True, type="primary"):
+                    if st.button("🗑️ Delete All Questions in Pool", key=f"sub_delete_{selected_pool}", use_container_width=True, type="primary"):
                         bulk_delete_questions(selected_pool)
                         st.error(f"All questions in '{selected_pool}' have been permanently deleted.")
                         st.rerun()
@@ -7848,18 +7848,18 @@ def display_admin_panel(topic_options):
             # --- START: New and improved button layout ---
         st.write("**Manage Question Status:**")
         col1, col2 = st.columns(2)
-        if col1.button("✅ Activate All in Pool", key=f"activate_{selected_pool}", use_container_width=True):
+        if col1.button("✅ Activate All in Pool", key=f"pq_activate_{selected_pool}", use_container_width=True):
             bulk_toggle_question_status(selected_pool, True)
             st.success(f"All questions in '{selected_pool}' have been activated.")
             st.rerun()
-        if col2.button("❌ Deactivate All in Pool", key=f"deactivate_{selected_pool}", use_container_width=True):
+        if col2.button("❌ Deactivate All in Pool", key=f"pq_deactivate_{selected_pool}", use_container_width=True):
             bulk_toggle_question_status(selected_pool, False)
             st.warning(f"All questions in '{selected_pool}' have been deactivated.")
             st.rerun()
 
         st.write("**Manage Submissions:**")
         col3, col4 = st.columns(2)
-        if col3.button("📥 Enable Uploads for Pool", key=f"enable_uploads_{selected_pool}", use_container_width=True):
+        if col3.button("📥 Enable Uploads for Pool", key=f"pq_enable_uploads_{selected_pool}", use_container_width=True):
             bulk_toggle_uploads_for_pool(selected_pool, True)
             st.success(f"Uploads for '{selected_pool}' have been enabled.")
             st.rerun()
@@ -8190,6 +8190,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
