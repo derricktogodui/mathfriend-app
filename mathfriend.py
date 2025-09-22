@@ -1003,6 +1003,20 @@ def delete_shared_resource(resource_id, file_path):
         print(f"Error deleting resource: {e}")
         return False
 
+def get_all_shared_resources():
+    """Fetches all shared resources, grouped by topic."""
+    with engine.connect() as conn:
+        query = text("SELECT topic, file_name, file_path FROM shared_resources ORDER BY topic, file_name ASC")
+        result = conn.execute(query).mappings().fetchall()
+        
+        resources_by_topic = {}
+        for row in result:
+            topic = row['topic']
+            if topic not in resources_by_topic:
+                resources_by_topic[topic] = []
+            resources_by_topic[topic].append(dict(row))
+        return resources_by_topic
+
 def toggle_user_suspension(username):
     """Flips the is_active status for a given user."""
     with engine.connect() as conn:
@@ -7120,19 +7134,26 @@ def interactive_modulo_widget():
 def display_learning_resources(topic_options):
     st.header("📚 Learning Resources & Interactive Lab")
 
-    # --- Create the two main tabs that structure the entire page ---
-    assignments_tab, explorer_tab = st.tabs(["📝 Assignments & Practice", "🔍 Topic Explorer"])
+    # --- 1. Check if there are any active assignments first ---
+    all_practice_qs = get_active_practice_questions()
+    has_assignments = bool(all_practice_qs)
 
-    # --- Tab 1: Displays ALL active assignments ---
-    with assignments_tab:
-        st.subheader("⭐ All Active Assignments")
-        st.info("Here you can find all active practice questions and assignments from your teacher.")
-        all_practice_qs = get_active_practice_questions()
+    # --- 2. Dynamically create the list of tabs based on the check ---
+    if has_assignments:
+        tab_labels = ["📝 Assignments & Practice", "📁 Downloads & Resources", "🔍 Topic Explorer"]
+    else:
+        tab_labels = ["📁 Downloads & Resources", "🔍 Topic Explorer"]
 
-        if not all_practice_qs:
-            st.info("There are no active assignments at the moment.")
-        else:
-            # This loop shows ALL active assignments without any topic filter
+    # --- 3. Create the tabs ---
+    tabs = st.tabs(tab_labels)
+    current_tab_index = 0
+
+    # --- 4. Populate the "Assignments" tab, only if it exists ---
+    if has_assignments:
+        with tabs[current_tab_index]:
+            st.subheader("⭐ All Active Assignments")
+            st.info("Here you can find all active practice questions and assignments from your teacher.")
+            
             displayed_pools = set()
             for q in all_practice_qs:
                 pool_name = q.get('assignment_pool_name')
@@ -7205,7 +7226,9 @@ def display_learning_resources(topic_options):
                                         if assigned_q_data['explanation_text']:
                                             st.info("**Explanation:**")
                                             st.markdown(assigned_q_data['explanation_text'], unsafe_allow_html=True)
-                        displayed_pools.add(pool_name)
+                        else:
+                            st.error("Could not load your assigned question.")
+                    displayed_pools.add(pool_name)
                 else: # Logic for questions not in a pool
                     with st.container(border=True):
                         st.markdown(f"**{q['topic']}**")
@@ -7223,9 +7246,27 @@ def display_learning_resources(topic_options):
                                 if q['explanation_text']:
                                     st.info("**Explanation:**")
                                     st.markdown(q['explanation_text'], unsafe_allow_html=True)
+        current_tab_index += 1
 
-    # --- Tab 2: Contains the topic selector and nested tabs for learning materials ---
-    with explorer_tab:
+    # --- Populate the Downloads Tab ---
+    with tabs[current_tab_index]:
+        st.subheader("📁 Downloadable Resources")
+        # You will need to create the get_all_shared_resources() function
+        # all_resources = get_all_shared_resources()
+        all_resources = {} # Placeholder
+        if not all_resources:
+            st.info("There are no downloadable resources from your teacher at the moment.")
+        else:
+            for topic, files in all_resources.items():
+                st.markdown(f"#### {topic}")
+                for res in files:
+                    # Logic to create signed URLs and download buttons will go here
+                    pass
+                st.markdown("---")
+    current_tab_index += 1
+
+    # --- Populate the Topic Explorer Tab ---
+    with tabs[current_tab_index]:
         st.subheader("🔍 Topic Explorer")
         st.write("Select a topic from the dropdown to find notes, video tutorials, and interactive tools.")
         
@@ -7242,12 +7283,10 @@ def display_learning_resources(topic_options):
                 notes_content = parts[0]
                 video_content = parts[1]
             
-            # Create the three NESTED tabs for the selected topic
             notes_tab, video_tab, lab_tab = st.tabs(["📖 Notes & Formulas", "🎬 Video Tutorials", "🔬 Interactive Lab"])
 
             with notes_tab:
                 st.markdown(notes_content, unsafe_allow_html=True)
-
             with video_tab:
                 youtube_links = re.findall(r'(https?://www\.youtube\.com/watch\?v=[\w-]+)', video_content)
                 if youtube_links:
@@ -7255,7 +7294,6 @@ def display_learning_resources(topic_options):
                         st.video(link)
                 else:
                     st.info("There are no video tutorials for this topic yet.")
-
             with lab_tab:
                 topic_widgets = {
                     "Sets": interactive_venn_diagram_calculator, "Percentages": interactive_percentage_calculator,
@@ -8349,6 +8387,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
