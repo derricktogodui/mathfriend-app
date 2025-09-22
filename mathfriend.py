@@ -7757,16 +7757,15 @@ def display_admin_panel(topic_options):
                         st.markdown(q['answer_text'], unsafe_allow_html=True)
                         st.info(f"**Explanation:**")
                         st.markdown(q.get('explanation_text') or '_No explanation provided._', unsafe_allow_html=True)
-                        
-                    # Corrected code with the new button
-                    c1, c2, c3 = st.columns(3) # Use three columns now
-
+                    # --- THIS IS THE CORRECTED BUTTON LAYOUT ---
+                    # All three buttons are now correctly indented inside the 'for q in ...' loop
+                    c1, c2, c3 = st.columns(3)
+                
                     if c1.button("Activate/Deactivate", key=f"pq_toggle_{q['id']}", use_container_width=True):
                         toggle_practice_question_status(q['id'])
                         st.rerun()
-
+                    
                     if c2.button("Enable/Disable Uploads", key=f"pq_uploads_toggle_{q['id']}", use_container_width=True):
-                        # This button calls a new function we will create in Step 2
                         toggle_upload_status_for_question(q['id'])
                         st.rerun()
 
@@ -8053,6 +8052,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
