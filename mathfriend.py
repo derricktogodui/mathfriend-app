@@ -7505,58 +7505,39 @@ def display_admin_panel(topic_options):
 # --- END: REVISED CODE for Admin Panel Tab 0 ("User Management") ---
     # --- TAB 2: NEW "SUBMISSIONS" TAB ---
     with tabs[1]:
-        st.subheader("View Assignment Submissions")
-        st.info("Here you can view the work your students have uploaded for each dynamic assignment.")
+    st.subheader("View Assignment Submissions")
+    st.info("Here you can view the work your students have uploaded for each dynamic assignment.")
 
-        all_practice_q = get_all_practice_questions()
-        pool_names = sorted(list(set(q['assignment_pool_name'] for q in all_practice_q if q['assignment_pool_name'])))
-        
-        if not pool_names:
-            st.warning("No assignment pools have been created yet.")
-        else:
-            selected_pool = st.selectbox("Select an assignment pool to view submissions:", pool_names)
-            
-            # In your display_admin_panel() function, under the "Submissions" tab...
-
-# (keep the existing code that gets the selected_pool)
-
-if selected_pool:
-    st.markdown(f"#### Submissions for: **{selected_pool}**")
+    all_practice_q = get_all_practice_questions()
+    pool_names = sorted(list(set(q['assignment_pool_name'] for q in all_practice_q if q['assignment_pool_name'])))
     
-    # Get all submissions and any existing grades
-    submissions = get_all_submissions_for_pool(selected_pool)
-    
-    # You will need a new function to get grades
-    # (Let's assume you create get_grades_for_pool() which returns a dict)
-    # grades = get_grades_for_pool(selected_pool) 
-
-    if not submissions:
-        st.info("No students have submitted work for this assignment yet.")
+    if not pool_names:
+        st.warning("No assignment pools have been created yet.")
     else:
-        for sub in submissions:
-            username = sub['username']
-            with st.container(border=True):
-                col1, col2 = st.columns([1, 1])
-                with col1:
-                    st.markdown(f"**Student:** `{username}`")
-                    st.caption(f"Submitted: {sub['submitted_at'].strftime('%Y-%m-%d %I:%M %p')}")
-                    if sub['view_url']:
-                        st.link_button("View Submission ↗️", sub['view_url'])
-                    else:
-                        st.error("Could not load file.")
-                
-                with col2:
-                    # Create a unique form for each student
-                    with st.form(key=f"grade_form_{username}_{selected_pool}"):
-                        st.markdown("**Enter Grade & Feedback**")
-                        # You can fetch and display existing grades here
-                        grade = st.text_input("Grade (e.g., 18/20)", key=f"grade_{username}")
-                        feedback = st.text_area("Feedback for Student", key=f"feedback_{username}")
-                        
-                        if st.form_submit_button("Save Grade", type="primary"):
-                            save_grade(username, selected_pool, grade, feedback)
-                            st.success(f"Grade for {username} saved!")
-                            # You might want to rerun to show the updated grade
+        selected_pool = st.selectbox("Select an assignment pool to view submissions:", pool_names)
+        
+        # --- THIS IS THE FIX ---
+        # The logic below is now correctly indented inside the 'else' block.
+        # It will only run if 'selected_pool' is guaranteed to exist.
+        if selected_pool:
+            st.markdown(f"#### Submissions for: **{selected_pool}**")
+            
+            submissions = get_all_submissions_for_pool(selected_pool)
+            
+            if not submissions:
+                st.info("No students have submitted work for this assignment yet.")
+            else:
+                for sub in submissions:
+                    with st.container(border=True):
+                        col1, col2 = st.columns([1, 1])
+                        with col1:
+                            st.markdown(f"**Student:** `{sub['username']}`")
+                            st.caption(f"Submitted at: {sub['submitted_at'].strftime('%Y-%m-%d %I:%M %p')}")
+                        with col2:
+                            if sub['view_url']:
+                                st.link_button("View Submission ↗️", sub['view_url'], use_container_width=True)
+                            else:
+                                st.error("Could not load file.")
     # --- TAB 2: DAILY CHALLENGES ---
     # --- THIS IS THE NEW CODE FOR THE SECOND ADMIN TAB ---
     with tabs[2]:
@@ -8055,6 +8036,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
