@@ -841,6 +841,13 @@ def bulk_import_questions(uploaded_file):
     except Exception as e:
         st.error(f"An error occurred during the import process: {e}")
 
+def get_all_students():
+    """Fetches a list of all student usernames."""
+    with engine.connect() as conn:
+        query = text("SELECT username FROM users WHERE role = 'student' ORDER BY username ASC")
+        result = conn.execute(query).fetchall()
+        return [row[0] for row in result]
+
 # --- START: NEW FUNCTION update_practice_question ---
 # Reason for change: To add a backend function that can update an existing practice question in the database.
 
@@ -7586,67 +7593,109 @@ def display_admin_panel(topic_options):
                             st.rerun()
 # --- END: REVISED CODE for Admin Panel Tab 0 ("User Management") ---
 
- # This is the complete code for your "Submissions" tab with the grading UI
-
+    # This is the complete, redesigned code for your "Submissions" tab
+    
     with tabs[1]:
-        st.subheader("View and Grade Assignment Submissions")
-        st.info("Select an assignment to view submissions, enter grades, and provide feedback.")
-
+        st.subheader("Submissions Dashboard")
+        
         all_practice_q = get_all_practice_questions()
         pool_names = sorted(list(set(q['assignment_pool_name'] for q in all_practice_q if q['assignment_pool_name'])))
-    
+        
         if not pool_names:
             st.warning("No assignment pools have been created yet.")
         else:
-            selected_pool = st.selectbox("Select an assignment pool to view and grade:", pool_names)
-        
+            selected_pool = st.selectbox("Select an assignment pool to manage:", pool_names)
+            
             if selected_pool:
-                st.markdown(f"#### Grading for: **{selected_pool}**")
-            
-                # Fetch all submissions and all existing grades for the selected pool
-                submissions = get_all_submissions_for_pool(selected_pool)
-                grades = get_grades_for_pool(selected_pool)
-            
-                if not submissions:
-                    st.info("No students have submitted work for this assignment yet.")
-                else:
-                    for sub in submissions:
-                        username = sub['username']
-                        # Get the existing grade for this user, or an empty dict if not yet graded
-                        existing_grade_data = grades.get(username, {})
-
-                        with st.container(border=True):
-                            col1, col2 = st.columns([1, 1])
+                # Create the two-tab layout
+                grading_tab, settings_tab = st.tabs(["Dashboard & Grading", "Assignment Settings"])
+    
+                # --- Tab for Assignment Settings ---
+                with settings_tab:
+                    st.subheader(f"Settings for '{selected_pool}'")
+                    st.write("**Manage Submissions:**")
+                    col1, col2 = st.columns(2)
+                    if col1.button("📥 Enable Uploads for Pool", key=f"enable_uploads_{selected_pool}", use_container_width=True):
+                        bulk_toggle_uploads_for_pool(selected_pool, True)
+                        st.success(f"Uploads for '{selected_pool}' have been enabled.")
+                        st.rerun()
+                    if col2.button("🚫 Disable Uploads for Pool", key=f"disable_uploads_{selected_pool}", use_container_width=True):
+                        bulk_toggle_uploads_for_pool(selected_pool, False)
+                        st.warning(f"Uploads for '{selected_pool}' have been disabled.")
+                        st.rerun()
+                    
+                    st.write("**Destructive Actions:**")
+                    if st.button("🗑️ Delete All Questions in Pool", key=f"delete_{selected_pool}", use_container_width=True, type="primary"):
+                        bulk_delete_questions(selected_pool)
+                        st.error(f"All questions in '{selected_pool}' have been permanently deleted.")
+                        st.rerun()
+    
+                # --- Tab for Grading and Dashboard ---
+                with grading_tab:
+                    # 1. Fetch all necessary data
+                    all_students = get_all_students()
+                    submissions = get_all_submissions_for_pool(selected_pool)
+                    grades = get_grades_for_pool(selected_pool)
+                    
+                    # Create dictionaries for quick lookups
+                    submissions_dict = {sub['username']: sub for sub in submissions}
+                    
+                    # 2. Calculate and Display Analytics Header
+                    total_students = len(all_students)
+                    num_submitted = len(submissions)
+                    num_graded = len(grades)
+                    submission_rate = (num_submitted / total_students * 100) if total_students > 0 else 0
+                    grading_progress = (num_graded / num_submitted * 100) if num_submitted > 0 else 0
+    
+                    st.markdown(f"#### Analytics for '{selected_pool}'")
+                    an_col1, an_col2, an_col3 = st.columns(3)
+                    an_col1.metric("Total Students", total_students)
+                    an_col2.metric("Submission Rate", f"{submission_rate:.1f}%", f"{num_submitted}/{total_students} submitted")
+                    an_col3.metric("Grading Progress", f"{grading_progress:.1f}%", f"{num_graded}/{num_submitted} graded")
+                    if num_submitted > 0:
+                        st.progress(grading_progress / 100)
+                    
+                    st.markdown("<hr>", unsafe_allow_html=True)
+                    
+                    # 3. Build the Unified Roster and Grading View
+                    st.markdown("#### Student Roster & Grading")
+                    for student_username in all_students:
+                        status = ""
+                        status_color = "gray"
                         
-                            with col1:
-                                st.markdown(f"**Student:** `{username}`")
-                                st.caption(f"Submitted: {sub['submitted_at'].strftime('%Y-%m-%d %I:%M %p')}")
-                                if sub['view_url']:
-                                    st.link_button("View Submission ↗️", sub['view_url'], use_container_width=True)
-                                else:
-                                    st.error("Could not load file.")
+                        # Determine the student's status
+                        if student_username in grades:
+                            status = "✅ Graded"
+                            status_color = "green"
+                        elif student_username in submissions_dict:
+                            status = "🟡 Awaiting Grade"
+                            status_color = "orange"
+                        else:
+                            status = "🔴 Not Submitted"
+                            status_color = "red"
                         
-                            with col2:
-                                # Create a unique form for each student's grading
-                                with st.form(key=f"grade_form_{username}_{selected_pool}"):
-                                    st.markdown("**Enter Grade & Feedback**")
-                                
-                                    # Pre-fill the form with existing data if it exists
-                                    grade = st.text_input(
-                                        "Grade (e.g., 18/20)", 
-                                        value=existing_grade_data.get('grade', ''), 
-                                        key=f"grade_{username}"
-                                    )
-                                    feedback = st.text_area(
-                                        "Feedback for Student", 
-                                        value=existing_grade_data.get('feedback', ''), 
-                                        key=f"feedback_{username}"
-                                    )
-                                
-                                    if st.form_submit_button("Save Grade", type="primary", use_container_width=True):
-                                        save_grade(username, selected_pool, grade, feedback)
-                                        st.success(f"Grade for {username} saved!")
-                                        st.rerun()
+                        with st.expander(f"**{student_username}** - Status: :{status_color}[{status}]"):
+                            if student_username in submissions_dict:
+                                sub = submissions_dict[student_username]
+                                existing_grade_data = grades.get(student_username, {})
+    
+                                col1, col2 = st.columns([1, 1])
+                                with col1:
+                                    st.caption(f"Submitted: {sub['submitted_at'].strftime('%Y-%m-%d %I:%M %p')}")
+                                    if sub['view_url']:
+                                        st.link_button("View Submission ↗️", sub['view_url'], use_container_width=True)
+                                    else:
+                                        st.error("Could not load file.")
+                                with col2:
+                                    with st.form(key=f"grade_form_{student_username}_{selected_pool}"):
+                                        grade = st.text_input("Grade", value=existing_grade_data.get('grade', ''), key=f"grade_{student_username}")
+                                        feedback = st.text_area("Feedback", value=existing_grade_data.get('feedback', ''), key=f"feedback_{student_username}")
+                                        if st.form_submit_button("Save Grade", type="primary", use_container_width=True):
+                                            save_grade(student_username, selected_pool, grade, feedback)
+                                            st.success(f"Grade for {student_username} saved!")
+                                            st.rerun()
+                            else:
+                                st.info("This student has not submitted their work yet.")
     # --- TAB 2: DAILY CHALLENGES ---
     # --- THIS IS THE NEW CODE FOR THE SECOND ADMIN TAB ---
     with tabs[2]:
@@ -8132,6 +8181,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
