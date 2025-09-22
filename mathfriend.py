@@ -940,6 +940,27 @@ def get_or_assign_student_question(username, pool_name):
 
 # --- NEW ADMIN BACKEND FUNCTIONS FOR USER ACTIONS ---
 
+def clear_student_submission(username, pool_name):
+    """Deletes a student's submission file, submission record, and grade record."""
+    try:
+        with engine.connect() as conn:
+            with conn.begin(): # Use a transaction for safety
+                # 1. Get the file path before deleting the record
+                path_query = text("SELECT file_path FROM assignment_submissions WHERE username = :user AND assignment_pool_name = :pool")
+                file_path = conn.execute(path_query, {"user": username, "pool": pool_name}).scalar_one_or_none()
+
+                # 2. Delete the records from the database tables
+                conn.execute(text("DELETE FROM assignment_grades WHERE username = :user AND assignment_pool_name = :pool"), {"user": username, "pool": pool_name})
+                conn.execute(text("DELETE FROM assignment_submissions WHERE username = :user AND assignment_pool_name = :pool"), {"user": username, "pool": pool_name})
+
+                # 3. If a file path was found, delete the file from Storage
+                if file_path:
+                    supabase_client.storage.from_('assignment_submissions').remove([file_path])
+        return True, "Submission cleared successfully."
+    except Exception as e:
+        print(f"Error clearing submission for {username} in {pool_name}: {e}")
+        return False, f"An error occurred: {e}"
+
 def toggle_user_suspension(username):
     """Flips the is_active status for a given user."""
     with engine.connect() as conn:
@@ -7699,34 +7720,63 @@ def display_admin_panel(topic_options):
                     with col2:
                         st.subheader("Grading Pane")
                         
-                        # Check if the selection state exists AND if any rows have been selected
+                        # Check if the selection state exists and if any rows have been selected
                         if "roster_selection" in st.session_state and st.session_state.roster_selection["selection"]["rows"]:
                             selected_row_index = st.session_state.roster_selection["selection"]["rows"][0]
                             selected_username = roster_df.iloc[selected_row_index]["Student"]
                     
-                            st.markdown(f"#### Grading: **{selected_username}**")
+                            # --- START: NEW CONFIRMATION LOGIC ---
+                            # Check if we are in the process of confirming a deletion for this student
+                            confirming_key = f"confirming_clear_{selected_username}_{selected_pool}"
                     
-                            # Display the grading form only for the selected student
-                            if selected_username in submissions_dict:
-                                sub = submissions_dict[selected_username]
-                                existing_grade_data = grades.get(selected_username, {})
+                            if st.session_state.get(confirming_key, False):
+                                st.error(f"**Are you sure you want to permanently delete all submission data for {selected_username}?** This cannot be undone.")
+                                c1, c2 = st.columns(2)
+                                if c1.button("Yes, Permanently Delete", type="primary", use_container_width=True):
+                                    success, message = clear_student_submission(selected_username, selected_pool)
+                                    if success:
+                                        st.success(message)
+                                    else:
+                                        st.error(message)
+                                    st.session_state[confirming_key] = False # Clear the flag
+                                    st.rerun()
+                                if c2.button("Cancel", use_container_width=True):
+                                    st.session_state[confirming_key] = False # Clear the flag
+                                    st.rerun()
+                            
+                            else: # Show the normal grading pane
+                                st.markdown(f"#### Grading: **{selected_username}**")
                     
-                                if sub['view_url']:
-                                    st.link_button("View Submission ↗️", sub['view_url'], use_container_width=True)
+                                if selected_username in submissions_dict:
+                                    sub = submissions_dict[selected_username]
+                                    existing_grade_data = grades.get(selected_username, {})
+                    
+                                    if sub['view_url']:
+                                        st.link_button("View Submission ↗️", sub['view_url'], use_container_width=True)
+                                    else:
+                                        st.error("Could not load file.")
+                                    
+                                    with st.form(key=f"grade_form_{selected_username}"):
+                                        grade = st.text_input("Grade", value=existing_grade_data.get('grade', ''))
+                                        feedback = st.text_area("Feedback", value=existing_grade_data.get('feedback', ''))
+                                        
+                                        b1, b2 = st.columns(2)
+                                        if b1.form_submit_button("Save or Update Grade", type="primary", use_container_width=True):
+                                            save_grade(selected_username, selected_pool, grade, feedback)
+                                            st.success(f"Grade for {selected_username} saved!")
+                                            st.session_state.roster_selection["selection"]["rows"] = []
+                                            st.rerun()
+                    
+                                        if b2.form_submit_button("Clear Submission", type="secondary", use_container_width=True):
+                                            # This button just sets the flag to show the confirmation message
+                                            st.session_state[confirming_key] = True
+                                            st.rerun()
                                 else:
-                                    st.error("Could not load file.")
-                                
-                                with st.form(key=f"grade_form_{selected_username}"):
-                                    grade = st.text_input("Grade", value=existing_grade_data.get('grade', ''))
-                                    feedback = st.text_area("Feedback", value=existing_grade_data.get('feedback', ''))
-                                    if st.form_submit_button("Save or Update Grade", type="primary", use_container_width=True):
-                                        save_grade(selected_username, selected_pool, grade, feedback)
-                                        st.success(f"Grade for {selected_username} saved!")
-                                        # Clear selection after grading to avoid stale state
-                                        st.session_state.roster_selection["selection"]["rows"] = []
-                                        st.rerun()
-                        else:
-                            st.info("Select a student from the roster on the left to begin grading.")
+                                    st.info("This student has not submitted their work yet.")
+        # --- END: NEW CONFIRMATION LOGIC ---
+
+    else:
+        st.info("Select a student from the roster on the left to begin grading.")
                         # --- END: NEW SPLIT-VIEW DESIGN ---
     # --- TAB 2: DAILY CHALLENGES ---
     # --- THIS IS THE NEW CODE FOR THE SECOND ADMIN TAB ---
@@ -8217,6 +8267,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
