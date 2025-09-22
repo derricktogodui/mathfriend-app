@@ -712,10 +712,11 @@ def get_active_practice_questions():
     """Fetches all practice questions marked as active, including new assignment fields."""
     with engine.connect() as conn:
         # --- THIS IS THE FIX ---
-        # The query now selects all necessary columns for all assignment types.
+        # The query now selects the new 'uploads_enabled' column.
         query = text("""
             SELECT id, topic, question_text, answer_text, explanation_text, 
-                   assignment_pool_name, unhide_answer_at, created_at
+                   assignment_pool_name, unhide_answer_at, created_at,
+                   uploads_enabled -- <<< ADD THIS LINE
             FROM daily_practice_questions 
             WHERE is_active = TRUE 
             ORDER BY created_at DESC
@@ -1077,6 +1078,26 @@ def get_all_submissions_for_pool(pool_name):
             processed_submissions.append(sub_dict)
             
     return processed_submissions
+
+def save_grade(username, pool_name, grade, feedback):
+    """Saves or updates a grade and feedback for a student's submission."""
+    with engine.connect() as conn:
+        query = text("""
+            INSERT INTO assignment_grades (username, assignment_pool_name, grade, feedback)
+            VALUES (:user, :pool, :grade, :feedback)
+            ON CONFLICT (username, assignment_pool_name) DO UPDATE SET
+                grade = EXCLUDED.grade,
+                feedback = EXCLUDED.feedback,
+                graded_at = NOW();
+        """)
+        conn.execute(query, {
+            "user": username,
+            "pool": pool_name,
+            "grade": grade,
+            "feedback": feedback
+        })
+        conn.commit()
+    return True
 
 def format_time(seconds):
     """Formats seconds into a MM:SS string."""
@@ -6976,14 +6997,24 @@ def display_learning_resources(topic_options):
                         if not deadline and created_time:
                             deadline = created_time + timedelta(hours=48)
                         
-                        if deadline and datetime.now(deadline.tzinfo) < deadline:
-                            # --- START: NEW FILE UPLOAD LOGIC ---
+                        # --- START: THIS IS THE CORRECTED AND REPLACED CODE BLOCK ---
+                        # This logic now handles both the deadline and the new 'uploads_enabled' switch.
+                        
+                        # First, check if the deadline has passed. We only show the upload logic if it hasn't.
+                        if not deadline or datetime.now(deadline.tzinfo) < deadline:
+                            
                             st.markdown("---")
                             st.subheader("Submit Your Work")
-                            existing_submission = get_student_submission(st.session_state.username, pool_name)
-                            if existing_submission:
-                                st.success("✅ Your work has been submitted successfully.")
-                            else:
+                            
+                            # Second, check the 'uploads_enabled' flag before showing the button.
+                            # The .get() method safely defaults to True if the flag isn't set in the database yet.
+                            if assigned_q_data.get('uploads_enabled', True): 
+                                existing_submission = get_student_submission(st.session_state.username, pool_name)
+                                
+                                if existing_submission:
+                                    st.success("✅ Your work has been submitted successfully.")
+                                    st.info("You can upload a new file to replace your previous submission.")
+
                                 uploaded_file = st.file_uploader(
                                     "Upload an image of your completed work (JPG, PNG)", 
                                     type=['png', 'jpg', 'jpeg'],
@@ -6996,19 +7027,25 @@ def display_learning_resources(topic_options):
                                         st.rerun()
                                     else:
                                         st.error(message)
-                            # --- END: NEW FILE UPLOAD LOGIC ---
-                        else:
+                            else:
+                                # This message will now show if you have disabled uploads.
+                                st.warning("Submissions are currently closed for this assignment by the teacher.")
+                        
+                        else: # This 'else' belongs to the deadline check
                             with st.expander("Show Answer and Explanation"):
                                 st.success("**Answer:**")
                                 st.markdown(assigned_q_data['answer_text'], unsafe_allow_html=True)
                                 if assigned_q_data['explanation_text']:
                                     st.info("**Explanation:**")
                                     st.markdown(assigned_q_data['explanation_text'], unsafe_allow_html=True)
+
+                        # --- END: REPLACEMENT CODE BLOCK ---
+                                
                     else:
                         st.error("Could not load your assigned question.")
                 displayed_pools.add(pool_name)
 
-            else: # For general and time-released questions
+            else: # For general and time-released questions without a pool name
                 with st.container(border=True):
                     st.markdown(f"**{q['topic']}**")
                     st.markdown(q['question_text'], unsafe_allow_html=True)
@@ -7026,7 +7063,7 @@ def display_learning_resources(topic_options):
                                 st.info("**Explanation:**")
                                 st.markdown(q['explanation_text'], unsafe_allow_html=True)
 
-    # (The rest of the function is unchanged)
+    # (The rest of your function for interactive widgets remains unchanged)
     st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
     st.write("Select a topic to view notes, formulas, and interactive examples.")
     selectable_topics = [t for t in topic_options if t != "Advanced Combo"]
@@ -7479,29 +7516,47 @@ def display_admin_panel(topic_options):
         else:
             selected_pool = st.selectbox("Select an assignment pool to view submissions:", pool_names)
             
-            if selected_pool:
-                st.markdown(f"#### Submissions for: **{selected_pool}**")
+            # In your display_admin_panel() function, under the "Submissions" tab...
+
+# (keep the existing code that gets the selected_pool)
+
+if selected_pool:
+    st.markdown(f"#### Submissions for: **{selected_pool}**")
+    
+    # Get all submissions and any existing grades
+    submissions = get_all_submissions_for_pool(selected_pool)
+    
+    # You will need a new function to get grades
+    # (Let's assume you create get_grades_for_pool() which returns a dict)
+    # grades = get_grades_for_pool(selected_pool) 
+
+    if not submissions:
+        st.info("No students have submitted work for this assignment yet.")
+    else:
+        for sub in submissions:
+            username = sub['username']
+            with st.container(border=True):
+                col1, col2 = st.columns([1, 1])
+                with col1:
+                    st.markdown(f"**Student:** `{username}`")
+                    st.caption(f"Submitted: {sub['submitted_at'].strftime('%Y-%m-%d %I:%M %p')}")
+                    if sub['view_url']:
+                        st.link_button("View Submission ↗️", sub['view_url'])
+                    else:
+                        st.error("Could not load file.")
                 
-                # --- THIS IS THE FIX ---
-                # We now call our new backend function to get the data
-                submissions = get_all_submissions_for_pool(selected_pool)
-                
-                if not submissions:
-                    st.info("No students have submitted work for this assignment yet.")
-                else:
-                    # Display the submissions in a clean, two-column layout
-                    for sub in submissions:
-                        with st.container(border=True):
-                            col1, col2 = st.columns([1, 1])
-                            with col1:
-                                st.markdown(f"**Student:** `{sub['username']}`")
-                                st.caption(f"Submitted at: {sub['submitted_at'].strftime('%Y-%m-%d %I:%M %p')}")
-                            with col2:
-                                if sub['view_url']:
-                                    # Create a clickable link to the secure URL
-                                    st.link_button("View Submission ↗️", sub['view_url'], use_container_width=True)
-                                else:
-                                    st.error("Could not load file.")
+                with col2:
+                    # Create a unique form for each student
+                    with st.form(key=f"grade_form_{username}_{selected_pool}"):
+                        st.markdown("**Enter Grade & Feedback**")
+                        # You can fetch and display existing grades here
+                        grade = st.text_input("Grade (e.g., 18/20)", key=f"grade_{username}")
+                        feedback = st.text_area("Feedback for Student", key=f"feedback_{username}")
+                        
+                        if st.form_submit_button("Save Grade", type="primary"):
+                            save_grade(username, selected_pool, grade, feedback)
+                            st.success(f"Grade for {username} saved!")
+                            # You might want to rerun to show the updated grade
     # --- TAB 2: DAILY CHALLENGES ---
     # --- THIS IS THE NEW CODE FOR THE SECOND ADMIN TAB ---
     with tabs[2]:
@@ -7659,6 +7714,11 @@ def display_admin_panel(topic_options):
             if c3.button("🗑️ Delete All in Pool", key=f"delete_{selected_pool}", use_container_width=True, type="primary"):
                 bulk_delete_questions(selected_pool)
                 st.error(f"All questions in '{selected_pool}' have been permanently deleted.")
+                st.rerun()
+            # In the admin panel, where you list existing practice questions
+            if st.button("Enable/Disable Uploads", key=f"pq_uploads_toggle_{q['id']}"):
+                # You'll need a new backend function to toggle this boolean flag
+                toggle_upload_status_for_question(q['id']) 
                 st.rerun()
         st.markdown("---")
 
@@ -7995,6 +8055,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
