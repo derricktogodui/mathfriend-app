@@ -7694,21 +7694,27 @@ def display_admin_panel(topic_options):
                             key="roster_selection"
                         )
                 
+                    # In display_admin_panel(), inside the grading_tab
+
                     with col2:
                         st.subheader("Grading Pane")
                         
-                        # Check if a row has been selected in the dataframe
-                        if st.session_state.roster_selection.get('rows'):
-                            selected_row_index = st.session_state.roster_selection['rows'][0]
+                        # --- START: THIS IS THE CORRECTED CODE BLOCK ---
+                    
+                        # First, check if the selection state exists and then if any rows are selected
+                        selection = st.session_state.get("roster_selection", {"rows": []})
+                        
+                        if selection["rows"]:
+                            selected_row_index = selection["rows"][0]
                             selected_username = roster_df.iloc[selected_row_index]["Student"]
-                
+                    
                             st.markdown(f"#### Grading: **{selected_username}**")
-                
+                    
                             # Display the grading form only for the selected student
                             if selected_username in submissions_dict:
                                 sub = submissions_dict[selected_username]
                                 existing_grade_data = grades.get(selected_username, {})
-                
+                    
                                 if sub['view_url']:
                                     st.link_button("View Submission ↗️", sub['view_url'], use_container_width=True)
                                 else:
@@ -7717,14 +7723,18 @@ def display_admin_panel(topic_options):
                                 with st.form(key=f"grade_form_{selected_username}"):
                                     grade = st.text_input("Grade", value=existing_grade_data.get('grade', ''))
                                     feedback = st.text_area("Feedback", value=existing_grade_data.get('feedback', ''))
-                                    if st.form_submit_button("Save Grade", type="primary", use_container_width=True):
+                                    if st.form_submit_button("Save or Update Grade", type="primary", use_container_width=True):
                                         save_grade(selected_username, selected_pool, grade, feedback)
                                         st.success(f"Grade for {selected_username} saved!")
+                                        # Clear selection after grading to avoid stale state
+                                        st.session_state.roster_selection = {"rows": [], "columns": []}
                                         st.rerun()
                             else:
                                 st.info("This student has not submitted their work yet.")
                         else:
                             st.info("Select a student from the roster on the left to begin grading.")
+                            
+                        # --- END: CORRECTED CODE BLOCK ---
                             
                     # --- END: NEW SPLIT-VIEW DESIGN ---
     # --- TAB 2: DAILY CHALLENGES ---
@@ -8216,6 +8226,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
