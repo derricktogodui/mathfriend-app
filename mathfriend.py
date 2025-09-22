@@ -961,6 +961,48 @@ def clear_student_submission(username, pool_name):
         print(f"Error clearing submission for {username} in {pool_name}: {e}")
         return False, f"An error occurred: {e}"
 
+def upload_shared_resource(topic, uploaded_file):
+    """Uploads a resource file for students and records it in the database."""
+    try:
+        # We will store these in a top-level 'shared' folder within the bucket
+        file_path = f"shared/{topic}/{uploaded_file.name}"
+        
+        # Upload the file to the new 'shared_resources' bucket
+        supabase_client.storage.from_('shared_resources').upload(
+            file=uploaded_file.getvalue(), 
+            path=file_path
+        )
+        
+        # Add a record to our new database table
+        with engine.connect() as conn:
+            query = text("INSERT INTO shared_resources (topic, file_name, file_path) VALUES (:topic, :name, :path)")
+            conn.execute(query, {"topic": topic, "name": uploaded_file.name, "path": file_path})
+            conn.commit()
+        return True
+    except Exception as e:
+        print(f"Error uploading shared resource: {e}")
+        return False
+
+def get_resources_for_topic(topic):
+    """Fetches all shared resources for a given topic."""
+    with engine.connect() as conn:
+        query = text("SELECT id, file_name, file_path FROM shared_resources WHERE topic = :topic ORDER BY file_name ASC")
+        result = conn.execute(query, {"topic": topic}).mappings().fetchall()
+        return [dict(row) for row in result]
+
+def delete_shared_resource(resource_id, file_path):
+    """Deletes a resource from storage and the database."""
+    try:
+        supabase_client.storage.from_('shared_resources').remove([file_path])
+        with engine.connect() as conn:
+            query = text("DELETE FROM shared_resources WHERE id = :id")
+            conn.execute(query, {"id": resource_id})
+            conn.commit()
+        return True
+    except Exception as e:
+        print(f"Error deleting resource: {e}")
+        return False
+
 def toggle_user_suspension(username):
     """Flips the is_active status for a given user."""
     with engine.connect() as conn:
@@ -8096,6 +8138,43 @@ def display_admin_panel(topic_options):
                     st.success(f"Content for '{selected_topic_to_edit}' has been updated successfully!")
                     # No rerun needed, as st.cache_data.clear() handles the update.
 
+    # In display_admin_panel(), at the end of the "Content Management" tab
+
+    st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
+    st.subheader("📁 Upload & Manage Shared Resources")
+    
+    with st.form("upload_resource_form", clear_on_submit=True):
+        st.write("Upload a file (e.g., PDF, DOCX) for students to download.")
+        # This uses the topic_options list that is already available in the function
+        resource_topic = st.selectbox("Assign to Topic:", topic_options, key="resource_topic")
+        resource_file = st.file_uploader("Choose a file", type=['pdf', 'docx', 'pptx', 'txt'])
+        
+        if st.form_submit_button("Upload Resource", type="primary"):
+            if resource_topic and resource_file:
+                if upload_shared_resource(resource_topic, resource_file):
+                    st.success(f"File '{resource_file.name}' uploaded successfully for {resource_topic}!")
+                    st.rerun()
+                else:
+                    st.error("Upload failed. The file may already exist with that name.")
+            else:
+                st.warning("Please select a topic and a file.")
+    
+    st.write("Existing Resources for this Topic:")
+    # This uses the 'selected_topic_to_edit' variable that already exists in this tab
+    resources = get_resources_for_topic(selected_topic_to_edit) 
+    if not resources:
+        st.caption("No resources uploaded for this topic yet.")
+    else:
+        for res in resources:
+            col1, col2 = st.columns([4, 1])
+            col1.write(f"📄 {res['file_name']}")
+            if col2.button("Delete", key=f"delete_res_{res['id']}", use_container_width=True):
+                if delete_shared_resource(res['id'], res['file_path']):
+                    st.success("Resource deleted.")
+                    st.rerun()
+                else:
+                    st.error("Failed to delete resource.")
+    
     # --- END: NEW CONTENT MANAGEMENT TAB ---
 
 # Replace your existing show_main_app function with this one.
@@ -8270,6 +8349,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
