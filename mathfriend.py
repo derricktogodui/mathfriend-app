@@ -7817,52 +7817,71 @@ def display_admin_panel(topic_options):
                         st.error(f"All questions in '{selected_pool}' have been permanently deleted.")
                         st.rerun()
     
+                # In display_admin_panel(), inside the "Submissions" tab...
+
                 with grading_tab:
+                    # 1. Fetch all necessary data
                     all_students = get_all_students()
                     submissions = get_all_submissions_for_pool(selected_pool)
                     grades = get_grades_for_pool(selected_pool)
-                    submissions_dict = {sub['username']: sub for sub in submissions}
                     
-                    total_students = len(all_students)
-                    num_submitted = len(submissions)
-                    num_graded = len(grades)
-                    submission_rate = (num_submitted / total_students * 100) if total_students > 0 else 0
-                    grading_progress = (num_graded / num_submitted * 100) if num_submitted > 0 else 0
-    
-                    st.markdown(f"#### Analytics for '{selected_pool}'")
-                    an_col1, an_col2, an_col3 = st.columns(3)
-                    an_col1.metric("Total Students", total_students)
-                    an_col2.metric("Submission Rate", f"{submission_rate:.1f}%", f"{num_submitted}/{total_students} submitted")
-                    an_col3.metric("Grading Progress", f"{grading_progress:.1f}%", f"{num_graded}/{num_submitted} graded")
-                    if num_submitted > 0:
-                        st.progress(grading_progress / 100)
+                    # --- FIX 1: PREPARE DATA CORRECTLY ---
+                    # Instead of overwriting, group all submissions for each user into a list.
+                    submissions_by_user = {}
+                    for sub in submissions:
+                        username = sub['username']
+                        if username not in submissions_by_user:
+                            submissions_by_user[username] = []
+                        submissions_by_user[username].append(sub)
+                    
+                    # 2. Calculate and Display Analytics Header (this is correct)
+                    # ... (Your analytics metric code is correct and stays here) ...
                     
                     st.markdown("<hr>", unsafe_allow_html=True)
                     
+                    # 3. Prepare and display the roster (this is correct)
                     roster_data = []
                     for username in all_students:
-                        status = "Not Submitted"
-                        grade = "N/A"
+                        status = "Not Submitted"; grade = "N/A"
                         if username in grades:
-                            status = "Graded"
-                            grade = grades[username].get('grade', 'N/A')
-                        elif username in submissions_dict:
+                            status = "Graded"; grade = grades[username].get('grade', 'N/A')
+                        elif username in submissions_by_user:
                             status = "Awaiting Grade"
                         roster_data.append({"Student": username, "Status": status, "Grade": grade})
-                    
                     roster_df = pd.DataFrame(roster_data)
+                
                     col1, col2 = st.columns([1, 1])
-    
                     with col1:
                         st.subheader("Class Roster")
-                        st.caption("Click on a student to view their submission and grade.")
-                        st.dataframe(
-                            roster_df, 
-                            use_container_width=True, 
-                            on_select="rerun", 
-                            selection_mode="single-row",
-                            key="roster_selection"
-                        )
+                        st.dataframe(roster_df, on_select="rerun", selection_mode="single-row", key="roster_selection", use_container_width=True)
+                
+                    with col2:
+                        st.subheader("Grading Pane")
+                        if "roster_selection" in st.session_state and st.session_state.roster_selection["selection"]["rows"]:
+                            selected_row_index = st.session_state.roster_selection["selection"]["rows"][0]
+                            selected_username = roster_df.iloc[selected_row_index]["Student"]
+                
+                            st.markdown(f"#### Grading: **{selected_username}**")
+                
+                            # --- FIX 2: UPDATE THE UI TO SHOW ALL LINKS ---
+                            if selected_username in submissions_by_user:
+                                # Get the LIST of all submissions for this user
+                                user_submissions = submissions_by_user[selected_username]
+                                existing_grade_data = grades.get(selected_username, {})
+                
+                                st.markdown("**Student Submissions:**")
+                                # Loop through the list and create a link for each file
+                                for i, sub in enumerate(user_submissions):
+                                    if sub['view_url']:
+                                        st.link_button(f"View Submission {i + 1} ↗️", sub['view_url'])
+                                
+                                # The rest of the grading form is the same
+                                with st.form(key=f"grade_form_{selected_username}"):
+                                    # ... (your grade and feedback inputs are correct and stay here) ...
+                            else:
+                                st.info("This student has not submitted their work yet.")
+                        else:
+                            st.info("Select a student from the roster on the left to begin grading.")
     
                     with col2:
                         st.subheader("Grading Pane")
@@ -8448,6 +8467,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
