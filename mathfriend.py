@@ -6558,7 +6558,8 @@ def display_quiz_page(topic_options):
             with st.container(border=True):
                 st.markdown("#### 🚀 WASSCE Prep")
                 st.caption("A 40-question, mixed-topic challenge to test your exam readiness!")
-                st.markdown(f'<img src="https://github.com/derricktogodui/mathfriend-app/releases/download/v1.0-assets/WASSCE.Study.Session.in.Action.png" class="quiz-prep-image">', unsafe_allow_html=True)
+                # Use single quotes for the HTML attributes inside the Python f-string
+                st.markdown(f"<img src='https://github.com/derricktogodui/mathfriend-app/releases/download/v1.0-assets/WASSCE.Study.Session.in.Action.png' class='quiz-prep-image'>", unsafe_allow_html=True)
                 if st.button("Start Exam Prep", key="start_wassce", type="primary", use_container_width=True):
                     st.session_state.is_wassce_mode = True
                     st.session_state.quiz_active = True
@@ -8638,6 +8639,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
