@@ -374,6 +374,112 @@ def get_user_profile(username):
         profile = result.mappings().first()
         return dict(profile) if profile else None
 
+def get_digest_data():
+    """Gathers all key metrics from the last 24 hours for the admin digest."""
+    digest = {}
+    with engine.connect() as conn:
+        yesterday = datetime.now() - timedelta(days=1)
+        
+        # --- Top-Line Analytics ---
+        digest['new_users'] = conn.execute(text("SELECT COUNT(*) FROM users WHERE created_at >= :y"), {"y": yesterday}).scalar_one()
+        digest['quizzes_taken'] = conn.execute(text("SELECT COUNT(*) FROM quiz_results WHERE timestamp >= :y"), {"y": yesterday}).scalar_one()
+        digest['duels_played'] = conn.execute(text("SELECT COUNT(*) FROM duels WHERE created_at >= :y"), {"y": yesterday}).scalar_one()
+        
+        # --- Actionable Items ---
+        digest['new_submissions'] = conn.execute(text("SELECT COUNT(DISTINCT username) FROM assignment_submissions WHERE submitted_at >= :y"), {"y": yesterday}).scalar_one()
+        
+        # --- Topic Spotlight ---
+        topic_query = text("""
+            SELECT topic, COUNT(*) as count, AVG(CASE WHEN questions_answered > 0 THEN (score * 100.0 / questions_answered) ELSE 0 END) as avg_accuracy
+            FROM quiz_results WHERE timestamp >= :y AND topic != 'WASSCE Prep' GROUP BY topic
+        """)
+        topic_results = conn.execute(topic_query, {"y": yesterday}).mappings().fetchall()
+        if topic_results:
+            digest['most_practiced_topic'] = max(topic_results, key=lambda x: x['count'])
+            digest['lowest_score_topic'] = min(topic_results, key=lambda x: x['avg_accuracy'])
+        
+        # --- Student Achievements ---
+        top_scorer_query = text("""
+            SELECT username, score, questions_answered FROM quiz_results 
+            WHERE timestamp >= :y ORDER BY score DESC, questions_answered ASC LIMIT 1
+        """)
+        digest['top_scorer'] = conn.execute(top_scorer_query, {"y": yesterday}).mappings().first()
+
+        duel_winner_query = text("""
+            SELECT CASE WHEN status = 'player1_win' THEN player1_username ELSE player2_username END as winner, COUNT(*) as wins
+            FROM duels WHERE finished_at >= :y AND status IN ('player1_win', 'player2_win')
+            GROUP BY winner ORDER BY wins DESC LIMIT 1
+        """)
+        digest['duel_champion'] = conn.execute(duel_winner_query, {"y": yesterday}).mappings().first()
+        
+        # --- Economy Pulse ---
+        digest['coins_earned'] = conn.execute(text("SELECT SUM(amount) FROM coin_transactions WHERE timestamp >= :y AND amount > 0"), {"y": yesterday}).scalar_one() or 0
+        
+    return digest
+
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+
+def send_daily_digest_email(admin_email, digest_data):
+    """Formats and sends the daily digest email."""
+    sender_email = st.secrets["GMAIL_ADDRESS"]
+    password = st.secrets["GMAIL_APP_PASSWORD"]
+    
+    msg = MIMEMultipart("alternative")
+    msg["Subject"] = f"📚 Your MathFriend Daily Digest for {date.today().strftime('%B %d, %Y')}"
+    msg["From"] = f"MathFriend Admin <{sender_email}>"
+    msg["To"] = admin_email
+    
+    # --- Start building the HTML for the email ---
+    html = "<html><body>"
+    html += "<h2>MathFriend Daily Digest</h2><p>Here is your summary of activity from the last 24 hours:</p>"
+    
+    # Section: Top-Line Analytics
+    html += "<h3>📈 Top-Line Analytics</h3><ul>"
+    html += f"<li><b>New Students Joined:</b> {digest_data.get('new_users', 0)}</li>"
+    html += f"<li><b>Total Quizzes Taken:</b> {digest_data.get('quizzes_taken', 0)}</li>"
+    html += f"<li><b>Total Duels Played:</b> {digest_data.get('duels_played', 0)}</li></ul>"
+
+    # Section: Action Items
+    html += "<h3>📝 Action Items</h3><ul>"
+    html += f"<li>You have <b>{digest_data.get('new_submissions', 0)} new assignment submissions</b> waiting to be graded.</li></ul>"
+    
+    # Section: Student Achievements
+    html += "<h3>🏆 Student Achievements</h3><ul>"
+    if digest_data.get('top_scorer'):
+        ts = digest_data['top_scorer']
+        html += f"<li><b>Today's Top Scorer:</b> {ts['username']} ({ts['score']}/{ts['questions_answered']})</li>"
+    if digest_data.get('duel_champion'):
+        dc = digest_data['duel_champion']
+        html += f"<li><b>Duel Champion:</b> {dc['winner']} ({dc['wins']} wins)</li>"
+    html += "</ul>"
+
+    # Section: Topic Spotlight
+    html += "<h3>🎯 Topic Spotlight</h3><ul>"
+    if digest_data.get('most_practiced_topic'):
+        mpt = digest_data['most_practiced_topic']
+        html += f"<li><b>Most Practiced Topic:</b> {mpt['topic']} ({mpt['count']} quizzes)</li>"
+    if digest_data.get('lowest_score_topic'):
+        lst = digest_data['lowest_score_topic']
+        html += f"<li><b>Topic with Lowest Average Score:</b> {lst['topic']} ({lst['avg_accuracy']:.1f}%)</li>"
+    html += "</ul>"
+    
+    html += "</body></html>"
+    
+    msg.attach(MIMEText(html, "html"))
+    
+    try:
+        server = smtplib.SMTP("smtp.gmail.com", 587)
+        server.starttls()
+        server.login(sender_email, password)
+        server.sendmail(sender_email, admin_email, msg.as_string())
+        server.quit()
+        return True
+    except Exception as e:
+        print(f"Failed to send digest email: {e}")
+        return False
+
 def get_coin_balance(username):
     """Fetches a user's current coin balance from their profile."""
     with engine.connect() as conn:
@@ -8298,6 +8404,26 @@ def display_admin_panel(topic_options):
 # Replace your existing show_main_app function with this one.
 
 def show_main_app():
+# --- START: NEW DAILY DIGEST TRIGGER ---
+    # This block runs only for the admin on their first login of the day.
+    user_role = get_user_role(st.session_state.username)
+    if user_role == 'admin':
+        today_str = date.today().isoformat()
+        # Get the date the last digest was sent from our app_config table
+        last_digest_date = get_config_value("last_digest_sent_date")
+        
+        # If the last digest was not sent today, then proceed
+        if last_digest_date != today_str:
+            with st.spinner("Checking for daily summary..."):
+                # 1. Gather all the data from the last 24 hours
+                digest_data = get_digest_data()
+                
+                # 2. Send the email using the secrets you added
+                if send_daily_digest_email(st.secrets["ADMIN_EMAIL"], digest_data):
+                    # 3. If sending was successful, update the date to prevent sending again today
+                    set_config_value("last_digest_sent_date", today_str)
+                    st.toast("✅ Your Daily Digest has been sent to your email!", icon="📧")
+    # --- END: NEW DAILY DIGEST TRIGGER ---
     load_css()
     # --- START: NEW DAILY REWARD LOGIC ---
     # This block runs once per session to check for a daily login reward.
@@ -8467,6 +8593,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
