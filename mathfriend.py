@@ -6751,18 +6751,18 @@ def display_quiz_page(topic_options):
 
 def display_quiz_summary():
     st.header("🎉 Round Complete! 🎉")
-    # Clears the saved session from the database, marking the quiz as officially done.
+    # This clears the saved session from the database, marking the quiz as officially done.
     clear_quiz_state(st.session_state.username)
 
     final_score = st.session_state.quiz_score
     total_questions = st.session_state.questions_attempted
     accuracy = (final_score / total_questions * 100) if total_questions > 0 else 0
-    quiz_topic = st.session_state.quiz_topic
 
     # --- Scoring and Saving Logic (Unified for both modes) ---
     coins_earned = 0
     description = ""
     if total_questions > 0:
+        quiz_topic = st.session_state.quiz_topic
         if st.session_state.is_wassce_mode:
             coins_earned = final_score * 5
             description = "Completed WASSCE Prep Quiz"
@@ -6805,31 +6805,34 @@ def display_quiz_summary():
         else:
             st.warning("🙂 Good effort! A little more practice and you'll be an expert.")
 
-    # --- START: NEW, UNIFIED AI REVIEW SECTION (REPLACES THE OLD EXPANDER) ---
+    # --- UNIFIED AI REVIEW SECTION (THIS IS THE FIX) ---
     if st.session_state.incorrect_questions:
         st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
         st.subheader("Review Your Mistakes")
         st.info("Click the 'Explain My Mistake' button to get a personalized explanation from your AI Tutor.", icon="🤖")
 
         for i, incorrect_info in enumerate(st.session_state.incorrect_questions):
+            # This correctly gets the question data from the nested dictionary
             q_data = incorrect_info['question_data']
             student_answer = incorrect_info['student_answer']
             
             with st.container(border=True):
+                # This correctly accesses the question text from the nested q_data
                 st.markdown(q_data['question_text'], unsafe_allow_html=True)
                 st.error(f"**Your Answer:** {student_answer}")
                 st.success(f"**Correct Answer:** {q_data['answer_text']}")
                 
-                ai_button_key = f"ai_explain_{i}_{quiz_topic}"
+                # The AI Tutor UI
+                ai_button_key = f"ai_explain_{i}_{st.session_state.quiz_topic}"
                 if st.button("🤖 Explain My Mistake", key=ai_button_key, use_container_width=True):
                     with st.spinner("Your AI tutor is thinking..."):
                         explanation = get_ai_explanation(q_data, student_answer)
                         st.session_state[f"ai_explanation_{i}"] = explanation
                 
+                # If an explanation has been generated, display it
                 if f"ai_explanation_{i}" in st.session_state:
                     with st.chat_message("assistant", avatar="🤖"):
                         st.markdown(st.session_state[f"ai_explanation_{i}"])
-    # --- END: NEW, UNIFIED AI REVIEW SECTION ---
 
     # --- Navigation Buttons ---
     st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
@@ -8641,6 +8644,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
