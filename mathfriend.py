@@ -8404,26 +8404,37 @@ def display_admin_panel(topic_options):
 # Replace your existing show_main_app function with this one.
 
 def show_main_app():
-# --- START: NEW DAILY DIGEST TRIGGER ---
-    # This block runs only for the admin on their first login of the day.
+    # --- START: REVISED DAILY DIGEST TRIGGER WITH ERROR HANDLING ---
     user_role = get_user_role(st.session_state.username)
     if user_role == 'admin':
         today_str = date.today().isoformat()
-        # Get the date the last digest was sent from our app_config table
         last_digest_date = get_config_value("last_digest_sent_date")
         
-        # If the last digest was not sent today, then proceed
         if last_digest_date != today_str:
-            with st.spinner("Checking for daily summary..."):
-                # 1. Gather all the data from the last 24 hours
-                digest_data = get_digest_data()
-                
-                # 2. Send the email using the secrets you added
-                if send_daily_digest_email(st.secrets["ADMIN_EMAIL"], digest_data):
-                    # 3. If sending was successful, update the date to prevent sending again today
-                    set_config_value("last_digest_sent_date", today_str)
-                    st.toast("✅ Your Daily Digest has been sent to your email!", icon="📧")
-    # --- END: NEW DAILY DIGEST TRIGGER ---
+            try:
+                with st.spinner("Generating your daily digest..."):
+                    # 1. Gather all the data
+                    digest_data = get_digest_data()
+                    
+                    # 2. Send the email
+                    admin_email = st.secrets.get("ADMIN_EMAIL")
+                    if not admin_email:
+                        st.error("Digest failed: Your ADMIN_EMAIL is not set in Streamlit Secrets.")
+                        return 
+
+                    if send_daily_digest_email(admin_email, digest_data):
+                        # 3. If sending was successful, update the date
+                        set_config_value("last_digest_sent_date", today_str)
+                        st.toast("✅ Your Daily Digest has been sent to your email!", icon="📧")
+                    else:
+                        st.error("Digest failed: Could not send the email. Please check your GMAIL secrets and the app logs.")
+
+            except Exception as e:
+                # This will catch any error from get_digest_data() or other parts
+                st.error(f"An error occurred while generating the digest: {e}")
+                # We update the date anyway to prevent trying again on every refresh today
+                set_config_value("last_digest_sent_date", today_str)
+    # --- END: REVISED DAILY DIGEST TRIGGER ---
     load_css()
     # --- START: NEW DAILY REWARD LOGIC ---
     # This block runs once per session to check for a daily login reward.
@@ -8593,6 +8604,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
