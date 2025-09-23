@@ -6558,6 +6558,13 @@ def display_quiz_page(topic_options):
             with st.container(border=True):
                 st.markdown("#### 🚀 WASSCE Prep")
                 st.caption("A 40-question, mixed-topic challenge to test your exam readiness!")
+                # ADD THIS NEW MARKDOWN BLOCK
+                st.markdown("""
+                This special mode helps you prepare for the real exam by providing:
+                - A full **40-question** mock test.
+                - Questions from **all topics** mixed together.
+                - A great way to test your overall readiness for WASSCE!
+                """)
                 if st.button("Start Exam Prep", key="start_wassce", type="primary", use_container_width=True):
                     st.session_state.is_wassce_mode = True
                     st.session_state.quiz_active = True
@@ -8637,6 +8644,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
