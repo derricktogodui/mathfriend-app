@@ -7819,6 +7819,8 @@ def display_admin_panel(topic_options):
     
                 # In display_admin_panel(), inside the "Submissions" tab...
 
+                # In display_admin_panel(), inside the "Submissions" tab...
+
                 with grading_tab:
                     # 1. Fetch all necessary data
                     all_students = get_all_students()
@@ -7854,6 +7856,34 @@ def display_admin_panel(topic_options):
                     with col1:
                         st.subheader("Class Roster")
                         st.dataframe(roster_df, on_select="rerun", selection_mode="single-row", key="roster_selection", use_container_width=True)
+                
+                    with col2:
+                        st.subheader("Grading Pane")
+                        if "roster_selection" in st.session_state and st.session_state.roster_selection["selection"]["rows"]:
+                            selected_row_index = st.session_state.roster_selection["selection"]["rows"][0]
+                            selected_username = roster_df.iloc[selected_row_index]["Student"]
+                
+                            st.markdown(f"#### Grading: **{selected_username}**")
+                
+                            # --- FIX 2: UPDATE THE UI TO SHOW ALL LINKS ---
+                            if selected_username in submissions_by_user:
+                                # Get the LIST of all submissions for this user
+                                user_submissions = submissions_by_user[selected_username]
+                                existing_grade_data = grades.get(selected_username, {})
+                
+                                st.markdown("**Student Submissions:**")
+                                # Loop through the list and create a link for each file
+                                for i, sub in enumerate(user_submissions):
+                                    if sub['view_url']:
+                                        st.link_button(f"View Submission {i + 1} ↗️", sub['view_url'])
+                                
+                                # The rest of the grading form is the same
+                                with st.form(key=f"grade_form_{selected_username}"):
+                                    # ... (your grade and feedback inputs are correct and stay here) ...
+                            else:
+                                st.info("This student has not submitted their work yet.")
+                        else:
+                            st.info("Select a student from the roster on the left to begin grading.")
                 
                     with col2:
                         st.subheader("Grading Pane")
@@ -8467,6 +8497,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
