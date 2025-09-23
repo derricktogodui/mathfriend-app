@@ -1665,19 +1665,24 @@ def get_ai_explanation(question_data, student_answer):
     Connects to the Gemini API to get a personalized explanation for a student's mistake.
     """
     try:
-        # Configure the AI with the API key from your secrets
         genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
         model = genai.GenerativeModel('gemini-pro')
 
-        # --- This is the detailed instruction we give to the AI ---
+        # --- THIS IS THE FIX ---
+        # Safely get the text from either key format
+        question_text = question_data.get("question_text") or question_data.get("question") or question_data.get("stem", "")
+        correct_answer = question_data.get("answer_text") or question_data.get("answer", "")
+        official_explanation = question_data.get("explanation_text") or question_data.get("explanation", "")
+        # --- END OF FIX ---
+
         prompt = f"""
         You are MathFriend, a friendly, patient, and encouraging WASSCE math tutor in Ghana. Your goal is to help students understand their mistakes without just giving them the answer again.
 
         Here is the context:
-        - The Question was: "{question_data['question_text']}"
-        - The Correct Answer is: "{question_data['answer_text']}"
+        - The Question was: "{question_text}"
+        - The Correct Answer is: "{correct_answer}"
         - The Student's Incorrect Answer was: "{student_answer}"
-        - The Official Correct Explanation is: "{question_data['explanation_text']}"
+        - The Official Correct Explanation is: "{official_explanation}"
 
         Your Task:
         1.  Analyze the student's incorrect answer compared to the correct one.
@@ -1686,12 +1691,10 @@ def get_ai_explanation(question_data, student_answer):
         4.  Start your response with a friendly and encouraging tone.
         """
 
-        # Send the prompt to the AI and get the response
         response = model.generate_content(prompt)
         return response.text
 
     except Exception as e:
-        # If the AI fails for any reason, return a helpful error message
         print(f"Error connecting to Gemini API: {e}")
         return "Sorry, I couldn't connect to the AI tutor at the moment. Please try again later."
 
@@ -6751,7 +6754,6 @@ def display_quiz_page(topic_options):
 
 def display_quiz_summary():
     st.header("🎉 Round Complete! 🎉")
-    # This clears the saved session from the database, marking the quiz as officially done.
     clear_quiz_state(st.session_state.username)
 
     final_score = st.session_state.quiz_score
@@ -6812,24 +6814,25 @@ def display_quiz_summary():
         st.info("Click the 'Explain My Mistake' button to get a personalized explanation from your AI Tutor.", icon="🤖")
 
         for i, incorrect_info in enumerate(st.session_state.incorrect_questions):
-            # This correctly gets the question data from the nested dictionary
             q_data = incorrect_info['question_data']
             student_answer = incorrect_info['student_answer']
             
             with st.container(border=True):
-                # This correctly accesses the question text from the nested q_data
-                st.markdown(q_data['question_text'], unsafe_allow_html=True)
+                # This logic safely gets the question text from either format
+                question_text_to_display = q_data.get("question_text") or q_data.get("question") or q_data.get("stem", "Question text not found.")
+                st.markdown(question_text_to_display, unsafe_allow_html=True)
+
+                # This logic safely gets the answer text from either format
+                answer_text_to_display = q_data.get("answer_text") or q_data.get("answer", "Answer not found.")
                 st.error(f"**Your Answer:** {student_answer}")
-                st.success(f"**Correct Answer:** {q_data['answer_text']}")
+                st.success(f"**Correct Answer:** {answer_text_to_display}")
                 
-                # The AI Tutor UI
                 ai_button_key = f"ai_explain_{i}_{st.session_state.quiz_topic}"
                 if st.button("🤖 Explain My Mistake", key=ai_button_key, use_container_width=True):
                     with st.spinner("Your AI tutor is thinking..."):
                         explanation = get_ai_explanation(q_data, student_answer)
                         st.session_state[f"ai_explanation_{i}"] = explanation
                 
-                # If an explanation has been generated, display it
                 if f"ai_explanation_{i}" in st.session_state:
                     with st.chat_message("assistant", avatar="🤖"):
                         st.markdown(st.session_state[f"ai_explanation_{i}"])
@@ -8644,6 +8647,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
