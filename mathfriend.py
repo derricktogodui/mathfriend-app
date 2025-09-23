@@ -8010,151 +8010,151 @@ def display_admin_panel(topic_options):
                         st.success(f"Duel ID {duel['id']} has been ended.")
                         st.rerun()
     with tabs[4]:
-    st.subheader("Manage Practice Questions / Assignments")
-    st.info("You can add questions one-by-one, or use the Bulk Import feature for large assignments.")
-    st.markdown("---")
-
-    with st.expander("🚀 Bulk Import Questions from File"):
-        st.warning("Ensure your CSV file has the correct headers: `topic`, `question_text`, `answer_text`, and optionally `explanation_text`, `assignment_pool_name`, `unhide_answer_at`")
-        uploaded_file = st.file_uploader("Choose a CSV file", type="csv", key="pq_bulk_upload")
-        if uploaded_file is not None:
-            if st.button("Import Questions from CSV", type="primary"):
-                bulk_import_questions(uploaded_file)
+        st.subheader("Manage Practice Questions / Assignments")
+        st.info("You can add questions one-by-one, or use the Bulk Import feature for large assignments.")
+        st.markdown("---")
     
-    st.subheader("Add a Single Question/Assignment")
-    with st.expander("⚙️ Set Defaults for this Session"):
-        st.caption("Set a default topic and pool name here to pre-fill the form below.")
-        st.text_input("Default Topic/Title", key="pq_default_topic")
-        st.text_input("Default Assignment Pool Name", key="pq_default_pool")
-
-    st.checkbox("Set a specific answer reveal time (optional)", key="add_pq_set_deadline")
-    with st.form("new_practice_q_form", clear_on_submit=True):
-        pq_topic = st.text_input("Topic or Title", placeholder="e.g., Week 5 Assignment on Surds", value=st.session_state.get("pq_default_topic", ""))
-        pq_question = st.text_area("Question Text (Supports Markdown & LaTeX)", height=200)
-        pq_answer = st.text_area("Answer Text", height=100)
-        pq_explanation = st.text_area("Detailed Explanation (Optional)", height=200)
-        st.markdown("##### **Optional Assignment Settings**")
-        pq_pool_name = st.text_input("Assignment Pool Name (Optional)", placeholder="e.g., Vacation Task 1", help="Group questions by giving them the same pool name.", value=st.session_state.get("pq_default_pool", ""))
+        with st.expander("🚀 Bulk Import Questions from File"):
+            st.warning("Ensure your CSV file has the correct headers: `topic`, `question_text`, `answer_text`, and optionally `explanation_text`, `assignment_pool_name`, `unhide_answer_at`")
+            uploaded_file = st.file_uploader("Choose a CSV file", type="csv", key="pq_bulk_upload")
+            if uploaded_file is not None:
+                if st.button("Import Questions from CSV", type="primary"):
+                    bulk_import_questions(uploaded_file)
         
-        pq_unhide_at = None
-        if st.session_state.add_pq_set_deadline:
-            c1, c2 = st.columns(2)
-            picked_date = c1.date_input("Reveal Date", key="add_reveal_date")
-            picked_time = c2.time_input("Reveal Time", key="add_reveal_time")
-            if picked_date and picked_time:
-                pq_unhide_at = datetime.combine(picked_date, picked_time)
+        st.subheader("Add a Single Question/Assignment")
+        with st.expander("⚙️ Set Defaults for this Session"):
+            st.caption("Set a default topic and pool name here to pre-fill the form below.")
+            st.text_input("Default Topic/Title", key="pq_default_topic")
+            st.text_input("Default Assignment Pool Name", key="pq_default_pool")
+    
+        st.checkbox("Set a specific answer reveal time (optional)", key="add_pq_set_deadline")
+        with st.form("new_practice_q_form", clear_on_submit=True):
+            pq_topic = st.text_input("Topic or Title", placeholder="e.g., Week 5 Assignment on Surds", value=st.session_state.get("pq_default_topic", ""))
+            pq_question = st.text_area("Question Text (Supports Markdown & LaTeX)", height=200)
+            pq_answer = st.text_area("Answer Text", height=100)
+            pq_explanation = st.text_area("Detailed Explanation (Optional)", height=200)
+            st.markdown("##### **Optional Assignment Settings**")
+            pq_pool_name = st.text_input("Assignment Pool Name (Optional)", placeholder="e.g., Vacation Task 1", help="Group questions by giving them the same pool name.", value=st.session_state.get("pq_default_pool", ""))
+            
+            pq_unhide_at = None
+            if st.session_state.add_pq_set_deadline:
+                c1, c2 = st.columns(2)
+                picked_date = c1.date_input("Reveal Date", key="add_reveal_date")
+                picked_time = c2.time_input("Reveal Time", key="add_reveal_time")
+                if picked_date and picked_time:
+                    pq_unhide_at = datetime.combine(picked_date, picked_time)
+            
+            if st.form_submit_button("Add Practice Question", type="primary"):
+                if pq_topic and pq_question and pq_answer:
+                    add_practice_question(pq_topic, pq_question, pq_answer, pq_explanation, pq_pool_name, pq_unhide_at)
+                    st.success(f"New question added!")
+                    st.session_state.add_pq_set_deadline = False
+                    st.rerun()
+                else: 
+                    st.error("Title, Question, and Answer are required.")
         
-        if st.form_submit_button("Add Practice Question", type="primary"):
-            if pq_topic and pq_question and pq_answer:
-                add_practice_question(pq_topic, pq_question, pq_answer, pq_explanation, pq_pool_name, pq_unhide_at)
-                st.success(f"New question added!")
-                st.session_state.add_pq_set_deadline = False
+        st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
+        st.subheader("Existing Practice Questions")
+        
+        all_practice_q = get_all_practice_questions()
+        st.markdown("#### Bulk Actions for Assignment Pools")
+        pool_names = sorted(list(set(q['assignment_pool_name'] for q in all_practice_q if q['assignment_pool_name'])))
+        
+        if not pool_names:
+            st.info("No assignment pools found. Add a question with a pool name to enable bulk actions.")
+        else:
+            selected_pool = st.selectbox(
+                "Select an assignment pool to manage:", 
+                pool_names,
+                key="practice_pool_select"
+            )
+            st.write("**Manage Question Status:**")
+            col1, col2 = st.columns(2)
+            if col1.button("✅ Activate All in Pool", key=f"pq_activate_{selected_pool}", use_container_width=True):
+                bulk_toggle_question_status(selected_pool, True)
+                st.success(f"All questions in '{selected_pool}' have been activated.")
                 st.rerun()
-            else: 
-                st.error("Title, Question, and Answer are required.")
+            if col2.button("❌ Deactivate All in Pool", key=f"pq_deactivate_{selected_pool}", use_container_width=True):
+                bulk_toggle_question_status(selected_pool, False)
+                st.warning(f"All questions in '{selected_pool}' have been deactivated.")
+                st.rerun()
     
-    st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
-    st.subheader("Existing Practice Questions")
+            st.write("**Manage Submissions:**")
+            col3, col4 = st.columns(2)
+            if col3.button("📥 Enable Uploads for Pool", key=f"pq_enable_uploads_{selected_pool}", use_container_width=True):
+                bulk_toggle_uploads_for_pool(selected_pool, True)
+                st.success(f"Uploads for '{selected_pool}' have been enabled.")
+                st.rerun()
+            if col4.button("🚫 Disable Uploads for Pool", key=f"pq_disable_uploads_{selected_pool}", use_container_width=True):
+                bulk_toggle_uploads_for_pool(selected_pool, False)
+                st.warning(f"Uploads for '{selected_pool}' have been disabled.")
+                st.rerun()
+        
+            st.write("**Destructive Actions:**")
+            if st.button("🗑️ Delete All in Pool", key=f"pq_delete_{selected_pool}", use_container_width=True, type="primary"):
+                bulk_delete_questions(selected_pool)
+                st.error(f"All questions in '{selected_pool}' have been permanently deleted.")
+                st.rerun()
     
-    all_practice_q = get_all_practice_questions()
-    st.markdown("#### Bulk Actions for Assignment Pools")
-    pool_names = sorted(list(set(q['assignment_pool_name'] for q in all_practice_q if q['assignment_pool_name'])))
+        st.markdown("---")
     
-    if not pool_names:
-        st.info("No assignment pools found. Add a question with a pool name to enable bulk actions.")
-    else:
-        selected_pool = st.selectbox(
-            "Select an assignment pool to manage:", 
-            pool_names,
-            key="practice_pool_select"
-        )
-        st.write("**Manage Question Status:**")
-        col1, col2 = st.columns(2)
-        if col1.button("✅ Activate All in Pool", key=f"pq_activate_{selected_pool}", use_container_width=True):
-            bulk_toggle_question_status(selected_pool, True)
-            st.success(f"All questions in '{selected_pool}' have been activated.")
-            st.rerun()
-        if col2.button("❌ Deactivate All in Pool", key=f"pq_deactivate_{selected_pool}", use_container_width=True):
-            bulk_toggle_question_status(selected_pool, False)
-            st.warning(f"All questions in '{selected_pool}' have been deactivated.")
-            st.rerun()
-
-        st.write("**Manage Submissions:**")
-        col3, col4 = st.columns(2)
-        if col3.button("📥 Enable Uploads for Pool", key=f"pq_enable_uploads_{selected_pool}", use_container_width=True):
-            bulk_toggle_uploads_for_pool(selected_pool, True)
-            st.success(f"Uploads for '{selected_pool}' have been enabled.")
-            st.rerun()
-        if col4.button("🚫 Disable Uploads for Pool", key=f"pq_disable_uploads_{selected_pool}", use_container_width=True):
-            bulk_toggle_uploads_for_pool(selected_pool, False)
-            st.warning(f"Uploads for '{selected_pool}' have been disabled.")
-            st.rerun()
-    
-        st.write("**Destructive Actions:**")
-        if st.button("🗑️ Delete All in Pool", key=f"pq_delete_{selected_pool}", use_container_width=True, type="primary"):
-            bulk_delete_questions(selected_pool)
-            st.error(f"All questions in '{selected_pool}' have been permanently deleted.")
-            st.rerun()
-
-    st.markdown("---")
-
-    if not all_practice_q:
-        st.warning("No practice questions have been added yet.")
-    else:
-        for q in all_practice_q:
-            with st.container(border=True):
-                upload_status = "Enabled ✅" if q.get('uploads_enabled', True) else "Disabled ❌"
-                st.markdown(f"**ID:** {q['id']} | **Status:** {'Active' if q['is_active'] else 'Inactive'} | **Uploads:** {upload_status}")
-                
-                if q.get('assignment_pool_name'):
-                    st.info(f"**Pool Name:** {q['assignment_pool_name']}")
-                
-                st.markdown(f"**Question:**")
+        if not all_practice_q:
+            st.warning("No practice questions have been added yet.")
+        else:
+            for q in all_practice_q:
                 with st.container(border=True):
-                    st.markdown(q['question_text'], unsafe_allow_html=True)
-                
-                with st.expander("✏️ Edit this question"):
-                    edit_deadline_key = f"edit_deadline_cb_{q['id']}"
-                    if edit_deadline_key not in st.session_state:
-                        st.session_state[edit_deadline_key] = q.get('unhide_answer_at') is not None
-                    st.checkbox("Set a specific answer reveal time (optional)", key=edit_deadline_key)
-                    with st.form(key=f"edit_pq_form_{q['id']}"):
-                        edit_topic = st.text_input("Topic or Title", value=q['topic'], key=f"edit_pq_topic_{q['id']}")
-                        edit_question = st.text_area("Question Text", value=q['question_text'], height=200, key=f"edit_pq_question_{q['id']}")
-                        edit_answer = st.text_area("Answer Text", value=q['answer_text'], height=100, key=f"edit_pq_answer_{q['id']}")
-                        edit_explanation = st.text_area("Detailed Explanation", value=q.get('explanation_text', ''), height=200, key=f"edit_pq_explanation_{q['id']}")
-                        edit_pool_name = st.text_input("Assignment Pool Name (Optional)", value=q.get('assignment_pool_name'), key=f"edit_pq_pool_{q['id']}")
-                        
-                        edit_unhide_at = None
-                        if st.session_state[edit_deadline_key]:
-                            current_deadline = q.get('unhide_answer_at')
-                            c1_edit, c2_edit = st.columns(2)
-                            default_date = current_deadline.date() if current_deadline else date.today()
-                            default_time = datetime.now().time() if current_deadline is None else current_deadline.time()
-                            edit_picked_date = c1_edit.date_input("Reveal Date", value=default_date, key=f"edit_date_{q['id']}")
-                            edit_picked_time = c2_edit.time_input("Reveal Time", value=default_time, key=f"edit_time_{q['id']}")
-                            if edit_picked_date and edit_picked_time:
-                                edit_unhide_at = datetime.combine(edit_picked_date, edit_picked_time)
-                        
-                        if st.form_submit_button("Save Changes", type="primary"):
-                            update_practice_question(q['id'], edit_topic, edit_question, edit_answer, edit_explanation, edit_pool_name, edit_unhide_at)
-                            st.success(f"Question ID {q['id']} has been updated.")
-                            st.rerun()
-
-                with st.expander("View Answer & Explanation"):
-                    st.success(f"**Answer:**")
-                    st.markdown(q['answer_text'], unsafe_allow_html=True)
-                    st.info(f"**Explanation:**")
-                    st.markdown(q.get('explanation_text') or '_No explanation provided._', unsafe_allow_html=True)
-                
-                c1_actions, c2_actions = st.columns(2)
-                if c1_actions.button("Activate/Deactivate", key=f"pq_toggle_{q['id']}", use_container_width=True):
-                    toggle_practice_question_status(q['id'])
-                    st.rerun()
-                if c2_actions.button("Delete", key=f"pq_delete_{q['id']}", use_container_width=True, type="secondary"):
-                    delete_practice_question(q['id'])
-                    st.success(f"Question {q['id']} deleted.")
-                    st.rerun()
+                    upload_status = "Enabled ✅" if q.get('uploads_enabled', True) else "Disabled ❌"
+                    st.markdown(f"**ID:** {q['id']} | **Status:** {'Active' if q['is_active'] else 'Inactive'} | **Uploads:** {upload_status}")
+                    
+                    if q.get('assignment_pool_name'):
+                        st.info(f"**Pool Name:** {q['assignment_pool_name']}")
+                    
+                    st.markdown(f"**Question:**")
+                    with st.container(border=True):
+                        st.markdown(q['question_text'], unsafe_allow_html=True)
+                    
+                    with st.expander("✏️ Edit this question"):
+                        edit_deadline_key = f"edit_deadline_cb_{q['id']}"
+                        if edit_deadline_key not in st.session_state:
+                            st.session_state[edit_deadline_key] = q.get('unhide_answer_at') is not None
+                        st.checkbox("Set a specific answer reveal time (optional)", key=edit_deadline_key)
+                        with st.form(key=f"edit_pq_form_{q['id']}"):
+                            edit_topic = st.text_input("Topic or Title", value=q['topic'], key=f"edit_pq_topic_{q['id']}")
+                            edit_question = st.text_area("Question Text", value=q['question_text'], height=200, key=f"edit_pq_question_{q['id']}")
+                            edit_answer = st.text_area("Answer Text", value=q['answer_text'], height=100, key=f"edit_pq_answer_{q['id']}")
+                            edit_explanation = st.text_area("Detailed Explanation", value=q.get('explanation_text', ''), height=200, key=f"edit_pq_explanation_{q['id']}")
+                            edit_pool_name = st.text_input("Assignment Pool Name (Optional)", value=q.get('assignment_pool_name'), key=f"edit_pq_pool_{q['id']}")
+                            
+                            edit_unhide_at = None
+                            if st.session_state[edit_deadline_key]:
+                                current_deadline = q.get('unhide_answer_at')
+                                c1_edit, c2_edit = st.columns(2)
+                                default_date = current_deadline.date() if current_deadline else date.today()
+                                default_time = datetime.now().time() if current_deadline is None else current_deadline.time()
+                                edit_picked_date = c1_edit.date_input("Reveal Date", value=default_date, key=f"edit_date_{q['id']}")
+                                edit_picked_time = c2_edit.time_input("Reveal Time", value=default_time, key=f"edit_time_{q['id']}")
+                                if edit_picked_date and edit_picked_time:
+                                    edit_unhide_at = datetime.combine(edit_picked_date, edit_picked_time)
+                            
+                            if st.form_submit_button("Save Changes", type="primary"):
+                                update_practice_question(q['id'], edit_topic, edit_question, edit_answer, edit_explanation, edit_pool_name, edit_unhide_at)
+                                st.success(f"Question ID {q['id']} has been updated.")
+                                st.rerun()
+    
+                    with st.expander("View Answer & Explanation"):
+                        st.success(f"**Answer:**")
+                        st.markdown(q['answer_text'], unsafe_allow_html=True)
+                        st.info(f"**Explanation:**")
+                        st.markdown(q.get('explanation_text') or '_No explanation provided._', unsafe_allow_html=True)
+                    
+                    c1_actions, c2_actions = st.columns(2)
+                    if c1_actions.button("Activate/Deactivate", key=f"pq_toggle_{q['id']}", use_container_width=True):
+                        toggle_practice_question_status(q['id'])
+                        st.rerun()
+                    if c2_actions.button("Delete", key=f"pq_delete_{q['id']}", use_container_width=True, type="secondary"):
+                        delete_practice_question(q['id'])
+                        st.success(f"Question {q['id']} deleted.")
+                        st.rerun()
     # --- TAB 5: ANNOUNCEMENTS ---
     with tabs[5]:
         st.subheader("📣 Site-Wide Announcements")
@@ -8468,6 +8468,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
