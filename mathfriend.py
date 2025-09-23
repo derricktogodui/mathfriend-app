@@ -7908,10 +7908,10 @@ def display_admin_panel(topic_options):
                                 # The rest of the grading form is the same
                                 with st.form(key=f"grade_form_{selected_username}"):
                                     # ... (your grade and feedback inputs are correct and stay here) ...
+                                else:
+                                    st.info("This student has not submitted their work yet.")
                             else:
-                                st.info("This student has not submitted their work yet.")
-                        else:
-                            st.info("Select a student from the roster on the left to begin grading.")
+                                st.info("Select a student from the roster on the left to begin grading.")
     
                     with col2:
                         st.subheader("Grading Pane")
@@ -8497,6 +8497,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
