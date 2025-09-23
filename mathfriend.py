@@ -1131,6 +1131,23 @@ def upload_assignment_file(username, pool_name, uploaded_file):
         print(f"Error uploading file: {e}")
         return False, f"An error occurred: {e}"
 
+def get_assigned_question_for_student(username, pool_name):
+    """Fetches the specific question data assigned to a student for a given pool."""
+    with engine.connect() as conn:
+        # First, find which question_id was assigned to this student for this pool
+        id_query = text("""
+            SELECT question_id FROM student_assignments 
+            WHERE username = :username AND assignment_pool_name = :pool_name
+        """)
+        question_id = conn.execute(id_query, {"username": username, "pool_name": pool_name}).scalar_one_or_none()
+
+        if question_id:
+            # Now, fetch the full question data using that ID
+            q_query = text("SELECT question_text, answer_text FROM daily_practice_questions WHERE id = :id")
+            result = conn.execute(q_query, {"id": question_id}).mappings().first()
+            return dict(result) if result else None
+    return None
+
 def get_student_submission(username, pool_name):
     """Checks if a student has already submitted for an assignment pool."""
     with engine.connect() as conn:
@@ -7871,6 +7888,15 @@ def display_admin_panel(topic_options):
                             
                             else:
                                 st.markdown(f"#### Grading: **{selected_username}**")
+                                # --- START: ADD THIS NEW BLOCK ---
+                                question_data = get_assigned_question_for_student(selected_username, selected_pool)
+                                if question_data:
+                                    with st.expander("View Question & Correct Answer"):
+                                        st.markdown("**Question:**")
+                                        st.info(question_data.get('question_text', 'N/A'))
+                                        st.markdown("**Correct Answer:**")
+                                        st.success(question_data.get('answer_text', 'N/A'))
+                                # --- END: ADD THIS NEW BLOCK ---
                                 if selected_username in submissions_dict:
                                     sub = submissions_dict[selected_username]
                                     existing_grade_data = grades.get(selected_username, {})
@@ -8418,6 +8444,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
