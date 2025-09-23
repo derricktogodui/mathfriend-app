@@ -7891,11 +7891,15 @@ def display_admin_panel(topic_options):
                                 # --- START: ADD THIS NEW BLOCK ---
                                 question_data = get_assigned_question_for_student(selected_username, selected_pool)
                                 if question_data:
+                                    # The new, working code
                                     with st.expander("View Question & Correct Answer"):
                                         st.markdown("**Question:**")
-                                        st.info(question_data.get('question_text', 'N/A'))
+                                        with st.container(border=True):
+                                            st.markdown(question_data.get('question_text', 'N/A'), unsafe_allow_html=True)
+                                    
                                         st.markdown("**Correct Answer:**")
-                                        st.success(question_data.get('answer_text', 'N/A'))
+                                        with st.container(border=True):
+                                            st.markdown(question_data.get('answer_text', 'N/A'), unsafe_allow_html=True)
                                 # --- END: ADD THIS NEW BLOCK ---
                                 if selected_username in submissions_dict:
                                     sub = submissions_dict[selected_username]
@@ -8444,6 +8448,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
