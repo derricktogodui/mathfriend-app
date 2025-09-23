@@ -8,3 +8,4 @@ stream-chat
 streamlit-autorefresh
 supabase
 streamlit-pdf-viewer
+google-generativeai
