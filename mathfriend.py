@@ -8048,7 +8048,6 @@ def display_admin_panel(topic_options):
                 if pq_topic and pq_question and pq_answer:
                     add_practice_question(pq_topic, pq_question, pq_answer, pq_explanation, pq_pool_name, pq_unhide_at)
                     st.success(f"New question added!")
-                    st.session_state.add_pq_set_deadline = False
                     st.rerun()
                 else: 
                     st.error("Title, Question, and Answer are required.")
@@ -8468,6 +8467,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
