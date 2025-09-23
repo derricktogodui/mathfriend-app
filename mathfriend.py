@@ -1138,7 +1138,10 @@ def get_student_submission(username, pool_name):
             SELECT file_path FROM assignment_submissions
             WHERE username = :username AND assignment_pool_name = :pool_name
         """)
-        result = conn.execute(query, {"username": username, "pool_name": pool_name}).scalar_one_or_none()
+        # --- THIS IS THE FIX ---
+        # .fetchall() gets all submissions and returns a list.
+        # If the list is not empty, the check will pass.
+        result = conn.execute(query, {"username": username, "pool_name": pool_name}).fetchall()
         return result
 
 def get_all_submissions_for_pool(pool_name):
@@ -8415,6 +8418,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
