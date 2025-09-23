@@ -6564,6 +6564,8 @@ def display_quiz_page(topic_options):
                 - A full **40-question** mock test.
                 - Questions from **all topics** mixed together.
                 - A great way to test your overall readiness for WASSCE!
+                <br>
+                *Ready to see where you stand?*
                 """)
                 if st.button("Start Exam Prep", key="start_wassce", type="primary", use_container_width=True):
                     st.session_state.is_wassce_mode = True
@@ -8644,6 +8646,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
