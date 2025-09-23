@@ -6751,18 +6751,18 @@ def display_quiz_page(topic_options):
 
 def display_quiz_summary():
     st.header("🎉 Round Complete! 🎉")
-    # It clears the saved session from the database, marking the quiz as officially done.
+    # Clears the saved session from the database, marking the quiz as officially done.
     clear_quiz_state(st.session_state.username)
 
     final_score = st.session_state.quiz_score
     total_questions = st.session_state.questions_attempted
     accuracy = (final_score / total_questions * 100) if total_questions > 0 else 0
+    quiz_topic = st.session_state.quiz_topic
 
     # --- Scoring and Saving Logic (Unified for both modes) ---
     coins_earned = 0
     description = ""
     if total_questions > 0:
-        quiz_topic = st.session_state.quiz_topic
         if st.session_state.is_wassce_mode:
             coins_earned = final_score * 5
             description = "Completed WASSCE Prep Quiz"
@@ -6777,15 +6777,15 @@ def display_quiz_summary():
                     coins_earned += 25
                     description += " (First-Time Perfect Score Bonus!)"
                     st.toast(f"🎯 New Achievement! You perfected '{quiz_topic}'!", icon="🎉")
-        
-        if is_double_coins_active(st.session_state.username):
-            st.success(f"🚀 Double Coins booster was active! Your earnings are doubled: {coins_earned} -> {coins_earned * 2}", icon="🎉")
-            coins_earned *= 2
 
-        if 'result_saved' not in st.session_state:
-            save_quiz_result(st.session_state.username, quiz_topic, final_score, total_questions, coins_earned, description)
-            st.session_state.result_saved = True
-            
+    if is_double_coins_active(st.session_state.username):
+        st.success(f"🚀 Double Coins booster was active! Your earnings are doubled: {coins_earned} -> {coins_earned * 2}", icon="🎉")
+        coins_earned *= 2
+
+    if total_questions > 0 and 'result_saved' not in st.session_state:
+        save_quiz_result(st.session_state.username, quiz_topic, final_score, total_questions, coins_earned, description)
+        st.session_state.result_saved = True
+
     # --- Display Metrics ---
     if st.session_state.is_wassce_mode:
         col1, col2 = st.columns(2)
@@ -6805,7 +6805,7 @@ def display_quiz_summary():
         else:
             st.warning("🙂 Good effort! A little more practice and you'll be an expert.")
 
-    # --- START: NEW, UNIFIED AI REVIEW SECTION (REPLACES THE OLD EXPANDER) ---
+    # --- START: NEW, UNIFIED AI REVIEW SECTION ---
     if st.session_state.incorrect_questions:
         st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
         st.subheader("Review Your Mistakes")
@@ -6816,19 +6816,16 @@ def display_quiz_summary():
             student_answer = incorrect_info['student_answer']
             
             with st.container(border=True):
-                # Display the question and answers
                 st.markdown(q_data['question_text'], unsafe_allow_html=True)
                 st.error(f"**Your Answer:** {student_answer}")
                 st.success(f"**Correct Answer:** {q_data['answer_text']}")
                 
-                # The AI Tutor UI
-                ai_button_key = f"ai_explain_{i}_{st.session_state.quiz_topic}"
+                ai_button_key = f"ai_explain_{i}_{quiz_topic}"
                 if st.button("🤖 Explain My Mistake", key=ai_button_key, use_container_width=True):
                     with st.spinner("Your AI tutor is thinking..."):
                         explanation = get_ai_explanation(q_data, student_answer)
                         st.session_state[f"ai_explanation_{i}"] = explanation
                 
-                # If an explanation has been generated, display it
                 if f"ai_explanation_{i}" in st.session_state:
                     with st.chat_message("assistant", avatar="🤖"):
                         st.markdown(st.session_state[f"ai_explanation_{i}"])
@@ -8644,6 +8641,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
