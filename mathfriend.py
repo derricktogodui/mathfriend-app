@@ -6805,7 +6805,7 @@ def display_quiz_summary():
         else:
             st.warning("🙂 Good effort! A little more practice and you'll be an expert.")
 
-    # --- START: NEW, UNIFIED AI REVIEW SECTION ---
+    # --- START: NEW, UNIFIED AI REVIEW SECTION (REPLACES THE OLD EXPANDER) ---
     if st.session_state.incorrect_questions:
         st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
         st.subheader("Review Your Mistakes")
@@ -6816,16 +6816,19 @@ def display_quiz_summary():
             student_answer = incorrect_info['student_answer']
             
             with st.container(border=True):
+                # Display the question and answers
                 st.markdown(q_data['question_text'], unsafe_allow_html=True)
                 st.error(f"**Your Answer:** {student_answer}")
                 st.success(f"**Correct Answer:** {q_data['answer_text']}")
                 
+                # The AI Tutor UI
                 ai_button_key = f"ai_explain_{i}_{st.session_state.quiz_topic}"
                 if st.button("🤖 Explain My Mistake", key=ai_button_key, use_container_width=True):
                     with st.spinner("Your AI tutor is thinking..."):
                         explanation = get_ai_explanation(q_data, student_answer)
                         st.session_state[f"ai_explanation_{i}"] = explanation
                 
+                # If an explanation has been generated, display it
                 if f"ai_explanation_{i}" in st.session_state:
                     with st.chat_message("assistant", avatar="🤖"):
                         st.markdown(st.session_state[f"ai_explanation_{i}"])
@@ -6846,9 +6849,12 @@ def display_quiz_summary():
         col1_buttons, col2_buttons = st.columns(2)
         with col1_buttons:
             if st.button("Play Again (Same Topic)", use_container_width=True, type="primary"):
-                st.session_state.on_summary_page = False; st.session_state.quiz_active = True
-                st.session_state.quiz_score = 0; st.session_state.questions_answered = 0
-                st.session_state.questions_attempted = 0; st.session_state.current_streak = 0
+                st.session_state.on_summary_page = False
+                st.session_state.quiz_active = True
+                st.session_state.quiz_score = 0
+                st.session_state.questions_answered = 0
+                st.session_state.questions_attempted = 0
+                st.session_state.current_streak = 0
                 st.session_state.incorrect_questions = []
                 keys_to_clear = ['current_q_data', 'result_saved', 'user_choice', 'answer_submitted']
                 for key in keys_to_clear:
@@ -6856,7 +6862,8 @@ def display_quiz_summary():
                 st.rerun()
         with col2_buttons:
             if st.button("Choose New Topic", use_container_width=True):
-                st.session_state.on_summary_page = False; st.session_state.quiz_active = False
+                st.session_state.on_summary_page = False
+                st.session_state.quiz_active = False
                 st.session_state.incorrect_questions = []
                 keys_to_clear = ['result_saved', 'current_q_data']
                 for key in keys_to_clear:
@@ -8637,6 +8644,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
