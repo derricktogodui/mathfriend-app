@@ -20,6 +20,7 @@ from streamlit_autorefresh import st_autorefresh
 from dateutil import parser
 from datetime import date, timedelta
 import streamlit_pdf_viewer as st_pdf_viewer
+import google.generativeai as genai
 
 # --- START: ADD THIS NEW BLOCK ---
 # --- Global Game Constants ---
@@ -241,6 +242,7 @@ def create_and_verify_tables():
 
 
 # --- Core Backend Functions (PostgreSQL) ---
+
 def hash_password(password):
     salt = "mathfriend_static_salt_for_performance"
     salted_password = password + salt
@@ -1657,6 +1659,41 @@ def update_daily_challenge_progress(username, topic, score):
                 st.session_state.challenge_completed_toast = True
             
             conn.commit()
+
+def get_ai_explanation(question_data, student_answer):
+    """
+    Connects to the Gemini API to get a personalized explanation for a student's mistake.
+    """
+    try:
+        # Configure the AI with the API key from your secrets
+        genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
+        model = genai.GenerativeModel('gemini-pro')
+
+        # --- This is the detailed instruction we give to the AI ---
+        prompt = f"""
+        You are MathFriend, a friendly, patient, and encouraging WASSCE math tutor in Ghana. Your goal is to help students understand their mistakes without just giving them the answer again.
+
+        Here is the context:
+        - The Question was: "{question_data['question_text']}"
+        - The Correct Answer is: "{question_data['answer_text']}"
+        - The Student's Incorrect Answer was: "{student_answer}"
+        - The Official Correct Explanation is: "{question_data['explanation_text']}"
+
+        Your Task:
+        1.  Analyze the student's incorrect answer compared to the correct one.
+        2.  Write a short, natural, and encouraging explanation (2-4 sentences) that focuses on the likely mistake the student made.
+        3.  Use the official explanation as your guide, but do not just repeat it. Rephrase it in a simpler, more conversational way.
+        4.  Start your response with a friendly and encouraging tone.
+        """
+
+        # Send the prompt to the AI and get the response
+        response = model.generate_content(prompt)
+        return response.text
+
+    except Exception as e:
+        # If the AI fails for any reason, return a helpful error message
+        print(f"Error connecting to Gemini API: {e}")
+        return "Sorry, I couldn't connect to the AI tutor at the moment. Please try again later."
 
 def get_topic_performance(username):
     history = get_user_quiz_history(username)
@@ -6673,7 +6710,10 @@ def display_quiz_page(topic_options):
                         st.session_state.current_streak += 1
                     else:
                         st.session_state.current_streak = 0
-                        st.session_state.incorrect_questions.append(q_data)
+                        st.session_state.incorrect_questions.append({
+                            "question_data": q_data,
+                            "student_answer": user_choice
+                        })
                     st.rerun()
                 else:
                     st.warning("Please select an answer before submitting.")
@@ -6711,112 +6751,47 @@ def display_quiz_page(topic_options):
 
 def display_quiz_summary():
     st.header("🎉 Round Complete! 🎉")
-    # --- START: NEW CODE TO ADD ---
-    # This is the first action we take on the summary page.
     # It clears the saved session from the database, marking the quiz as officially done.
     clear_quiz_state(st.session_state.username)
-    # --- END: NEW CODE TO ADD ---
 
     final_score = st.session_state.quiz_score
     total_questions = st.session_state.questions_attempted
     accuracy = (final_score / total_questions * 100) if total_questions > 0 else 0
 
-    # --- WASSCE MODE SUMMARY (NOW WITH SAVING AND COINS) ---
-    if st.session_state.is_wassce_mode:
-        # --- START: NEW LOGIC FOR WASSCE SAVING & REWARDS ---
-        coins_earned = 0
-        description = ""
-        if total_questions > 0:
-            coins_earned = final_score * 5  # 5 coins per correct answer
+    # --- Scoring and Saving Logic (Unified for both modes) ---
+    coins_earned = 0
+    description = ""
+    if total_questions > 0:
+        quiz_topic = st.session_state.quiz_topic
+        if st.session_state.is_wassce_mode:
+            coins_earned = final_score * 5
             description = "Completed WASSCE Prep Quiz"
             if final_score == WASSCE_QUIZ_LENGTH:
-                coins_earned += 50  # Larger bonus for a perfect 40-question run
+                coins_earned += 50
                 description += " (Perfect Score Bonus!)"
-
+        else: # Regular Quiz
+            coins_earned = final_score * 5
+            description = f"Completed Quiz on {quiz_topic}"
+            if final_score == total_questions:
+                if _check_and_award_perfect_score_bonus(st.session_state.username, quiz_topic):
+                    coins_earned += 25
+                    description += " (First-Time Perfect Score Bonus!)"
+                    st.toast(f"🎯 New Achievement! You perfected '{quiz_topic}'!", icon="🎉")
+        
         if is_double_coins_active(st.session_state.username):
             st.success(f"🚀 Double Coins booster was active! Your earnings are doubled: {coins_earned} -> {coins_earned * 2}", icon="🎉")
             coins_earned *= 2
 
-        # Save the result once per session
-        if total_questions > 0 and 'result_saved' not in st.session_state:
-            save_quiz_result(st.session_state.username, "WASSCE Prep", final_score, total_questions, coins_earned, description)
+        if 'result_saved' not in st.session_state:
+            save_quiz_result(st.session_state.username, quiz_topic, final_score, total_questions, coins_earned, description)
             st.session_state.result_saved = True
-        # --- END: NEW LOGIC FOR WASSCE SAVING & REWARDS ---
-    # --- WASSCE MODE SUMMARY ---
+            
+    # --- Display Metrics ---
     if st.session_state.is_wassce_mode:
         col1, col2 = st.columns(2)
         col1.metric("Final Score", f"{final_score}/{WASSCE_QUIZ_LENGTH}")
         col2.metric("Accuracy", f"{accuracy:.1f}%")
-        
-        st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
-        st.subheader("Performance Breakdown & Explanation")
-        
-        if total_questions > 0:
-            if not st.session_state.incorrect_questions:
-                st.success("🎉 Incredible! You had no incorrect answers in this session!")
-            else:
-                topic_performance = {}
-                all_attempted_q_data = st.session_state.get('all_wassce_questions', [])
-                for q in all_attempted_q_data:
-                    topic = q.get('topic', 'Unknown')
-                    if topic not in topic_performance:
-                        topic_performance[topic] = {'correct': 0, 'total': 0}
-                    topic_performance[topic]['total'] += 1
-                    if q not in st.session_state.incorrect_questions:
-                        topic_performance[topic]['correct'] += 1
-                st.write("Here's how you performed in WASSCE prep during this session:")
-        else:
-            st.info("You did not attempt any questions in this session.")
-        # --- THIS IS THE FIX: ADDING THE INCORRECT QUESTION REVIEW ---
-        if st.session_state.incorrect_questions:
-            with st.expander("🔍 Click here to review your incorrect answers"):
-                for q in st.session_state.incorrect_questions:
-                    if q.get("is_multipart"):
-                        st.markdown(f"**Question Stem:** {q['stem']}")
-                        for i, part in enumerate(q['parts']):
-                            st.markdown(f"**Part {chr(97+i)}):** {part['question']}")
-                            st.error(f"**Correct Answer:** {part['answer']}")
-                            st.info(f"**Explanation:** {part['explanation']}")
-                    else:
-                        st.markdown(f"**Question:** {q['question']}")
-                        st.error(f"**Correct Answer:** {q['answer']}")
-                        if q.get("explanation"):
-                            st.info(f"**Explanation:** {q['explanation']}")
-                    st.write("---")
-        # --- END OF FIX ---
-        
-        if st.button("Back to Quiz Menu", use_container_width=True):
-            st.session_state.is_wassce_mode = False
-            st.session_state.quiz_active = False
-            if 'result_saved' in st.session_state: del st.session_state['result_saved']
-            if 'all_wassce_questions' in st.session_state: del st.session_state['all_wassce_questions']
-            st.rerun()
-
-    # --- REGULAR QUIZ SUMMARY ---
-    else: # <-- THIS IS THE CORRECTED INDENTATION
-        coins_earned = 0
-        description = ""
-        if total_questions > 0:
-            coins_earned = final_score * 5
-            description = f"Completed Quiz on {st.session_state.quiz_topic}"
-            # --- START: NEW ONE-TIME BONUS LOGIC ---
-            # Check for a perfect score
-            if final_score == total_questions and total_questions > 0:
-                # Check if the user is eligible for the one-time bonus for this topic
-                is_bonus_eligible = _check_and_award_perfect_score_bonus(st.session_state.username, st.session_state.quiz_topic)
-                if is_bonus_eligible:
-                    coins_earned += 25
-                    description += " (First-Time Perfect Score Bonus!)"
-                    st.toast(f"🎯 New Achievement! You perfected '{st.session_state.quiz_topic}'!", icon="🎉")
-            # --- END: NEW ONE-TIME BONUS LOGIC ---
-        if is_double_coins_active(st.session_state.username):
-            st.success(f"🚀 Double Coins booster was active! Your earnings are doubled: {coins_earned} -> {coins_earned * 2}", icon="🎉")
-            coins_earned *= 2
-
-        if total_questions > 0 and 'result_saved' not in st.session_state:
-            save_quiz_result(st.session_state.username, st.session_state.quiz_topic, final_score, total_questions, coins_earned, description)
-            st.session_state.result_saved = True
-            
+    else:
         col1, col2, col3 = st.columns(3)
         col1.metric(label="Your Final Score", value=f"{final_score}/{total_questions}")
         col2.metric(label="Accuracy", value=f"{accuracy:.1f}%")
@@ -6829,40 +6804,70 @@ def display_quiz_summary():
             st.info("👍 Great job! You've got a solid understanding of this topic.")
         else:
             st.warning("🙂 Good effort! A little more practice and you'll be an expert.")
-        
-        if st.session_state.incorrect_questions:
-            with st.expander("🔍 Click here to review your incorrect answers"):
-                for q in st.session_state.incorrect_questions:
-                    if q.get("is_multipart"):
-                        st.markdown(f"**Question Stem:** {q['stem']}")
-                        for i, part in enumerate(q['parts']):
-                            st.markdown(f"**Part {chr(97+i)}):** {part['question']}")
-                            st.error(f"**Correct Answer:** {part['answer']}")
-                            st.info(f"**Explanation:** {part['explanation']}")
-                    else:
-                        st.markdown(f"**Question:** {q['question']}")
-                        st.error(f"**Correct Answer:** {q['answer']}")
-                        if q.get("explanation"):
-                            st.info(f"**Explanation:** {q['explanation']}")
-                    st.write("---")
 
+    # --- START: NEW, UNIFIED AI REVIEW SECTION (REPLACES THE OLD EXPANDER) ---
+    if st.session_state.incorrect_questions:
         st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
-        col1, col2 = st.columns(2)
-        with col1:
+        st.subheader("Review Your Mistakes")
+        st.info("Click the 'Explain My Mistake' button to get a personalized explanation from your AI Tutor.", icon="🤖")
+
+        for i, incorrect_info in enumerate(st.session_state.incorrect_questions):
+            q_data = incorrect_info['question_data']
+            student_answer = incorrect_info['student_answer']
+            
+            with st.container(border=True):
+                # Display the question and answers
+                st.markdown(q_data['question_text'], unsafe_allow_html=True)
+                st.error(f"**Your Answer:** {student_answer}")
+                st.success(f"**Correct Answer:** {q_data['answer_text']}")
+                
+                # The AI Tutor UI
+                ai_button_key = f"ai_explain_{i}_{st.session_state.quiz_topic}"
+                if st.button("🤖 Explain My Mistake", key=ai_button_key, use_container_width=True):
+                    with st.spinner("Your AI tutor is thinking..."):
+                        explanation = get_ai_explanation(q_data, student_answer)
+                        st.session_state[f"ai_explanation_{i}"] = explanation
+                
+                # If an explanation has been generated, display it
+                if f"ai_explanation_{i}" in st.session_state:
+                    with st.chat_message("assistant", avatar="🤖"):
+                        st.markdown(st.session_state[f"ai_explanation_{i}"])
+    # --- END: NEW, UNIFIED AI REVIEW SECTION ---
+
+    # --- Navigation Buttons ---
+    st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
+    if st.session_state.is_wassce_mode:
+        if st.button("Back to Quiz Menu", use_container_width=True):
+            st.session_state.is_wassce_mode = False
+            st.session_state.quiz_active = False
+            st.session_state.incorrect_questions = []
+            keys_to_clear = ['result_saved', 'all_wassce_questions', 'current_q_data']
+            for key in keys_to_clear:
+                if key in st.session_state: del st.session_state[key]
+            st.rerun()
+    else:
+        col1_buttons, col2_buttons = st.columns(2)
+        with col1_buttons:
             if st.button("Play Again (Same Topic)", use_container_width=True, type="primary"):
-                st.session_state.on_summary_page = False; st.session_state.quiz_active = True
-                st.session_state.quiz_score = 0; st.session_state.questions_answered = 0
-                st.session_state.questions_attempted = 0; st.session_state.current_streak = 0
+                st.session_state.on_summary_page = False
+                st.session_state.quiz_active = True
+                st.session_state.quiz_score = 0
+                st.session_state.questions_answered = 0
+                st.session_state.questions_attempted = 0
+                st.session_state.current_streak = 0
                 st.session_state.incorrect_questions = []
-                keys_to_clear = ['current_q_data', 'result_saved', 'current_part_index', 'user_choice', 'answer_submitted', 'checked_personal_best', 'previous_best_accuracy']
+                keys_to_clear = ['current_q_data', 'result_saved', 'user_choice', 'answer_submitted']
                 for key in keys_to_clear:
                     if key in st.session_state: del st.session_state[key]
                 st.rerun()
-                
-        with col2:
+        with col2_buttons:
             if st.button("Choose New Topic", use_container_width=True):
-                st.session_state.on_summary_page = False; st.session_state.quiz_active = False
-                if 'result_saved' in st.session_state: del st.session_state['result_saved']
+                st.session_state.on_summary_page = False
+                st.session_state.quiz_active = False
+                st.session_state.incorrect_questions = []
+                keys_to_clear = ['result_saved', 'current_q_data']
+                for key in keys_to_clear:
+                    if key in st.session_state: del st.session_state[key]
                 st.rerun()
 def display_leaderboard(topic_options):
     st.header("🏆 Global Leaderboard")
@@ -8639,6 +8644,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
