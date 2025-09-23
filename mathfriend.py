@@ -6708,7 +6708,6 @@ def display_quiz_page(topic_options):
         for key in keys_to_delete:
             if key in st.session_state: del st.session_state[key]
         st.rerun()
-
 def display_quiz_summary():
     st.header("🎉 Round Complete! 🎉")
     # --- START: NEW CODE TO ADD ---
@@ -8639,6 +8638,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
