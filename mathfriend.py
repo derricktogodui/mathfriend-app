@@ -7152,13 +7152,12 @@ def interactive_modulo_widget():
         end_time = (start + hours - 1) % 12 + 1
         st.success(f"**Result:** {hours} hours after {start} o'clock, it will be **{end_time} o'clock**.")
 
-# --- THIS IS THE CORRECTED FUNCTION ---
 def display_learning_resources(topic_options):
     st.header("📚 Learning Resources & Interactive Lab")
 
     # 1. Check for both assignments AND downloadable resources
     all_practice_qs = get_active_practice_questions()
-    all_resources = get_all_shared_resources()
+    all_resources = get_all_shared_resources() # Assumes get_all_shared_resources() exists
     has_assignments = bool(all_practice_qs)
     has_resources = bool(all_resources)
 
@@ -7193,7 +7192,6 @@ def display_learning_resources(topic_options):
                             assigned_q_data = next((item for item in all_practice_qs if item['id'] == assigned_q_id), None)
                         
                         if assigned_q_data:
-                            # --- FIX IS APPLIED HERE ---
                             st.markdown(assigned_q_data['question_text'], unsafe_allow_html=True)
                             my_grade = get_student_grade(st.session_state.username, pool_name)
                             if my_grade:
@@ -7248,19 +7246,16 @@ def display_learning_resources(topic_options):
                                 else:
                                     with st.expander("Show Answer and Explanation"):
                                         st.success("**Answer:**")
-                                        # --- FIX IS APPLIED HERE ---
                                         st.markdown(assigned_q_data['answer_text'], unsafe_allow_html=True)
                                         if assigned_q_data['explanation_text']:
                                             st.info("**Explanation:**")
-                                            # --- FIX IS APPLIED HERE ---
                                             st.markdown(assigned_q_data['explanation_text'], unsafe_allow_html=True)
                         else:
                             st.error("Could not load your assigned question.")
                     displayed_pools.add(pool_name)
-                else: # For questions not in a pool
+                else:
                     with st.container(border=True):
                         st.markdown(f"**{q['topic']}**")
-                        # --- FIX IS APPLIED HERE ---
                         st.markdown(q['question_text'], unsafe_allow_html=True)
                         deadline = q.get('unhide_answer_at')
                         created_time = q.get('created_at')
@@ -7271,15 +7266,15 @@ def display_learning_resources(topic_options):
                         else:
                             with st.expander("Show Answer and Explanation"):
                                 st.success("**Answer:**")
-                                # --- FIX IS APPLIED HERE ---
                                 st.markdown(q['answer_text'], unsafe_allow_html=True)
                                 if q['explanation_text']:
                                     st.info("**Explanation:**")
-                                    # --- FIX IS APPLIED HERE ---
-                                    st.markdown(q.get('explanation_text') or '_No explanation provided._', unsafe_allow_html=True)
+                                    st.markdown(q['explanation_text'], unsafe_allow_html=True)
         current_tab_index += 1
 
     if has_resources:
+        # In display_learning_resources(), inside the "Downloads & Resources" tab
+
         with tabs[current_tab_index]:
             st.subheader("📁 Downloadable Resources")
             all_resources = get_all_shared_resources()
@@ -7291,7 +7286,7 @@ def display_learning_resources(topic_options):
                     for res in files:
                         with st.container(border=True):
                             file_extension = res['file_name'].split('.')[-1].lower()
-                            icon = "📄"
+                            icon = "📄" # Default icon
                             if file_extension == 'pdf': icon = "📕"
                             elif file_extension in ['doc', 'docx']: icon = "📝"
                             elif file_extension in ['ppt', 'pptx']: icon = "📊"
@@ -7307,13 +7302,17 @@ def display_learning_resources(topic_options):
                                 except Exception as e:
                                     st.error("Could not load link.")
                             
+                            # Add a preview for PDF files
                             if file_extension == 'pdf':
-                                with st.expander("Show Preview"):
-                                    try:
-                                        pdf_bytes = supabase_client.storage.from_('shared_resources').download(res['file_path'])
-                                        st_pdf_viewer.viewer(pdf_bytes, height=500)
-                                    except Exception as e:
-                                        st.warning("Could not generate PDF preview.")
+                                # The new, working code
+                                if file_extension == 'pdf':
+                                    with st.expander("Show Preview"):
+                                        try:
+                                            pdf_bytes = supabase_client.storage.from_('shared_resources').download(res['file_path'])
+                                            # The new component takes the raw file bytes directly
+                                            st_pdf_viewer.viewer(pdf_bytes, height=500)
+                                        except Exception as e:
+                                            st.warning("Could not generate PDF preview.")
         
                     st.markdown("---")
         current_tab_index += 1
@@ -7338,7 +7337,6 @@ def display_learning_resources(topic_options):
             notes_tab, video_tab, lab_tab = st.tabs(["📖 Notes & Formulas", "🎬 Video Tutorials", "🔬 Interactive Lab"])
 
             with notes_tab:
-                # --- FIX IS APPLIED HERE ---
                 st.markdown(notes_content, unsafe_allow_html=True)
             with video_tab:
                 youtube_links = re.findall(r'(https?://www\.youtube\.com/watch\?v=[\w-]+)', video_content)
@@ -8450,7 +8448,6 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
-
 
 
 
