@@ -8301,6 +8301,17 @@ def display_admin_panel(topic_options):
                 st.warning("Announcement has been cleared.")
                 st.rerun()
     
+        # --- THIS IS THE NEW CODE YOU NEED TO ADD ---
+        st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
+        st.subheader("⚙️ Developer Tools")
+        st.warning("This tool is for testing purposes only.", icon="⚠️")
+    
+        if st.button("Force Resend Daily Digest", use_container_width=True):
+            # This resets the timer by setting the last sent date to a dummy value
+            set_config_value("last_digest_sent_date", "reset")
+            st.success("Digest timer has been reset. Log out and log back in to trigger a new email.")
+            st.rerun()
+    
     # --- TAB 6: ANALYTICS ---
     with tabs[6]:
         st.subheader("📈 App Analytics & Insights")
@@ -8628,6 +8639,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
