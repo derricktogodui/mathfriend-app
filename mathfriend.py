@@ -6777,15 +6777,15 @@ def display_quiz_summary():
                     coins_earned += 25
                     description += " (First-Time Perfect Score Bonus!)"
                     st.toast(f"🎯 New Achievement! You perfected '{quiz_topic}'!", icon="🎉")
+        
+        if is_double_coins_active(st.session_state.username):
+            st.success(f"🚀 Double Coins booster was active! Your earnings are doubled: {coins_earned} -> {coins_earned * 2}", icon="🎉")
+            coins_earned *= 2
 
-    if is_double_coins_active(st.session_state.username):
-        st.success(f"🚀 Double Coins booster was active! Your earnings are doubled: {coins_earned} -> {coins_earned * 2}", icon="🎉")
-        coins_earned *= 2
-
-    if total_questions > 0 and 'result_saved' not in st.session_state:
-        save_quiz_result(st.session_state.username, quiz_topic, final_score, total_questions, coins_earned, description)
-        st.session_state.result_saved = True
-
+        if 'result_saved' not in st.session_state:
+            save_quiz_result(st.session_state.username, quiz_topic, final_score, total_questions, coins_earned, description)
+            st.session_state.result_saved = True
+            
     # --- Display Metrics ---
     if st.session_state.is_wassce_mode:
         col1, col2 = st.columns(2)
@@ -6805,7 +6805,7 @@ def display_quiz_summary():
         else:
             st.warning("🙂 Good effort! A little more practice and you'll be an expert.")
 
-    # --- START: NEW, UNIFIED AI REVIEW SECTION ---
+    # --- START: NEW, UNIFIED AI REVIEW SECTION (REPLACES THE OLD EXPANDER) ---
     if st.session_state.incorrect_questions:
         st.markdown("<hr class='styled-hr'>", unsafe_allow_html=True)
         st.subheader("Review Your Mistakes")
@@ -8641,6 +8641,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
