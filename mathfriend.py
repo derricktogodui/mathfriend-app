@@ -422,7 +422,7 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 
 def send_daily_digest_email(admin_email, digest_data):
-    """Formats and sends the daily digest email."""
+    """Formats and sends the daily digest email with a new, improved design."""
     sender_email = st.secrets["GMAIL_ADDRESS"]
     password = st.secrets["GMAIL_APP_PASSWORD"]
     
@@ -431,41 +431,66 @@ def send_daily_digest_email(admin_email, digest_data):
     msg["From"] = f"MathFriend Admin <{sender_email}>"
     msg["To"] = admin_email
     
-    # --- Start building the HTML for the email ---
-    html = "<html><body>"
-    html += "<h2>MathFriend Daily Digest</h2><p>Here is your summary of activity from the last 24 hours:</p>"
-    
-    # Section: Top-Line Analytics
-    html += "<h3>📈 Top-Line Analytics</h3><ul>"
-    html += f"<li><b>New Students Joined:</b> {digest_data.get('new_users', 0)}</li>"
-    html += f"<li><b>Total Quizzes Taken:</b> {digest_data.get('quizzes_taken', 0)}</li>"
-    html += f"<li><b>Total Duels Played:</b> {digest_data.get('duels_played', 0)}</li></ul>"
-
-    # Section: Action Items
-    html += "<h3>📝 Action Items</h3><ul>"
-    html += f"<li>You have <b>{digest_data.get('new_submissions', 0)} new assignment submissions</b> waiting to be graded.</li></ul>"
-    
-    # Section: Student Achievements
-    html += "<h3>🏆 Student Achievements</h3><ul>"
-    if digest_data.get('top_scorer'):
-        ts = digest_data['top_scorer']
-        html += f"<li><b>Today's Top Scorer:</b> {ts['username']} ({ts['score']}/{ts['questions_answered']})</li>"
-    if digest_data.get('duel_champion'):
-        dc = digest_data['duel_champion']
-        html += f"<li><b>Duel Champion:</b> {dc['winner']} ({dc['wins']} wins)</li>"
-    html += "</ul>"
-
-    # Section: Topic Spotlight
-    html += "<h3>🎯 Topic Spotlight</h3><ul>"
-    if digest_data.get('most_practiced_topic'):
-        mpt = digest_data['most_practiced_topic']
-        html += f"<li><b>Most Practiced Topic:</b> {mpt['topic']} ({mpt['count']} quizzes)</li>"
-    if digest_data.get('lowest_score_topic'):
-        lst = digest_data['lowest_score_topic']
-        html += f"<li><b>Topic with Lowest Average Score:</b> {lst['topic']} ({lst['avg_accuracy']:.1f}%)</li>"
-    html += "</ul>"
-    
-    html += "</body></html>"
+    # --- START: NEW, IMPROVED HTML & CSS FOR THE EMAIL ---
+    html = f"""
+    <html>
+    <head>
+        <style>
+            body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif; background-color: #f0f2f5; margin: 0; padding: 20px; }}
+            .container {{ max-width: 600px; margin: auto; background-color: #ffffff; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); overflow: hidden; }}
+            .header {{ background-color: #0d6efd; color: white; padding: 20px 30px; text-align: center; }}
+            .header h2 {{ margin: 0; font-size: 24px; }}
+            .content {{ padding: 30px; }}
+            .card {{ background-color: #f8f9fa; border-radius: 8px; padding: 20px; margin-bottom: 20px; border-left: 5px solid #0d6efd; }}
+            .card h3 {{ margin-top: 0; color: #0d6efd; }}
+            .card ul {{ list-style: none; padding: 0; }}
+            .card li {{ margin-bottom: 10px; font-size: 16px; }}
+            .footer {{ background-color: #e9ecef; text-align: center; padding: 15px; font-size: 12px; color: #6c757d; }}
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <div class="header">
+                <h2>MathFriend Daily Digest</h2>
+            </div>
+            <div class="content">
+                <div class="card">
+                    <h3>📝 Action Items</h3>
+                    <ul>
+                        <li>You have <b>{digest_data.get('new_submissions', 0)} new assignment submissions</b> waiting to be graded.</li>
+                    </ul>
+                </div>
+                <div class="card">
+                    <h3>📈 Top-Line Analytics</h3>
+                    <ul>
+                        <li><b>New Students Joined:</b> {digest_data.get('new_users', 0)}</li>
+                        <li><b>Total Quizzes Taken:</b> {digest_data.get('quizzes_taken', 0)}</li>
+                        <li><b>Total Duels Played:</b> {digest_data.get('duels_played', 0)}</li>
+                    </ul>
+                </div>
+                <div class="card">
+                    <h3>🏆 Student Achievements</h3>
+                    <ul>
+                        {'<li><b>Today\'s Top Scorer:</b> ' + str(digest_data['top_scorer']['username']) + ' (' + str(digest_data['top_scorer']['score']) + '/' + str(digest_data['top_scorer']['questions_answered']) + ')</li>' if digest_data.get('top_scorer') else ''}
+                        {'<li><b>Duel Champion:</b> ' + str(digest_data['duel_champion']['winner']) + ' (' + str(digest_data['duel_champion']['wins']) + ' wins)</li>' if digest_data.get('duel_champion') else ''}
+                    </ul>
+                </div>
+                <div class="card">
+                    <h3>🎯 Topic Spotlight</h3>
+                    <ul>
+                        {'<li><b>Most Practiced Topic:</b> ' + str(digest_data['most_practiced_topic']['topic']) + ' (' + str(digest_data['most_practiced_topic']['count']) + ' quizzes)</li>' if digest_data.get('most_practiced_topic') else ''}
+                        {'<li><b>Topic with Lowest Average Score:</b> ' + str(digest_data['lowest_score_topic']['topic']) + ' ({:.1f}%)</li>'.format(digest_data['lowest_score_topic']['avg_accuracy']) if digest_data.get('lowest_score_topic') else ''}
+                    </ul>
+                </div>
+            </div>
+            <div class="footer">
+                <p>This is an automated report from your MathFriend App.</p>
+            </div>
+        </div>
+    </body>
+    </html>
+    """
+    # --- END: NEW, IMPROVED HTML & CSS ---
     
     msg.attach(MIMEText(html, "html"))
     
@@ -479,7 +504,6 @@ def send_daily_digest_email(admin_email, digest_data):
     except Exception as e:
         print(f"Failed to send digest email: {e}")
         return False
-
 def get_coin_balance(username):
     """Fetches a user's current coin balance from their profile."""
     with engine.connect() as conn:
@@ -8604,6 +8628,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
