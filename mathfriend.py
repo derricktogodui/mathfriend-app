@@ -383,7 +383,7 @@ def get_digest_data(for_date):
         end_of_day = for_date + timedelta(days=1)
         params = {"start": start_of_day, "end": end_of_day}
 
-        # --- Top-Line Analytics (now using the specific date range) ---
+        # --- Top-Line Analytics ---
         digest['new_users'] = conn.execute(text("SELECT COUNT(*) FROM users WHERE created_at >= :start AND created_at < :end"), params).scalar_one()
         digest['quizzes_taken'] = conn.execute(text("SELECT COUNT(*) FROM quiz_results WHERE timestamp >= :start AND timestamp < :end"), params).scalar_one()
         digest['duels_played'] = conn.execute(text("SELECT COUNT(*) FROM duels WHERE created_at >= :start AND created_at < :end"), params).scalar_one()
@@ -397,6 +397,8 @@ def get_digest_data(for_date):
             FROM quiz_results WHERE timestamp >= :start AND timestamp < :end AND topic != 'WASSCE Prep' GROUP BY topic
         """)
         topic_results = conn.execute(topic_query, params).mappings().fetchall()
+        digest['most_practiced_topic'] = None
+        digest['lowest_score_topic'] = None
         if topic_results:
             digest['most_practiced_topic'] = max(topic_results, key=lambda x: x['count'])
             digest['lowest_score_topic'] = min(topic_results, key=lambda x: x['avg_accuracy'])
@@ -417,26 +419,27 @@ def get_digest_data(for_date):
         
         # --- Economy Pulse ---
         digest['coins_earned'] = conn.execute(text("SELECT SUM(amount) FROM coin_transactions WHERE timestamp >= :start AND timestamp < :end AND amount > 0"), params).scalar_one() or 0
+
         # --- NEW Actionable Insights ---
         digest['struggling_students'] = get_struggling_students(for_date)
         digest['top_improver'] = get_top_improver(for_date)
+        
     return digest
-
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 
 def send_daily_digest_email(admin_email, digest_data):
-    """Formats and sends the daily digest email with new actionable insights."""
+    """Formats and sends the daily digest email with ALL analytics and new insights."""
     sender_email = st.secrets["GMAIL_ADDRESS"]
     password = st.secrets["GMAIL_APP_PASSWORD"]
     
     msg = MIMEMultipart("alternative")
-    msg["Subject"] = f"📚 Your MathFriend Daily Digest for {date.today().strftime('%B %d, %Y')}"
+    msg["Subject"] = f"📚 Your MathFriend Daily Digest for {digest_data.get('for_date_display', date.today().strftime('%B %d, %Y'))}"
     msg["From"] = f"MathFriend Admin <{sender_email}>"
     msg["To"] = admin_email
     
-    # --- Prepare the new HTML sections BEFORE the main f-string ---
+    # --- Prepare the new HTML sections ---
     top_improver_html = ""
     top_improver_data = digest_data.get('top_improver')
     if top_improver_data:
@@ -457,7 +460,6 @@ def send_daily_digest_email(admin_email, digest_data):
                 <ul>{student_list_html}</ul>
             </div>"""
 
-    # --- The main HTML now includes the new sections ---
     html = f"""
     <html>
     <head>
@@ -480,10 +482,29 @@ def send_daily_digest_email(admin_email, digest_data):
             <div class="header"><h2>MathFriend Daily Digest</h2></div>
             <div class="content">
                 <div class="card">
+                    <h3>📝 Action Items</h3>
+                    <ul><li>You have <b>{digest_data.get('new_submissions', 0)} new assignment submissions</b> waiting to be graded.</li></ul>
+                </div>
+                <div class="card">
                     <h3>📈 Yesterday's Top-Line Analytics</h3>
                     <ul>
                         <li><b>New Students Joined:</b> {digest_data.get('new_users', 0)}</li>
                         <li><b>Total Quizzes Taken:</b> {digest_data.get('quizzes_taken', 0)}</li>
+                        <li><b>Total Duels Played:</b> {digest_data.get('duels_played', 0)}</li>
+                    </ul>
+                </div>
+                <div class="card">
+                    <h3>🏆 Student Achievements (Yesterday)</h3>
+                    <ul>
+                        {'<li><b>Top Scorer:</b> ' + str(digest_data['top_scorer']['username']) + ' (' + str(digest_data['top_scorer']['score']) + '/' + str(digest_data['top_scorer']['questions_answered']) + ')</li>' if digest_data.get('top_scorer') else '<li>No top scorer yesterday.</li>'}
+                        {'<li><b>Duel Champion:</b> ' + str(digest_data['duel_champion']['winner']) + ' (' + str(digest_data['duel_champion']['wins']) + ' wins)</li>' if digest_data.get('duel_champion') else '<li>No duels were won yesterday.</li>'}
+                    </ul>
+                </div>
+                <div class="card">
+                    <h3>🎯 Topic Spotlight (Yesterday)</h3>
+                    <ul>
+                        {'<li><b>Most Practiced:</b> ' + str(digest_data['most_practiced_topic']['topic']) + ' (' + str(digest_data['most_practiced_topic']['count']) + ' quizzes)</li>' if digest_data.get('most_practiced_topic') else '<li>No topics were practiced yesterday.</li>'}
+                        {'<li><b>Lowest Average Score:</b> ' + str(digest_data['lowest_score_topic']['topic']) + ' ({:.1f}%)</li>'.format(digest_data['lowest_score_topic']['avg_accuracy']) if digest_data.get('lowest_score_topic') else ''}
                     </ul>
                 </div>
                 
@@ -8789,6 +8810,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
