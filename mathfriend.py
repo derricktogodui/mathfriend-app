@@ -374,26 +374,29 @@ def get_user_profile(username):
         profile = result.mappings().first()
         return dict(profile) if profile else None
 
-def get_digest_data():
-    """Gathers all key metrics from the last 24 hours for the admin digest."""
+# PASTE THIS NEW VERSION IN ITS PLACE
+def get_digest_data(for_date):
+    """Gathers all key metrics for a specific calendar day for the admin digest."""
     digest = {}
     with engine.connect() as conn:
-        yesterday = datetime.now() - timedelta(days=1)
-        
-        # --- Top-Line Analytics ---
-        digest['new_users'] = conn.execute(text("SELECT COUNT(*) FROM users WHERE created_at >= :y"), {"y": yesterday}).scalar_one()
-        digest['quizzes_taken'] = conn.execute(text("SELECT COUNT(*) FROM quiz_results WHERE timestamp >= :y"), {"y": yesterday}).scalar_one()
-        digest['duels_played'] = conn.execute(text("SELECT COUNT(*) FROM duels WHERE created_at >= :y"), {"y": yesterday}).scalar_one()
+        start_of_day = for_date
+        end_of_day = for_date + timedelta(days=1)
+        params = {"start": start_of_day, "end": end_of_day}
+
+        # --- Top-Line Analytics (now using the specific date range) ---
+        digest['new_users'] = conn.execute(text("SELECT COUNT(*) FROM users WHERE created_at >= :start AND created_at < :end"), params).scalar_one()
+        digest['quizzes_taken'] = conn.execute(text("SELECT COUNT(*) FROM quiz_results WHERE timestamp >= :start AND timestamp < :end"), params).scalar_one()
+        digest['duels_played'] = conn.execute(text("SELECT COUNT(*) FROM duels WHERE created_at >= :start AND created_at < :end"), params).scalar_one()
         
         # --- Actionable Items ---
-        digest['new_submissions'] = conn.execute(text("SELECT COUNT(DISTINCT username) FROM assignment_submissions WHERE submitted_at >= :y"), {"y": yesterday}).scalar_one()
+        digest['new_submissions'] = conn.execute(text("SELECT COUNT(DISTINCT username) FROM assignment_submissions WHERE submitted_at >= :start AND submitted_at < :end"), params).scalar_one()
         
         # --- Topic Spotlight ---
         topic_query = text("""
             SELECT topic, COUNT(*) as count, AVG(CASE WHEN questions_answered > 0 THEN (score * 100.0 / questions_answered) ELSE 0 END) as avg_accuracy
-            FROM quiz_results WHERE timestamp >= :y AND topic != 'WASSCE Prep' GROUP BY topic
+            FROM quiz_results WHERE timestamp >= :start AND timestamp < :end AND topic != 'WASSCE Prep' GROUP BY topic
         """)
-        topic_results = conn.execute(topic_query, {"y": yesterday}).mappings().fetchall()
+        topic_results = conn.execute(topic_query, params).mappings().fetchall()
         if topic_results:
             digest['most_practiced_topic'] = max(topic_results, key=lambda x: x['count'])
             digest['lowest_score_topic'] = min(topic_results, key=lambda x: x['avg_accuracy'])
@@ -401,19 +404,19 @@ def get_digest_data():
         # --- Student Achievements ---
         top_scorer_query = text("""
             SELECT username, score, questions_answered FROM quiz_results 
-            WHERE timestamp >= :y ORDER BY score DESC, questions_answered ASC LIMIT 1
+            WHERE timestamp >= :start AND timestamp < :end ORDER BY score DESC, questions_answered ASC LIMIT 1
         """)
-        digest['top_scorer'] = conn.execute(top_scorer_query, {"y": yesterday}).mappings().first()
+        digest['top_scorer'] = conn.execute(top_scorer_query, params).mappings().first()
 
         duel_winner_query = text("""
             SELECT CASE WHEN status = 'player1_win' THEN player1_username ELSE player2_username END as winner, COUNT(*) as wins
-            FROM duels WHERE finished_at >= :y AND status IN ('player1_win', 'player2_win')
+            FROM duels WHERE finished_at >= :start AND finished_at < :end AND status IN ('player1_win', 'player2_win')
             GROUP BY winner ORDER BY wins DESC LIMIT 1
         """)
-        digest['duel_champion'] = conn.execute(duel_winner_query, {"y": yesterday}).mappings().first()
+        digest['duel_champion'] = conn.execute(duel_winner_query, params).mappings().first()
         
         # --- Economy Pulse ---
-        digest['coins_earned'] = conn.execute(text("SELECT SUM(amount) FROM coin_transactions WHERE timestamp >= :y AND amount > 0"), {"y": yesterday}).scalar_one() or 0
+        digest['coins_earned'] = conn.execute(text("SELECT SUM(amount) FROM coin_transactions WHERE timestamp >= :start AND timestamp < :end AND amount > 0"), params).scalar_one() or 0
         
     return digest
 
@@ -8454,37 +8457,36 @@ def display_admin_panel(topic_options):
 # Replace your existing show_main_app function with this one.
 
 def show_main_app():
-    # --- START: REVISED DAILY DIGEST TRIGGER WITH ERROR HANDLING ---
-    user_role = get_user_role(st.session_state.username)
-    if user_role == 'admin':
-        today_str = date.today().isoformat()
-        last_digest_date = get_config_value("last_digest_sent_date")
-        
-        if last_digest_date != today_str:
-            try:
-                with st.spinner("Generating your daily digest..."):
-                    # 1. Gather all the data
-                    digest_data = get_digest_data()
+    # --- START: NEW, MORE RELIABLE DAILY DIGEST TRIGGER ---
+    try:
+        # We want to send a report for the PREVIOUS day.
+        yesterday_str = (date.today() - timedelta(days=1)).isoformat()
+        # We use a new key in the database to avoid conflicts with the old system.
+        last_digest_date = get_config_value("last_digest_sent_date_v2")
+
+        # Check if the digest for yesterday has ALREADY been sent.
+        if last_digest_date != yesterday_str:
+            # We also check the time. Since the app is in Ghana (GMT), we can check if it's after 6 AM.
+            # This ensures we don't send the report for a day that isn't over yet.
+            if datetime.now().hour > 6:
+                with st.spinner("Generating daily digest for yesterday's activity..."):
                     
-                    # 2. Send the email
+                    # We call our new function, telling it to get data for yesterday.
+                    digest_data = get_digest_data(for_date=date.today() - timedelta(days=1))
                     admin_email = st.secrets.get("ADMIN_EMAIL")
-                    if not admin_email:
-                        st.error("Digest failed: Your ADMIN_EMAIL is not set in Streamlit Secrets.")
-                        return 
 
-                    if send_daily_digest_email(admin_email, digest_data):
-                        # 3. If sending was successful, update the date
-                        set_config_value("last_digest_sent_date", today_str)
-                        st.toast("✅ Your Daily Digest has been sent to your email!", icon="📧")
-                    else:
-                        st.error("Digest failed: Could not send the email. Please check your GMAIL secrets and the app logs.")
-
-            except Exception as e:
-                # This will catch any error from get_digest_data() or other parts
-                st.error(f"An error occurred while generating the digest: {e}")
-                # We update the date anyway to prevent trying again on every refresh today
-                set_config_value("last_digest_sent_date", today_str)
-    # --- END: REVISED DAILY DIGEST TRIGGER ---
+                    if admin_email and send_daily_digest_email(admin_email, digest_data):
+                        # IMPORTANT: We record that we've sent the digest for yesterday.
+                        set_config_value("last_digest_sent_date_v2", yesterday_str)
+                        
+                        # Only show the success message if the current user is an admin.
+                        if get_user_role(st.session_state.username) == 'admin':
+                            st.toast("Daily digest for yesterday has been sent!", icon="📧")
+    except Exception as e:
+        # This fails silently so that if something goes wrong with the digest,
+        # it doesn't crash the app for a regular student user.
+        print(f"Daily digest check failed: {e}")
+    # --- END: NEW DAILY DIGEST TRIGGER ---
     load_css()
     # --- START: NEW DAILY REWARD LOGIC ---
     # This block runs once per session to check for a daily login reward.
@@ -8654,6 +8656,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
