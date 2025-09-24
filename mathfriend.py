@@ -1390,27 +1390,53 @@ def check_and_grant_daily_reward(username):
 # --- END: NEW FUNCTION check_and_grant_daily_reward ---
 
 def upload_assignment_file(username, pool_name, uploaded_file):
-    """Uploads a file to Supabase Storage and records the submission."""
+    """
+    Uploads a file after checking for duplicates based on a hash of the file's content.
+    """
     try:
-        # Use a unique name for each file to prevent overwrites, e.g., by adding a timestamp
-        timestamp = int(time.time() * 1000)
-        file_path = f"{username}/{pool_name}/{timestamp}_{uploaded_file.name}"
-        
-        # Upload the file with upsert=False as we now have unique names
-        supabase_client.storage.from_('assignment_submissions').upload(
-            file=uploaded_file.getvalue(),
-            path=file_path
-        )
+        # 1. Read the file's content and create a unique hash (fingerprint)
+        file_bytes = uploaded_file.getvalue()
+        file_hash = hashlib.md5(file_bytes).hexdigest()
 
         with engine.connect() as conn:
-            # Use a simple INSERT now
-            query = text("""
-                INSERT INTO assignment_submissions (username, assignment_pool_name, file_path)
-                VALUES (:username, :pool_name, :file_path)
+            # 2. Check if this exact file has already been submitted by this user for this assignment
+            check_query = text("""
+                SELECT 1 FROM assignment_submissions 
+                WHERE username = :user AND assignment_pool_name = :pool AND file_hash = :hash
             """)
-            conn.execute(query, {"username": username, "pool_name": pool_name, "file_path": file_path})
+            exists = conn.execute(check_query, {"user": username, "pool": pool_name, "hash": file_hash}).first()
+
+            if exists:
+                # 3. If it exists, stop and inform the user.
+                return False, "This exact file has already been submitted."
+
+            # 4. If it's a new file, proceed with the upload
+            timestamp = int(time.time() * 1000)
+            file_path = f"{username}/{pool_name}/{timestamp}_{uploaded_file.name}"
+            
+            supabase_client.storage.from_('assignment_submissions').upload(
+                file=file_bytes, # Use the bytes we already read
+                path=file_path
+            )
+
+            # 5. Insert the record, now including the file_hash
+            insert_query = text("""
+                INSERT INTO assignment_submissions (username, assignment_pool_name, file_path, file_hash)
+                VALUES (:username, :pool_name, :file_path, :file_hash)
+            """)
+            conn.execute(insert_query, {
+                "username": username, 
+                "pool_name": pool_name, 
+                "file_path": file_path,
+                "file_hash": file_hash
+            })
             conn.commit()
+            
         return True, "File uploaded successfully!"
+    
+    except sqlalchemy.exc.IntegrityError:
+        # This will catch the error if the database's UNIQUE constraint is violated
+        return False, "This exact file has already been submitted."
     except Exception as e:
         print(f"Error uploading file: {e}")
         return False, f"An error occurred: {e}"
@@ -8810,6 +8836,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
