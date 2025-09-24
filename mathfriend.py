@@ -560,10 +560,9 @@ def update_learning_content(topic, new_content):
 # including each user's coin balance and their overall average quiz accuracy.
 
 def get_all_users_summary():
-    """Fetches a comprehensive summary of all users for the admin panel."""
+    """Fetches a comprehensive summary of all users with a single, efficient query."""
     with engine.connect() as conn:
-        # This query is now enhanced to join with user_profiles to get coins,
-        # and to calculate average accuracy from the quiz_results table.
+        # This single query joins all necessary tables and calculates stats in one go.
         query = text("""
             SELECT 
                 u.username,
@@ -571,11 +570,20 @@ def get_all_users_summary():
                 p.full_name,
                 p.school,
                 COALESCE(p.coins, 0) as coins,
-                (SELECT COUNT(*) FROM quiz_results qr WHERE qr.username = u.username) as quizzes_taken,
-                (SELECT AVG(CASE WHEN qr.questions_answered > 0 THEN (qr.score * 100.0 / qr.questions_answered) ELSE 0 END) FROM quiz_results qr WHERE qr.username = u.username) as average_accuracy,
-                (SELECT last_seen FROM user_status us WHERE us.username = u.username) as last_seen
+                COALESCE(qr_stats.quizzes_taken, 0) as quizzes_taken,
+                COALESCE(qr_stats.average_accuracy, 0) as average_accuracy,
+                us.last_seen
             FROM users u
             LEFT JOIN user_profiles p ON u.username = p.username
+            LEFT JOIN user_status us ON u.username = us.username
+            LEFT JOIN (
+                SELECT
+                    username,
+                    COUNT(*) as quizzes_taken,
+                    AVG(CASE WHEN questions_answered > 0 THEN (score * 100.0 / questions_answered) ELSE 0 END) as average_accuracy
+                FROM quiz_results
+                GROUP BY username
+            ) AS qr_stats ON u.username = qr_stats.username
             ORDER BY u.username ASC;
         """)
         result = conn.execute(query).mappings().fetchall()
@@ -1816,6 +1824,7 @@ def get_user_stats_for_topic(username, topic):
         attempts = conn.execute(query_attempts, {"username": username, "topic": topic}).scalar_one()
         return f"{best_score:.1f}%", attempts
 
+@st.cache_data(ttl=10) # Cache the result for 10 seconds
 def get_online_users(current_user):
     """
     Gets online users who are NOT in a genuinely active duel.
@@ -8645,6 +8654,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
