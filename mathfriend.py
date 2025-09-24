@@ -8459,7 +8459,7 @@ def display_admin_panel(topic_options):
     
         if st.button("Force Resend Daily Digest", use_container_width=True):
             # This resets the timer by setting the last sent date to a dummy value
-            set_config_value("last_digest_sent_date", "reset")
+            set_config_value("last_digest_sent_date_v2", "reset")
             st.success("Digest timer has been reset. Log out and log back in to trigger a new email.")
             st.rerun()
     
@@ -8789,6 +8789,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
