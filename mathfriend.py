@@ -985,6 +985,8 @@ def bulk_import_questions(uploaded_file):
 
 # ADD THIS NEW FUNCTION to your database functions section
 
+# This is the corrected version of the function
+
 def get_grading_roster(pool_name):
     """
     Fetches a complete roster for a given assignment pool, including the
@@ -994,29 +996,29 @@ def get_grading_roster(pool_name):
         query = text("""
             SELECT
                 u.username,
-                -- Use a CASE statement to determine the status based on what data exists
-                CASE
+                -- We use MAX() here to correctly prioritize the status.
+                -- 'Graded' > 'Awaiting Grade' > 'Not Submitted' alphabetically.
+                MAX(CASE
                     WHEN g.grade IS NOT NULL THEN '✅ Graded'
                     WHEN s.submitted_at IS NOT NULL THEN '🟡 Awaiting Grade'
                     ELSE '❌ Not Submitted'
-                END as status,
-                g.grade
+                END) as status,
+                MAX(g.grade) as grade
             FROM
                 users u
-            -- Left join to find submissions for this pool
             LEFT JOIN assignment_submissions s ON u.username = s.username
                 AND s.assignment_pool_name = :pool_name
-            -- Left join to find grades for this pool
             LEFT JOIN assignment_grades g ON u.username = g.username
                 AND g.assignment_pool_name = :pool_name
             WHERE
-                u.role = 'student' -- Only get students
+                u.role = 'student'
+            GROUP BY
+                u.username -- <<< --- THIS IS THE CRITICAL FIX
             ORDER BY
                 u.username ASC;
         """)
         result = conn.execute(query, {"pool_name": pool_name}).mappings().fetchall()
         return [dict(row) for row in result]
-# --- START: NEW FUNCTION update_practice_question ---
 # Reason for change: To add a backend function that can update an existing practice question in the database.
 
 def update_practice_question(question_id, topic, question, answer, explanation, pool_name=None, unhide_at=None):
@@ -8719,6 +8721,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
