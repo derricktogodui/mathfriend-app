@@ -417,7 +417,9 @@ def get_digest_data(for_date):
         
         # --- Economy Pulse ---
         digest['coins_earned'] = conn.execute(text("SELECT SUM(amount) FROM coin_transactions WHERE timestamp >= :start AND timestamp < :end AND amount > 0"), params).scalar_one() or 0
-        
+        # --- NEW Actionable Insights ---
+        digest['struggling_students'] = get_struggling_students(for_date)
+        digest['top_improver'] = get_top_improver(for_date)
     return digest
 
 import smtplib
@@ -425,7 +427,7 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 
 def send_daily_digest_email(admin_email, digest_data):
-    """Formats and sends the daily digest email with a new, improved design."""
+    """Formats and sends the daily digest email with new actionable insights."""
     sender_email = st.secrets["GMAIL_ADDRESS"]
     password = st.secrets["GMAIL_APP_PASSWORD"]
     
@@ -434,7 +436,28 @@ def send_daily_digest_email(admin_email, digest_data):
     msg["From"] = f"MathFriend Admin <{sender_email}>"
     msg["To"] = admin_email
     
-    # --- START: NEW, IMPROVED HTML & CSS FOR THE EMAIL ---
+    # --- Prepare the new HTML sections BEFORE the main f-string ---
+    top_improver_html = ""
+    top_improver_data = digest_data.get('top_improver')
+    if top_improver_data:
+        top_improver_html = f"""
+            <div class="card">
+                <h3>🏆 Weekly Top Improver</h3>
+                <p>Congratulations to <b>{top_improver_data['username']}</b> for improving their average score from {top_improver_data['last_week_acc']:.1f}% to {top_improver_data['this_week_acc']:.1f}%!</p>
+            </div>"""
+
+    struggling_students_html = ""
+    struggling_students_data = digest_data.get('struggling_students')
+    if struggling_students_data:
+        student_list_html = "".join(f"<li><b>{s['username']}</b> ({s['avg_accuracy']:.1f}% avg. accuracy)</li>" for s in struggling_students_data)
+        struggling_students_html = f"""
+            <div class="card">
+                <h3>🤔 Students Who May Need Help</h3>
+                <p>The following students had an average accuracy below 40% in the last 3 days:</p>
+                <ul>{student_list_html}</ul>
+            </div>"""
+
+    # --- The main HTML now includes the new sections ---
     html = f"""
     <html>
     <head>
@@ -446,54 +469,33 @@ def send_daily_digest_email(admin_email, digest_data):
             .content {{ padding: 30px; }}
             .card {{ background-color: #f8f9fa; border-radius: 8px; padding: 20px; margin-bottom: 20px; border-left: 5px solid #0d6efd; }}
             .card h3 {{ margin-top: 0; color: #0d6efd; }}
-            .card ul {{ list-style: none; padding: 0; }}
-            .card li {{ margin-bottom: 10px; font-size: 16px; }}
+            .card p {{ margin-bottom: 0; }}
+            .card ul {{ list-style: none; padding: 0; margin-top: 10px; }}
+            .card li {{ margin-bottom: 5px; font-size: 16px; }}
             .footer {{ background-color: #e9ecef; text-align: center; padding: 15px; font-size: 12px; color: #6c757d; }}
         </style>
     </head>
     <body>
         <div class="container">
-            <div class="header">
-                <h2>MathFriend Daily Digest</h2>
-            </div>
+            <div class="header"><h2>MathFriend Daily Digest</h2></div>
             <div class="content">
                 <div class="card">
-                    <h3>📝 Action Items</h3>
-                    <ul>
-                        <li>You have <b>{digest_data.get('new_submissions', 0)} new assignment submissions</b> waiting to be graded.</li>
-                    </ul>
-                </div>
-                <div class="card">
-                    <h3>📈 Top-Line Analytics</h3>
+                    <h3>📈 Yesterday's Top-Line Analytics</h3>
                     <ul>
                         <li><b>New Students Joined:</b> {digest_data.get('new_users', 0)}</li>
                         <li><b>Total Quizzes Taken:</b> {digest_data.get('quizzes_taken', 0)}</li>
-                        <li><b>Total Duels Played:</b> {digest_data.get('duels_played', 0)}</li>
                     </ul>
                 </div>
-                <div class="card">
-                    <h3>🏆 Student Achievements</h3>
-                    <ul>
-                        {'<li><b>Today\'s Top Scorer:</b> ' + str(digest_data['top_scorer']['username']) + ' (' + str(digest_data['top_scorer']['score']) + '/' + str(digest_data['top_scorer']['questions_answered']) + ')</li>' if digest_data.get('top_scorer') else ''}
-                        {'<li><b>Duel Champion:</b> ' + str(digest_data['duel_champion']['winner']) + ' (' + str(digest_data['duel_champion']['wins']) + ' wins)</li>' if digest_data.get('duel_champion') else ''}
-                    </ul>
-                </div>
-                <div class="card">
-                    <h3>🎯 Topic Spotlight</h3>
-                    <ul>
-                        {'<li><b>Most Practiced Topic:</b> ' + str(digest_data['most_practiced_topic']['topic']) + ' (' + str(digest_data['most_practiced_topic']['count']) + ' quizzes)</li>' if digest_data.get('most_practiced_topic') else ''}
-                        {'<li><b>Topic with Lowest Average Score:</b> ' + str(digest_data['lowest_score_topic']['topic']) + ' ({:.1f}%)</li>'.format(digest_data['lowest_score_topic']['avg_accuracy']) if digest_data.get('lowest_score_topic') else ''}
-                    </ul>
-                </div>
+                
+                {top_improver_html}
+                {struggling_students_html}
+                
             </div>
-            <div class="footer">
-                <p>This is an automated report from your MathFriend App.</p>
-            </div>
+            <div class="footer"><p>This is an automated report from your MathFriend App.</p></div>
         </div>
     </body>
     </html>
     """
-    # --- END: NEW, IMPROVED HTML & CSS ---
     
     msg.attach(MIMEText(html, "html"))
     
@@ -507,6 +509,72 @@ def send_daily_digest_email(admin_email, digest_data):
     except Exception as e:
         print(f"Failed to send digest email: {e}")
         return False
+def get_top_improver(for_date):
+    """Finds the student with the biggest accuracy improvement this week vs. last week."""
+    with engine.connect() as conn:
+        this_week_start = for_date - timedelta(days=7)
+        last_week_start = for_date - timedelta(days=14)
+        
+        # This query calculates average scores for the last two weeks,
+        # joins them, and finds the biggest improvement.
+        query = text("""
+            WITH last_week AS (
+                SELECT 
+                    username, 
+                    AVG(CASE WHEN questions_answered > 0 THEN (score * 100.0 / questions_answered) ELSE 0 END) as last_week_acc
+                FROM quiz_results
+                WHERE timestamp BETWEEN :last_week_start AND :this_week_start
+                GROUP BY username
+                HAVING COUNT(*) >= 2 -- The user must have taken at least 2 quizzes to qualify
+            ),
+            this_week AS (
+                SELECT 
+                    username, 
+                    AVG(CASE WHEN questions_answered > 0 THEN (score * 100.0 / questions_answered) ELSE 0 END) as this_week_acc
+                FROM quiz_results
+                WHERE timestamp >= :this_week_start AND timestamp < :for_date
+                GROUP BY username
+                HAVING COUNT(*) >= 2 -- And at least 2 quizzes this week
+            )
+            SELECT
+                t.username,
+                t.this_week_acc,
+                l.last_week_acc,
+                (t.this_week_acc - l.last_week_acc) as improvement
+            FROM this_week t
+            JOIN last_week l ON t.username = l.username
+            WHERE (t.this_week_acc - l.last_week_acc) > 0 -- Only show positive improvement
+            ORDER BY improvement DESC
+            LIMIT 1;
+        """)
+        result = conn.execute(query, {
+            "for_date": for_date + timedelta(days=1), # Ensure we include all of the target day
+            "this_week_start": this_week_start, 
+            "last_week_start": last_week_start
+        }).mappings().first()
+        
+        return dict(result) if result else None
+def get_struggling_students(for_date):
+    """Finds students with low average accuracy in the last 3 days."""
+    with engine.connect() as conn:
+        three_days_ago = for_date - timedelta(days=3)
+        query = text("""
+            SELECT 
+                username, 
+                AVG(CASE WHEN questions_answered > 0 THEN (score * 100.0 / questions_answered) ELSE 0 END) as avg_accuracy
+            FROM quiz_results
+            WHERE timestamp >= :start_date AND timestamp < :end_date
+            GROUP BY username
+            HAVING AVG(CASE WHEN questions_answered > 0 THEN (score * 100.0 / questions_answered) ELSE 0 END) < 40
+            ORDER BY avg_accuracy ASC;
+        """)
+        result = conn.execute(query, {
+            "start_date": three_days_ago,
+            "end_date": for_date + timedelta(days=1)
+        }).mappings().fetchall()
+        
+        return [dict(row) for row in result]
+
 def get_coin_balance(username):
     """Fetches a user's current coin balance from their profile."""
     with engine.connect() as conn:
@@ -8721,6 +8789,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
