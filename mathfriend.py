@@ -8866,14 +8866,9 @@ if st.session_state.get("show_splash", True):
     pass
 else:
     if st.session_state.get("logged_in", False):
-        show_main_app()
+        show_main_app(cookies) # Pass the cookies object here
     else:
         show_login_or_signup_page()
-
-
-
-
-
 
 
 
