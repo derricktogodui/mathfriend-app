@@ -8804,7 +8804,7 @@ def show_login_or_signup_page(cookies):
                     
                     if remember_me:
                         token = create_remember_me_token(username)
-                       cookies.set('remember_me_token', token, expires_in=timedelta(days=30))
+                        cookies.set('remember_me_token', token, expires_in=timedelta(days=30))
                     
                     st.rerun()
                 else:
@@ -8869,6 +8869,7 @@ else:
         show_main_app(cookies=cookies)
     else:
         show_login_or_signup_page(cookies=cookies)
+
 
 
 
