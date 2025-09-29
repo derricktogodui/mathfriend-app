@@ -8677,7 +8677,7 @@ def display_admin_panel(topic_options):
 
 # Replace your existing show_main_app function with this one.
 
-def show_main_app():
+def show_main_app(cookies):
     # --- START: NEW, MORE RELIABLE DAILY DIGEST TRIGGER ---
     try:
         # We want to send a report for the PREVIOUS day.
@@ -8811,7 +8811,7 @@ def show_main_app():
         # --- END OF BLOCK ---
         
     st.markdown('</div>', unsafe_allow_html=True)
-def show_login_or_signup_page():
+def show_login_or_signup_page(cookies):
     load_css()
     st.markdown('<div class="login-container">', unsafe_allow_html=True)
 
@@ -8825,9 +8825,6 @@ def show_login_or_signup_page():
         # --- END: NEW DESIGN ELEMENTS ---
 
         # In show_login_or_signup_page()
-
-        # Get the cookie manager at the start of the function
-        cookies = streamlit_cookies.CookieManager()
         
         with st.form("login_form"):
             username = st.text_input("Username", key="login_user")
@@ -8876,10 +8873,10 @@ def show_login_or_signup_page():
             st.rerun()
     st.markdown('</div>', unsafe_allow_html=True)
 
-# --- Initial Script Execution Logic ---
+# REPLACE IT WITH THIS
 # --- Initial Script Execution Logic ---
 
-# Get the cookie manager at the start of the script run
+# Create the CookieManager ONCE. This is now the single source of truth.
 cookies = streamlit_cookies.CookieManager()
 remember_me_token = cookies.get('remember_me_token')
 
@@ -8908,9 +8905,10 @@ if st.session_state.get("show_splash", True):
     st.rerun()
 else:
     if st.session_state.get("logged_in", False):
-        show_main_app()
+        show_main_app(cookies=cookies) # <-- Pass the cookies object here
     else:
-        show_login_or_signup_page()
+        show_login_or_signup_page(cookies=cookies) # <-- And here
+
 
 
 
