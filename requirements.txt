@@ -9,5 +9,5 @@ streamlit-autorefresh
 supabase
 streamlit-pdf-viewer
 google-generativeai
-streamlit-cookies
+streamlit-cookies-controller
 extra-streamlit-components
