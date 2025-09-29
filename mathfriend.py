@@ -21,7 +21,7 @@ from dateutil import parser
 from datetime import date, timedelta
 import streamlit_pdf_viewer as st_pdf_viewer
 import secrets
-import streamlit_cookies
+from streamlit_cookies_controller import CookieController
 # --- START: ADD THIS NEW BLOCK ---
 # --- Global Game Constants ---
 QUIZ_LENGTH = 10
@@ -8739,10 +8739,11 @@ def show_main_app(cookies):
 
         st.write("---")
         if st.button("Logout", type="primary", use_container_width=True):
+            cookies = CookieController()
             token_to_delete = cookies.get('remember_me_token')
             if token_to_delete:
                 delete_remember_me_token(token_to_delete)
-                cookies.delete('remember_me_token')
+                cookies.remove('remember_me_token') # Use remove() instead of delete()
             
             st.session_state.logged_in = False
             if 'challenge_completed_toast' in st.session_state: del st.session_state.challenge_completed_toast
@@ -8782,33 +8783,31 @@ def show_main_app(cookies):
             display_admin_panel(topic_options)
         
     st.markdown('</div>', unsafe_allow_html=True)
-def show_login_or_signup_page(cookies):
+def show_login_or_signup_page():
     load_css()
-    st.markdown('<div class="login-container">', unsafe_allow_html=True)
+    cookies = CookieController()
 
+    st.markdown('<div class="login-container">', unsafe_allow_html=True)
     if st.session_state.page == "login":
         st.markdown('<p class="login-title">MathFriend Login</p>', unsafe_allow_html=True)
         greeting = get_time_based_greeting()
         st.markdown(f'<p class="login-subtitle">{greeting}! Please sign in to continue.</p>', unsafe_allow_html=True)
-
         with st.form("login_form"):
             username = st.text_input("Username", key="login_user")
             password = st.text_input("Password", type="password", key="login_pass")
             remember_me = st.checkbox("Remember me")
-
             if st.form_submit_button("Login", type="primary", use_container_width=True):
                 if login_user(username, password):
-                    st.toast(f"Welcome back, {username}!", icon="🎉")
                     st.session_state.logged_in = True
                     st.session_state.username = username
-                    
                     if remember_me:
                         token = create_remember_me_token(username)
-                        cookies.set('remember_me_token', token, expires_in=timedelta(days=30))
-                    
+                        # The new library uses max_age in seconds
+                        cookies.set('remember_me_token', token, max_age=30*24*60*60) 
                     st.rerun()
                 else:
                     st.error("Invalid username or password")
+        # (The rest of the function remains the same)
         if st.button("Don't have an account? Sign Up", use_container_width=True):
             st.session_state.page = "signup"
             st.rerun()
@@ -8839,7 +8838,7 @@ def show_login_or_signup_page(cookies):
 
 # --- Initial Script Execution Logic ---
 
-cookies = streamlit_cookies.CookieManager()
+cookies = CookieController()
 remember_me_token = cookies.get('remember_me_token')
 
 if not st.session_state.get("logged_in", False) and remember_me_token:
@@ -8864,11 +8863,12 @@ if st.session_state.get("show_splash", True):
     time.sleep(2)
     st.session_state.show_splash = False
     st.rerun()
+    pass
 else:
     if st.session_state.get("logged_in", False):
-        show_main_app(cookies=cookies)
+        show_main_app()
     else:
-        show_login_or_signup_page(cookies=cookies)
+        show_login_or_signup_page()
 
 
 
