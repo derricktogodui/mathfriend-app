@@ -20,6 +20,7 @@ from streamlit_autorefresh import st_autorefresh
 from dateutil import parser
 from datetime import date, timedelta
 import streamlit_pdf_viewer as st_pdf_viewer
+import secrets
 
 # --- START: ADD THIS NEW BLOCK ---
 # --- Global Game Constants ---
@@ -851,6 +852,46 @@ def set_config_value(key, value):
                 config_value = EXCLUDED.config_value;
         """)
         conn.execute(query, {"key": key, "value": value})
+        conn.commit()
+
+def create_remember_me_token(username):
+    """Generates a secure token, stores its hash, and returns the original token."""
+    # Generate a cryptographically secure random token
+    token = secrets.token_hex(32)
+    # Hash the token before storing it in the database
+    token_hash = hashlib.sha256(token.encode()).hexdigest()
+
+    with engine.connect() as conn:
+        query = text("INSERT INTO auth_tokens (username, token_hash) VALUES (:user, :hash)")
+        conn.execute(query, {"user": username, "hash": token_hash})
+        conn.commit()
+    
+    return token # Return the original token to be stored in the user's cookie
+
+def validate_remember_me_token(token):
+    """Checks if a token from a cookie is valid and returns the username."""
+    if not token:
+        return None
+    
+    token_hash = hashlib.sha256(token.encode()).hexdigest()
+    with engine.connect() as conn:
+        # Also clean up old tokens while we're at it
+        conn.execute(text("DELETE FROM auth_tokens WHERE created_at < NOW() - INTERVAL '30 days'"))
+        conn.commit()
+        
+        query = text("SELECT username FROM auth_tokens WHERE token_hash = :hash")
+        result = conn.execute(query, {"hash": token_hash}).scalar_one_or_none()
+        return result # Returns the username if found, otherwise None
+
+def delete_remember_me_token(token):
+    """Deletes a token from the database upon logout."""
+    if not token:
+        return
+        
+    token_hash = hashlib.sha256(token.encode()).hexdigest()
+    with engine.connect() as conn:
+        query = text("DELETE FROM auth_tokens WHERE token_hash = :hash")
+        conn.execute(query, {"hash": token_hash})
         conn.commit()
 
 # --- END OF NEW BACKEND FUNCTIONS ---
@@ -8717,7 +8758,15 @@ def show_main_app():
             st.sidebar.warning("You are in a duel! Finish the game to navigate away.")
 
         st.write("---")
+        # REPLACE IT WITH THIS
         if st.button("Logout", type="primary", use_container_width=True):
+            # Get the token from the cookie
+            token_to_delete = cookies.get('remember_me_token')
+            if token_to_delete:
+                # Delete it from the database and the browser
+                delete_remember_me_token(token_to_delete)
+                cookies.delete('remember_me_token')
+            
             st.session_state.logged_in = False
             if 'challenge_completed_toast' in st.session_state: del st.session_state.challenge_completed_toast
             if 'achievement_unlocked_toast' in st.session_state: del st.session_state.achievement_unlocked_toast
@@ -8775,14 +8824,27 @@ def show_login_or_signup_page():
         st.markdown(f'<p class="login-subtitle">{greeting}! Please sign in to continue.</p>', unsafe_allow_html=True)
         # --- END: NEW DESIGN ELEMENTS ---
 
+        # In show_login_or_signup_page()
+
+        # Get the cookie manager at the start of the function
+        cookies = st_cookies.CookieManager()
+        
         with st.form("login_form"):
             username = st.text_input("Username", key="login_user")
             password = st.text_input("Password", type="password", key="login_pass")
+            remember_me = st.checkbox("Remember me") # <-- THE NEW CHECKBOX
+        
             if st.form_submit_button("Login", type="primary", use_container_width=True):
                 if login_user(username, password):
-                    st.toast(f"Welcome back, {username}! Ready to solve some math today?", icon="🎉")
+                    st.toast(f"Welcome back, {username}!", icon="🎉")
                     st.session_state.logged_in = True
                     st.session_state.username = username
+                    
+                    if remember_me:
+                        # Create a token and set it in the browser's cookies for 30 days
+                        token = create_remember_me_token(username)
+                        cookies.set('remember_me_token', token, expires_at=datetime.now() + timedelta(days=30))
+                    
                     st.rerun()
                 else:
                     st.error("Invalid username or password")
@@ -8815,6 +8877,19 @@ def show_login_or_signup_page():
     st.markdown('</div>', unsafe_allow_html=True)
 
 # --- Initial Script Execution Logic ---
+# --- Initial Script Execution Logic ---
+
+# Get the cookie manager at the start of the script run
+cookies = st_cookies.CookieManager()
+remember_me_token = cookies.get('remember_me_token')
+
+# Check for a valid token BEFORE checking session_state
+if not st.session_state.get("logged_in", False) and remember_me_token:
+    username = validate_remember_me_token(remember_me_token)
+    if username:
+        st.session_state.logged_in = True
+        st.session_state.username = username
+
 if st.session_state.get("show_splash", True):
     load_css()
     st.markdown("""
@@ -8836,6 +8911,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
