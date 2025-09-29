@@ -21,7 +21,7 @@ from dateutil import parser
 from datetime import date, timedelta
 import streamlit_pdf_viewer as st_pdf_viewer
 import secrets
-
+from extra_streamlit_components import CookieManager as st_cookies
 # --- START: ADD THIS NEW BLOCK ---
 # --- Global Game Constants ---
 QUIZ_LENGTH = 10
@@ -8911,6 +8911,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
