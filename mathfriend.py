@@ -21,7 +21,7 @@ from dateutil import parser
 from datetime import date, timedelta
 import streamlit_pdf_viewer as st_pdf_viewer
 import secrets
-from extra_streamlit_components import CookieManager as st_cookies
+import streamlit_cookies
 # --- START: ADD THIS NEW BLOCK ---
 # --- Global Game Constants ---
 QUIZ_LENGTH = 10
@@ -8827,7 +8827,7 @@ def show_login_or_signup_page():
         # In show_login_or_signup_page()
 
         # Get the cookie manager at the start of the function
-        cookies = st_cookies.CookieManager()
+        cookies = streamlit_cookies.CookieManager()
         
         with st.form("login_form"):
             username = st.text_input("Username", key="login_user")
@@ -8880,7 +8880,7 @@ def show_login_or_signup_page():
 # --- Initial Script Execution Logic ---
 
 # Get the cookie manager at the start of the script run
-cookies = st_cookies.CookieManager()
+cookies = streamlit_cookies.CookieManager()
 remember_me_token = cookies.get('remember_me_token')
 
 # Check for a valid token BEFORE checking session_state
@@ -8911,6 +8911,7 @@ else:
         show_main_app()
     else:
         show_login_or_signup_page()
+
 
 
 
