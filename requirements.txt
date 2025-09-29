@@ -10,3 +10,4 @@ supabase
 streamlit-pdf-viewer
 google-generativeai
 streamlit-cookies
+extra-streamlit-components
