@@ -8832,15 +8832,16 @@ def show_login_or_signup_page(cookies):
             remember_me = st.checkbox("Remember me") # <-- THE NEW CHECKBOX
         
             if st.form_submit_button("Login", type="primary", use_container_width=True):
+                # REPLACE IT WITH THIS
                 if login_user(username, password):
                     st.toast(f"Welcome back, {username}!", icon="🎉")
                     st.session_state.logged_in = True
                     st.session_state.username = username
                     
                     if remember_me:
-                        # Create a token and set it in the browser's cookies for 30 days
-                        token = create_remember_me_token(username)
-                        cookies.set('remember_me_token', token, expires_in=timedelta(days=30))
+                        with streamlit_cookies.CookieManager() as cookies: # <-- Use 'with'
+                            token = create_remember_me_token(username)
+                            cookies.set('remember_me_token', token, expires_in=timedelta(days=30))
                     
                     st.rerun()
                 else:
@@ -8876,11 +8877,10 @@ def show_login_or_signup_page(cookies):
 # REPLACE IT WITH THIS
 # --- Initial Script Execution Logic ---
 
-# Create the CookieManager ONCE. This is now the single source of truth.
-cookies = streamlit_cookies.CookieManager()
-remember_me_token = cookies.get('remember_me_token')
+with streamlit_cookies.CookieManager() as cookies:
+    remember_me_token = cookies.get('remember_me_token')
 
-# Check for a valid token BEFORE checking session_state
+# Check for a valid token AFTER getting it
 if not st.session_state.get("logged_in", False) and remember_me_token:
     username = validate_remember_me_token(remember_me_token)
     if username:
@@ -8905,9 +8905,10 @@ if st.session_state.get("show_splash", True):
     st.rerun()
 else:
     if st.session_state.get("logged_in", False):
-        show_main_app(cookies=cookies) # <-- Pass the cookies object here
+        show_main_app()
     else:
-        show_login_or_signup_page(cookies=cookies) # <-- And here
+        show_login_or_signup_page()
+
 
 
 
