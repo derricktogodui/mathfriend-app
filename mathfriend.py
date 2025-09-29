@@ -8680,44 +8680,27 @@ def display_admin_panel(topic_options):
 def show_main_app(cookies):
     # --- START: NEW, MORE RELIABLE DAILY DIGEST TRIGGER ---
     try:
-        # We want to send a report for the PREVIOUS day.
         yesterday_str = (date.today() - timedelta(days=1)).isoformat()
-        # We use a new key in the database to avoid conflicts with the old system.
         last_digest_date = get_config_value("last_digest_sent_date_v2")
-
-        # Check if the digest for yesterday has ALREADY been sent.
         if last_digest_date != yesterday_str:
-            # We also check the time. Since the app is in Ghana (GMT), we can check if it's after 6 AM.
-            # This ensures we don't send the report for a day that isn't over yet.
             if datetime.now().hour > 6:
                 with st.spinner("Generating daily digest for yesterday's activity..."):
-                    
-                    # We call our new function, telling it to get data for yesterday.
                     digest_data = get_digest_data(for_date=date.today() - timedelta(days=1))
                     admin_email = st.secrets.get("ADMIN_EMAIL")
-
                     if admin_email and send_daily_digest_email(admin_email, digest_data):
-                        # IMPORTANT: We record that we've sent the digest for yesterday.
                         set_config_value("last_digest_sent_date_v2", yesterday_str)
-                        
-                        # Only show the success message if the current user is an admin.
                         if get_user_role(st.session_state.username) == 'admin':
                             st.toast("Daily digest for yesterday has been sent!", icon="📧")
     except Exception as e:
-        # This fails silently so that if something goes wrong with the digest,
-        # it doesn't crash the app for a regular student user.
         print(f"Daily digest check failed: {e}")
     # --- END: NEW DAILY DIGEST TRIGGER ---
     load_css()
-    # --- START: NEW DAILY REWARD LOGIC ---
-    # This block runs once per session to check for a daily login reward.
     if 'daily_reward_checked' not in st.session_state:
         reward_message = check_and_grant_daily_reward(st.session_state.username)
         if reward_message:
             st.toast(reward_message, icon="🎁")
             st.balloons()
         st.session_state.daily_reward_checked = True
-    # --- END: NEW DAILY REWARD LOGIC ---
     
     if st.session_state.get('challenge_completed_toast', False):
         st.toast("🎉 Daily Challenge Completed! Great job!", icon="🎉")
@@ -8738,17 +8721,14 @@ def show_main_app(cookies):
         profile = get_user_profile(st.session_state.username)
         display_name = profile.get('full_name') if profile and profile.get('full_name') else st.session_state.username
         st.title(f"{greeting}, {display_name}!")
-        # --- START: NEW DATE WIDGET ---
-        # Get the current date and format it nicely
         today_date = datetime.now().strftime("%A, %B %d, %Y")
         st.caption(f"**{today_date}**")
-        # --- END: NEW DATE WIDGET ---
+        
         page_options = [
             "📊 Dashboard", "📝 Quiz", "🏆 Leaderboard", "⚔️ Math Game", "💬 Blackboard", 
             "👤 Profile", "📚 Learning Resources", "❓ Help Center"
         ]
         
-        # Check the user's role from the database
         user_role = get_user_role(st.session_state.username)
         if user_role == 'admin':
             page_options.append("⚙️ Admin Panel")
@@ -8758,12 +8738,9 @@ def show_main_app(cookies):
             st.sidebar.warning("You are in a duel! Finish the game to navigate away.")
 
         st.write("---")
-        # REPLACE IT WITH THIS
         if st.button("Logout", type="primary", use_container_width=True):
-            # Get the token from the cookie
             token_to_delete = cookies.get('remember_me_token')
             if token_to_delete:
-                # Delete it from the database and the browser
                 delete_remember_me_token(token_to_delete)
                 cookies.delete('remember_me_token')
             
@@ -8778,13 +8755,11 @@ def show_main_app(cookies):
         display_duel_page()
     else:
         topic_options = [
-            "Sets", "Percentages", "Fractions", "Indices", "Surds", 
-            "Binary Operations", "Relations and Functions", "Sequence and Series", 
-            "Word Problems", "Shapes (Geometry)", "Algebra Basics", "Linear Algebra",
-            "Logarithms", "Probability", "Binomial Theorem", "Polynomial Functions",
-            "Rational Functions", "Trigonometry", "Vectors", "Statistics",
-            "Coordinate Geometry", "Introduction to Calculus", "Number Bases",
-            "Modulo Arithmetic", "Advanced Combo"
+            "Sets", "Percentages", "Fractions", "Indices", "Surds", "Binary Operations", 
+            "Relations and Functions", "Sequence and Series", "Word Problems", "Shapes (Geometry)", 
+            "Algebra Basics", "Linear Algebra", "Logarithms", "Probability", "Binomial Theorem", 
+            "Polynomial Functions", "Rational Functions", "Trigonometry", "Vectors", "Statistics",
+            "Coordinate Geometry", "Introduction to Calculus", "Number Bases", "Modulo Arithmetic", "Advanced Combo"
         ]
         
         if selected_page == "📊 Dashboard":
@@ -8794,7 +8769,6 @@ def show_main_app(cookies):
         elif selected_page == "🏆 Leaderboard":
             display_leaderboard(topic_options)
         elif selected_page == "⚔️ Math Game":
-            # --- This change is necessary for the topic selector to work ---
             display_math_game_page(topic_options)
         elif selected_page == "💬 Blackboard":
             display_blackboard_page()
@@ -8802,13 +8776,10 @@ def show_main_app(cookies):
             display_profile_page()
         elif selected_page == "📚 Learning Resources":
             display_learning_resources(topic_options)
-        # 2. ADD THIS NEW ELIF BLOCK (a good place is right before the Admin Panel check)
         elif selected_page == "❓ Help Center":
             display_help_center_page()
-        # --- AND ADD THIS FINAL BLOCK RIGHT AFTER IT ---
         elif selected_page == "⚙️ Admin Panel":
             display_admin_panel(topic_options)
-        # --- END OF BLOCK ---
         
     st.markdown('</div>', unsafe_allow_html=True)
 def show_login_or_signup_page(cookies):
@@ -8817,31 +8788,23 @@ def show_login_or_signup_page(cookies):
 
     if st.session_state.page == "login":
         st.markdown('<p class="login-title">MathFriend Login</p>', unsafe_allow_html=True)
-
-        # --- START: NEW DESIGN ELEMENTS ---
-        # Use the time-based greeting for a dynamic welcome message
         greeting = get_time_based_greeting()
         st.markdown(f'<p class="login-subtitle">{greeting}! Please sign in to continue.</p>', unsafe_allow_html=True)
-        # --- END: NEW DESIGN ELEMENTS ---
 
-        # In show_login_or_signup_page()
-        
         with st.form("login_form"):
             username = st.text_input("Username", key="login_user")
             password = st.text_input("Password", type="password", key="login_pass")
-            remember_me = st.checkbox("Remember me") # <-- THE NEW CHECKBOX
-        
+            remember_me = st.checkbox("Remember me")
+
             if st.form_submit_button("Login", type="primary", use_container_width=True):
-                # REPLACE IT WITH THIS
                 if login_user(username, password):
                     st.toast(f"Welcome back, {username}!", icon="🎉")
                     st.session_state.logged_in = True
                     st.session_state.username = username
                     
                     if remember_me:
-                        with streamlit_cookies.CookieManager() as cookies: # <-- Use 'with'
-                            token = create_remember_me_token(username)
-                            cookies.set('remember_me_token', token, expires_in=timedelta(days=30))
+                        token = create_remember_me_token(username)
+                        cookies.set('remember_me_token', token, expires_in=timedelta(days=30))
                     
                     st.rerun()
                 else:
@@ -8874,13 +8837,11 @@ def show_login_or_signup_page(cookies):
             st.rerun()
     st.markdown('</div>', unsafe_allow_html=True)
 
-# REPLACE IT WITH THIS
 # --- Initial Script Execution Logic ---
 
-with streamlit_cookies.CookieManager() as cookies:
-    remember_me_token = cookies.get('remember_me_token')
+cookies = streamlit_cookies.CookieManager()
+remember_me_token = cookies.get('remember_me_token')
 
-# Check for a valid token AFTER getting it
 if not st.session_state.get("logged_in", False) and remember_me_token:
     username = validate_remember_me_token(remember_me_token)
     if username:
@@ -8905,9 +8866,10 @@ if st.session_state.get("show_splash", True):
     st.rerun()
 else:
     if st.session_state.get("logged_in", False):
-        show_main_app()
+        show_main_app(cookies=cookies)
     else:
-        show_login_or_signup_page()
+        show_login_or_signup_page(cookies=cookies)
+
 
 
 
