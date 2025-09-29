@@ -8840,7 +8840,7 @@ def show_login_or_signup_page(cookies):
                     if remember_me:
                         # Create a token and set it in the browser's cookies for 30 days
                         token = create_remember_me_token(username)
-                        cookies.set('remember_me_token', token, expires_at=datetime.now() + timedelta(days=30))
+                        cookies.set('remember_me_token', token, expires_in=timedelta(days=30))
                     
                     st.rerun()
                 else:
@@ -8908,6 +8908,7 @@ else:
         show_main_app(cookies=cookies) # <-- Pass the cookies object here
     else:
         show_login_or_signup_page(cookies=cookies) # <-- And here
+
 
 
 
