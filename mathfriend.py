@@ -8837,9 +8837,15 @@ def show_login_or_signup_page():
     st.markdown('</div>', unsafe_allow_html=True)
 
 # --- Initial Script Execution Logic ---
-
 cookies = CookieController()
-remember_me_token = cookies.get('remember_me_token')
+remember_me_token = None # Default to None
+
+try:
+    remember_me_token = cookies.get('remember_me_token')
+except TypeError:
+    # This handles the rare case where the cookie controller isn't ready.
+    # We can safely ignore it and proceed as if no cookie was found.
+    pass
 
 if not st.session_state.get("logged_in", False) and remember_me_token:
     username = validate_remember_me_token(remember_me_token)
@@ -8869,6 +8875,7 @@ else:
         show_main_app(cookies) # Pass the cookies object here
     else:
         show_login_or_signup_page()
+
 
 
 
