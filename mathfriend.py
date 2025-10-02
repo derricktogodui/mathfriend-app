@@ -1433,15 +1433,14 @@ def check_and_grant_daily_reward(username):
 
     return reward_message
 
-# --- REPLACE your old function with this new, ULTIMATE version ---
+# --- REPLACE your function with this new, "EXAM-READY" version ---
 import plotly.graph_objects as go
 import numpy as np
 import json
 
 def generate_figure_from_data(graph_json_str):
     """
-    Parses a JSON string and generates a Plotly figure based on its content.
-    Supports generic functions, polygons, pie charts, histograms, and more.
+    Parses a JSON string and generates a Plotly figure with a professional, static, exam-ready style.
     """
     if not graph_json_str:
         return None
@@ -1451,58 +1450,72 @@ def generate_figure_from_data(graph_json_str):
         fig = go.Figure()
         fig_type = data.get("type")
 
-        # --- Generic Function Plotter ---
+        # Define which types should get a full Cartesian plane
+        cartesian_types = ["function", "polygon", "shape"]
+
         if fig_type == "function":
-            # WARNING: eval() can be a security risk if users can input arbitrary code.
-            # Here, it's safe because only the admin is creating the JSON recipes.
             x = np.linspace(data["x_range"][0], data["x_range"][1], 400)
             y = eval(data["expression"], {"np": np, "x": x})
-            fig.add_trace(go.Scatter(x=x, y=y, mode='lines'))
+            # --- CHANGE: Set line color to black ---
+            fig.add_trace(go.Scatter(x=x, y=y, mode='lines', line=dict(color='black')))
         
-        # --- Generic Polygon/Shape Drawer ---
         elif fig_type == "polygon":
             vertices = data.get("vertices", [])
             if vertices:
-                x_vals = [v[0] for v in vertices] + [vertices[0][0]] # Close the shape
+                x_vals = [v[0] for v in vertices] + [vertices[0][0]]
                 y_vals = [v[1] for v in vertices] + [vertices[0][1]]
-                fig.add_trace(go.Scatter(x=x_vals, y=y_vals, mode='lines', fill="toself"))
-                fig.update_yaxes(scaleanchor="x", scaleratio=1)
+                # --- CHANGE: Set line color to black and fill to a light grey ---
+                fig.add_trace(go.Scatter(x=x_vals, y=y_vals, mode='lines', fill="toself", 
+                                         line=dict(color='black'), fillcolor='rgba(0,0,0,0.05)'))
 
-        # --- Pie Chart ---
         elif fig_type == "pie":
             labels = data.get("labels", [])
             values = data.get("values", [])
+            # Pie charts naturally have color, so no change needed here
             fig.add_trace(go.Pie(labels=labels, values=values, hole=data.get("hole", 0)))
         
-        # --- Histogram ---
         elif fig_type == "histogram":
             x_data = data.get("x_data", [])
-            fig.add_trace(go.Histogram(x=x_data))
-        
-        # --- Bar Chart ---
+            fig.add_trace(go.Histogram(x=x_data, marker_color='black'))
+
         elif fig_type == "bar":
             x_data = data.get("x_data", [])
             y_data = data.get("y_data", [])
-            fig.add_trace(go.Bar(x=x_data, y=y_data))
+            fig.add_trace(go.Bar(x=x_data, y=y_data, marker_color='black'))
 
-        # --- Circle ---
         elif fig_type == "shape" and data.get("shape_type") == "circle":
             center = data.get("center", [0, 0]); radius = data.get("radius", 1)
-            fig.add_shape(type="circle", xref="x", yref="y", x0=center[0]-radius, y0=center[1]-radius, x1=center[0]+radius, y1=center[1]+radius, line_color="RoyalBlue")
+            # --- CHANGE: Set line color to black ---
+            fig.add_shape(type="circle", xref="x", yref="y", x0=center[0]-radius, y0=center[1]-radius, x1=center[0]+radius, y1=center[1]+radius, line_color="black")
             view_range = [center[0] - radius * 1.2, center[0] + radius * 1.2]
             fig.update_xaxes(range=view_range)
-            fig.update_yaxes(range=view_range, scaleanchor="x", scaleratio=1)
+            fig.update_yaxes(range=view_range)
 
         else:
-            return None # Unknown or legacy graph type
+            return None
 
-        # --- Universal styling and annotation code ---
+        # --- NEW: Universal Styling Logic ---
         fig.update_layout(title=data.get("title"))
-        if data.get("centered_axes"):
-            fig.update_layout(xaxis=dict(zeroline=True, zerolinewidth=2, zerolinecolor='black'), yaxis=dict(zeroline=True, zerolinewidth=2, zerolinecolor='black'))
+
+        # --- CHANGE: Conditional Axes and Gridlines ---
+        if fig_type in cartesian_types:
+            fig.update_yaxes(scaleanchor="x", scaleratio=1) # Prevent shape distortion
+            fig.update_layout(
+                xaxis_title="x", 
+                yaxis_title="y",
+                xaxis=dict(showgrid=True, zeroline=True, zerolinewidth=2, zerolinecolor='black', showticklabels=True),
+                yaxis=dict(showgrid=True, zeroline=True, zerolinewidth=2, zerolinecolor='black', showticklabels=True)
+            )
+        
         if "annotations" in data:
             for ann in data["annotations"]:
-                fig.add_annotation(x=ann.get("x"), y=ann.get("y"), text=ann.get("text"), showarrow=ann.get("showarrow", False), font=dict(size=14), bgcolor="rgba(255,255,255,0.7)")
+                fig.add_annotation(
+                    x=ann.get("x"), y=ann.get("y"), text=ann.get("text"),
+                    showarrow=ann.get("showarrow", True), # Default to showing an arrow
+                    arrowhead=ann.get("arrowhead", 1),
+                    font=dict(size=14, color="black"),
+                    bgcolor="rgba(255, 255, 255, 0.7)"
+                )
         
         return fig
 
@@ -7698,7 +7711,7 @@ def display_learning_resources(topic_options):
                         if q.get('graph_data'):
                             fig = generate_figure_from_data(q['graph_data'])
                             if fig:
-                                st.plotly_chart(fig, use_container_width=True)
+                                st.plotly_chart(fig, use_container_width=True, config={'staticPlot': True})
                         # --- END OF NEW CODE ---
                         st.markdown(q['question_text'], unsafe_allow_html=True)
                         deadline = q.get('unhide_answer_at')
@@ -8968,6 +8981,7 @@ else:
         show_main_app(cookies) # Pass the cookies object here
     else:
         show_login_or_signup_page()
+
 
 
 
