@@ -1433,7 +1433,7 @@ def check_and_grant_daily_reward(username):
 
     return reward_message
 
-# --- REPLACE your old function with this new, upgraded version ---
+# --- REPLACE your old function with this new, ULTIMATE version ---
 import plotly.graph_objects as go
 import numpy as np
 import json
@@ -1441,7 +1441,7 @@ import json
 def generate_figure_from_data(graph_json_str):
     """
     Parses a JSON string and generates a Plotly figure based on its content.
-    Now supports centered axes and annotations.
+    Supports generic functions, polygons, pie charts, histograms, and more.
     """
     if not graph_json_str:
         return None
@@ -1449,66 +1449,65 @@ def generate_figure_from_data(graph_json_str):
     try:
         data = json.loads(graph_json_str)
         fig = go.Figure()
+        fig_type = data.get("type")
+
+        # --- Generic Function Plotter ---
+        if fig_type == "function":
+            # WARNING: eval() can be a security risk if users can input arbitrary code.
+            # Here, it's safe because only the admin is creating the JSON recipes.
+            x = np.linspace(data["x_range"][0], data["x_range"][1], 400)
+            y = eval(data["expression"], {"np": np, "x": x})
+            fig.add_trace(go.Scatter(x=x, y=y, mode='lines'))
         
-        # --- Logic for drawing a LINE graph ---
-        if data.get("type") == "line":
-            slope = data.get("slope", 1)
-            intercept = data.get("intercept", 0)
-            x_range = data.get("x_range", [-10, 10])
-            x_vals = np.linspace(x_range[0], x_range[1], 100)
-            y_vals = slope * x_vals + intercept
-            fig.add_trace(go.Scatter(x=x_vals, y=y_vals, mode='lines', name=f'y={slope}x+{intercept}'))
-            fig.update_layout(title=data.get("title", "Line Graph"), xaxis_title="x", yaxis_title="y")
+        # --- Generic Polygon/Shape Drawer ---
+        elif fig_type == "polygon":
+            vertices = data.get("vertices", [])
+            if vertices:
+                x_vals = [v[0] for v in vertices] + [vertices[0][0]] # Close the shape
+                y_vals = [v[1] for v in vertices] + [vertices[0][1]]
+                fig.add_trace(go.Scatter(x=x_vals, y=y_vals, mode='lines', fill="toself"))
+                fig.update_yaxes(scaleanchor="x", scaleratio=1)
 
-        # --- Logic for drawing a PARABOLA ---
-        elif data.get("type") == "parabola":
-            a = data.get("a", 1)
-            b = data.get("b", 0)
-            c = data.get("c", 0)
-            x_range = data.get("x_range", [-10, 10])
-            x_vals = np.linspace(x_range[0], x_range[1], 200)
-            y_vals = a * x_vals**2 + b * x_vals + c
-            fig.add_trace(go.Scatter(x=x_vals, y=y_vals, mode='lines', name=f'y={a}x²+{b}x+{c}'))
-            fig.update_layout(title=data.get("title", "Parabola"), xaxis_title="x", yaxis_title="y")
+        # --- Pie Chart ---
+        elif fig_type == "pie":
+            labels = data.get("labels", [])
+            values = data.get("values", [])
+            fig.add_trace(go.Pie(labels=labels, values=values, hole=data.get("hole", 0)))
+        
+        # --- Histogram ---
+        elif fig_type == "histogram":
+            x_data = data.get("x_data", [])
+            fig.add_trace(go.Histogram(x=x_data))
+        
+        # --- Bar Chart ---
+        elif fig_type == "bar":
+            x_data = data.get("x_data", [])
+            y_data = data.get("y_data", [])
+            fig.add_trace(go.Bar(x=x_data, y=y_data))
 
-        # --- Logic for drawing a SHAPE (e.g., Triangle) ---
-        elif data.get("type") == "shape" and data.get("shape_type") == "triangle":
-            vertices = data.get("vertices", [[0,0], [1,1], [0,1]])
-            x_vals = [v[0] for v in vertices] + [vertices[0][0]]
-            y_vals = [v[1] for v in vertices] + [vertices[0][1]]
-            fig.add_trace(go.Scatter(x=x_vals, y=y_vals, mode='lines', fill="toself", name="Triangle"))
-            fig.update_layout(title=data.get("title", "Triangle"))
-            fig.update_yaxes(scaleanchor="x", scaleratio=1)
-            
+        # --- Circle ---
+        elif fig_type == "shape" and data.get("shape_type") == "circle":
+            center = data.get("center", [0, 0]); radius = data.get("radius", 1)
+            fig.add_shape(type="circle", xref="x", yref="y", x0=center[0]-radius, y0=center[1]-radius, x1=center[0]+radius, y1=center[1]+radius, line_color="RoyalBlue")
+            view_range = [center[0] - radius * 1.2, center[0] + radius * 1.2]
+            fig.update_xaxes(range=view_range)
+            fig.update_yaxes(range=view_range, scaleanchor="x", scaleratio=1)
+
         else:
-            return None
+            return None # Unknown or legacy graph type
 
-        # --- START: NEW CODE FOR IMPROVEMENTS ---
-
-        # Improvement 1: Add centered axes if requested in the JSON
+        # --- Universal styling and annotation code ---
+        fig.update_layout(title=data.get("title"))
         if data.get("centered_axes"):
-            fig.update_layout(
-                xaxis=dict(zeroline=True, zerolinewidth=2, zerolinecolor='black'),
-                yaxis=dict(zeroline=True, zerolinewidth=2, zerolinecolor='black')
-            )
-
-        # Improvement 2: Add annotations (labels) if they exist in the JSON
-        if "annotations" in data and isinstance(data["annotations"], list):
+            fig.update_layout(xaxis=dict(zeroline=True, zerolinewidth=2, zerolinecolor='black'), yaxis=dict(zeroline=True, zerolinewidth=2, zerolinecolor='black'))
+        if "annotations" in data:
             for ann in data["annotations"]:
-                fig.add_annotation(
-                    x=ann.get("x"),
-                    y=ann.get("y"),
-                    text=ann.get("text"),
-                    showarrow=ann.get("showarrow", False),
-                    font=dict(size=14, color="black"),
-                    bgcolor="rgba(255, 255, 255, 0.7)" # Semi-transparent white background
-                )
+                fig.add_annotation(x=ann.get("x"), y=ann.get("y"), text=ann.get("text"), showarrow=ann.get("showarrow", False), font=dict(size=14), bgcolor="rgba(255,255,255,0.7)")
         
-        # --- END: NEW CODE FOR IMPROVEMENTS ---
-
         return fig
 
-    except (json.JSONDecodeError, TypeError):
+    except Exception as e:
+        print(f"Error generating graph: {e}")
         return None
 def upload_assignment_file(username, pool_name, uploaded_file):
     """
@@ -8969,6 +8968,7 @@ else:
         show_main_app(cookies) # Pass the cookies object here
     else:
         show_login_or_signup_page()
+
 
 
 
