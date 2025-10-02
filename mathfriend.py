@@ -1433,8 +1433,7 @@ def check_and_grant_daily_reward(username):
 
     return reward_message
 
-# --- END: NEW FUNCTION check_and_grant_daily_reward ---
-# --- START: NEW GRAPH RENDERING FUNCTION ---
+# --- REPLACE your old function with this new, upgraded version ---
 import plotly.graph_objects as go
 import numpy as np
 import json
@@ -1442,6 +1441,7 @@ import json
 def generate_figure_from_data(graph_json_str):
     """
     Parses a JSON string and generates a Plotly figure based on its content.
+    Now supports centered axes and annotations.
     """
     if not graph_json_str:
         return None
@@ -1474,23 +1474,42 @@ def generate_figure_from_data(graph_json_str):
         # --- Logic for drawing a SHAPE (e.g., Triangle) ---
         elif data.get("type") == "shape" and data.get("shape_type") == "triangle":
             vertices = data.get("vertices", [[0,0], [1,1], [0,1]])
-            # Add the first vertex to the end to close the shape
             x_vals = [v[0] for v in vertices] + [vertices[0][0]]
             y_vals = [v[1] for v in vertices] + [vertices[0][1]]
             fig.add_trace(go.Scatter(x=x_vals, y=y_vals, mode='lines', fill="toself", name="Triangle"))
             fig.update_layout(title=data.get("title", "Triangle"))
-            # Ensure the aspect ratio is equal so shapes aren't distorted
             fig.update_yaxes(scaleanchor="x", scaleratio=1)
-
+            
         else:
-            return None # Unknown graph type
+            return None
+
+        # --- START: NEW CODE FOR IMPROVEMENTS ---
+
+        # Improvement 1: Add centered axes if requested in the JSON
+        if data.get("centered_axes"):
+            fig.update_layout(
+                xaxis=dict(zeroline=True, zerolinewidth=2, zerolinecolor='black'),
+                yaxis=dict(zeroline=True, zerolinewidth=2, zerolinecolor='black')
+            )
+
+        # Improvement 2: Add annotations (labels) if they exist in the JSON
+        if "annotations" in data and isinstance(data["annotations"], list):
+            for ann in data["annotations"]:
+                fig.add_annotation(
+                    x=ann.get("x"),
+                    y=ann.get("y"),
+                    text=ann.get("text"),
+                    showarrow=ann.get("showarrow", False),
+                    font=dict(size=14, color="black"),
+                    bgcolor="rgba(255, 255, 255, 0.7)" # Semi-transparent white background
+                )
+        
+        # --- END: NEW CODE FOR IMPROVEMENTS ---
 
         return fig
 
     except (json.JSONDecodeError, TypeError):
-        # If JSON is malformed or not a string, return None
         return None
-# --- END: NEW GRAPH RENDERING FUNCTION ---
 def upload_assignment_file(username, pool_name, uploaded_file):
     """
     Uploads a file after checking for duplicates based on a hash of the file's content.
@@ -8950,6 +8969,7 @@ else:
         show_main_app(cookies) # Pass the cookies object here
     else:
         show_login_or_signup_page()
+
 
 
 
