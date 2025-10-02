@@ -1003,20 +1003,22 @@ def get_all_practice_questions():
         result = conn.execute(query).mappings().fetchall()
         return [dict(row) for row in result]
 
-def add_practice_question(topic, question, answer, explanation, pool_name=None, unhide_at=None):
+# Replace your existing add_practice_question function with this
+def add_practice_question(topic, question, answer, explanation, pool_name=None, unhide_at=None, graph_data=None):
     """Adds a new practice question to the database."""
     with engine.connect() as conn:
         query = text("""
-            INSERT INTO daily_practice_questions (topic, question_text, answer_text, explanation_text, assignment_pool_name, unhide_answer_at)
-            VALUES (:topic, :question, :answer, :explanation, :pool_name, :unhide_at)
+            INSERT INTO daily_practice_questions (topic, question_text, answer_text, explanation_text, assignment_pool_name, unhide_answer_at, graph_data)
+            VALUES (:topic, :question, :answer, :explanation, :pool_name, :unhide_at, :graph_data)
         """)
         conn.execute(query, {
             "topic": topic, 
             "question": question, 
             "answer": answer, 
             "explanation": explanation,
-            "pool_name": pool_name if pool_name else None, # Ensure NULL if empty
-            "unhide_at": unhide_at
+            "pool_name": pool_name if pool_name else None,
+            "unhide_at": unhide_at,
+            "graph_data": graph_data if graph_data else None # Add this line
         })
         conn.commit()
 
@@ -1429,7 +1431,63 @@ def check_and_grant_daily_reward(username):
     return reward_message
 
 # --- END: NEW FUNCTION check_and_grant_daily_reward ---
+# --- START: NEW GRAPH RENDERING FUNCTION ---
+import plotly.graph_objects as go
+import numpy as np
+import json
 
+def generate_figure_from_data(graph_json_str):
+    """
+    Parses a JSON string and generates a Plotly figure based on its content.
+    """
+    if not graph_json_str:
+        return None
+
+    try:
+        data = json.loads(graph_json_str)
+        fig = go.Figure()
+        
+        # --- Logic for drawing a LINE graph ---
+        if data.get("type") == "line":
+            slope = data.get("slope", 1)
+            intercept = data.get("intercept", 0)
+            x_range = data.get("x_range", [-10, 10])
+            x_vals = np.linspace(x_range[0], x_range[1], 100)
+            y_vals = slope * x_vals + intercept
+            fig.add_trace(go.Scatter(x=x_vals, y=y_vals, mode='lines', name=f'y={slope}x+{intercept}'))
+            fig.update_layout(title=data.get("title", "Line Graph"), xaxis_title="x", yaxis_title="y")
+
+        # --- Logic for drawing a PARABOLA ---
+        elif data.get("type") == "parabola":
+            a = data.get("a", 1)
+            b = data.get("b", 0)
+            c = data.get("c", 0)
+            x_range = data.get("x_range", [-10, 10])
+            x_vals = np.linspace(x_range[0], x_range[1], 200)
+            y_vals = a * x_vals**2 + b * x_vals + c
+            fig.add_trace(go.Scatter(x=x_vals, y=y_vals, mode='lines', name=f'y={a}x²+{b}x+{c}'))
+            fig.update_layout(title=data.get("title", "Parabola"), xaxis_title="x", yaxis_title="y")
+
+        # --- Logic for drawing a SHAPE (e.g., Triangle) ---
+        elif data.get("type") == "shape" and data.get("shape_type") == "triangle":
+            vertices = data.get("vertices", [[0,0], [1,1], [0,1]])
+            # Add the first vertex to the end to close the shape
+            x_vals = [v[0] for v in vertices] + [vertices[0][0]]
+            y_vals = [v[1] for v in vertices] + [vertices[0][1]]
+            fig.add_trace(go.Scatter(x=x_vals, y=y_vals, mode='lines', fill="toself", name="Triangle"))
+            fig.update_layout(title=data.get("title", "Triangle"))
+            # Ensure the aspect ratio is equal so shapes aren't distorted
+            fig.update_yaxes(scaleanchor="x", scaleratio=1)
+
+        else:
+            return None # Unknown graph type
+
+        return fig
+
+    except (json.JSONDecodeError, TypeError):
+        # If JSON is malformed or not a string, return None
+        return None
+# --- END: NEW GRAPH RENDERING FUNCTION ---
 def upload_assignment_file(username, pool_name, uploaded_file):
     """
     Uploads a file after checking for duplicates based on a hash of the file's content.
@@ -7614,6 +7672,13 @@ def display_learning_resources(topic_options):
                 else:
                     with st.container(border=True):
                         st.markdown(f"**{q['topic']}**")
+                        # --- PASTE THIS NEW CODE HERE ---
+                        # Check if there is graph data and render it
+                        if q.get('graph_data'):
+                            fig = generate_figure_from_data(q['graph_data'])
+                            if fig:
+                                st.plotly_chart(fig, use_container_width=True)
+                        # --- END OF NEW CODE ---
                         st.markdown(q['question_text'], unsafe_allow_html=True)
                         deadline = q.get('unhide_answer_at')
                         created_time = q.get('created_at')
@@ -8402,6 +8467,10 @@ def display_admin_panel(topic_options):
             pq_question = st.text_area("Question Text (Supports Markdown & LaTeX)", height=200)
             pq_answer = st.text_area("Answer Text", height=100)
             pq_explanation = st.text_area("Detailed Explanation (Optional)", height=200)
+            # --- PASTE THIS NEW CODE HERE ---
+            st.markdown("---")
+            pq_graph_data = st.text_area("Graph/Shape Data (JSON format - Optional)", height=150)
+            # --- END OF NEW CODE ---
             st.markdown("##### **Optional Assignment Settings**")
             pq_pool_name = st.text_input("Assignment Pool Name (Optional)", placeholder="e.g., Vacation Task 1", help="Group questions by giving them the same pool name.", value=st.session_state.get("pq_default_pool", ""))
             
@@ -8415,7 +8484,7 @@ def display_admin_panel(topic_options):
             
             if st.form_submit_button("Add Practice Question", type="primary"):
                 if pq_topic and pq_question and pq_answer:
-                    add_practice_question(pq_topic, pq_question, pq_answer, pq_explanation, pq_pool_name, pq_unhide_at)
+                    add_practice_question(pq_topic, pq_question, pq_answer, pq_explanation, pq_pool_name, pq_unhide_at, pq_graph_data)
                     st.success(f"New question added!")
                     st.rerun()
                 else: 
@@ -8875,6 +8944,7 @@ else:
         show_main_app(cookies) # Pass the cookies object here
     else:
         show_login_or_signup_page()
+
 
 
 
