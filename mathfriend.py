@@ -8467,10 +8467,12 @@ def display_admin_panel(topic_options):
             pq_question = st.text_area("Question Text (Supports Markdown & LaTeX)", height=200)
             pq_answer = st.text_area("Answer Text", height=100)
             pq_explanation = st.text_area("Detailed Explanation (Optional)", height=200)
-            # --- PASTE THIS NEW CODE HERE ---
+
+            # --- START: NEW CODE ---
             st.markdown("---")
             pq_graph_data = st.text_area("Graph/Shape Data (JSON format - Optional)", height=150)
-            # --- END OF NEW CODE ---
+            # --- END: NEW CODE ---
+
             st.markdown("##### **Optional Assignment Settings**")
             pq_pool_name = st.text_input("Assignment Pool Name (Optional)", placeholder="e.g., Vacation Task 1", help="Group questions by giving them the same pool name.", value=st.session_state.get("pq_default_pool", ""))
             
@@ -8484,6 +8486,7 @@ def display_admin_panel(topic_options):
             
             if st.form_submit_button("Add Practice Question", type="primary"):
                 if pq_topic and pq_question and pq_answer:
+                    # Notice we pass pq_graph_data here
                     add_practice_question(pq_topic, pq_question, pq_answer, pq_explanation, pq_pool_name, pq_unhide_at, pq_graph_data)
                     st.success(f"New question added!")
                     st.rerun()
@@ -8944,6 +8947,7 @@ else:
         show_main_app(cookies) # Pass the cookies object here
     else:
         show_login_or_signup_page()
+
 
 
 
