@@ -980,15 +980,15 @@ def get_duel_topic_popularity():
 
 # --- NEW ADMIN BACKEND FUNCTIONS FOR PRACTICE QUESTIONS ---
 
+# --- REPLACE your old get_active_practice_questions function with this one ---
 def get_active_practice_questions():
     """Fetches all practice questions marked as active, including new assignment fields."""
     with engine.connect() as conn:
-        # --- THIS IS THE FIX ---
-        # The query now selects the new 'uploads_enabled' column.
         query = text("""
             SELECT id, topic, question_text, answer_text, explanation_text, 
                    assignment_pool_name, unhide_answer_at, created_at,
-                   uploads_enabled -- <<< ADD THIS LINE
+                   uploads_enabled,
+                   graph_data -- <<< --- THIS IS THE FIX
             FROM daily_practice_questions 
             WHERE is_active = TRUE 
             ORDER BY created_at DESC
@@ -1153,7 +1153,8 @@ def get_grading_roster(pool_name):
         return [dict(row) for row in result]
 # Reason for change: To add a backend function that can update an existing practice question in the database.
 
-def update_practice_question(question_id, topic, question, answer, explanation, pool_name=None, unhide_at=None):
+# --- REPLACE your old update_practice_question function with this one ---
+def update_practice_question(question_id, topic, question, answer, explanation, pool_name=None, unhide_at=None, graph_data=None):
     """Updates an existing practice question in the database."""
     with engine.connect() as conn:
         query = text("""
@@ -1163,7 +1164,8 @@ def update_practice_question(question_id, topic, question, answer, explanation, 
                 answer_text = :answer, 
                 explanation_text = :explanation,
                 assignment_pool_name = :pool_name,
-                unhide_answer_at = :unhide_at
+                unhide_answer_at = :unhide_at,
+                graph_data = :graph_data -- <<< --- FIX PART 1
             WHERE id = :id
         """)
         conn.execute(query, {
@@ -1172,8 +1174,9 @@ def update_practice_question(question_id, topic, question, answer, explanation, 
             "question": question,
             "answer": answer,
             "explanation": explanation,
-            "pool_name": pool_name if pool_name else None, # Ensure NULL if empty
-            "unhide_at": unhide_at
+            "pool_name": pool_name if pool_name else None,
+            "unhide_at": unhide_at,
+            "graph_data": graph_data if graph_data else None # <<< --- FIX PART 2
         })
         conn.commit()
 
@@ -8947,6 +8950,7 @@ else:
         show_main_app(cookies) # Pass the cookies object here
     else:
         show_login_or_signup_page()
+
 
 
 
