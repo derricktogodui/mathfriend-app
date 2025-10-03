@@ -7642,6 +7642,12 @@ def display_learning_resources(topic_options):
                             assigned_q_data = next((item for item in all_practice_qs if item['id'] == assigned_q_id), None)
                         
                         if assigned_q_data:
+                            # --- ADD THIS BLOCK TO DRAW THE GRAPH ---
+                            if assigned_q_data.get('graph_data'):
+                                fig = generate_figure_from_data(assigned_q_data['graph_data'])
+                                if fig:
+                                    st.plotly_chart(fig, use_container_width=True, config={'staticPlot': True})
+                            # --- END OF NEW BLOCK ---
                             st.markdown(assigned_q_data['question_text'], unsafe_allow_html=True)
                             my_grade = get_student_grade(st.session_state.username, pool_name)
                             if my_grade:
@@ -8981,6 +8987,7 @@ else:
         show_main_app(cookies) # Pass the cookies object here
     else:
         show_login_or_signup_page()
+
 
 
 
