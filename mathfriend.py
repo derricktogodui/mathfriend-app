@@ -6397,9 +6397,8 @@ def display_dashboard(username):
     
     announcement = get_config_value("announcement_text")
     if announcement:
-        st.markdown(f"""
-        <div class="announcement-card">
-        ...
+        st.info(f"📣 **Announcement:** {announcement}")
+        st.markdown("---")
     # --- Gamification Section ---
     challenge = get_or_create_daily_challenge(username)
     if challenge:
@@ -9010,6 +9009,7 @@ else:
         show_main_app(cookies) # Pass the cookies object here
     else:
         show_login_or_signup_page()
+
 
 
 
