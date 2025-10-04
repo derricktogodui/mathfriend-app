@@ -6323,7 +6323,7 @@ def load_css():
         /* --- NEW ANNOUNCEMENT CARD STYLE --- */
         .announcement-card {
             background-color: #F8F9FA;
-            border-left: 5px solid #0d6efd; /* Strong blue accent like your headers */
+            border-left: 5px solid #0d6efd;
             border-radius: 8px;
             padding: 1rem 1.5rem;
             margin-bottom: 2rem;
@@ -6399,9 +6399,6 @@ def display_dashboard(username):
     
     announcement = get_config_value("announcement_text")
     if announcement:
-        # --- ADD THIS LINE ---
-        st.info("DEBUG: The new announcement code block is running.") 
-        
         st.markdown(f"""
         <div class="announcement-card">
             <span class="announcement-icon">📣</span>
@@ -9021,6 +9018,7 @@ else:
         show_main_app(cookies) # Pass the cookies object here
     else:
         show_login_or_signup_page()
+
 
 
 
