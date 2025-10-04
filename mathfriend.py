@@ -6397,6 +6397,36 @@ def load_css():
     """, unsafe_allow_html=True)
 def display_dashboard(username):
     
+    # --- PASTE THIS ENTIRE NEW BLOCK AT THE TOP ---
+    st.markdown("""
+    <style>
+    .announcement-card {
+        background-color: #F8F9FA;
+        border-left: 5px solid #0d6efd;
+        border-radius: 8px;
+        padding: 1rem 1.5rem;
+        margin-bottom: 2rem;
+        display: flex;
+        align-items: center;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.04);
+    }
+    .announcement-icon {
+        font-size: 1.8rem;
+        margin-right: 1rem;
+        color: #0d6efd !important;
+    }
+    .announcement-text {
+        flex-grow: 1;
+    }
+    .announcement-text strong {
+         display: block;
+         margin-bottom: 0.25rem;
+         color: #31333F !important;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+    # --- END OF THE NEW BLOCK ---
+
     announcement = get_config_value("announcement_text")
     if announcement:
         st.markdown(f"""
@@ -9018,6 +9048,7 @@ else:
         show_main_app(cookies) # Pass the cookies object here
     else:
         show_login_or_signup_page()
+
 
 
 
