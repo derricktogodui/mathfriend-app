@@ -6399,25 +6399,7 @@ def display_dashboard(username):
     if announcement:
         st.markdown(f"""
         <div class="announcement-card">
-            <span class="announcement-icon">📣</span>
-            <div class="announcement-text">
-                <strong>Announcement</strong>
-                {announcement}
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
-    # --- END OF THE NEW BLOCK ---
-    announcement = get_config_value("announcement_text")
-    if announcement:
-        st.markdown(f"""
-        <div class="announcement-card">
-            <span class="announcement-icon">📣</span>
-            <div class="announcement-text">
-                <strong>Announcement</strong>
-                {announcement}
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
+        ...
     # --- Gamification Section ---
     challenge = get_or_create_daily_challenge(username)
     if challenge:
@@ -9028,6 +9010,7 @@ else:
         show_main_app(cookies) # Pass the cookies object here
     else:
         show_login_or_signup_page()
+
 
 
 
