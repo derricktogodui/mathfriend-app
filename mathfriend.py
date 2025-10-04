@@ -6399,6 +6399,9 @@ def display_dashboard(username):
     
     announcement = get_config_value("announcement_text")
     if announcement:
+        # --- ADD THIS LINE ---
+        st.info("DEBUG: The new announcement code block is running.") 
+        
         st.markdown(f"""
         <div class="announcement-card">
             <span class="announcement-icon">📣</span>
@@ -9018,6 +9021,7 @@ else:
         show_main_app(cookies) # Pass the cookies object here
     else:
         show_login_or_signup_page()
+
 
 
 
