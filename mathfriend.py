@@ -1288,10 +1288,18 @@ def upload_shared_resource(topic, uploaded_file):
         print(f"Error uploading shared resource: {e}")
         return False
 
-def get_resources_for_topic(topic):
-    """Fetches all shared resources for a given topic."""
+def increment_download_count(resource_id):
+    """Increments the download count for a specific resource."""
     with engine.connect() as conn:
-        query = text("SELECT id, file_name, file_path FROM shared_resources WHERE topic = :topic ORDER BY file_name ASC")
+        query = text("UPDATE shared_resources SET download_count = download_count + 1 WHERE id = :id")
+        conn.execute(query, {"id": resource_id})
+        conn.commit()
+
+def get_resources_for_topic(topic):
+    """Fetches all shared resources for a given topic, including download count."""
+    with engine.connect() as conn:
+        # Add download_count to the SELECT statement
+        query = text("SELECT id, file_name, file_path, download_count FROM shared_resources WHERE topic = :topic ORDER BY file_name ASC")
         result = conn.execute(query, {"topic": topic}).mappings().fetchall()
         return [dict(row) for row in result]
 
@@ -1309,9 +1317,10 @@ def delete_shared_resource(resource_id, file_path):
         return False
 
 def get_all_shared_resources():
-    """Fetches all shared resources, grouped by topic."""
+    """Fetches all shared resources, grouped by topic, including download count."""
     with engine.connect() as conn:
-        query = text("SELECT topic, file_name, file_path FROM shared_resources ORDER BY topic, file_name ASC")
+        # Add download_count to the SELECT statement
+        query = text("SELECT topic, file_name, file_path, download_count FROM shared_resources ORDER BY topic, file_name ASC")
         result = conn.execute(query).mappings().fetchall()
         
         resources_by_topic = {}
@@ -7769,38 +7778,43 @@ def display_learning_resources(topic_options):
                 for topic, files in all_resources.items():
                     st.markdown(f"#### {topic}")
                     for res in files:
+                        # (This code goes inside your "for res in files:" loop)
+
                         with st.container(border=True):
+                            # --- This part just sets up the display ---
                             file_extension = res['file_name'].split('.')[-1].lower()
-                            icon = "📄" # Default icon
+                            icon = "📄"
                             if file_extension == 'pdf': icon = "📕"
                             elif file_extension in ['doc', 'docx']: icon = "📝"
                             elif file_extension in ['ppt', 'pptx']: icon = "📊"
-        
+                        
                             col1, col2 = st.columns([3, 1])
                             with col1:
                                 st.markdown(f"**{icon} {res['file_name']}**")
-                            with col2:
-                                try:
-                                    signed_url_response = supabase_client.storage.from_('shared_resources').create_signed_url(res['file_path'], 3600)
-                                    if signed_url_response and 'signedURL' in signed_url_response:
-                                        st.link_button("Download File", signed_url_response['signedURL'], use_container_width=True)
-                                except Exception as e:
-                                    st.error("Could not load link.")
+                                # Display the current download count we got from the database
+                                st.caption(f"📥 Downloads: {res.get('download_count', 0)}") 
                             
-                            # Add a preview for PDF files
-                            if file_extension == 'pdf':
-                                # The new, working code
-                                if file_extension == 'pdf':
-                                    with st.expander("Show Preview"):
-                                        try:
-                                            pdf_bytes = supabase_client.storage.from_('shared_resources').download(res['file_path'])
-                                            # The new component takes the raw file bytes directly
-                                            st_pdf_viewer.viewer(pdf_bytes, height=500)
-                                        except Exception as e:
-                                            st.warning("Could not generate PDF preview.")
-        
-                    st.markdown("---")
-        current_tab_index += 1
+                            with col2:
+                                # Create a regular button instead of a link button.
+                                # This allows us to run Python code when it's clicked.
+                                if st.button("Download", key=f"download_res_{res['id']}", use_container_width=True):
+                                    
+                                    # STEP 1: Run our backend function to add +1 to the count.
+                                    increment_download_count(res['id'])
+                                    
+                                    # STEP 2: Get a temporary, secure download link from Supabase.
+                                    signed_url_response = supabase_client.storage.from_('shared_resources').create_signed_url(res['file_path'], 60)
+                                    
+                                    # STEP 3: Use a bit of HTML/JavaScript to tell the user's browser to open that link.
+                                    if signed_url_response and 'signedURL' in signed_url_response:
+                                        download_url = signed_url_response['signedURL']
+                                        # This line injects the JavaScript command into the page.
+                                        js_code = f"window.open('{download_url}', '_blank');"
+                                        html(f"<script>{js_code}</script>")
+                                        
+                                        # STEP 4: Rerun the page to show the updated download count.
+                                        time.sleep(0.5) # A small delay to ensure the script runs
+                                        st.rerun()
     
     with tabs[current_tab_index]:
         st.subheader("🔍 Topic Explorer")
@@ -9009,6 +9023,7 @@ else:
         show_main_app(cookies) # Pass the cookies object here
     else:
         show_login_or_signup_page()
+
 
 
 
