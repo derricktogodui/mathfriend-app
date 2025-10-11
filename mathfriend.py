@@ -1319,8 +1319,8 @@ def delete_shared_resource(resource_id, file_path):
 def get_all_shared_resources():
     """Fetches all shared resources, grouped by topic, including download count."""
     with engine.connect() as conn:
-        # Add download_count to the SELECT statement
-        query = text("SELECT topic, file_name, file_path, download_count FROM shared_resources ORDER BY topic, file_name ASC")
+        # --- THIS IS THE FIX: Added 'id' to the SELECT statement ---
+        query = text("SELECT id, topic, file_name, file_path, download_count FROM shared_resources ORDER BY topic, file_name ASC")
         result = conn.execute(query).mappings().fetchall()
         
         resources_by_topic = {}
@@ -9023,6 +9023,7 @@ else:
         show_main_app(cookies) # Pass the cookies object here
     else:
         show_login_or_signup_page()
+
 
 
 
