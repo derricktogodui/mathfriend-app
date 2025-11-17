@@ -6955,7 +6955,13 @@ def display_quiz_page(topic_options):
             st.session_state.all_wassce_questions.append(question_data)
         else:
             st.session_state.current_q_data = get_adaptive_question(st.session_state.quiz_topic, st.session_state.username)
-        # --- ADD THIS NEW LINE ---
+        
+        # --- START: THIS IS THE FIX ---
+        # Initialize/reset the part index and score tracker for the new question
+        st.session_state.current_part_index = 0
+        st.session_state.multi_part_correct = True
+        # --- END: THIS IS THE FIX ---
+
         save_quiz_state(st.session_state.username)
     
     q_data = st.session_state.current_q_data
@@ -9064,6 +9070,7 @@ else:
         show_main_app(cookies) # Pass the cookies object here
     else:
         show_login_or_signup_page()
+
 
 
 
