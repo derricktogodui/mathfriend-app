@@ -7009,14 +7009,22 @@ def display_quiz_page(topic_options):
                 if user_choice is not None:
                     st.session_state.user_choice = user_choice
                     st.session_state.answer_submitted = True
+
+                    # --- START: THIS IS THE FIX ---
+                    # We must re-define these variables here so this code block knows about them
+                    is_multi_part = q_data.get("is_multipart", False)
+                    part_index = st.session_state.current_part_index
+                    # Re-get part_data as it was defined outside this form's scope
+                    part_data = q_data["parts"][part_index] if is_multi_part else q_data
+                    # --- END: THIS IS THE FIX ---
                     
                     is_correct = str(user_choice) == str(part_data["answer"])
                     
-                    # --- THIS IS THE FIX ---
                     # Logic for scoring multi-part questions
                     if not is_correct:
                         st.session_state.multi_part_correct = False # Mark the whole question as wrong
                     
+                    # This line will no longer cause an error
                     if not is_multi_part or (part_index == len(q_data["parts"]) - 1):
                         # This is the last part of the question (or a single question)
                         st.session_state.questions_attempted += 1
@@ -7026,7 +7034,6 @@ def display_quiz_page(topic_options):
                         else:
                             st.session_state.current_streak = 0
                             st.session_state.incorrect_questions.append(q_data)
-                    # --- END FIX ---
 
                     st.rerun()
                 else:
@@ -9057,6 +9064,7 @@ else:
         show_main_app(cookies) # Pass the cookies object here
     else:
         show_login_or_signup_page()
+
 
 
 
