@@ -7781,11 +7781,19 @@ def display_learning_resources(topic_options):
                                 st.markdown(f"**{icon} {res['file_name']}**")
                             with col2:
                                 try:
-                                    signed_url_response = supabase_client.storage.from_('shared_resources').create_signed_url(res['file_path'], 3600)
-                                    if signed_url_response and 'signedURL' in signed_url_response:
-                                        st.link_button("Download File", signed_url_response['signedURL'], use_container_width=True)
+                                    # 1. Download the file bytes to the server using the service key
+                                    file_bytes = supabase_client.storage.from_('shared_resources').download(res['file_path'])
+                                    
+                                    # 2. Use st.download_button to serve those bytes directly to the user
+                                    st.download_button(
+                                        label="Download File",
+                                        data=file_bytes,
+                                        file_name=res['file_name'], # Use the original file name
+                                        use_container_width=True
+                                    )
                                 except Exception as e:
-                                    st.error("Could not load link.")
+                                    print(f"Error downloading {res['file_path']}: {e}") # Log error for you
+                                    st.error("Could not load file.")
                             
                             # Add a preview for PDF files
                             if file_extension == 'pdf':
@@ -9009,6 +9017,7 @@ else:
         show_main_app(cookies) # Pass the cookies object here
     else:
         show_login_or_signup_page()
+
 
 
 
