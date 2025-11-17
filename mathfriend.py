@@ -7009,42 +7009,82 @@ def display_quiz_page(topic_options):
                 if user_choice is not None:
                     st.session_state.user_choice = user_choice
                     st.session_state.answer_submitted = True
-                    st.session_state.questions_attempted += 1
+                    
                     is_correct = str(user_choice) == str(part_data["answer"])
-                    if is_correct:
-                        st.session_state.quiz_score += 1
-                        st.session_state.current_streak += 1
-                    else:
-                        st.session_state.current_streak = 0
-                        st.session_state.incorrect_questions.append(q_data)
+                    
+                    # --- THIS IS THE FIX ---
+                    # Logic for scoring multi-part questions
+                    if not is_correct:
+                        st.session_state.multi_part_correct = False # Mark the whole question as wrong
+                    
+                    if not is_multi_part or (part_index == len(q_data["parts"]) - 1):
+                        # This is the last part of the question (or a single question)
+                        st.session_state.questions_attempted += 1
+                        if st.session_state.multi_part_correct:
+                            st.session_state.quiz_score += 1
+                            st.session_state.current_streak += 1
+                        else:
+                            st.session_state.current_streak = 0
+                            st.session_state.incorrect_questions.append(q_data)
+                    # --- END FIX ---
+
                     st.rerun()
                 else:
                     st.warning("Please select an answer before submitting.")
     else:
+        # --- THIS IS THE FIX ---
+        # Get the correct part data for the review screen
         user_choice = st.session_state.user_choice
-        part_data = q_data.get("parts", [{}])[st.session_state.get('current_part_index', 0)] if q_data.get("is_multipart") else q_data
+        is_multi_part = q_data.get("is_multipart", False)
+        part_index = st.session_state.current_part_index
+        part_data = q_data["parts"][part_index] if is_multi_part else q_data
+        
         actual_answer = part_data["answer"]
         explanation = part_data.get("explanation", "")
-        question_text = (q_data.get("stem", "") + "\n\n" + part_data["question"]) if q_data.get("is_multipart") else part_data["question"]
+        question_text = (q_data.get("stem", "") + "\n\n" + part_data["question"]) if is_multi_part else part_data["question"]
         is_correct = str(user_choice) == str(actual_answer)
+        # --- END FIX ---
+
         st.markdown(question_text, unsafe_allow_html=True)
         st.write("Your answer:")
         if is_correct:
             st.success(f"**{user_choice}** (Correct!)")
-            if st.session_state.current_streak in [3, 5] or (st.session_state.current_streak > 5 and st.session_state.current_streak % 5 == 0):
+            # --- THIS IS THE FIX ---
+            # Don't show balloons for multi-part unless it's the *last* part
+            if not is_multi_part and (st.session_state.current_streak in [3, 5] or (st.session_state.current_streak > 5 and st.session_state.current_streak % 5 == 0)):
                 st.balloons()
+            elif is_multi_part and (part_index == len(q_data["parts"]) - 1) and st.session_state.multi_part_correct:
+                 if (st.session_state.current_streak in [3, 5] or (st.session_state.current_streak > 5 and st.session_state.current_streak % 5 == 0)):
+                    st.balloons()
+            # --- END FIX ---
         else:
             st.error(f"**{user_choice}** (Incorrect)")
             st.info(f"The correct answer was: **{actual_answer}**")
         with st.expander("Show Explanation", expanded=True):
             st.markdown(explanation, unsafe_allow_html=True)
-        if st.button("Next Question", type="primary", use_container_width=True):
-            st.session_state.questions_answered += 1
-            keys_to_reset = ['hint_revealed', 'fifty_fifty_used', 'current_q_data', 'user_choice', 'answer_submitted']
+        
+        # --- THIS IS THE FIX ---
+        # The main "Next" button logic
+        
+        # Determine if there are more parts
+        is_last_part = (not is_multi_part) or (part_index == len(q_data["parts"]) - 1)
+        
+        button_text = "Next Question" if is_last_part else "Next Part"
+        
+        if st.button(button_text, type="primary", use_container_width=True):
+            if is_last_part:
+                # This is the end of the question, so advance the main counter
+                st.session_state.questions_answered += 1
+                keys_to_reset = ['hint_revealed', 'fifty_fifty_used', 'current_q_data', 'user_choice', 'answer_submitted', 'current_part_index', 'multi_part_correct']
+            else:
+                # This is a multi-part question, advance to the next part
+                st.session_state.current_part_index += 1
+                keys_to_reset = ['hint_revealed', 'fifty_fifty_used', 'user_choice', 'answer_submitted'] # Keep 'current_q_data'
+            
             for key in keys_to_reset:
                 if key in st.session_state: del st.session_state[key]
             st.rerun()
-
+        # --- END FIX ---
     if st.button("Stop Round & Save Score"):
         st.session_state.on_summary_page = True
         keys_to_delete = ['current_q_data', 'user_choice', 'answer_submitted', 'current_part_index', 'multi_part_correct', 'hint_revealed', 'fifty_fifty_used']
@@ -9017,6 +9057,7 @@ else:
         show_main_app(cookies) # Pass the cookies object here
     else:
         show_login_or_signup_page()
+
 
 
 
