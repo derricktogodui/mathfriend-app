@@ -4805,92 +4805,153 @@ def _generate_linear_algebra_question(difficulty="Medium"):
 
 def _generate_logarithms_question(difficulty="Medium"):
     if difficulty == "Easy":
-        q_type = random.choice(['conversion', 'solve_simple'])
+        # CONSOLIDATED EASY: Now includes simple Power/Change of Base and uses variable bases
+        q_type = random.choice(['conversion', 'solve_simple_base', 'evaluate_power'])
     elif difficulty == "Medium":
-        q_type = 'laws'
+        # CONSOLIDATED MEDIUM: Now uses variable expressions
+        q_type = random.choice(['variable_laws', 'evaluate_combined'])
     else: # Hard
-        # NEW Hard options added
+        # HARD: Algebraic manipulation types remain expanded
         q_type = random.choice(['solve_combine', 'log_quadratic', 'log_simultaneous'])
 
     question, answer, hint, explanation = "", "", "", ""
     options = set()
 
-    # --- Easy Questions (Original Logic Preserved) ---
+    # --- EASY QUESTIONS (Updated for Variety & Variables) ---
     if q_type == 'conversion':
-        base = random.randint(2, 5)
+        base = random.choice([3, 4, 5, 'b', 'x']) # Dynamic base
+        exponent = random.randint(2, 4)
+        result_num = random.randint(20, 100) if base in ['b', 'x'] else base ** exponent
+
+        if base in ['b', 'x']:
+            # Example: b^n = R or log_x R = n
+            var_base = base
+            result_sym = 'R' if random.random() > 0.5 else str(random.randint(10, 50))
+            
+            form_a = f"${var_base}^{{{exponent}}} = {result_sym}$"
+            form_b = f"$\\log_{{{var_base}}}({result_sym}) = {exponent}$"
+            
+            question_type = random.choice(["logarithmic", "exponential"])
+            question = f"Express the equation {form_a} in {question_type} form." if question_type == "logarithmic" else f"Express the equation {form_b} in {question_type} form."
+            answer = form_b if question_type == "logarithmic" else form_a
+
+        else:
+            # Original numeric conversion, but with more variety in base
+            result = base ** exponent
+            form_a = f"${base}^{{{exponent}}} = {result}$"
+            form_b = f"$\\log_{{{base}}}({result}) = {exponent}$"
+            
+            question_type = random.choice(["logarithmic", "exponential"])
+            question = f"Express the equation {form_a} in {question_type} form." if question_type == "logarithmic" else f"Express the equation {form_b} in {question_type} form."
+            answer = form_b if question_type == "logarithmic" else form_a
+        
+        hint = "Remember the relationship: $\\log_b N = x \\iff b^x = N$."
+        explanation = "The base of the logarithm becomes the base of the power, and the result of the power becomes the argument of the log."
+        options = {answer, f"$\\log_{{{exponent}}}({result_num}) = {base}$"}
+
+
+    elif q_type == 'solve_simple_base':
+        # NEW: Solve for the base or a simple value, using a variable base
+        base = random.randint(2, 4)
         exponent = random.randint(2, 4)
         result = base ** exponent
-        form_a, form_b = f"${base}^{{{exponent}}} = {result}$", f"$\\log_{{{base}}}({result}) = {exponent}$"
         
-        if random.choice([True, False]):
-            question = f"Express the equation {form_a} in logarithmic form."
-            answer = form_b
-            options = {answer, f"$\\log_{{{exponent}}}({result}) = {base}$", f"$\\log_{{{base}}}({exponent}) = {result}$"}
+        solve_for = random.choice(['x', 'Base'])
+        if solve_for == 'x':
+            # Solve for x: log_b(x) = n
+            question = f"Solve for x: $\\log_{{{base}}}(x) = {exponent}$"
+            answer = str(result)
         else:
-            question = f"Express the equation {form_b} in exponential form."
-            answer = form_a
-            options = {answer, f"${exponent}^{{{base}}} = {result}$", f"${result}^{{{exponent}}} = {base}$"}
+            # Solve for the Base: log_x(R) = n
+            question = f"Find the value of the base $x$: $\\log_x({result}) = {exponent}$"
+            answer = str(base)
             
-        hint = "Remember the relationship: $\\log_b(N) = x$ is the same as $b^x = N$."
-        explanation = f"The base of the logarithm (${base}$) becomes the base of the power. The result of the logarithm (${exponent}$) becomes the exponent. The two forms are equivalent."
+        hint = "Convert the logarithmic equation to its equivalent exponential form to solve."
+        explanation = f"Using $x^n = R$, we have $x^{{{exponent}}} = {result}$. Solving for $x$ gives **{answer}**."
+        options = {answer, str(result), str(exponent)}
 
-    elif q_type == 'solve_simple':
-        base = random.randint(2, 4)
-        result = random.randint(2, 4)
-        x_val = base ** result
-        question = f"Solve for x: $\\log_{{{base}}}(x) = {result}$"
-        answer = str(x_val)
-        hint = "Convert the logarithmic equation to its equivalent exponential form to solve for x."
-        explanation = f"1. The equation is $\\log_{{{base}}}(x) = {result}$.\n\n2. In exponential form, this is $x = {base}^{{{result}}}$.\n\n3. Therefore, $x = {x_val}$."
-        options = {answer, str(base*result), str(result**base)}
 
-    # --- Medium Question (Original Logic Preserved) ---
-    elif q_type == 'laws':
-        val1, val2 = random.randint(2, 10), random.randint(2, 10)
-        op, sym, res, rule_name = random.choice([
-            ('add', '+', f"\\log({val1*val2})", "Product Rule"),
-            ('subtract', '-', f"\\log(\\frac{{{val1}}}{{{val2}}})", "Quotient Rule")
-        ])
-        question = f"Use the laws of logarithms to simplify the expression: $\\log({val1}) {sym} \\log({val2})$"
-        answer = f"${res}$"
-        hint = f"Recall the {rule_name} for logarithms: $\\log(A) + \\log(B) = \\log(AB)$ and $\\log(A) - \\log(B) = \\log(A/B)$."
-        explanation = f"Using the {rule_name}, $\\log({val1}) {sym} \\log({val2})$ simplifies directly to ${res}$."
-        options = {answer, f"$\\log({val1+val2})$", f"$\\frac{{\\log({val1})}}{{\\log({val2})}}$"}
-
-    # ------------------------------------------------------------------
-    # --- HARD QUESTIONS (New Logic) ---
-    # ------------------------------------------------------------------
-
-    # --- Hard Question 1: Logarithmic Quadratic (NEW) ---
-    elif q_type == 'log_quadratic':
-        base = random.choice([2, 3, 5])
+    elif q_type == 'evaluate_power':
+        # NEW: Simple evaluation using the power law before calculation
+        base = random.choice([2, 3])
+        power = random.randint(2, 4)
+        n = random.randint(2, 4)
+        arg = base**n
         
-        # Roots for the quadratic equation in terms of log_b(x)
+        question = f"Evaluate: $\\log_{{{base}}}({arg}^{{{power}}})$"
+        answer = str(n * power)
+        
+        hint = "Use the Power Law: $\\log_b x^n = n \\log_b x$. Remember that $\\log_b b = 1$."
+        explanation = f"1. Apply Power Law: $\\log_{{{base}}}({arg}^{{{power}}}) = {power} \\log_{{{base}}}({arg})$.\n2. Since ${arg} = {base}^{{{n}}}$, we have ${power} \\log_{{{base}}}({base}^{{{n}}}) = {power} \\times {n} = {n*power}$."
+        options = {answer, str(n + power), str(n)}
+
+    # --- MEDIUM QUESTIONS (Updated to use Variables) ---
+    elif q_type == 'variable_laws':
+        op, sym, res_arg, rule_name = random.choice([
+            ('add', '+', "xy", "Product Rule"),
+            ('subtract', '-', "\\frac{x}{y}", "Quotient Rule")
+        ])
+        
+        question = f"Use the laws of logarithms to simplify the expression: $\\log_b x {sym} \\log_b y$"
+        answer = f"$\\log_b({res_arg})$"
+        
+        hint = f"Recall the {rule_name} for logarithms: $\\log_b A {sym} \\log_b B = \\log_b(A {(' \\times' if op == 'add' else ' \\div')} B)$."
+        explanation = f"Using the {rule_name}, the expression simplifies directly to ${answer}$."
+        options = {answer, f"$\\log_b(x {sym} y)$", f"$\\log_b(x + y)$"}
+
+
+    elif q_type == 'evaluate_combined':
+        # Change of Base / Evaluation logic preserved
+        base1 = random.choice([2, 3, 5])
+        base2_exp = random.randint(2, 4)
+        base2 = base1**base2_exp
+        
+        question = f"Evaluate the expression: $\\frac{{\\log_{{10}}({base2})}}{{\\log_{{10}}({base1})}}$"
+        answer = str(base2_exp)
+        
+        hint = "Use the Change of Base formula: $\\frac{{\\log_a b}}{{\\log_a c}} = \\log_c b$. Then evaluate the resulting log."
+        explanation = f"1. Apply the Change of Base formula: $\\frac{{\\log_{{10}}({base2})}}{{\\log_{{10}}({base1})}} = \\log_{{{base1}}}({base2})$.\n2. Since ${base1}^{{{base2_exp}}} = {base2}$, the value of $\\log_{{{base1}}}({base2})$ is **{base2_exp}**."
+        options = {answer, str(base2/base1), str(base2-base1)}
+        
+
+    # --- HARD QUESTIONS (Preserved and Expanded Logic) ---
+    elif q_type == 'solve_combine':
+        # Original Hard Logic preserved
+        x_val = random.randint(3, 8)
+        b = random.randint(1, x_val - 1)
+        result = x_val * (x_val - b)
+        question = f"Solve for x: $\\log(x) + \\log(x - {b}) = \\log({result})$"
+        answer = str(x_val)
+        hint = "First, use the product rule to combine the logarithms on the left side into a single logarithm."
+        explanation = (f"1. Combine the logs on the left: $\\log(x(x-{b})) = \\log({result})$.\n\n"
+                       f"2. Since the logs (with the same base) are equal, their arguments must be equal: $x^2 - {b}x = {result}$.\n\n"
+                       f"3. Rearrange into a quadratic equation: $x^2 - {b}x - {result} = 0$.\n\n"
+                       f"4. Factor the quadratic: $(x - {x_val})(x + {x_val-b}) = 0$.\n\n"
+                       f"5. The possible solutions are $x={x_val}$ and $x={-(x_val-b)}$. Since the logarithm of a negative number is undefined in this context, the only valid solution is $x={x_val}$.")
+        options = {answer, str(-(x_val-b)), str(result+b)}
+        
+    elif q_type == 'log_quadratic':
+        # NEW Log-Quadratic Logic preserved
+        base = random.choice([2, 3, 5])
         y1_val = random.randint(1, 3)
         y2_val = random.randint(1, 3)
         while y1_val == y2_val: y2_val = random.randint(1, 3)
-        
-        B = y1_val + y2_val  # Coefficient of the log term
-        C = y1_val * y2_val  # Constant term
-        
-        # Final roots for x
+        B = y1_val + y2_val
+        C = y1_val * y2_val
         x1_val = base**y1_val
         x2_val = base**y2_val
-        
         question = f"Solve for x: $(\\log_{{{base}}}x)^2 - {B}(\\log_{{{base}}}x) + {C} = 0$"
         answer = f"x = {x1_val} or x = {x2_val}"
         hint = f"Let $y = \\log_{{{base}}}x$. The equation becomes a quadratic: $y^2 - {B}y + {C} = 0$. Solve for $y$ first."
         explanation = (f"1. Let $y = \\log_{{{base}}}x$. The quadratic equation is $y^2 - {B}y + {C} = 0$.\n"
                        f"2. Factorizing gives $(y - {y1_val})(y - {y2_val}) = 0$, so $y = {y1_val}$ or $y = {y2_val}$.\n"
-                       f"3. Substituting back: \n"
-                       f"   - Case 1: $\\log_{{{base}}}x = {y1_val} \\implies x = {base}^{{{y1_val}}} = {x1_val}$.\n"
-                       f"   - Case 2: $\\log_{{{base}}}x = {y2_val} \\implies x = {base}^{{{y2_val}}} = {x2_val}$.\n"
+                       f"3. Substituting back: $x = {base}^{{{y1_val}}} = {x1_val}$ and $x = {base}^{{{y2_val}}} = {x2_val}$.\n"
                        f"4. The solutions are **x = {x1_val} or x = {x2_val}**."
                       )
         options = {answer, f"x = {y1_val} or x = {y2_val}", str(x1_val + x2_val), str(x1_val)}
         
-    # --- Hard Question 2: Logarithmic Simultaneous (NEW) ---
     elif q_type == 'log_simultaneous':
+        # NEW Log-Simultaneous Logic preserved
         x_exp, y_exp = random.randint(2, 4), random.randint(1, 3)
         base = random.choice([2, 3])
 
@@ -4908,27 +4969,11 @@ def _generate_logarithms_question(difficulty="Medium"):
         hint = "Use the laws of logarithms (Product and Quotient rules) to convert the equations into a system of linear simultaneous equations for $\\log x$ and $\\log y$. Then solve."
         explanation = (f"1. Simplify (1) using the Product Rule: $\\log(xy) = \\log({sum_log_val}) \\implies xy = {sum_log_val}$.\n"
                        f"2. Simplify (2) using the Quotient Rule: $\\log(\\frac{{x}}{{y}}) = \\log({diff_log_val}) \\implies \\frac{{x}}{{y}} = {diff_log_val}$.\n"
-                       f"3. Solving the simultaneous equations ($xy={sum_log_val}$ and $x/y={diff_log_val}$) gives the solutions: $x={final_x}$ and $y={final_y}$."
+                       f"3. Solving the simultaneous equations gives the solutions: $x={final_x}$ and $y={final_y}$."
                       )
         options = {answer, f"x = {final_y}, y = {final_x}", f"x = {sum_log_val}, y = {diff_log_val}"}
-
-    # --- Hard Question 3: Solve Combine (Original Logic Preserved) ---
-    elif q_type == 'solve_combine':
-        x_val = random.randint(3, 8)
-        b = random.randint(1, x_val - 1)
-        result = x_val * (x_val - b)
-        question = f"Solve for x: $\\log(x) + \\log(x - {b}) = \\log({result})$"
-        answer = str(x_val)
-        hint = "First, use the product rule to combine the logarithms on the left side into a single logarithm."
-        explanation = (f"1. Combine the logs on the left: $\\log(x(x-{b})) = \\log({result})$.\n\n"
-                       f"2. Since the logs (with the same base) are equal, their arguments must be equal: $x^2 - {b}x = {result}$.\n\n"
-                       f"3. Rearrange into a quadratic equation: $x^2 - {b}x - {result} = 0$.\n\n"
-                       f"4. Factor the quadratic: $(x - {x_val})(x + {x_val-b}) = 0$.\n\n"
-                       f"5. The possible solutions are $x={x_val}$ and $x={-(x_val-b)}$. Since the logarithm of a negative number is undefined in this context, the only valid solution is $x={x_val}$.")
-        options = {answer, str(-(x_val-b)), str(result+b)}
         
     return {"question": question, "options": _finalize_options(options), "answer": answer, "hint": hint, "explanation": explanation, "difficulty": difficulty}
-
 def _generate_probability_question(difficulty="Medium"):
     """Generates a Probability question based on difficulty, preserving all original sub-types."""
 
@@ -9123,6 +9168,7 @@ else:
         show_main_app(cookies) # Pass the cookies object here
     else:
         show_login_or_signup_page()
+
 
 
 
