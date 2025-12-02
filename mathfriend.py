@@ -6853,7 +6853,7 @@ def display_math_game_page(topic_options):
 def display_quiz_page(topic_options):
     st.header("🧠 Quiz Time!")
     if 'current_part_index' not in st.session_state:
-    st.session_state.current_part_index = 0
+        st.session_state.current_part_index = 0
 
     # --- Section 1: This block runs when NO quiz is active ---
     if not st.session_state.quiz_active:
@@ -9072,6 +9072,7 @@ else:
         show_main_app(cookies) # Pass the cookies object here
     else:
         show_login_or_signup_page()
+
 
 
 
