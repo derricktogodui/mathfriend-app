@@ -4804,22 +4804,18 @@ def _generate_linear_algebra_question(difficulty="Medium"):
     return {"question": question, "options": _finalize_options(options), "answer": answer, "hint": hint, "explanation": explanation, "difficulty": difficulty}
 
 def _generate_logarithms_question(difficulty="Medium"):
-    """Generates a Logarithms question based on difficulty, preserving all original sub-types."""
-    
     if difficulty == "Easy":
-        # Foundational concepts: converting forms and solving simple logs.
         q_type = random.choice(['conversion', 'solve_simple'])
     elif difficulty == "Medium":
-        # Applying the core laws of logarithms.
         q_type = 'laws'
     else: # Hard
-        # Combining laws with algebraic solving.
-        q_type = 'solve_combine'
+        # NEW Hard options added
+        q_type = random.choice(['solve_combine', 'log_quadratic', 'log_simultaneous'])
 
     question, answer, hint, explanation = "", "", "", ""
     options = set()
 
-    # --- Easy Questions ---
+    # --- Easy Questions (Original Logic Preserved) ---
     if q_type == 'conversion':
         base = random.randint(2, 5)
         exponent = random.randint(2, 4)
@@ -4835,7 +4831,7 @@ def _generate_logarithms_question(difficulty="Medium"):
             answer = form_a
             options = {answer, f"${exponent}^{{{base}}} = {result}$", f"${result}^{{{exponent}}} = {base}$"}
             
-        hint = "Remember the relationship: $\log_b(N) = x$ is the same as $b^x = N$."
+        hint = "Remember the relationship: $\\log_b(N) = x$ is the same as $b^x = N$."
         explanation = f"The base of the logarithm (${base}$) becomes the base of the power. The result of the logarithm (${exponent}$) becomes the exponent. The two forms are equivalent."
 
     elif q_type == 'solve_simple':
@@ -4848,7 +4844,7 @@ def _generate_logarithms_question(difficulty="Medium"):
         explanation = f"1. The equation is $\\log_{{{base}}}(x) = {result}$.\n\n2. In exponential form, this is $x = {base}^{{{result}}}$.\n\n3. Therefore, $x = {x_val}$."
         options = {answer, str(base*result), str(result**base)}
 
-    # --- Medium Question ---
+    # --- Medium Question (Original Logic Preserved) ---
     elif q_type == 'laws':
         val1, val2 = random.randint(2, 10), random.randint(2, 10)
         op, sym, res, rule_name = random.choice([
@@ -4857,11 +4853,66 @@ def _generate_logarithms_question(difficulty="Medium"):
         ])
         question = f"Use the laws of logarithms to simplify the expression: $\\log({val1}) {sym} \\log({val2})$"
         answer = f"${res}$"
-        hint = f"Recall the {rule_name} for logarithms: $\log(A) + \log(B) = \log(AB)$ and $\log(A) - \log(B) = \log(A/B)$."
+        hint = f"Recall the {rule_name} for logarithms: $\\log(A) + \\log(B) = \\log(AB)$ and $\\log(A) - \\log(B) = \\log(A/B)$."
         explanation = f"Using the {rule_name}, $\\log({val1}) {sym} \\log({val2})$ simplifies directly to ${res}$."
         options = {answer, f"$\\log({val1+val2})$", f"$\\frac{{\\log({val1})}}{{\\log({val2})}}$"}
 
-    # --- Hard Question ---
+    # ------------------------------------------------------------------
+    # --- HARD QUESTIONS (New Logic) ---
+    # ------------------------------------------------------------------
+
+    # --- Hard Question 1: Logarithmic Quadratic (NEW) ---
+    elif q_type == 'log_quadratic':
+        base = random.choice([2, 3, 5])
+        
+        # Roots for the quadratic equation in terms of log_b(x)
+        y1_val = random.randint(1, 3)
+        y2_val = random.randint(1, 3)
+        while y1_val == y2_val: y2_val = random.randint(1, 3)
+        
+        B = y1_val + y2_val  # Coefficient of the log term
+        C = y1_val * y2_val  # Constant term
+        
+        # Final roots for x
+        x1_val = base**y1_val
+        x2_val = base**y2_val
+        
+        question = f"Solve for x: $(\\log_{{{base}}}x)^2 - {B}(\\log_{{{base}}}x) + {C} = 0$"
+        answer = f"x = {x1_val} or x = {x2_val}"
+        hint = f"Let $y = \\log_{{{base}}}x$. The equation becomes a quadratic: $y^2 - {B}y + {C} = 0$. Solve for $y$ first."
+        explanation = (f"1. Let $y = \\log_{{{base}}}x$. The quadratic equation is $y^2 - {B}y + {C} = 0$.\n"
+                       f"2. Factorizing gives $(y - {y1_val})(y - {y2_val}) = 0$, so $y = {y1_val}$ or $y = {y2_val}$.\n"
+                       f"3. Substituting back: \n"
+                       f"   - Case 1: $\\log_{{{base}}}x = {y1_val} \\implies x = {base}^{{{y1_val}}} = {x1_val}$.\n"
+                       f"   - Case 2: $\\log_{{{base}}}x = {y2_val} \\implies x = {base}^{{{y2_val}}} = {x2_val}$.\n"
+                       f"4. The solutions are **x = {x1_val} or x = {x2_val}**."
+                      )
+        options = {answer, f"x = {y1_val} or x = {y2_val}", str(x1_val + x2_val), str(x1_val)}
+        
+    # --- Hard Question 2: Logarithmic Simultaneous (NEW) ---
+    elif q_type == 'log_simultaneous':
+        x_exp, y_exp = random.randint(2, 4), random.randint(1, 3)
+        base = random.choice([2, 3])
+
+        sum_log_result_exp = x_exp + y_exp
+        diff_log_result_exp = x_exp - y_exp
+        
+        sum_log_val = base**(sum_log_result_exp)
+        diff_log_val = base**(diff_log_result_exp)
+
+        final_x = base**x_exp
+        final_y = base**y_exp
+
+        question = f"Solve for $x$ and $y$ that satisfy the system of equations (all to base {base}):\n\n**(1)** $\\log x + \\log y = \\log ({sum_log_val})$\n\n**(2)** $\\log x - \\log y = \\log ({diff_log_val})$"
+        answer = f"x = {final_x}, y = {final_y}"
+        hint = "Use the laws of logarithms (Product and Quotient rules) to convert the equations into a system of linear simultaneous equations for $\\log x$ and $\\log y$. Then solve."
+        explanation = (f"1. Simplify (1) using the Product Rule: $\\log(xy) = \\log({sum_log_val}) \\implies xy = {sum_log_val}$.\n"
+                       f"2. Simplify (2) using the Quotient Rule: $\\log(\\frac{{x}}{{y}}) = \\log({diff_log_val}) \\implies \\frac{{x}}{{y}} = {diff_log_val}$.\n"
+                       f"3. Solving the simultaneous equations ($xy={sum_log_val}$ and $x/y={diff_log_val}$) gives the solutions: $x={final_x}$ and $y={final_y}$."
+                      )
+        options = {answer, f"x = {final_y}, y = {final_x}", f"x = {sum_log_val}, y = {diff_log_val}"}
+
+    # --- Hard Question 3: Solve Combine (Original Logic Preserved) ---
     elif q_type == 'solve_combine':
         x_val = random.randint(3, 8)
         b = random.randint(1, x_val - 1)
@@ -9072,6 +9123,7 @@ else:
         show_main_app(cookies) # Pass the cookies object here
     else:
         show_login_or_signup_page()
+
 
 
 
